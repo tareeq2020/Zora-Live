@@ -17,10 +17,11 @@ import express from 'express';
 import { AppModule } from './app.module';
 import { seed } from './bootstrap/seed';
 import { ExpressStatusInterceptor } from './common/express-status.interceptor';
+import { resolveSessionSecret } from './common/secret';
 
 async function bootstrap() {
   seed(DATA_DIR);
-  const SESSION_SECRET = fs.readFileSync(path.join(DATA_DIR, '.session-secret'), 'utf8');
+  const SESSION_SECRET = resolveSessionSecret(DATA_DIR);
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
