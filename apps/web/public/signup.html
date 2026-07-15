@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZORA DASHBOARD — Create your account</title>
+<meta name="description" content="Create your Zora Dashboard. Secure payout setup and identity verification, then your storefront is live.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4F1EA'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F1EA; --card:#FBF9F4; --ink:#0A0A0B; --hair:#DDD8CB; --mut:#8A877E;
+    --blue:#3D5AFE; --bluewash:#E8EBFE; --green:#1D9E75;
+    --amber-bg:#FAEEDA; --amber-bd:#EF9F27; --amber-tx:#854F0B;
+    --sans:'Archivo',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--mono)}
+  ::selection{background:var(--blue);color:#fff}
+
+  .top{display:flex;align-items:center;justify-content:space-between;padding:22px 32px;max-width:1000px;margin:0 auto}
+  .brand{font-weight:600;font-size:19px;letter-spacing:-.02em}
+  .brand .o{color:var(--blue)}
+  .top .secure-tag{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--mut)}
+  .top .secure-tag svg{width:14px;height:14px;stroke:var(--green);fill:none;stroke-width:2}
+
+  .stage{max-width:460px;margin:0 auto;padding:34px 24px 80px}
+
+  .dots{display:flex;gap:7px;justify-content:center;margin-bottom:34px}
+  .dots i{width:28px;height:4px;border-radius:2px;background:var(--hair);transition:background .3s}
+  .dots i.on{background:var(--blue)}
+  .dots i.done{background:var(--ink)}
+
+  .step{display:none;animation:rise .4s ease both}
+  .step.on{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .crumb{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--mut);margin-bottom:14px}
+  h1{font-size:29px;font-weight:600;letter-spacing:-.025em;line-height:1.12;margin-bottom:10px}
+  .lede{color:var(--mut);font-size:14.5px;margin-bottom:26px}
+
+  .gbtn{width:100%;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:15px;font-family:var(--sans);font-size:15px;font-weight:500;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+  .gbtn:hover{border-color:var(--mut);box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  .gbtn svg{width:19px;height:19px;flex-shrink:0}
+  .or{display:flex;align-items:center;gap:14px;margin:20px 0;color:var(--mut);font-family:var(--mono);font-size:10.5px;letter-spacing:.2em}
+  .or::before,.or::after{content:'';flex:1;height:1px;background:var(--hair)}
+  .ebtn{width:100%;background:none;border:1px solid var(--hair);border-radius:12px;padding:14px;font-family:var(--mono);font-size:12.5px;letter-spacing:.08em;color:var(--mut);cursor:pointer;transition:border-color .2s,color .2s}
+  .ebtn:hover{border-color:var(--mut);color:var(--ink)}
+  .fine{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.03em;text-align:center;margin-top:24px;line-height:1.7}
+
+  label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--mut);margin-bottom:9px}
+  .in{width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:14px 15px;outline:none;transition:border-color .2s;color:var(--ink)}
+  .in:focus{border-color:var(--blue)}
+  select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center}
+  .field{margin-bottom:20px}
+
+  /* secure trust note */
+  .secure-note{display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--mut);margin-bottom:24px;line-height:1.6}
+  .secure-note svg{width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2;flex-shrink:0;margin-top:1px}
+  .secure-note b{color:var(--ink);font-weight:500}
+
+  /* subdomain live preview */
+  .urlbox{background:var(--ink);border-radius:14px;padding:26px 22px;text-align:center;margin-bottom:14px}
+  .urlbox .u{font-family:var(--mono);font-size:clamp(19px,5vw,26px);color:#fff;letter-spacing:-.01em;word-break:break-all}
+  .urlbox .u .h{color:var(--blue)}
+  .urlbox .avail{font-family:var(--mono);font-size:11px;letter-spacing:.1em;margin-top:12px;display:inline-flex;align-items:center;gap:7px}
+  .urlbox .avail.ok{color:#5DCAA5}
+  .urlbox .avail.no{color:#F0997B}
+  .urlbox .avail .tick{width:15px;height:15px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;font-size:9px}
+  .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:#fff}
+  .handle-wrap:focus-within{border-color:var(--blue)}
+  .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:15px;padding:14px 6px 14px 15px;background:none;text-align:right}
+  .handle-wrap .suf{display:flex;align-items:center;padding:0 15px 0 0;font-family:var(--mono);font-size:15px;color:var(--mut)}
+
+  /* segmented method toggle */
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:5px;margin-bottom:20px}
+  .seg button{border:none;background:none;border-radius:8px;padding:12px;font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--mut);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .18s}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  .seg button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+
+  /* KYC id-type cards */
+  .idtypes{display:grid;gap:10px;margin-bottom:22px}
+  .idtype{display:flex;align-items:center;gap:14px;border:1px solid var(--hair);border-radius:12px;padding:14px 16px;cursor:pointer;background:#fff;transition:all .2s}
+  .idtype:hover{border-color:var(--mut)}
+  .idtype.on{border-color:var(--blue);background:var(--bluewash)}
+  .idtype .ico{width:38px;height:38px;border-radius:9px;background:var(--card);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .idtype .ico svg{width:19px;height:19px;stroke:var(--mut);fill:none;stroke-width:2}
+  .idtype.on .ico{background:#fff}
+  .idtype .it-t{font-weight:500;font-size:14.5px}
+  .idtype .it-d{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.06em;margin-top:3px}
+  .idtype .radio{margin-left:auto;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--hair);flex-shrink:0}
+  .idtype.on .radio{border-color:var(--blue);background:radial-gradient(circle,var(--blue) 42%,#fff 46%)}
+
+  /* dropzones */
+  .dz-grid{display:grid;gap:12px;margin-bottom:6px}
+  .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--card);min-height:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;cursor:pointer;transition:border-color .2s,background .2s;position:relative;overflow:hidden}
+  .dz:hover{border-color:var(--mut)}
+  .dz.drag{border-color:var(--blue);background:var(--bluewash)}
+  .dz.filled{border-style:solid;padding:0}
+  .dz img{width:100%;height:118px;object-fit:cover;display:none}
+  .dz.filled img{display:block}
+  .dz.filled .dz-prompt{display:none}
+  .dz .lockic{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+  .dz .lockic svg{width:15px;height:15px;stroke:var(--mut);fill:none;stroke-width:2}
+  .dz .dz-t{font-size:13px;font-weight:500}
+  .dz .dz-t b{color:var(--blue)}
+  .dz .dz-d{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--mut);margin-top:5px}
+  .dz .okbadge{position:absolute;top:8px;right:8px;z-index:2;background:var(--green);color:#fff;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 9px;border-radius:99px;display:none;align-items:center;gap:4px}
+  .dz.filled .okbadge{display:inline-flex}
+  .dz .rm{position:absolute;top:8px;left:8px;z-index:2;background:rgba(10,10,11,.6);color:#fff;border:none;width:24px;height:24px;border-radius:50%;font-size:14px;cursor:pointer;display:none}
+  .dz.filled .rm{display:block}
+
+  .primary{width:100%;background:var(--ink);color:var(--paper);border:none;border-radius:12px;font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.14em;padding:16px;cursor:pointer;transition:background .2s;margin-top:10px}
+  .primary:hover{background:var(--blue)}
+  .primary:disabled{opacity:.4;cursor:not-allowed}
+  .primary:disabled:hover{background:var(--ink)}
+  .skip{display:block;width:100%;text-align:center;background:none;border:none;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--mut);margin-top:16px;cursor:pointer;padding:8px}
+  .skip:hover{color:var(--ink)}
+
+  /* done / pending */
+  .step.center{text-align:center}
+  .pending-badge{display:inline-flex;align-items:center;gap:8px;background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber-tx);font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:9px 16px;border-radius:99px;margin:0 auto 22px}
+  .pending-badge svg{width:14px;height:14px;stroke:var(--amber-tx);fill:none;stroke-width:2}
+  .live-url{font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:14px;margin:22px 0;letter-spacing:.02em}
+  .live-url .h{color:var(--blue)}
+  .live-url .badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--amber-tx);margin-left:8px}
+  .live-url .badge .d{width:6px;height:6px;border-radius:50%;background:var(--amber-bd)}
+  .info-lock{display:flex;gap:11px;text-align:left;background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:16px;margin:20px 0;font-size:13px;color:var(--mut);line-height:1.6}
+  .info-lock svg{width:18px;height:18px;stroke:var(--green);fill:none;stroke-width:2;flex-shrink:0;margin-top:2px}
+  .info-lock b{color:var(--ink);font-weight:500}
+  .two-cta{display:grid;gap:10px;margin-top:8px}
+</style>
+<link rel="stylesheet" href="/zora-tokens.css">
+<script src="/zora-theme.js"></script>
+</head>
+<body data-ui="creator">
+
+<div class="top">
+  <a class="brand" href="index.html">z<span class="o">o</span>ra dashboard</a>
+  <span class="secure-tag"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>SECURE ONBOARDING</span>
+</div>
+
+<div class="stage">
+  <div class="dots">
+    <i class="on" data-d="0"></i><i data-d="1"></i><i data-d="2"></i><i data-d="3"></i><i data-d="4"></i>
+  </div>
+
+  <!-- STEP 0 — 2-click signup -->
+  <div class="step on" id="s0">
+    <p class="crumb">CREATE YOUR ACCOUNT</p>
+    <h1>Sell your first ticket today.</h1>
+    <p class="lede">A quick, secure setup — claim your address, add your wallet, verify your ID. Then you're live.</p>
+    <button class="gbtn" id="google-btn">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div class="or">OR</div>
+    <button class="ebtn" id="email-btn">CONTINUE WITH EMAIL</button>
+    <p class="fine">Two clicks and you're in. By continuing you agree to Zora's<br>organizer terms and the one promise we never break: no junk fees.</p>
+  </div>
+
+  <!-- STEP 1 — claim subdomain -->
+  <div class="step" id="s1">
+    <p class="crumb">STEP 1 OF 3 · YOUR ADDRESS</p>
+    <h1>Claim your address.</h1>
+    <p class="lede">This is your home on Zora — a premium link that's yours the second you claim it. You can add a custom domain later.</p>
+    <div class="urlbox">
+      <div class="u"><span class="h" id="url-handle">yourname</span>.zora.com</div>
+      <div class="avail ok" id="avail"><span class="tick">&checkmark;</span><span id="avail-txt">available</span></div>
+    </div>
+    <div class="field" style="margin-top:20px">
+      <label>YOUR HANDLE</label>
+      <div class="handle-wrap">
+        <input id="handle" placeholder="thebrunchcity" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <span class="suf">.zora.com</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>DISPLAY NAME</label>
+      <input class="in" id="display" placeholder="The Brunch City">
+    </div>
+    <button class="primary" id="s1-next" disabled>CLAIM &amp; CONTINUE</button>
+  </div>
+
+  <!-- STEP 2 — wallet / payout setup -->
+  <div class="step" id="s2">
+    <p class="crumb">STEP 2 OF 3 · YOUR WALLET</p>
+    <h1>Set up your wallet.</h1>
+    <p class="lede">Where your ticket revenue lands. You choose the rail — mobile money or bank.</p>
+
+    <div class="secure-note">
+      <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span><b>Bank-grade encryption.</b> Your payout details are tokenized — we store a reference, never the raw number.</span>
+    </div>
+
+    <div class="field">
+      <label>YOUR REGION</label>
+      <select class="in" id="w-region"></select>
+    </div>
+
+    <div class="seg" id="w-method">
+      <button class="on" data-m="mobile" type="button"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Mobile money</button>
+      <button data-m="bank" type="button"><svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M12 10v9M19 10v9M3 20h18"/></svg>Bank transfer</button>
+    </div>
+
+    <div class="field">
+      <label id="w-prov-label">MOBILE MONEY PROVIDER</label>
+      <select class="in" id="w-provider"></select>
+    </div>
+    <div class="field">
+      <label>ACCOUNT NAME</label>
+      <input class="in" id="w-name" placeholder="As it appears on the account" autocomplete="off">
+    </div>
+    <div class="field">
+      <label id="w-num-label">MOBILE NUMBER</label>
+      <input class="in" id="w-number" inputmode="numeric" placeholder="+255 7XX XXX XXX" autocomplete="off">
+    </div>
+
+    <button class="primary" id="s2-next" disabled>SAVE &amp; CONTINUE</button>
+    <button class="skip" id="s2-skip">I'll add payouts later &rarr;</button>
+  </div>
+
+  <!-- STEP 3 — KYC identity verification -->
+  <div class="step" id="s3">
+    <p class="crumb">STEP 3 OF 3 · VERIFY IT'S YOU</p>
+    <h1>Verify your identity.</h1>
+    <p class="lede">A one-time check that keeps scammers off the marketplace and protects your buyers. Approved within 24 hours.</p>
+
+    <div class="secure-note">
+      <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span>Encrypted in transit and at rest — seen only by our verification team. <b>Never shown publicly.</b></span>
+    </div>
+
+    <div class="field">
+      <label>ISSUING COUNTRY</label>
+      <select class="in" id="kyc-country"></select>
+    </div>
+    <div class="field">
+      <label>FULL NAME (EXACTLY AS ON THE DOCUMENT)</label>
+      <input class="in" id="kyc-name" type="text" autocomplete="name" placeholder="e.g. Amina Juma Hassan">
+    </div>
+    <div class="field">
+      <label>DOCUMENT NUMBER <span style="color:var(--mut2)">(OPTIONAL)</span></label>
+      <input class="in" id="kyc-docnum" type="text" autocomplete="off" placeholder="Speeds up review — we store only a masked copy">
+    </div>
+
+    <label style="margin-bottom:12px">WHAT WILL YOU UPLOAD?</label>
+    <div class="idtypes" id="id-types">
+      <div class="idtype on" data-t="passport">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8.5 17c.7-1.8 2-2.5 3.5-2.5s2.8.7 3.5 2.5"/></svg></div>
+        <div><p class="it-t">Passport</p><p class="it-d">PHOTO PAGE</p></div>
+        <span class="radio"></span>
+      </div>
+      <div class="idtype" data-t="drivers_license">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M13 9h5M13 13h5M5 15h6"/></svg></div>
+        <div><p class="it-t">Driver's License</p><p class="it-d">FRONT + BACK</p></div>
+        <span class="radio"></span>
+      </div>
+      <div class="idtype" data-t="national_id">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M13 9h5M13 13h5M5 15h8"/></svg></div>
+        <div><p class="it-t">National ID</p><p class="it-d">FRONT + BACK</p></div>
+        <span class="radio"></span>
+      </div>
+    </div>
+
+    <div class="dz-grid" id="dz-grid"></div>
+
+    <label class="consent" style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 18px;font-family:var(--sans);font-size:12.5px;letter-spacing:0;color:var(--mut);text-transform:none;cursor:pointer">
+      <input type="checkbox" id="kyc-consent" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--blue)">
+      <span>I confirm this is my own valid government ID, and I agree to Zora verifying my identity using it, as described in the <b style="color:var(--ink)">Privacy Policy</b>.</span>
+    </label>
+
+    <button class="primary" id="s3-next" disabled>SUBMIT FOR VERIFICATION</button>
+  </div>
+
+  <!-- STEP 4 — done / pending -->
+  <div class="step center" id="s4">
+    <div class="pending-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>VERIFICATION PENDING</div>
+    <h1>You're in review.</h1>
+    <p class="lede">Thanks — your dashboard is ready to explore while our security team checks your ID.</p>
+    <div class="live-url"><span class="h" id="done-handle">yourname</span>.zora.com <span class="badge"><span class="d"></span>PENDING</span></div>
+    <div class="info-lock">
+      <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span>You can <b>draft events</b> right now. <b>Ticket payouts</b> and your <b>public listing</b> unlock the moment we approve your ID — usually within <b>24 hours</b>. We'll email you the second it clears.</span>
+    </div>
+    <div class="two-cta">
+      <button class="primary" id="go-dash" style="margin-top:0">GO TO YOUR DASHBOARD</button>
+      <button class="skip" id="go-create">Draft an event while you wait &rarr;</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let step = 0;
+  const TAKEN = ['zora','admin','www','app','port','api','help','offshore'];
+
+  function goStep(n){
+    step = n;
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('on'));
+    $('s' + n).classList.add('on');
+    document.querySelectorAll('.dots i').forEach((d, i) => {
+      d.classList.toggle('done', i < n);
+      d.classList.toggle('on', i === n);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  /* step 0 */
+  $('google-btn').addEventListener('click', () => goStep(1));
+  $('email-btn').addEventListener('click', () => goStep(1));
+
+  /* step 1: subdomain */
+  const sani = v => v.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 30);
+  function checkHandle(){
+    const h = sani($('handle').value);
+    $('handle').value = h;
+    $('url-handle').textContent = h || 'yourname';
+    const av = $('avail'), txt = $('avail-txt');
+    if (!h){ av.className = 'avail ok'; txt.textContent = 'available'; $('s1-next').disabled = true; return; }
+    if (h.length < 3){ av.className = 'avail no'; txt.textContent = 'too short'; $('s1-next').disabled = true; return; }
+    if (TAKEN.includes(h)){ av.className = 'avail no'; txt.textContent = 'taken — try another'; $('s1-next').disabled = true; return; }
+    av.className = 'avail ok'; txt.textContent = 'available'; $('s1-next').disabled = false;
+  }
+  $('handle').addEventListener('input', checkHandle);
+  $('s1-next').addEventListener('click', () => {
+    $('done-handle').textContent = sani($('handle').value);
+    goStep(2);
+  });
+
+  /* step 2: wallet */
+  const REGIONS = {
+    'Tanzania':        { mobile:['M-Pesa','Airtel Money','Tigo Pesa','Halopesa'], bank:['CRDB Bank','NMB Bank','NBC','Stanbic Tanzania'], code:'+255 7XX XXX XXX' },
+    'Kenya':           { mobile:['M-Pesa','Airtel Money'],                        bank:['Equity Bank','KCB','Co-operative Bank'],        code:'+254 7XX XXX XXX' },
+    'Uganda':          { mobile:['MTN MoMo','Airtel Money'],                      bank:['Stanbic Uganda','Centenary Bank'],              code:'+256 7XX XXX XXX' },
+    'Ghana':           { mobile:['MTN MoMo','AirtelTigo Money','Telecel Cash'],   bank:['GCB Bank','Ecobank Ghana','Absa Ghana'],        code:'+233 2X XXX XXXX' },
+    'Nigeria':         { mobile:['OPay','PalmPay','Airtel Money'],                bank:['GTBank','Access Bank','Zenith Bank','UBA'],     code:'+234 8XX XXX XXXX' },
+    "Côte d'Ivoire":   { mobile:['Orange Money','MTN MoMo','Moov Money','Wave'],  bank:['SGCI','Ecobank CI'],                            code:'+225 XX XX XX XX' },
+    'Senegal':         { mobile:['Orange Money','Free Money','Wave'],             bank:['CBAO','Ecobank Senegal'],                       code:'+221 7X XXX XX XX' }
+  };
+  let wMethod = 'mobile';
+  $('w-region').innerHTML = Object.keys(REGIONS).map(r => '<option>' + r + '</option>').join('');
+
+  function fillProviders(){
+    const r = REGIONS[$('w-region').value];
+    const list = wMethod === 'mobile' ? r.mobile : r.bank;
+    $('w-provider').innerHTML = '<option value="" disabled selected>Select…</option>' + list.map(p => '<option>' + p + '</option>').join('');
+    $('w-prov-label').textContent = wMethod === 'mobile' ? 'MOBILE MONEY PROVIDER' : 'BANK';
+    $('w-num-label').textContent = wMethod === 'mobile' ? 'MOBILE NUMBER' : 'ACCOUNT NUMBER';
+    $('w-number').placeholder = wMethod === 'mobile' ? r.code : '0123 4567 8901';
+    validateWallet();
+  }
+  function validateWallet(){
+    const ok = $('w-provider').value && $('w-name').value.trim().length > 1 && $('w-number').value.replace(/\D/g,'').length >= 6;
+    $('s2-next').disabled = !ok;
+  }
+  $('w-region').addEventListener('change', fillProviders);
+  $('w-method').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    wMethod = b.dataset.m;
+    document.querySelectorAll('#w-method button').forEach(x => x.classList.toggle('on', x === b));
+    fillProviders();
+  });
+  ['w-provider','w-name','w-number'].forEach(id => $(id).addEventListener('input', validateWallet));
+  $('w-provider').addEventListener('change', validateWallet);
+  fillProviders();
+  $('s2-next').addEventListener('click', () => goStep(3));
+  $('s2-skip').addEventListener('click', () => goStep(3));
+
+  /* step 3: KYC uploaders */
+  const DOCS = {
+    passport:        [{ k:'photo_page', t:'Passport photo page' }],
+    drivers_license: [{ k:'front', t:'Front of your license' }, { k:'back', t:'Back of your license' }],
+    national_id:     [{ k:'front', t:'Front of your ID' }, { k:'back', t:'Back of your ID' }]
+  };
+  let idType = 'passport';
+  const filled = {};   // k -> { dataUrl, type }
+
+  /* issuing-country select (reuse the wallet regions Zora serves) */
+  $('kyc-country').innerHTML = Object.keys(REGIONS).map(r => '<option>' + r + '</option>').join('');
+  $('kyc-country').addEventListener('change', validateKyc);
+  $('kyc-name').addEventListener('input', validateKyc);
+  $('kyc-consent').addEventListener('change', validateKyc);
+
+  function lockSvg(){ return '<div class="lockic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>'; }
+  function renderZones(){
+    for (const k in filled) delete filled[k];
+    const zones = DOCS[idType];
+    $('dz-grid').innerHTML = zones.map((z, i) =>
+      '<div class="dz" data-k="' + z.k + '">' +
+        '<input type="file" accept="image/*,application/pdf" hidden>' +
+        '<img alt="' + z.t + ' preview">' +
+        '<span class="okbadge">&checkmark; UPLOADED</span>' +
+        '<button class="rm" type="button" aria-label="Remove">&times;</button>' +
+        '<div class="dz-prompt">' + lockSvg() +
+          '<p class="dz-t">' + z.t + ' — <b>upload</b> or drop</p>' +
+          '<p class="dz-d">JPG / PNG / PDF · CLEAR, ALL CORNERS VISIBLE</p>' +
+        '</div>' +
+      '</div>').join('');
+    validateKyc();
+  }
+  function validateKyc(){
+    const need = DOCS[idType].map(z => z.k);
+    const ok = need.every(k => filled[k])
+      && $('kyc-country').value
+      && $('kyc-name').value.trim().length > 1
+      && $('kyc-consent').checked;
+    $('s3-next').disabled = !ok;
+  }
+  function loadInto(zone, file){
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024){ alert('That file is over 8MB'); return; }
+    const k = zone.dataset.k;
+    const reader = new FileReader();
+    reader.onload = e => {
+      filled[k] = { dataUrl: e.target.result, type: file.type };
+      if (/^image\//.test(file.type)){
+        zone.querySelector('img').src = e.target.result;
+      } else {
+        zone.querySelector('img').removeAttribute('src');
+        zone.style.minHeight = '118px';
+      }
+      zone.classList.add('filled');
+      validateKyc();
+    };
+    reader.readAsDataURL(file);
+  }
+  $('id-types').addEventListener('click', e => {
+    const c = e.target.closest('.idtype'); if (!c) return;
+    idType = c.dataset.t;
+    document.querySelectorAll('.idtype').forEach(x => x.classList.toggle('on', x === c));
+    renderZones();
+  });
+  $('dz-grid').addEventListener('click', e => {
+    const rm = e.target.closest('.rm');
+    if (rm){
+      e.stopPropagation();
+      const zone = rm.closest('.dz');
+      zone.classList.remove('filled'); zone.querySelector('input').value = '';
+      delete filled[zone.dataset.k]; validateKyc();
+      return;
+    }
+    const zone = e.target.closest('.dz'); if (zone) zone.querySelector('input').click();
+  });
+  $('dz-grid').addEventListener('change', e => {
+    if (e.target.type === 'file' && e.target.files[0]) loadInto(e.target.closest('.dz'), e.target.files[0]);
+  });
+  ['dragenter','dragover'].forEach(ev => $('dz-grid').addEventListener(ev, e => { e.preventDefault(); const z = e.target.closest('.dz'); if (z) z.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => $('dz-grid').addEventListener(ev, e => { e.preventDefault(); const z = e.target.closest('.dz'); if (z) z.classList.remove('drag'); }));
+  $('dz-grid').addEventListener('drop', e => { const z = e.target.closest('.dz'); if (z && e.dataTransfer.files[0]) loadInto(z, e.dataTransfer.files[0]); });
+  renderZones();
+
+  async function postJson(url, body){
+    const r = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Something went wrong — please try again');
+    return data;
+  }
+  $('s3-next').addEventListener('click', async () => {
+    const btn = $('s3-next'), was = btn.textContent;
+    btn.disabled = true; btn.textContent = 'SUBMITTING…';
+    try {
+      /* 1) upload each document to private, encrypted storage → opaque docIds */
+      const documents = [];
+      for (const z of DOCS[idType]){
+        const f = filled[z.k];
+        const up = await postJson('/api/kyc/upload', { dataUrl: f.dataUrl });
+        documents.push({ docId: up.docId, side: z.k, contentType: up.contentType });
+      }
+      /* 2) create the verification record */
+      const res = await postJson('/api/kyc/submit', {
+        idType,
+        country:   $('kyc-country').value,
+        fullName:  $('kyc-name').value.trim(),
+        docNumber: $('kyc-docnum').value.trim(),
+        documents
+      });
+      /* 3) remember the reference so the dashboard can show live status */
+      try { localStorage.setItem('zora_kyc_ref', res.ref); } catch {}
+      goStep(4);
+    } catch (ex){
+      alert(ex.message);
+      btn.disabled = false; btn.textContent = was;
+    }
+  });
+
+  /* step 4: routes (carry pending state to the dashboard) */
+  $('go-dash').addEventListener('click', () => location.href = 'dashboard.html?pending=1');
+  $('go-create').addEventListener('click', () => location.href = 'create-event.html');
+</script>
+
+</body>
+</html>

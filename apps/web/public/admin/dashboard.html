@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZORA — Control room</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;
+        --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--mono)}
+
+  header{position:sticky;top:0;z-index:20;background:var(--c-nav);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+  .head-in{max-width:1100px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between}
+  .wordmark{font-weight:600;font-size:20px;letter-spacing:-.02em}
+  .wordmark .o{color:var(--blue)}
+  .wordmark small{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--mut);margin-left:12px}
+  .head-actions{display:flex;gap:18px;align-items:center;font-family:var(--mono);font-size:11.5px;letter-spacing:.1em}
+  .head-actions a{color:var(--mut)} .head-actions a:hover{color:var(--bone)}
+  .head-actions button{background:none;border:1px solid var(--hair);color:var(--mut);font-family:var(--mono);font-size:11px;letter-spacing:.15em;padding:8px 14px;cursor:pointer}
+  .head-actions button:hover{border-color:var(--orange);color:var(--orange)}
+
+  .tabs{max-width:1100px;margin:0 auto;padding:0 24px;display:flex;gap:4px;border-bottom:1px solid var(--hair)}
+  .tabs{border-bottom:none}
+  .tabbar{border-bottom:1px solid var(--hair)}
+  .tab{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--mut);background:none;border:none;border-bottom:2px solid transparent;padding:16px 18px;cursor:pointer}
+  .tab:hover{color:var(--bone)}
+  .tab.on{color:var(--bone);border-bottom-color:var(--blue)}
+
+  main{max-width:1100px;margin:0 auto;padding:40px 24px 90px}
+  .panel{display:none}
+  .panel.on{display:block}
+  h2{font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px}
+  .hint{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.05em;margin-bottom:28px}
+
+  label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--mut);margin-bottom:7px}
+  input,select,textarea{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);font-family:var(--mono);font-size:14px;padding:12px 14px;outline:none;border-radius:0;-webkit-appearance:none;appearance:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+  .field{margin-bottom:20px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+  @media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .btn{background:var(--bone);color:var(--black);border:none;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.18em;padding:14px 30px;cursor:pointer;transition:background .2s}
+  .btn:hover{background:var(--blue);color:var(--bone)}
+  .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
+  .btn.ghost:hover{border-color:var(--bone);color:var(--bone)}
+  .btn.danger{background:none;border:1px solid var(--hair);color:var(--mut);padding:8px 14px;font-size:10.5px}
+  .btn.danger:hover{border-color:var(--orange);color:var(--orange)}
+  .btn.small{padding:8px 14px;font-size:10.5px}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blue);color:var(--bone);font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:13px 26px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+  .toast.err{background:var(--orange);color:var(--black)}
+  .toast.show{opacity:1}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);text-align:left;padding:10px 12px;border-bottom:1px solid var(--hair);white-space:nowrap}
+  td{padding:12px;border-bottom:1px solid var(--hair);vertical-align:top}
+  td .mono{font-size:12.5px}
+  .pill{font-family:var(--mono);font-size:10px;letter-spacing:.15em;padding:3px 9px;border:1px solid}
+  .pill.open{color:var(--blue);border-color:var(--blue)}
+  .pill.locked{color:var(--mut);border-color:var(--mut)}
+  .pill.soldout{color:var(--orange);border-color:var(--orange)}
+  .pill.vessel{color:var(--orange);border-color:var(--orange)}
+  .pill.shore{color:var(--teal);border-color:var(--teal)}
+
+  .stat-row{display:flex;gap:14px;margin-bottom:30px;flex-wrap:wrap}
+  .stat{border:1px solid var(--hair);padding:18px 24px;min-width:150px}
+  .stat .sv{font-family:var(--mono);font-size:26px;font-weight:500}
+  .stat .sk{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-top:4px}
+
+  .editor{border:1px solid var(--hair);padding:26px;margin-bottom:34px;display:none}
+  .editor.on{display:block}
+  .editor h3{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--blue);margin-bottom:20px;font-weight:500}
+  .row-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .table-scroll{overflow-x:auto}
+
+  /* media & CDN */
+  .filterbar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+  .fbtn{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:none;border:1px solid var(--hair);color:var(--mut);padding:9px 15px;cursor:pointer}
+  .fbtn.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
+  .media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .mcard{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
+  .mcard .thumb{aspect-ratio:16/10;background:#000 center/cover no-repeat;position:relative}
+  .mcard .thumb .cat{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;background:rgba(10,10,11,.72);padding:4px 8px;border-radius:99px;color:var(--bone)}
+  .mstatus{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 8px;border-radius:99px}
+  .mstatus.approved{background:var(--teal);color:#04342C}
+  .mstatus.flagged{background:var(--orange);color:#0A0A0B}
+  .mstatus.pending{background:var(--hair);color:var(--bone)}
+  .mcard .minfo{padding:12px 14px}
+  .mcard .mname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mcard .mmeta{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.7}
+  .mcard .mmeta .warn{color:var(--orange)}
+  .mcard .mcdn{font-family:var(--mono);font-size:9.5px;color:var(--blue);word-break:break-all;margin-top:8px;background:var(--black);border:1px solid var(--hair);padding:6px 8px;border-radius:6px}
+  .mcard .mact{display:flex;gap:8px;padding:0 14px 14px}
+  .mcard .mact button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:9px;border-radius:7px;cursor:pointer;border:1px solid var(--hair);background:none;color:var(--mut)}
+  .mcard .mact .ok:hover{border-color:var(--teal);color:var(--teal)}
+  .mcard .mact .flag:hover{border-color:var(--orange);color:var(--orange)}
+
+  /* roles & agents */
+  .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:32px}
+  .role{border:1px solid var(--hair);border-radius:10px;padding:20px}
+  .role.master{border-color:var(--blue)}
+  .role .rt{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+  .role .rt .lock{color:var(--mut);font-size:13px}
+  .role .rtag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);margin-top:6px}
+  .role ul{list-style:none;margin-top:14px;font-size:12.5px;color:var(--mut)}
+  .role li{padding:5px 0;display:flex;gap:8px}
+  .role li::before{content:'—';color:var(--blue)}
+  .agentcode{font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:var(--teal);background:var(--black);border:1px dashed var(--teal);padding:4px 10px;border-radius:6px;white-space:nowrap}
+
+  /* site media / placements */
+  .slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .slot-card{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
+  .slot-card .sc-h{padding:12px 14px;border-bottom:1px solid var(--hair)}
+  .slot-card .sc-h .rn{font-weight:500;font-size:14px}
+  .slot-card .sc-h .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--mut);margin-top:3px}
+  .slot-dz{aspect-ratio:16/9;background:#000 center/cover no-repeat;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .slot-dz.drag{outline:2px dashed var(--blue);outline-offset:-6px}
+  .slot-dz .hint{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--bone);background:rgba(10,10,11,.55);padding:6px 12px;border-radius:99px;text-align:center}
+  .slot-dz .up-badge{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;background:var(--blue);color:#fff;padding:4px 8px;border-radius:99px;display:none}
+
+  /* organizers */
+  .pill.active{color:var(--teal);border-color:var(--teal)}
+  .pill.suspended{color:var(--orange);border-color:var(--orange)}
+  .imp-banner{display:flex;align-items:center;gap:14px;background:#241a05;border:1px solid #BA7517;border-radius:10px;padding:14px 18px;margin-bottom:22px}
+  .imp-banner .ib-t{font-weight:500;font-size:14px;color:#F0C674}
+  .imp-banner .ib-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;margin-top:2px}
+
+  /* KYC review */
+  .pill.submitted,.pill.in_review{color:var(--blue);border-color:var(--blue)}
+  .pill.approved{color:var(--teal);border-color:var(--teal)}
+  .pill.rejected{color:var(--orange);border-color:var(--orange)}
+  .kyc-sla{font-family:var(--mono);font-size:10px;color:var(--mut)}
+  .kyc-sla.late{color:var(--orange)}
+  .kyc-drawer{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,12,.72);backdrop-filter:blur(3px)}
+  .kyc-drawer.on{display:flex;justify-content:flex-end}
+  .kyc-sheet{width:min(720px,100%);height:100%;overflow-y:auto;background:var(--ink);border-left:1px solid var(--hair);padding:26px 28px 60px}
+  .kyc-sheet h3{font-size:19px;margin:0}
+  .kyc-close{position:absolute;top:20px;right:24px;background:none;border:none;color:var(--mut);font-size:26px;cursor:pointer;line-height:1}
+  .kyc-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;margin:18px 0 22px}
+  .kyc-meta .m-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--mut)}
+  .kyc-meta .m-v{font-size:14px;margin-top:2px}
+  .kyc-docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:18px}
+  .kyc-doc{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--black);position:relative}
+  .kyc-doc .kd-h{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--hair)}
+  .kyc-doc img{display:block;width:100%;max-height:230px;object-fit:contain;background:#000;cursor:zoom-in}
+  .kyc-doc .kd-wm{position:absolute;bottom:8px;left:8px;font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.5);pointer-events:none}
+  .kyc-decide{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .kyc-reject-box{margin-top:14px;padding:14px;border:1px solid var(--orange);border-radius:10px;display:none}
+  .kyc-reject-box.on{display:block}
+  .kyc-reject-box select,.kyc-reject-box textarea{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:8px;color:var(--bone);padding:9px 11px;font:inherit;font-size:13px;margin-top:8px}
+  .kyc-events{margin-top:22px;border-top:1px solid var(--hair);padding-top:16px}
+  .kyc-events li{display:flex;gap:10px;font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:3px 0;list-style:none}
+  .kyc-events .ke-a{color:var(--bone)}
+</style>
+<link rel="stylesheet" href="/zora-tokens.css">
+<script src="/zora-theme.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="head-in">
+    <span class="wordmark">z<span class="o">o</span>ra<small>CONTROL ROOM</small></span>
+    <div class="head-actions">
+      <a href="/" target="_blank">VIEW SITE</a>
+      <a href="/drop-001.html" target="_blank">DROP 001</a>
+      <button id="logout">LOG OUT</button>
+    </div>
+  </div>
+  <div class="tabbar"><div class="tabs">
+    <button class="tab on" data-panel="drop">THE DROP</button>
+    <button class="tab" data-panel="tiers">TIERS</button>
+    <button class="tab" data-panel="crews">CREWS</button>
+    <button class="tab" data-panel="media">MEDIA</button>
+    <button class="tab" data-panel="agents">AGENTS</button>
+    <button class="tab" data-panel="placements">SITE MEDIA</button>
+    <button class="tab" data-panel="organizers">ORGANIZERS</button>
+    <button class="tab" data-panel="kyc">KYC REVIEW</button>
+    <button class="tab" data-panel="access">ACCESS</button>
+  </div></div>
+</header>
+
+<main>
+
+  <!-- ═══ THE DROP ═══ -->
+  <div class="panel on" id="panel-drop">
+    <h2>The drop</h2>
+    <p class="hint">Everything on both pages reads from here. Save and refresh the site to see it live.</p>
+    <form id="drop-form">
+      <div class="grid3">
+        <div class="field"><label>DROP TITLE</label><input id="d-dropTitle"></div>
+        <div class="field"><label>DROP NAME</label><input id="d-dropName"></div>
+        <div class="field"><label>STATUS</label>
+          <select id="d-status">
+            <option value="countdown">countdown — pre-drop</option>
+            <option value="live">live — boarding open</option>
+            <option value="soldout">sold out</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>DROP TIME (ISO, e.g. 2026-07-30T20:00:00+03:00)</label><input id="d-dropAt"></div>
+        <div class="field"><label>EVENT DATE LABEL</label><input id="d-eventDateLabel"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>PORT</label><input id="d-port"></div>
+        <div class="field"><label>COORDINATES</label><input id="d-coordinates"></div>
+        <div class="field"><label>CAPACITY LABEL</label><input id="d-capacityLabel"></div>
+      </div>
+      <div class="field"><label>VENUE LINE</label><input id="d-venue"></div>
+      <div class="grid3">
+        <div class="field"><label>TAGLINE</label><input id="d-tagline"></div>
+        <div class="field"><label>APP NOTE</label><input id="d-appNote"></div>
+        <div class="field"><label>CONTACT EMAIL</label><input id="d-contactEmail"></div>
+      </div>
+      <button class="btn" type="submit">SAVE THE DROP</button>
+    </form>
+  </div>
+
+  <!-- ═══ TIERS ═══ -->
+  <div class="panel" id="panel-tiers">
+    <h2>Tiers</h2>
+    <p class="hint">Vessel tiers show in the vessel card, shore tiers in the list. Order controls sorting within each card.</p>
+
+    <div class="editor" id="tier-editor">
+      <h3 id="tier-editor-title">NEW TIER</h3>
+      <div class="grid3">
+        <div class="field"><label>EVENT</label>
+          <select id="t-event"><option value="shore">shore</option><option value="vessel">vessel</option></select>
+        </div>
+        <div class="field"><label>NAME</label><input id="t-name" placeholder="WAVE 04"></div>
+        <div class="field"><label>ORDER</label><input id="t-order" type="number" value="1"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>PRICE LABEL</label><input id="t-priceLabel" placeholder="65,000 TZS"></div>
+        <div class="field"><label>STATUS</label>
+          <select id="t-status"><option value="locked">locked</option><option value="open">open at drop</option><option value="soldout">sold out</option></select>
+        </div>
+      </div>
+      <div class="field"><label>DETAIL</label><input id="t-detail" placeholder="First 1,000 shore passes."></div>
+      <div class="field"><label>SPLIT NOTE (OPTIONAL)</label><input id="t-splitNote" placeholder="Crew split in-app: 150,000 TZS each."></div>
+      <div class="row-actions">
+        <button class="btn" id="tier-save">SAVE TIER</button>
+        <button class="btn ghost" id="tier-cancel">CANCEL</button>
+      </div>
+    </div>
+
+    <div class="row-actions" style="margin-bottom:22px">
+      <button class="btn" id="tier-new">NEW TIER</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>EVENT</th><th>NAME</th><th>PRICE</th><th>STATUS</th><th>ORDER</th><th></th></tr></thead>
+        <tbody id="tiers-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ CREWS ═══ -->
+  <div class="panel" id="panel-crews">
+    <h2>Crews on the manifest</h2>
+    <p class="hint">Every crew registered from the drop page. Export the CSV for the drop-signal blast.</p>
+    <div class="stat-row">
+      <div class="stat"><p class="sv" id="stat-crews">0</p><p class="sk">CREWS</p></div>
+      <div class="stat"><p class="sv" id="stat-heads">0</p><p class="sk">HEADS</p></div>
+      <div class="stat" style="align-self:center;border:none;padding:0">
+        <button class="btn small" id="csv-btn">DOWNLOAD CSV</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>CODE</th><th>CREW</th><th>LEAD</th><th>PHONE</th><th>EMAIL</th><th>SIZE</th><th>REGISTERED</th><th></th></tr></thead>
+        <tbody id="crews-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ MEDIA & CDN ═══ -->
+  <div class="panel" id="panel-media">
+    <h2>Media &amp; CDN</h2>
+    <p class="hint">Every image across the site — banners, marketplace tiles, organizer maps — auto-optimized and sorted to the CDN. Approve or flag promoter artwork.</p>
+    <div class="stat-row">
+      <div class="stat"><p class="sv mono" id="m-total">—</p><p class="sk">ASSETS ON CDN</p></div>
+      <div class="stat"><p class="sv mono" id="m-flagged">—</p><p class="sk">FLAGGED / LOW-RES</p></div>
+      <div class="stat"><p class="sv mono" id="m-saved">—</p><p class="sk">EST. SAVED BY COMPRESSION</p></div>
+    </div>
+    <div class="filterbar" id="m-filter">
+      <button class="fbtn on" data-f="all">ALL</button>
+      <button class="fbtn" data-f="pending">PENDING</button>
+      <button class="fbtn" data-f="approved">APPROVED</button>
+      <button class="fbtn" data-f="flagged">FLAGGED</button>
+    </div>
+    <div class="media-grid" id="media-grid"></div>
+  </div>
+
+  <!-- ═══ STAFF & AGENTS ═══ -->
+  <div class="panel" id="panel-agents">
+    <h2>Staff &amp; check-in agents</h2>
+    <p class="hint">Register ticket-scanning agents. Each gets a temporary code to log into the Zora Check-In App only — no dashboards, no revenue, no private data.<br><b style="color:var(--blue)">Admin-controlled hierarchy:</b> access codes are generated, rotated and revoked <b>only from here</b> (Website / Web-App Admin, backend-controlled) — event organizers can never create or distribute them.</p>
+
+    <div class="roles">
+      <div class="role master"><p class="rt">Master Admin</p><p class="rtag">FULL PLATFORM CONTROL</p><ul><li>Edit every event &amp; setting</li><li>Financial control &amp; payouts</li><li>User &amp; role management</li><li>Media approval</li></ul></div>
+      <div class="role"><p class="rt">Event Organizer</p><p class="rtag">OWN EVENTS ONLY</p><ul><li>Full control of their events</li><li>Their analytics &amp; CRM</li><li><b style="color:var(--orange)">Cannot</b> issue agent codes</li><li>No platform-wide access</li></ul></div>
+      <div class="role"><p class="rt">Scanning Agent <span class="lock">&#128274;</span></p><p class="rtag">CHECK-IN APP ONLY</p><ul><li>Camera / QR verification</li><li>Locked out of everything else</li><li>No revenue, no private data</li><li>Temporary code, auto-expires</li></ul></div>
+    </div>
+
+    <div class="editor on" style="display:block">
+      <h3>REGISTER A SCANNING AGENT</h3>
+      <p class="hint" style="margin:-4px 0 12px">This admin panel is the single source of agent codes. Generated, rotated and revoked here only — never by organizers.</p>
+      <form id="agent-form">
+        <div class="grid3">
+          <div class="field"><label>AGENT NAME</label><input id="ag-name" placeholder="Full name" required></div>
+          <div class="field"><label>PHONE OR EMAIL</label><input id="ag-contact" placeholder="+255 7XX… or name@mail.com" required></div>
+          <div class="field"><label>ASSIGN TO EVENT</label><input id="ag-event" placeholder="OFFSHORE / All events"></div>
+        </div>
+        <button class="btn" type="submit">GENERATE ACCESS CODE</button>
+      </form>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>AGENT</th><th>VIA</th><th>EVENT</th><th>CHECK-IN CODE</th><th>EXPIRES</th><th></th></tr></thead>
+        <tbody id="agents-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ SITE MEDIA (placements) ═══ -->
+  <div class="panel" id="panel-placements">
+    <h2>Site media</h2>
+    <p class="hint">Upload and map core layout media to specific regions of the public site — hero banners, gallery, About visuals. Separate from event-creation and organizer uploaders. Changes go live on refresh.</p>
+    <div class="slots-grid" id="slots-grid"></div>
+  </div>
+
+  <!-- ═══ ORGANIZERS ═══ -->
+  <div class="panel" id="panel-organizers">
+    <h2>Organizers</h2>
+    <p class="hint">Every registered organizer account. Suspend or unlock access, or act on their behalf for support. Every admin action is logged.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>ORGANIZER</th><th>SUBDOMAIN</th><th>EVENTS</th><th>REVENUE</th><th>STATUS</th><th></th></tr></thead>
+        <tbody id="orgs-body"></tbody>
+      </table>
+    </div>
+    <p class="hint" style="margin:26px 0 12px">RECENT ADMIN ACTIONS · AUDIT LOG</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>WHEN</th><th>ACTION</th><th>TARGET</th></tr></thead>
+        <tbody id="audit-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ KYC REVIEW ═══ -->
+  <div class="panel" id="panel-kyc">
+    <h2>Identity verification</h2>
+    <p class="hint">Review submitted IDs and unlock payouts. Documents are encrypted at rest and shown here through a gated, no-cache stream — they are never publicly served. Approve and reject are logged to the audit trail.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>SUBMITTED</th><th>NAME</th><th>ID TYPE</th><th>COUNTRY</th><th>ATTEMPT</th><th>STATUS</th><th></th></tr></thead>
+        <tbody id="kyc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ ACCESS ═══ -->
+  <div class="panel" id="panel-access">
+    <h2>Access</h2>
+    <p class="hint">Change the control room password. Minimum 8 characters.</p>
+    <form id="pass-form" style="max-width:420px">
+      <div class="field"><label>CURRENT PASSWORD</label><input id="p-current" type="password" autocomplete="current-password" required></div>
+      <div class="field"><label>NEW PASSWORD</label><input id="p-next" type="password" autocomplete="new-password" required minlength="8"></div>
+      <button class="btn" type="submit">UPDATE PASSWORD</button>
+    </form>
+  </div>
+
+</main>
+
+<!-- KYC review drawer -->
+<div class="kyc-drawer" id="kyc-drawer">
+  <div class="kyc-sheet">
+    <button class="kyc-close" id="kyc-close" aria-label="Close">&times;</button>
+    <h3 id="kyc-d-name">—</h3>
+    <div class="kyc-meta" id="kyc-d-meta"></div>
+    <p class="hint" style="margin:0 0 10px">DOCUMENTS · click to open full size</p>
+    <div class="kyc-docs" id="kyc-d-docs"></div>
+    <div class="kyc-decide" id="kyc-d-decide">
+      <button class="btn" id="kyc-approve">APPROVE — UNLOCK PAYOUTS</button>
+      <button class="btn danger" id="kyc-reject-toggle">REJECT…</button>
+    </div>
+    <div class="kyc-reject-box" id="kyc-reject-box">
+      <label class="hint">REJECTION REASON (required — the user sees a matching message)</label>
+      <select id="kyc-reason"></select>
+      <textarea id="kyc-note" rows="2" placeholder="Optional note for the audit log (not shown to the user)"></textarea>
+      <button class="btn danger" id="kyc-reject-confirm" style="margin-top:10px">CONFIRM REJECTION</button>
+    </div>
+    <ul class="kyc-events" id="kyc-d-events"></ul>
+  </div>
+</div>
+
+<p class="toast" id="toast"></p>
+
+<script>
+  /* ── helpers ── */
+  const $ = id => document.getElementById(id);
+  function toast(msg, isErr){
+    const t = $('toast');
+    t.textContent = msg.toUpperCase();
+    t.className = 'toast show' + (isErr ? ' err' : '');
+    setTimeout(() => t.className = 'toast' + (isErr ? ' err' : ''), 2600);
+  }
+  function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  async function api(url, opts){
+    const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    if (r.status === 401){ location.href = '/admin'; throw new Error('Session expired'); }
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  /* ── tabs ── */
+  document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    btn.classList.add('on');
+    $('panel-' + btn.dataset.panel).classList.add('on');
+  }));
+
+  $('logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); location.href = '/admin'; });
+
+  /* ── the drop ── */
+  const DROP_FIELDS = ['dropTitle','dropName','status','dropAt','eventDateLabel','port','coordinates','capacityLabel','venue','tagline','appNote','contactEmail'];
+  async function loadDrop(){
+    const s = await api('/api/settings');
+    DROP_FIELDS.forEach(f => { const el = $('d-' + f); if (el) el.value = s[f] || ''; });
+  }
+  $('drop-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = {};
+    DROP_FIELDS.forEach(f => body[f] = $('d-' + f).value);
+    if (body.dropAt && isNaN(new Date(body.dropAt))) return toast('Drop time is not a valid date', true);
+    try { await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) }); toast('Drop saved'); }
+    catch (ex) { toast(ex.message, true); }
+  });
+
+  /* ── tiers ── */
+  let editingTierId = null;
+  const TIER_FIELDS = ['event','name','order','priceLabel','status','detail','splitNote'];
+  function openTierEditor(t){
+    editingTierId = t ? t.id : null;
+    $('tier-editor-title').textContent = t ? 'EDIT TIER — ' + t.name : 'NEW TIER';
+    TIER_FIELDS.forEach(f => $('t-' + f).value = t ? (t[f] != null ? t[f] : '') : ($('t-' + f).tagName === 'SELECT' ? $('t-' + f).options[0].value : ''));
+    if (!t) $('t-order').value = 1;
+    $('tier-editor').classList.add('on');
+    $('t-name').focus();
+  }
+  function closeTierEditor(){ $('tier-editor').classList.remove('on'); editingTierId = null; }
+  $('tier-new').addEventListener('click', () => openTierEditor(null));
+  $('tier-cancel').addEventListener('click', e => { e.preventDefault(); closeTierEditor(); });
+
+  let tiersCache = [];
+  async function loadTiers(){
+    tiersCache = await api('/api/tiers');
+    $('tiers-body').innerHTML = tiersCache.map(t =>
+      '<tr>' +
+        '<td><span class="pill ' + esc(t.event) + '">' + esc(t.event) + '</span></td>' +
+        '<td><b>' + esc(t.name) + '</b><br><span class="mono" style="color:var(--mut)">' + esc(t.detail || '') + '</span></td>' +
+        '<td class="mono">' + esc(t.priceLabel) + '</td>' +
+        '<td><span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span></td>' +
+        '<td class="mono">' + esc(t.order != null ? t.order : '') + '</td>' +
+        '<td><div class="row-actions">' +
+          '<button class="btn small ghost" data-edit="' + esc(t.id) + '">EDIT</button>' +
+          '<button class="btn danger" data-del="' + esc(t.id) + '">DELETE</button>' +
+        '</div></td>' +
+      '</tr>').join('');
+  }
+  $('tiers-body').addEventListener('click', async e => {
+    const editId = e.target.dataset.edit, delId = e.target.dataset.del;
+    if (editId) openTierEditor(tiersCache.find(t => t.id === editId));
+    if (delId && confirm('Delete this tier?')){
+      try { await api('/api/tiers/' + delId, { method: 'DELETE' }); toast('Tier deleted'); loadTiers(); }
+      catch (ex) { toast(ex.message, true); }
+    }
+  });
+  $('tier-save').addEventListener('click', async e => {
+    e.preventDefault();
+    const body = {};
+    TIER_FIELDS.forEach(f => body[f] = $('t-' + f).value);
+    body.order = parseInt(body.order, 10) || 0;
+    if (!body.name) return toast('Tier needs a name', true);
+    try {
+      if (editingTierId) await api('/api/tiers/' + editingTierId, { method: 'PUT', body: JSON.stringify(body) });
+      else await api('/api/tiers', { method: 'POST', body: JSON.stringify(body) });
+      toast('Tier saved'); closeTierEditor(); loadTiers();
+    } catch (ex) { toast(ex.message, true); }
+  });
+
+  /* ── crews ── */
+  async function loadCrews(){
+    const regs = await api('/api/registrations');
+    $('stat-crews').textContent = regs.length;
+    $('stat-heads').textContent = regs.reduce((n, r) => n + (parseInt(r.size, 10) || 0), 0);
+    $('crews-body').innerHTML = regs.slice().reverse().map(r =>
+      '<tr>' +
+        '<td class="mono" style="color:var(--blue)">' + esc(r.code) + '</td>' +
+        '<td><b>' + esc(r.crewName) + '</b></td>' +
+        '<td>' + esc(r.leadName) + '</td>' +
+        '<td class="mono">' + esc(r.phone) + '</td>' +
+        '<td class="mono">' + esc(r.email || '—') + '</td>' +
+        '<td class="mono">' + esc(r.size) + '</td>' +
+        '<td class="mono">' + new Date(r.at).toLocaleString() + '</td>' +
+        '<td><button class="btn danger" data-del="' + esc(r.id) + '">REMOVE</button></td>' +
+      '</tr>').join('') || '<tr><td colspan="8" class="mono" style="color:var(--mut);padding:30px 12px">No crews on the manifest yet.</td></tr>';
+  }
+  $('crews-body').addEventListener('click', async e => {
+    const id = e.target.dataset.del;
+    if (id && confirm('Remove this crew from the manifest?')){
+      try { await api('/api/registrations/' + id, { method: 'DELETE' }); toast('Crew removed'); loadCrews(); }
+      catch (ex) { toast(ex.message, true); }
+    }
+  });
+  $('csv-btn').addEventListener('click', () => location.href = '/api/registrations.csv');
+
+  /* ── access ── */
+  $('pass-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      await api('/api/password', { method: 'POST', body: JSON.stringify({ current: $('p-current').value, next: $('p-next').value }) });
+      toast('Password updated'); $('p-current').value = ''; $('p-next').value = '';
+    } catch (ex) { toast(ex.message, true); }
+  });
+
+  /* ── media & CDN ── */
+  let mediaCache=[], mFilter='all';
+  async function loadMedia(){
+    mediaCache = await api('/api/media');
+    $('m-total').textContent = mediaCache.length;
+    $('m-flagged').textContent = mediaCache.filter(m=>m.status==='flagged'||m.lowres).length;
+    const saved = mediaCache.reduce((a,m)=>a+Math.max(0,m.sizeKB-m.optimizedKB),0);
+    $('m-saved').textContent = saved>1024 ? (saved/1024).toFixed(1)+' MB' : saved+' KB';
+    renderMedia();
+  }
+  function renderMedia(){
+    const list = mediaCache.filter(m=> mFilter==='all' || m.status===mFilter);
+    $('media-grid').innerHTML = list.map(m=>
+      '<div class="mcard">'+
+        '<div class="thumb" style="background-image:url('+m.url+')"><span class="cat">'+esc(m.category)+'</span><span class="mstatus '+m.status+'">'+m.status.toUpperCase()+'</span></div>'+
+        '<div class="minfo"><p class="mname">'+esc(m.name)+'</p>'+
+          '<p class="mmeta">'+esc(m.dims)+' · '+m.sizeKB+' KB &rarr; <b style="color:var(--teal)">'+m.optimizedKB+' KB</b> webp'+
+            (m.lowres?'<br><span class="warn">&#9888; low resolution</span>':'')+
+            (m.flagReason&&m.status==='flagged'?'<br><span class="warn">'+esc(m.flagReason)+'</span>':'')+'</p>'+
+          '<p class="mcdn">'+esc(m.cdnUrl)+'</p>'+
+        '</div>'+
+        '<div class="mact"><button class="ok" data-ok="'+esc(m.name)+'">APPROVE</button><button class="flag" data-flag="'+esc(m.name)+'">FLAG</button></div>'+
+      '</div>').join('') || '<p class="hint">No assets in this filter.</p>';
+  }
+  $('m-filter').addEventListener('click', e=>{ const b=e.target.closest('.fbtn'); if(!b)return; document.querySelectorAll('#m-filter .fbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on'); mFilter=b.dataset.f; renderMedia(); });
+  $('media-grid').addEventListener('click', async e=>{
+    const ok=e.target.getAttribute('data-ok'), flag=e.target.getAttribute('data-flag');
+    if(ok){ try{ await api('/api/media/'+encodeURIComponent(ok)+'/status',{method:'PUT',body:JSON.stringify({status:'approved'})}); toast('Approved'); loadMedia(); }catch(ex){toast(ex.message,true);} }
+    if(flag){ const reason=prompt('Flag reason (optional):','Inappropriate or low-quality'); try{ await api('/api/media/'+encodeURIComponent(flag)+'/status',{method:'PUT',body:JSON.stringify({status:'flagged',flagReason:reason||'Flagged by admin'})}); toast('Flagged'); loadMedia(); }catch(ex){toast(ex.message,true);} }
+  });
+
+  /* ── staff agents ── */
+  async function loadAgents(){
+    const agents = await api('/api/agents');
+    $('agents-body').innerHTML = agents.slice().reverse().map(a=>
+      '<tr>'+
+        '<td><b>'+esc(a.name)+'</b><br><span class="mono" style="color:var(--mut)">'+esc(a.contact)+'</span></td>'+
+        '<td class="mono">'+esc(a.via.toUpperCase())+'</td>'+
+        '<td class="mono">'+esc(a.event)+'</td>'+
+        '<td><span class="agentcode">'+esc(a.code)+'</span></td>'+
+        '<td class="mono" style="color:var(--mut)">'+new Date(a.expiresAt).toLocaleDateString()+'</td>'+
+        '<td><div class="row-actions"><button class="btn small ghost" data-rotate="'+esc(a.id)+'">NEW CODE</button><button class="btn danger" data-revoke="'+esc(a.id)+'">REVOKE</button></div></td>'+
+      '</tr>').join('') || '<tr><td colspan="6" class="hint" style="padding:26px 12px">No agents yet — register one above.</td></tr>';
+  }
+  $('agent-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    try{
+      const a = await api('/api/agents',{method:'POST',body:JSON.stringify({ name:$('ag-name').value.trim(), contact:$('ag-contact').value.trim(), event:$('ag-event').value.trim() })});
+      toast('Agent added — code '+a.code);
+      $('ag-name').value=''; $('ag-contact').value=''; $('ag-event').value='';
+      loadAgents();
+    }catch(ex){ toast(ex.message,true); }
+  });
+  $('agents-body').addEventListener('click', async e=>{
+    const rot=e.target.getAttribute('data-rotate'), rev=e.target.getAttribute('data-revoke');
+    if(rot){ try{ const a=await api('/api/agents/'+rot+'/rotate',{method:'POST'}); toast('New code '+a.code); loadAgents(); }catch(ex){toast(ex.message,true);} }
+    if(rev && confirm('Revoke this agent’s access?')){ try{ await api('/api/agents/'+rev,{method:'DELETE'}); toast('Agent revoked'); loadAgents(); }catch(ex){toast(ex.message,true);} }
+  });
+
+  /* ── site media (placements) ── */
+  function fileToDataUrl(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); }
+  async function loadPlacements(){
+    const d = await api('/api/placements');
+    $('slots-grid').innerHTML = d.slots.map(s=>{
+      const url = d.placements[s.key].url;
+      return '<div class="slot-card">'+
+        '<div class="sc-h"><p class="rn">'+esc(d.placements[s.key].label)+'</p><p class="rk">'+esc(s.key)+'</p></div>'+
+        '<div class="slot-dz" data-slot="'+esc(s.key)+'" style="background-image:url('+esc(url)+')">'+
+          '<span class="hint">Drop image or click to replace</span><span class="up-badge">UPLOADING…</span>'+
+          '<input type="file" accept="image/*" hidden></div>'+
+      '</div>';
+    }).join('');
+  }
+  async function uploadToSlot(dz, file){
+    if(!file || !/^image\//.test(file.type)){ toast('Choose an image', true); return; }
+    const badge = dz.querySelector('.up-badge'); badge.style.display='block';
+    try{
+      const dataUrl = await fileToDataUrl(file);
+      const up = await api('/api/upload',{method:'POST',body:JSON.stringify({name:file.name,dataUrl})});
+      const slot = dz.getAttribute('data-slot');
+      await api('/api/placements',{method:'PUT',body:JSON.stringify({[slot]:up.url})});
+      dz.style.backgroundImage='url('+up.url+')';
+      toast('Mapped to '+slot);
+    }catch(ex){ toast(ex.message,true); }
+    finally{ badge.style.display='none'; }
+  }
+  $('slots-grid').addEventListener('click', e=>{ const dz=e.target.closest('.slot-dz'); if(dz) dz.querySelector('input').click(); });
+  $('slots-grid').addEventListener('change', e=>{ if(e.target.type==='file'){ const dz=e.target.closest('.slot-dz'); if(e.target.files[0]) uploadToSlot(dz, e.target.files[0]); } });
+  ['dragenter','dragover'].forEach(ev=>$('slots-grid').addEventListener(ev, e=>{ e.preventDefault(); const dz=e.target.closest('.slot-dz'); if(dz) dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>$('slots-grid').addEventListener(ev, e=>{ e.preventDefault(); const dz=e.target.closest('.slot-dz'); if(dz) dz.classList.remove('drag'); }));
+  $('slots-grid').addEventListener('drop', e=>{ const dz=e.target.closest('.slot-dz'); if(dz && e.dataTransfer.files[0]) uploadToSlot(dz, e.dataTransfer.files[0]); });
+
+  /* ── organizers + impersonation ── */
+  const nfMoney = n => (n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':n)+' TZS';
+  async function loadOrganizers(){
+    const orgs = await api('/api/organizers');
+    $('orgs-body').innerHTML = orgs.map(o=>
+      '<tr>'+
+        '<td><b>'+esc(o.name)+'</b><br><span class="mono" style="color:var(--mut)">'+esc(o.email)+'</span></td>'+
+        '<td class="mono">'+esc(o.handle)+'.zora.com</td>'+
+        '<td class="mono">'+o.events+'</td>'+
+        '<td class="mono">'+nfMoney(o.revenue)+'</td>'+
+        '<td><span class="pill '+o.status+'">'+o.status.toUpperCase()+'</span></td>'+
+        '<td><div class="row-actions">'+
+          (o.status==='active'
+            ? '<button class="btn small" data-imp="'+o.id+'">ACT ON BEHALF</button><button class="btn danger" data-status="'+o.id+'" data-to="suspended">SUSPEND</button>'
+            : '<button class="btn small ghost" data-status="'+o.id+'" data-to="active">UNLOCK</button>')+
+        '</div></td>'+
+      '</tr>').join('');
+    loadAudit();
+  }
+  async function loadAudit(){
+    const log = await api('/api/audit');
+    $('audit-body').innerHTML = log.slice(0,12).map(a=>
+      '<tr><td class="mono" style="color:var(--mut)">'+new Date(a.at).toLocaleString()+'</td><td class="mono">'+esc(a.action)+'</td><td>'+esc(a.detail)+'</td></tr>'
+    ).join('') || '<tr><td colspan="3" class="hint" style="padding:20px 12px">No admin actions logged yet.</td></tr>';
+  }
+  $('orgs-body').addEventListener('click', async e=>{
+    const imp=e.target.getAttribute('data-imp'), sid=e.target.getAttribute('data-status'), to=e.target.getAttribute('data-to');
+    if(imp){
+      if(!confirm('Act on behalf of this organizer? This is logged, and you will view their dashboard until you exit.')) return;
+      try{ const r=await api('/api/organizers/'+imp+'/impersonate',{method:'POST'}); toast('Acting as '+r.impersonating.name); location.href='/dashboard.html'; }
+      catch(ex){ toast(ex.message,true); }
+    }
+    if(sid){
+      const verb = to==='suspended'?'Suspend':'Unlock';
+      if(!confirm(verb+' this organizer account?')) return;
+      try{ await api('/api/organizers/'+sid+'/status',{method:'PUT',body:JSON.stringify({status:to})}); toast(verb+'ed'); loadOrganizers(); }
+      catch(ex){ toast(ex.message,true); }
+    }
+  });
+
+  /* ── KYC identity review ── */
+  const KYC_LABEL = { passport:'Passport', drivers_license:"Driver's License", national_id:'National ID' };
+  let kycReasons = [], kycCurrent = null;
+  const kycStatusLabel = s => s==='in_review' ? 'IN REVIEW' : s.toUpperCase();
+  function slaAge(iso){
+    const h = (Date.now() - new Date(iso).getTime()) / 36e5;
+    const txt = h < 1 ? Math.round(h*60)+'m' : h < 24 ? h.toFixed(0)+'h' : Math.floor(h/24)+'d';
+    return '<span class="kyc-sla'+(h>24?' late':'')+'">'+txt+' ago</span>';
+  }
+  async function loadKyc(){
+    if (!kycReasons.length) kycReasons = await api('/api/kyc/reasons');
+    const list = await api('/api/kyc');
+    $('kyc-body').innerHTML = list.map(v =>
+      '<tr>'+
+        '<td>'+slaAge(v.submittedAt)+'</td>'+
+        '<td><b>'+esc(v.fullName)+'</b>'+(v.docNumberMasked?'<br><span class="mono" style="color:var(--mut)">'+esc(v.docNumberMasked)+'</span>':'')+'</td>'+
+        '<td>'+esc(KYC_LABEL[v.idType]||v.idType)+'</td>'+
+        '<td class="mono">'+esc(v.country)+'</td>'+
+        '<td class="mono">#'+v.attempt+'</td>'+
+        '<td><span class="pill '+v.status+'">'+kycStatusLabel(v.status)+'</span></td>'+
+        '<td><button class="btn small" data-kyc="'+v.id+'">REVIEW</button></td>'+
+      '</tr>').join('') || '<tr><td colspan="7" class="hint" style="padding:20px 12px">No identity submissions yet.</td></tr>';
+  }
+  async function openKyc(id){
+    const list = await api('/api/kyc');
+    const v = list.find(x => x.id === id); if (!v) return;
+    kycCurrent = v;
+    $('kyc-d-name').textContent = v.fullName;
+    const rej = v.rejection ? (kycReasons.find(r=>r.code===v.rejection.code)||{}).label || v.rejection.code : '—';
+    $('kyc-d-meta').innerHTML = [
+      ['REF', v.ref], ['STATUS', kycStatusLabel(v.status)], ['ID TYPE', KYC_LABEL[v.idType]||v.idType],
+      ['COUNTRY', v.country], ['DOC NUMBER', v.docNumberMasked||'—'], ['ATTEMPT', '#'+v.attempt],
+      ['SUBMITTED', new Date(v.submittedAt).toLocaleString()],
+      ['REVIEWED', v.reviewedAt ? new Date(v.reviewedAt).toLocaleString()+' · '+(v.reviewedBy||'') : '—'],
+      ['LAST REASON', rej]
+    ].map(([k,val]) => '<div><p class="m-k">'+k+'</p><p class="m-v">'+esc(val)+'</p></div>').join('');
+    $('kyc-d-docs').innerHTML = v.documents.map(d => {
+      const src = '/api/kyc/'+v.id+'/documents/'+d.id;
+      const isPdf = /pdf/.test(d.contentType);
+      return '<div class="kyc-doc"><p class="kd-h">'+esc(d.side.replace(/_/g,' ').toUpperCase())+'</p>'+
+        (isPdf
+          ? '<a href="'+src+'" target="_blank" rel="noopener" style="display:block;padding:34px 10px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--blue)">OPEN PDF →</a>'
+          : '<img src="'+src+'" alt="'+esc(d.side)+'" onclick="window.open(this.src,\'_blank\')"><span class="kd-wm">ZORA · admin review · '+new Date().toISOString().slice(0,10)+'</span>')+
+        '</div>';
+    }).join('');
+    $('kyc-d-events').innerHTML = (v.events||[]).slice().reverse().map(e =>
+      '<li><span>'+new Date(e.at).toLocaleTimeString()+'</span><span class="ke-a">'+esc(e.action)+'</span><span>'+esc(e.actor)+(e.detail?' · '+esc(e.detail):'')+'</span></li>'
+    ).join('');
+    const decided = v.status === 'approved';
+    $('kyc-d-decide').style.display = decided ? 'none' : 'flex';
+    $('kyc-reject-box').classList.remove('on');
+    $('kyc-reason').innerHTML = kycReasons.map(r => '<option value="'+r.code+'">'+esc(r.label)+'</option>').join('');
+    $('kyc-note').value = '';
+    $('kyc-drawer').classList.add('on');
+  }
+  function closeKyc(){ $('kyc-drawer').classList.remove('on'); kycCurrent = null; }
+  $('kyc-body').addEventListener('click', e => { const id = e.target.getAttribute('data-kyc'); if (id) openKyc(id).catch(ex=>toast(ex.message,true)); });
+  $('kyc-close').addEventListener('click', closeKyc);
+  $('kyc-drawer').addEventListener('click', e => { if (e.target === $('kyc-drawer')) closeKyc(); });
+  $('kyc-reject-toggle').addEventListener('click', () => $('kyc-reject-box').classList.toggle('on'));
+  $('kyc-approve').addEventListener('click', async () => {
+    if (!kycCurrent) return;
+    if (!confirm('Approve this identity? Payouts unlock and the decision is logged.')) return;
+    try { await api('/api/kyc/'+kycCurrent.id+'/approve', { method:'POST' }); toast('Approved — payouts unlocked'); closeKyc(); loadKyc(); loadAudit(); }
+    catch (ex) { toast(ex.message, true); }
+  });
+  $('kyc-reject-confirm').addEventListener('click', async () => {
+    if (!kycCurrent) return;
+    const code = $('kyc-reason').value, note = $('kyc-note').value;
+    try { await api('/api/kyc/'+kycCurrent.id+'/reject', { method:'POST', body: JSON.stringify({ code, note }) }); toast('Rejected — user notified with the reason'); closeKyc(); loadKyc(); loadAudit(); }
+    catch (ex) { toast(ex.message, true); }
+  });
+
+  /* ── boot ── */
+  loadKyc().catch(ex => toast(ex.message, true));
+  loadDrop().catch(ex => toast(ex.message, true));
+  loadTiers().catch(ex => toast(ex.message, true));
+  loadCrews().catch(ex => toast(ex.message, true));
+  loadMedia().catch(ex => toast(ex.message, true));
+  loadAgents().catch(ex => toast(ex.message, true));
+  loadPlacements().catch(ex => toast(ex.message, true));
+  loadOrganizers().catch(ex => toast(ex.message, true));
+</script>
+
+</body>
+</html>

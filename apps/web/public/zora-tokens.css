@@ -1,0 +1,90 @@
+/* ══════════════════════════════════════════════════════════════════
+   ZORA — GLOBAL DESIGN TOKENS  (obsidian · sunrise aura · blue anchor)
+   Token-first re-skin. Included AFTER each page's inline <style> so these
+   :root definitions win, re-mapping every legacy variable to the new system.
+   Dark is default; [data-theme="light"] flips the whole site.
+   ══════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+/* ── semantic tokens : DARK (default) ── */
+:root, :root[data-theme="dark"]{
+  --c-bg:#0A0B10; --c-bg2:#0D0F17; --c-surface:#11131E; --c-surface2:#171A28;
+  --c-text:#EDEFF7; --c-text2:#9BA3C4; --c-text3:#5C6488;
+  --c-line:rgba(124,160,255,.12); --c-line2:rgba(124,160,255,.22);
+  --c-blue:#4C6FFF; --c-ice:#7CA0FF; --c-cyan:#3FE0FF; --c-indigo:#151A3A;
+  --c-aura-1:#D53AD8; --c-aura-2:#FF4D7D; --c-aura-3:#FF9145;
+  --c-aura:linear-gradient(130deg,var(--c-aura-1) 0%,var(--c-aura-2) 48%,var(--c-aura-3) 100%);
+  --c-glass:rgba(13,15,23,.62);
+  --c-nav:rgba(10,11,16,.72);
+  color-scheme:dark;
+}
+
+/* ── semantic tokens : LIGHT ── */
+:root[data-theme="light"]{
+  --c-bg:#F4F6FC; --c-bg2:#EBEEF8; --c-surface:#FFFFFF; --c-surface2:#F3F5FC;
+  --c-text:#0C1020; --c-text2:#4E5675; --c-text3:#8B93B2;
+  --c-line:rgba(60,80,180,.14); --c-line2:rgba(60,80,180,.26);
+  --c-blue:#3A54E8; --c-ice:#3A54E8; --c-cyan:#0E8FB8; --c-indigo:#DDE3FF;
+  --c-glass:rgba(255,255,255,.66);
+  --c-nav:rgba(255,255,255,.72);
+  color-scheme:light;
+}
+
+/* ── legacy aliases (CONSUMER dark-native pages) ── */
+:root{
+  --black:var(--c-bg); --ink:var(--c-surface); --ink2:var(--c-surface2);
+  --hair:var(--c-line); --hair2:var(--c-line2);
+  --bone:var(--c-text); --mut:var(--c-text2); --mut2:var(--c-text2);
+  --blue:var(--c-blue); --bluewash:var(--c-indigo);
+  --orange:var(--c-aura-3); --guest:var(--c-ice); --teal:var(--c-ice); --green:var(--c-cyan);
+  /* creator names also mapped so pages without data-ui still resolve */
+  --paper:var(--c-bg); --card:var(--c-surface);
+  --sans:'Inter',system-ui,sans-serif;
+}
+
+/* ── legacy aliases (CREATOR light-native pages) — resolves the --ink conflict ── */
+[data-ui="creator"]{
+  --paper:var(--c-bg); --card:var(--c-surface);
+  --ink:var(--c-text); --ink2:var(--c-surface2);
+  --hair:var(--c-line); --hair2:var(--c-line2);
+  --mut:var(--c-text2); --blue:var(--c-blue); --bluewash:var(--c-indigo);
+  --green:var(--c-cyan); --amber:var(--c-aura-3);
+}
+
+/* ── typography: geometric headings (Space Grotesk), fluid body (Inter).
+   :where() keeps zero specificity so pages that deliberately chose the Anton
+   display "stamp" (OFFSHORE / KULTUR) keep it, while every Archivo-inherited
+   heading upgrades to Space Grotesk. ── */
+:where(h1,h2,h3,h4,h5,h6){font-family:'Space Grotesk',var(--sans)}
+
+/* ── the brand: uppercase geometric ZORA, gradient CIRCLE for the "O" ──
+   Recreates the real logo as a theme-aware vector: Z/R/A inherit the text
+   colour (white in dark, black in light), the aura circle is constant. ── */
+.wordmark, .brand{ font-family:'Space Grotesk',var(--sans); text-transform:uppercase; font-weight:700; letter-spacing:.03em; }
+.wordmark .o, .brand .o, .logo .o, .foot .byzora .o, .runs .zmark .o{
+  width:.6em; height:.6em; margin:0 .05em; border-radius:50%;
+  background:var(--c-aura) !important; color:transparent !important;
+  display:inline-block; vertical-align:-0.06em; overflow:hidden; text-indent:-999px; white-space:nowrap;
+  box-shadow:0 0 12px rgba(255,90,120,.35);
+}
+.brand small{ text-transform:none; }   /* keep the "DASHBOARD / CONTROL ROOM" sublabel as set */
+
+/* real logo image (injected site-wide by zora-theme.js: white on dark, dark on light) */
+.wordmark img.zora-logo, .brand img.zora-logo{ height:.86em; width:auto; display:inline-block; vertical-align:-0.14em; user-select:none; }
+.wordmark:has(img.zora-logo), .brand:has(img.zora-logo){ letter-spacing:normal; }
+
+/* ── primary CTAs carry the aura; everything structural stays blue ── */
+.btn.solid, .nav-cta, .app-btn, .btn-aura, .kbtn:hover, .big-btn{
+  background:var(--c-aura) !important; color:#fff !important; border-color:transparent !important;
+}
+
+/* ── floating theme toggle (top-right corner) ── */
+.zora-theme-toggle{
+  position:fixed; top:14px; right:16px; z-index:200;
+  width:40px; height:40px; border-radius:50%;
+  border:1px solid var(--c-line2); background:var(--c-glass); backdrop-filter:blur(12px);
+  color:var(--c-text); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 6px 22px rgba(0,0,0,.28); transition:border-color .2s,color .2s,transform .2s;
+}
+.zora-theme-toggle:hover{ border-color:var(--c-blue); color:var(--c-ice); transform:translateY(-1px); }
+.zora-theme-toggle svg{ width:18px; height:18px; }
