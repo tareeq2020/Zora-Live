@@ -1,0 +1,36 @@
+{
+  "name": "@zora/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ZORA backend (NestJS) — 1:1 port of the legacy Express API. See MIGRATION-PLAN.md.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "node --test dist-test/**/*.test.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.4",
+    "@nestjs/core": "^10.4.4",
+    "@nestjs/platform-express": "^10.4.4",
+    "@resvg/resvg-js": "^2.6.2",
+    "@supabase/supabase-js": "^2.110.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "qrcode": "^1.5.4",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.5",
+    "@nestjs/schematics": "^10.2.3",
+    "@types/express": "^4.17.21",
+    "@types/express-session": "^1.18.0",
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.2"
+  }
+}
