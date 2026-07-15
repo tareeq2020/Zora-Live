@@ -63,6 +63,10 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+// Run on everything except Next internals and the /api proxy. A narrow matcher
+// (e.g. '/@:path*') silently misses multi-segment tenant paths like
+// /@handle/events/:id, so we match broadly and let the in-code checks above
+// pass through anything irrelevant with NextResponse.next().
 export const config = {
-  matcher: ['/events/:path*', '/@:path*', '/admin', '/login'],
+  matcher: ['/((?!_next/|api/).*)'],
 };
