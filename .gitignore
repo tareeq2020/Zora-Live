@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+data/.session-secret
+
+# Logs
+*.log
+_verify.*.log
+_gate.*.log
+
+# Expo / RN
+apps/mobile/.expo/
+apps/mobile/web-build/
+
+# OS
+.DS_Store
