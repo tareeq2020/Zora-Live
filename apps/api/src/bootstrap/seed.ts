@@ -17,8 +17,10 @@ export function seed(dataDir: string): void {
     console.log('First run: admin account created (admin / zora2026). Change it in Admin -> Access.');
   }
 
+  // Only mint a local secret file when there's no SESSION_SECRET env (prod supplies
+  // it). Avoids writing an unused random file when the env var is authoritative.
   const secretFile = p('.session-secret');
-  if (!fs.existsSync(secretFile)) {
+  if (!process.env.SESSION_SECRET && !fs.existsSync(secretFile)) {
     fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'));
   }
 

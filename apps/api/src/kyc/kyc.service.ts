@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { FileStore } from '../storage/file-store.service';
+import { resolveSessionSecret } from '../common/secret';
 
 /* KYC crypto + record helpers — direct port of server.js.
    SECURITY: documents live in data/kyc-private (outside any static root) and are
@@ -17,7 +18,7 @@ export class KycService {
   constructor(store: FileStore) {
     this.kycDir = path.join(store.dataDir, 'kyc-private');
     fs.mkdirSync(this.kycDir, { recursive: true });
-    const secret = fs.readFileSync(path.join(store.dataDir, '.session-secret'), 'utf8');
+    const secret = resolveSessionSecret(store.dataDir);
     this.key = crypto.createHash('sha256').update('kyc:' + secret).digest();
   }
 
