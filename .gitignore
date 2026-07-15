@@ -26,3 +26,4 @@ apps/mobile/web-build/
 
 # OS
 .DS_Store
+.gstack/
