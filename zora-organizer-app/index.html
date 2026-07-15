@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Zora" />
+<meta name="theme-color" content="#0A0A0B" />
+<title>Zora Organizer — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bone:#F4F1EA; --ink:#0A0A0B; --ultra:#3D5AFE; --orange:#FF5A1F;
+    --green:#17B368; --red:#FF3B30; --amber:#E9A83B;
+    --ink-60:rgba(10,10,11,.60); --ink-40:rgba(10,10,11,.40); --ink-12:rgba(10,10,11,.12); --ink-06:rgba(10,10,11,.06);
+    --bone-60:rgba(244,241,234,.60); --bone-40:rgba(244,241,234,.40); --bone-12:rgba(244,241,234,.12); --bone-06:rgba(244,241,234,.06);
+    --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --disp:'Anton',var(--sans);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:var(--sans); background:#111114; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:32px 16px; gap:44px; flex-wrap:wrap;
+    background-image:radial-gradient(circle at 30% 20%,rgba(61,90,254,.10),transparent 55%),radial-gradient(circle at 80% 90%,rgba(255,90,31,.08),transparent 50%);
+  }
+
+  /* ---- device frame ---- */
+  .stage{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .caption{color:var(--bone-60);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  .phone{
+    width:390px; height:820px; border-radius:52px; background:#000; padding:11px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.8),0 0 0 2px rgba(255,255,255,.04) inset; position:relative;
+  }
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:132px;height:30px;background:#000;border-radius:0 0 20px 20px;z-index:40}
+  .viewport{
+    position:relative; width:100%; height:100%; border-radius:42px; overflow:hidden; background:var(--bone);
+    display:flex; flex-direction:column;
+  }
+  .viewport[data-theme="dark"]{background:var(--ink)}
+
+  /* ---- status bar ---- */
+  .statusbar{height:46px;flex:0 0 46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font-size:13px;font-weight:600;font-family:var(--mono)}
+  [data-theme="dark"] .statusbar{color:var(--bone)}
+  .statusbar .dots{display:flex;gap:5px;align-items:center}
+  .statusbar .dots i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;display:block}
+
+  /* ---- screens ---- */
+  .screens{position:relative;flex:1 1 auto;overflow:hidden}
+  .screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:6px 22px 26px;display:none;animation:fade .28s ease}
+  .screen.active{display:block}
+  .screen::-webkit-scrollbar{width:0}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---- shared bits ---- */
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--ink-40)}
+  [data-theme="dark"] .eyebrow{color:var(--bone-40)}
+  .h1{font-family:var(--disp);font-size:30px;line-height:.98;letter-spacing:.01em;text-transform:uppercase}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .card{background:#fff;border:1px solid var(--ink-12);border-radius:20px;padding:18px}
+  [data-theme="dark"] .card{background:#161619;border-color:var(--bone-12)}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .muted{color:var(--ink-60);font-size:13px}
+  [data-theme="dark"] .muted{color:var(--bone-60)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:100px}
+  .pill.live{background:rgba(61,90,254,.12);color:var(--ultra)}
+  .pill.ok{background:rgba(23,179,104,.14);color:var(--green)}
+  .pill.warn{background:rgba(233,168,59,.16);color:#9a6a12}
+  .pill.mut{background:var(--ink-06);color:var(--ink-60)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+  .dot.pulse{animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .hidden{display:none!important}
+
+  /* app header (event switcher) */
+  .apphead{display:flex;align-items:center;justify-content:space-between;padding:6px 0 14px}
+  .evsel{display:flex;flex-direction:column;gap:3px;cursor:pointer}
+  .evsel .name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:7px}
+  .evsel .chev{font-size:11px;color:var(--ink-40)}
+  .avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--bone);display:grid;place-items:center;font-family:var(--disp);font-size:15px}
+  [data-theme="dark"] .avatar{background:var(--orange);color:#000}
+
+  /* hero stat */
+  .hero{margin:4px 0 16px}
+  .hero .big{font-family:var(--disp);font-size:64px;line-height:.9;letter-spacing:.005em}
+  .hero .slash{color:var(--ink-40)}
+  .cap{height:8px;border-radius:100px;background:var(--ink-12);overflow:hidden;margin-top:14px}
+  .cap > span{display:block;height:100%;background:var(--ultra);border-radius:100px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .stat{background:#fff;border:1px solid var(--ink-12);border-radius:18px;padding:14px 15px}
+  .stat .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-40);font-weight:700}
+  .stat .v{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:8px;letter-spacing:-.02em}
+  .stat small{font-size:12px;color:var(--ink-60);font-family:var(--sans);font-weight:500}
+
+  .sectlabel{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 11px}
+  .sectlabel h3{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-40);font-weight:700}
+  [data-theme="dark"] .sectlabel h3{color:var(--bone-40)}
+
+  /* tier rows */
+  .tier{padding:13px 0;border-bottom:1px solid var(--ink-06)}
+  .tier:last-child{border-bottom:0}
+  .tier .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .tier .tname{font-weight:600;font-size:14px}
+  .tier .tprice{font-family:var(--mono);font-size:12px;color:var(--ink-60)}
+  .tier .tcount{font-family:var(--mono);font-size:13px;font-weight:700}
+  .bar{height:6px;border-radius:100px;background:var(--ink-12);overflow:hidden}
+  .bar > span{display:block;height:100%;border-radius:100px;background:var(--ink);transition:width .6s ease}
+  .bar.soldout > span{background:var(--orange)}
+
+  /* live feed */
+  .feed{display:flex;flex-direction:column;gap:0}
+  .feeditem{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--ink-06);animation:slidein .4s ease}
+  @keyframes slidein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .feeditem .fdot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:0 0 8px}
+  .feeditem .ftxt{font-size:13px;flex:1}
+  .feeditem .ftime{font-family:var(--mono);font-size:11px;color:var(--ink-40)}
+  .feedempty{padding:16px 0;color:var(--ink-40);font-size:13px;text-align:center}
+
+  /* sparkline */
+  .spark{width:100%;height:52px;display:block;margin-top:6px}
+
+  /* ---------- DOOR (dark) ---------- */
+  .doorwrap{display:flex;flex-direction:column;height:100%;color:var(--bone)}
+  .doorhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .gate{font-family:var(--mono);font-size:12px;color:var(--bone-60);letter-spacing:.1em}
+  .scanner{
+    position:relative;border-radius:26px;aspect-ratio:1/1;margin:2px 0 18px;overflow:hidden;
+    background:radial-gradient(circle at 50% 42%,#20130b,#0a0a0b 70%);border:1px solid var(--bone-12);
+    display:grid;place-items:center;
+  }
+  .scanner .bracket{position:absolute;width:56px;height:56px;border:3px solid var(--orange);opacity:.9}
+  .scanner .bracket.tl{top:22px;left:22px;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
+  .scanner .bracket.tr{top:22px;right:22px;border-left:0;border-bottom:0;border-radius:0 14px 0 0}
+  .scanner .bracket.bl{bottom:22px;left:22px;border-right:0;border-top:0;border-radius:0 0 0 14px}
+  .scanner .bracket.br{bottom:22px;right:22px;border-left:0;border-top:0;border-radius:0 0 14px 0}
+  .scanline{position:absolute;left:22px;right:22px;height:2px;background:linear-gradient(90deg,transparent,var(--orange),transparent);top:22px;animation:scan 2.4s ease-in-out infinite;box-shadow:0 0 14px var(--orange)}
+  @keyframes scan{0%,100%{top:26px}50%{top:calc(100% - 26px)}}
+  .scanner .hint{font-family:var(--mono);font-size:12px;color:var(--bone-40);letter-spacing:.08em;text-align:center}
+  .qrghost{width:118px;height:118px;opacity:.14}
+
+  /* scan result overlay */
+  .result{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px;animation:pop .25s ease}
+  .result.show{display:flex}
+  @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+  .result .icon{width:78px;height:78px;border-radius:50%;display:grid;place-items:center;font-size:40px;font-weight:700;margin-bottom:16px}
+  .result.valid{background:rgba(23,179,104,.16)}
+  .result.valid .icon{background:var(--green);color:#04140c}
+  .result.used{background:rgba(255,59,48,.14)}
+  .result.used .icon{background:var(--red);color:#1a0402}
+  .result.invalid{background:rgba(255,59,48,.14)}
+  .result.invalid .icon{background:var(--red);color:#1a0402}
+  .result .rtitle{font-family:var(--disp);font-size:30px;text-transform:uppercase;letter-spacing:.02em}
+  .result .rsub{font-size:14px;color:var(--bone-60);margin-top:8px;line-height:1.4}
+  .result .rname{font-weight:700;color:var(--bone);font-size:16px;margin-top:2px}
+
+  .doorfoot{margin-top:auto}
+  .headcount{display:flex;align-items:baseline;justify-content:space-between;padding:16px 0 10px;border-top:1px solid var(--bone-12)}
+  .headcount .hc{font-family:var(--disp);font-size:40px;color:var(--bone)}
+  .headcount .hl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-40);font-weight:700}
+  .scanbtn{width:100%;padding:17px;border-radius:16px;border:0;background:var(--orange);color:#0a0a0b;font-weight:700;font-size:15px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;font-family:var(--sans)}
+  .scanbtn:active{transform:scale(.99)}
+
+  /* ---------- PEOPLE ---------- */
+  .search{width:100%;padding:13px 16px;border-radius:14px;border:1px solid var(--ink-12);background:#fff;font-size:14px;font-family:var(--sans);margin:2px 0 14px}
+  .search::placeholder{color:var(--ink-40)}
+  .chips{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .chip{font-size:12px;font-weight:600;padding:8px 13px;border-radius:100px;border:1px solid var(--ink-12);background:transparent;cursor:pointer;color:var(--ink-60)}
+  .chip.on{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+  .person{display:flex;align-items:center;gap:13px;padding:13px 2px;border-bottom:1px solid var(--ink-06)}
+  .person .pi{width:40px;height:40px;border-radius:50%;background:var(--ink-06);display:grid;place-items:center;font-weight:700;font-size:14px;flex:0 0 40px}
+  .person .pmeta{flex:1;min-width:0}
+  .person .pname{font-weight:600;font-size:14px}
+  .person .psub{font-family:var(--mono);font-size:11px;color:var(--ink-40);margin-top:2px}
+  .statusbtn{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:100px;border:1px solid var(--ink-12);background:transparent;cursor:pointer;white-space:nowrap;color:var(--ink-60)}
+  .statusbtn.in{background:rgba(23,179,104,.14);color:var(--green);border-color:transparent}
+
+  /* ---------- MONEY ---------- */
+  .payout .amt{font-family:var(--disp);font-size:52px;line-height:.9;margin-top:4px}
+  .ledger{margin-top:6px}
+  .ledger .lrow{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--ink-06);font-size:14px}
+  .ledger .lrow:last-child{border-bottom:0}
+  .ledger .lrow.net{font-weight:700}
+  .ledger .lval{font-family:var(--mono);font-weight:700}
+  .ledger .lrow.fee .lval{color:var(--ink-60)}
+  .paydest{display:flex;align-items:center;gap:13px;margin-top:4px}
+  .paydest .mm{width:42px;height:42px;border-radius:12px;background:var(--ink);color:var(--bone);display:grid;place-items:center;font-weight:700;font-size:12px;font-family:var(--mono)}
+
+  /* ---------- LOGIN ---------- */
+  .login{position:absolute;inset:0;z-index:60;background:var(--ink);color:var(--bone);display:flex;flex-direction:column;padding:62px 30px 34px;transition:opacity .5s ease,transform .5s ease}
+  .login.gone{opacity:0;transform:translateY(-24px);pointer-events:none}
+  .brandmark{font-family:var(--disp);font-size:34px;letter-spacing:.06em}
+  .brandsub{font-size:11px;letter-spacing:.34em;color:var(--bone-40);font-weight:700;margin-top:3px}
+  .login-mid{margin-top:auto;margin-bottom:26px}
+  .login-h1{font-family:var(--disp);font-size:33px;line-height:1.02;text-transform:uppercase}
+  .login-p{color:var(--bone-60);font-size:14px;line-height:1.5;margin-top:12px;max-width:300px}
+  .fieldlab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-40);font-weight:700;display:block;margin-bottom:9px}
+  .phonefield{display:flex;align-items:center;background:#161619;border:1px solid var(--bone-12);border-radius:14px;padding:0 14px;margin-bottom:14px}
+  .phonefield .cc{font-family:var(--mono);font-size:14px;color:var(--bone);white-space:nowrap;padding-right:12px;margin-right:12px;border-right:1px solid var(--bone-12)}
+  .phonefield input{flex:1;background:transparent;border:0;color:var(--bone);font-size:16px;padding:15px 0;font-family:var(--mono);outline:none}
+  .btn-primary{width:100%;padding:16px;border:0;border-radius:14px;background:var(--ultra);color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:var(--sans);letter-spacing:.02em}
+  .btn-primary:active{transform:scale(.99)}
+  .or{display:flex;align-items:center;gap:12px;color:var(--bone-40);font-size:12px;margin:16px 0}
+  .or::before,.or::after{content:'';flex:1;height:1px;background:var(--bone-12)}
+  .btn-google{width:100%;padding:14px;border:0;border-radius:14px;background:var(--bone);color:var(--ink);font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--sans)}
+  .trust{color:var(--bone-40);font-size:11px;line-height:1.5;margin-top:18px;text-align:center}
+  .otp{display:flex;gap:10px;margin-bottom:16px}
+  .otp input{flex:1;width:100%;aspect-ratio:1/1;text-align:center;background:#161619;border:1px solid var(--bone-12);border-radius:14px;color:var(--bone);font-family:var(--mono);font-size:26px;outline:none}
+  .otp input:focus{border-color:var(--ultra)}
+  .otp-sent{color:var(--bone-60);font-size:13px;margin:-4px 0 16px}
+  .otp-actions{display:flex;justify-content:space-between;margin-top:16px}
+  .linkbtn{background:none;border:0;color:var(--bone-60);font-size:13px;cursor:pointer;font-weight:600;font-family:var(--sans)}
+
+  /* ---------- EVENT SHEET ---------- */
+  #eventsheet{position:absolute;inset:0;z-index:55;display:none}
+  #eventsheet.open{display:block}
+  .sheet-scrim{position:absolute;inset:0;background:rgba(10,10,11,.5);animation:fade .25s ease}
+  .sheet-panel{position:absolute;left:0;right:0;bottom:0;background:var(--bone);border-radius:26px 26px 0 0;padding:10px 20px 26px;max-height:82%;overflow-y:auto;animation:slideup .32s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-grab{width:40px;height:4px;border-radius:100px;background:var(--ink-12);margin:8px auto 14px}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .sheet-head h3{font-family:var(--disp);font-size:22px;text-transform:uppercase}
+  .evrow{width:100%;text-align:left;display:flex;align-items:flex-start;gap:12px;justify-content:space-between;background:#fff;border:1px solid var(--ink-12);border-radius:18px;padding:15px 16px;margin-bottom:10px;cursor:pointer;font-family:var(--sans)}
+  .evrow.current{border-color:var(--ink);border-width:1.5px}
+  .evrow-name{font-weight:700;font-size:15px}
+  .evrow-sub{font-size:12px;color:var(--ink-60);margin-top:3px}
+  .evrow-stat{font-family:var(--mono);font-size:11px;color:var(--ink-40);margin-top:7px}
+  .evrow-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:0 0 auto}
+  .curmark{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ultra)}
+  .evrow.create{background:transparent;border-style:dashed}
+
+  .toast{position:absolute;left:50%;bottom:96px;transform:translate(-50%,10px);background:var(--ink);color:var(--bone);font-size:12.5px;font-weight:600;padding:12px 18px;border-radius:100px;opacity:0;transition:opacity .3s,transform .3s;z-index:70;max-width:84%;text-align:center;box-shadow:0 14px 34px -12px rgba(0,0,0,.6)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- tab bar ---------- */
+  .tabbar{flex:0 0 78px;display:flex;border-top:1px solid var(--ink-12);background:rgba(244,241,234,.86);backdrop-filter:blur(12px);padding-bottom:12px}
+  [data-theme="dark"] .tabbar{background:rgba(10,10,11,.86);border-color:var(--bone-12)}
+  .tab{flex:1;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:12px;cursor:pointer;color:var(--ink-40);font-family:var(--sans)}
+  [data-theme="dark"] .tab{color:var(--bone-40)}
+  .tab svg{width:23px;height:23px}
+  .tab .tlabel{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+  .tab.on{color:var(--ink)}
+  [data-theme="dark"] .tab.on{color:var(--orange)}
+  .tab.on.liveaccent{color:var(--ultra)}
+
+  .foot{color:var(--bone-40);font-size:11px;letter-spacing:.1em;text-transform:uppercase;text-align:center;max-width:390px;line-height:1.7}
+  .foot b{color:var(--bone-60)}
+  @media(max-width:900px){ body{gap:24px} .foot{order:3} }
+  @media (max-width:480px){
+    body{padding:0;gap:0;min-height:100dvh;background:#0A0A0B;display:block}
+    .stage{gap:0}
+    .caption,.foot{display:none}
+    .phone{width:100vw;height:100dvh;min-height:100dvh;border-radius:0;padding:0;box-shadow:none}
+    .notch{display:none}
+    .viewport{border-radius:0;padding-top:env(safe-area-inset-top)}
+    .tabbar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <div class="caption">Zora Organizer — clickable prototype</div>
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="viewport" id="viewport" data-theme="light">
+
+        <!-- status bar -->
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="dots"><i></i><i></i><i></i> <span style="font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.05em">5G</span></span>
+        </div>
+
+        <div class="screens">
+
+          <!-- ============ LIVE / DASHBOARD ============ -->
+          <section class="screen active" id="s-live">
+            <div class="apphead">
+              <div class="evsel">
+                <span class="eyebrow">Now managing</span>
+                <span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span>
+              </div>
+              <div class="avatar">Z</div>
+            </div>
+
+            <div class="row" style="margin-bottom:2px">
+              <span class="pill live" id="livepill"><span class="dot pulse"></span> Live · on sale</span>
+              <span class="muted num" id="livedate" style="font-size:12px">SAT 25 JUL · Dar</span>
+            </div>
+
+            <div class="hero">
+              <div class="eyebrow" style="margin-bottom:8px">Tickets sold</div>
+              <div class="big num"><span id="sold">1,284</span><span class="slash"> / <span id="capTotal">3,200</span></span></div>
+              <div class="cap"><span id="capbar" style="width:40%"></span></div>
+              <div class="muted num" style="margin-top:9px;font-size:12px"><span id="capPct">40</span>% of capacity · <span id="remain">1,916</span> left</div>
+            </div>
+
+            <div class="grid2">
+              <div class="stat"><div class="k">Gross</div><div class="v"><span id="grossCur">TZS</span> <span id="gross">96.2</span>M</div></div>
+              <div class="stat"><div class="k">Net (after 5%)</div><div class="v"><span id="netCur">TZS</span> <span id="net">91.4</span>M</div></div>
+              <div class="stat"><div class="k">Checked in</div><div class="v" id="checked">0</div><small>at the gate</small></div>
+              <div class="stat"><div class="k">Sales / hr</div><div class="v">+<span id="velo">148</span></div><small>last 60 min</small></div>
+            </div>
+
+            <div class="sectlabel"><h3>Velocity</h3><span class="muted num" style="font-size:11px">last 12h</span></div>
+            <div class="card" style="padding:14px 16px">
+              <svg class="spark" viewBox="0 0 320 52" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="#3D5AFE" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+                  points="0,44 26,40 52,42 78,34 104,36 130,28 156,30 182,22 208,24 234,16 260,18 286,9 320,6"/>
+                <polyline fill="rgba(61,90,254,.10)" stroke="none"
+                  points="0,44 26,40 52,42 78,34 104,36 130,28 156,30 182,22 208,24 234,16 260,18 286,9 320,6 320,52 0,52"/>
+              </svg>
+            </div>
+
+            <div class="sectlabel"><h3>By tier</h3><span class="muted num" style="font-size:11px" id="tiercount">4 tiers</span></div>
+            <div class="card" id="tiercard"></div>
+
+            <div class="sectlabel"><h3>Live feed</h3><span class="pill live"><span class="dot pulse"></span> real-time</span></div>
+            <div class="card"><div class="feed" id="feed"></div></div>
+            <div style="height:8px"></div>
+          </section>
+
+          <!-- ============ DOOR / SCAN (dark) ============ -->
+          <section class="screen" id="s-door">
+            <div class="doorwrap">
+              <div class="doorhead">
+                <div>
+                  <div class="eyebrow" style="color:var(--orange);margin-bottom:5px">The door</div>
+                  <div class="gate">GATE A · <span class="ev-name">OFFSHORE</span></div>
+                </div>
+                <span class="pill" style="background:rgba(233,168,59,.16);color:var(--amber)"><span class="dot"></span> Offline · synced 2m</span>
+              </div>
+
+              <div class="scanner" id="scanner">
+                <div class="bracket tl"></div><div class="bracket tr"></div><div class="bracket bl"></div><div class="bracket br"></div>
+                <div class="scanline"></div>
+                <svg class="qrghost" viewBox="0 0 100 100" fill="var(--orange)" aria-hidden="true">
+                  <rect x="0" y="0" width="28" height="28" rx="4"/><rect x="8" y="8" width="12" height="12" fill="#0a0a0b"/>
+                  <rect x="72" y="0" width="28" height="28" rx="4"/><rect x="80" y="8" width="12" height="12" fill="#0a0a0b"/>
+                  <rect x="0" y="72" width="28" height="28" rx="4"/><rect x="8" y="80" width="12" height="12" fill="#0a0a0b"/>
+                  <rect x="40" y="6" width="8" height="8"/><rect x="54" y="6" width="8" height="8"/><rect x="40" y="40" width="8" height="8"/>
+                  <rect x="60" y="46" width="8" height="8"/><rect x="74" y="60" width="8" height="8"/><rect x="46" y="70" width="8" height="8"/>
+                  <rect x="88" y="74" width="8" height="8"/><rect x="70" y="88" width="8" height="8"/>
+                </svg>
+                <div class="hint" style="position:absolute;bottom:20px">POINT AT A PASS</div>
+
+                <div class="result valid" id="r-valid">
+                  <div class="icon">✓</div>
+                  <div class="rtitle">Valid</div>
+                  <div class="rname" id="v-name">Amina Kessy</div>
+                  <div class="rsub" id="v-tier">Wave 01 · Z001-0417</div>
+                </div>
+                <div class="result used" id="r-used">
+                  <div class="icon">!</div>
+                  <div class="rtitle">Already in</div>
+                  <div class="rsub">Scanned 13:52 · Gate B<br/>Wave 02 · Z001-0288</div>
+                </div>
+                <div class="result invalid" id="r-invalid">
+                  <div class="icon">✕</div>
+                  <div class="rtitle">Not valid</div>
+                  <div class="rsub">Signature failed.<br/>Not a Zora pass for this event.</div>
+                </div>
+              </div>
+
+              <div class="doorfoot">
+                <div class="headcount">
+                  <div class="hl">Through the gate</div>
+                  <div class="hc num"><span id="hcount">842</span></div>
+                </div>
+                <button class="scanbtn" id="scanbtn">Simulate scan</button>
+                <div class="muted" style="color:var(--bone-40);text-align:center;font-size:11px;margin-top:12px">Works offline · verifies on-device · syncs when back online</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ PEOPLE / ATTENDEES ============ -->
+          <section class="screen" id="s-people">
+            <div class="apphead"><div class="evsel"><span class="eyebrow">Attendees</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div><div class="avatar">Z</div></div>
+            <input class="search" placeholder="Search name, phone or code…" id="psearch" />
+            <div class="chips" id="pchips">
+              <button class="chip on" data-f="all">All</button>
+              <button class="chip" data-f="in">Checked in</button>
+              <button class="chip" data-f="out">Not in</button>
+              <button class="chip" data-f="vip">VIP</button>
+            </div>
+            <div class="row" style="margin:6px 2px 4px"><span class="muted num" style="font-size:12px"><b id="pcount">3,200</b> tickets · <b id="pin">842</b> in</span></div>
+            <div id="plist"></div>
+            <div style="height:8px"></div>
+          </section>
+
+          <!-- ============ MONEY / PAYOUTS ============ -->
+          <section class="screen" id="s-money">
+            <div class="apphead"><div class="evsel"><span class="eyebrow">Money</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div><div class="avatar">Z</div></div>
+
+            <div class="card payout">
+              <div class="row"><span class="eyebrow">Your net payout</span><span class="pill warn" id="payStatus"><span class="dot"></span> After event</span></div>
+              <div class="amt num" id="payoutAmt">TZS 91.4M</div>
+              <div class="muted" style="margin-top:6px">One honest number. No hidden fees.</div>
+            </div>
+
+            <div class="sectlabel"><h3>Breakdown</h3></div>
+            <div class="card ledger">
+              <div class="lrow"><span>Gross sales</span><span class="lval" id="ledgerGross">TZS 96,200,000</span></div>
+              <div class="lrow fee"><span>Zora fee · 5% <span class="muted">(launch rate)</span></span><span class="lval" id="ledgerFee">− TZS 4,810,000</span></div>
+              <div class="lrow fee"><span>Payment rail cost</span><span class="lval">—</span></div>
+              <div class="lrow net"><span>Net to you</span><span class="lval" id="ledgerNet">TZS 91,390,000</span></div>
+            </div>
+
+            <div class="sectlabel"><h3>Payout destination</h3></div>
+            <div class="card">
+              <div class="paydest">
+                <div class="mm">M-P</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:14px">M-Pesa · Vodacom</div><div class="muted num" style="font-size:12px">•••• 4471 · verified</div></div>
+                <span class="pill ok"><span class="dot"></span> Ready</span>
+              </div>
+              <div class="muted" style="margin-top:14px;font-size:12px;line-height:1.5">Payout releases automatically 24h after the event ends. You track it here — Zora never asks you to move the money.</div>
+            </div>
+            <div style="height:8px"></div>
+          </section>
+
+        </div>
+
+        <!-- ============ EVENT SWITCHER SHEET ============ -->
+        <div id="eventsheet">
+          <div class="sheet-scrim" id="sheetScrim"></div>
+          <div class="sheet-panel">
+            <div class="sheet-grab"></div>
+            <div class="sheet-head"><h3>Your events</h3><button class="linkbtn" id="sheetClose" style="font-size:20px;color:var(--ink-40)">✕</button></div>
+            <div id="eventList"></div>
+          </div>
+        </div>
+
+        <!-- ============ TAB BAR ============ -->
+        <nav class="tabbar" id="tabbar">
+          <button class="tab on liveaccent" data-tab="s-live" data-theme="light">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 13.5 12 5l9 8.5"/><path d="M5 12v7h14v-7"/></svg>
+            <span class="tlabel">Live</span>
+          </button>
+          <button class="tab" data-tab="s-door" data-theme="dark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3M21 14v.01M17 21h4M21 17v4"/></svg>
+            <span class="tlabel">Door</span>
+          </button>
+          <button class="tab" data-tab="s-people" data-theme="light">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17.5 20a5.5 5.5 0 0 0-3-4.9"/></svg>
+            <span class="tlabel">People</span>
+          </button>
+          <button class="tab" data-tab="s-money" data-theme="light">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/></svg>
+            <span class="tlabel">Money</span>
+          </button>
+        </nav>
+
+        <!-- ============ LOGIN ============ -->
+        <div class="login" id="login">
+          <div>
+            <div class="brandmark">ZORA</div>
+            <div class="brandsub">ORGANIZER</div>
+          </div>
+          <div class="login-mid">
+            <h1 class="login-h1">The control room,<br/>in your pocket.</h1>
+            <p class="login-p">Sign in to run sales, the door and payouts — live, from anywhere.</p>
+          </div>
+
+          <div id="loginStep1">
+            <label class="fieldlab">Phone number</label>
+            <div class="phonefield">
+              <span class="cc">TZ +255</span>
+              <input id="phoneInput" inputmode="numeric" placeholder="712 000 000" />
+            </div>
+            <button class="btn-primary" id="continueBtn">Continue</button>
+            <div class="or"><span>or</span></div>
+            <button class="btn-google" id="googleBtn">
+              <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7C43.7 37.9 46.5 31.8 46.5 24.5z"/><path fill="#FBBC05" d="M10.5 28.3c-.5-1.5-.8-3.1-.8-4.8s.3-3.3.8-4.8l-7.9-6.1C1 15.9 0 19.8 0 23.5s1 7.6 2.6 10.9l7.9-6.1z"/><path fill="#34A853" d="M24 47c6.2 0 11.4-2 15.2-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.9 2.2-6.3 0-11.6-3.7-13.5-9.3l-7.9 6.1C6.5 42.6 14.6 47 24 47z"/></svg>
+              Continue with Google
+            </button>
+            <p class="trust">Bank-grade encryption. Zora never asks you to move your money.</p>
+          </div>
+
+          <div id="loginStep2" class="hidden">
+            <label class="fieldlab">Enter the 4-digit code</label>
+            <p class="otp-sent">Sent to <span id="otpPhoneLabel">+255 712 000 000</span></p>
+            <div class="otp" id="otpBoxes">
+              <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+            </div>
+            <button class="btn-primary" id="verifyBtn">Verify and enter</button>
+            <div class="otp-actions">
+              <button class="linkbtn" id="backToPhone">Change number</button>
+              <button class="linkbtn" id="resendBtn">Resend code</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Prototype</b> · React Native + Expo target · offline-first door scan<br/>
+    Sign in (any number, any 4 digits) · tap <b>OFFSHORE ▾</b> to switch events · try <b>Simulate scan</b>
+  </div>
+
+<script>
+(function(){
+  var viewport = document.getElementById('viewport');
+  var tabs = [].slice.call(document.querySelectorAll('.tab'));
+  var screenIds = ['s-live','s-door','s-people','s-money'];
+  var el = function(id){ return document.getElementById(id); };
+  function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+  function priceNum(p){ var v = parseInt(String(p).replace(/[^\d]/g,''),10); return isNaN(v)?0:v; }
+
+  /* ---------- EVENTS ---------- */
+  var events = [
+    {id:'offshore', name:'OFFSHORE', tag:'Daytime Yacht Groove', date:'SAT 25 JUL', city:'Dar es Salaam', cur:'TZS', status:'live',
+     sold:1284, cap:3200, grossM:96.2, checked:842, velo:148,
+     tiers:[{n:'Wave 01',p:'65,000',sold:1000,cap:1000},{n:'Wave 02',p:'85,000',sold:210,cap:1200},{n:'Cabana — crew of 6',p:'900,000',sold:28,cap:40},{n:'Boarding pass',p:'earned',sold:0,cap:200,locked:true}]},
+    {id:'kultur', name:'KULTUR: NAIROBI', tag:'Nights 01', date:'FRI 15 AUG', city:'Nairobi', cur:'KES', status:'upcoming',
+     sold:612, cap:2000, grossM:2.4, checked:0, velo:58,
+     tiers:[{n:'Early',p:'2,500',sold:500,cap:500},{n:'General',p:'3,500',sold:112,cap:1300},{n:'Table for 6',p:'40,000',sold:0,cap:200}]},
+    {id:'sundowner', name:'SUNDOWNER 03', tag:'Rooftop · Stone Town', date:'SUN 24 AUG', city:'Zanzibar', cur:'TZS', status:'draft',
+     sold:0, cap:600, grossM:0, checked:0, velo:0,
+     tiers:[{n:'Early bird',p:'40,000',sold:0,cap:300},{n:'General',p:'55,000',sold:0,cap:300}]},
+    {id:'drop000', name:'DROP 000', tag:'Warehouse', date:'14 JUN 2026', city:'Dar es Salaam', cur:'TZS', status:'past',
+     sold:1200, cap:1200, grossM:38.1, checked:1180, velo:0,
+     tiers:[{n:'General',p:'30,000',sold:900,cap:900},{n:'VIP',p:'80,000',sold:300,cap:300}]}
+  ];
+  var active = events[0];
+  function statusMeta(s){
+    return ({
+      live:     {cls:'pill live', dot:'<span class="dot pulse"></span> ', txt:'Live · on sale'},
+      upcoming: {cls:'pill live', dot:'<span class="dot"></span> ',      txt:'On sale'},
+      draft:    {cls:'pill mut',  dot:'<span class="dot"></span> ',      txt:'Draft'},
+      past:     {cls:'pill mut',  dot:'<span class="dot"></span> ',      txt:'Ended'}
+    })[s];
+  }
+  function ticking(ev){ return ev.status==='live' || ev.status==='upcoming'; }
+
+  /* ---------- RENDER ---------- */
+  function renderNames(){ [].forEach.call(document.querySelectorAll('.ev-name'), function(n){ n.textContent = active.name; }); }
+  function renderLive(){
+    var pct = active.cap ? Math.min(100, Math.round(active.sold/active.cap*100)) : 0;
+    el('sold').textContent = fmt(active.sold);
+    el('capTotal').textContent = fmt(active.cap);
+    el('capbar').style.width = pct + '%';
+    el('capPct').textContent = pct;
+    el('remain').textContent = fmt(Math.max(0, active.cap - active.sold));
+    el('grossCur').textContent = active.cur; el('gross').textContent = active.grossM.toFixed(1);
+    el('netCur').textContent = active.cur;   el('net').textContent = (active.grossM*0.95).toFixed(1);
+    el('checked').textContent = fmt(active.checked);
+    el('velo').textContent = active.velo;
+    el('livedate').textContent = active.date + ' · ' + active.city;
+    var m = statusMeta(active.status);
+    var pill = el('livepill'); pill.className = m.cls; pill.innerHTML = m.dot + m.txt;
+    var tc = el('tiercard'); tc.innerHTML = '';
+    active.tiers.forEach(function(t){
+      var pctT = t.cap ? Math.min(100, Math.round(t.sold/t.cap*100)) : 0;
+      var so = t.cap>0 && t.sold>=t.cap;
+      var d = document.createElement('div'); d.className = 'tier';
+      d.innerHTML = '<div class="top"><div><div class="tname">'+t.n+'</div><div class="tprice">'+(priceNum(t.p)?t.p+' '+active.cur:t.p)+'</div></div>'+
+        '<div class="tcount"'+(t.locked?' style="color:var(--ink-40)"':'')+'>'+(t.locked?'locked':fmt(t.sold)+' / '+fmt(t.cap))+'</div></div>'+
+        '<div class="bar'+(so?' soldout':'')+'"><span style="width:'+(t.locked?0:pctT)+'%"></span></div>';
+      tc.appendChild(d);
+    });
+    el('tiercount').textContent = active.tiers.length + ' tiers';
+  }
+  function renderMoney(){
+    var g = Math.round(active.grossM*1e6), fee = Math.round(g*0.05), net = g - fee;
+    el('payoutAmt').textContent = active.grossM>0 ? active.cur+' '+(active.grossM*0.95).toFixed(1)+'M' : active.cur+' 0';
+    el('ledgerGross').textContent = active.cur+' '+fmt(g);
+    el('ledgerFee').textContent = '− '+active.cur+' '+fmt(fee);
+    el('ledgerNet').textContent = active.cur+' '+fmt(net);
+    var ps = el('payStatus');
+    if(active.status==='past'){ ps.className='pill ok'; ps.innerHTML='<span class="dot"></span> Paid'; }
+    else if(active.status==='draft'){ ps.className='pill mut'; ps.innerHTML='<span class="dot"></span> Not on sale'; }
+    else { ps.className='pill warn'; ps.innerHTML='<span class="dot"></span> After event'; }
+  }
+  function renderPeople(){ el('pcount').textContent = fmt(active.cap); el('pin').textContent = fmt(active.checked); renderPeopleList(); }
+  function renderDoor(){ el('hcount').textContent = fmt(active.checked); }
+  function renderAll(){ renderNames(); renderLive(); renderMoney(); renderPeople(); renderDoor(); }
+
+  /* ---------- LIVE FEED ---------- */
+  var feed = el('feed');
+  var buyers = ['Amani M.','Zawadi K.','John P.','Neema S.','Baraka L.','Fatma H.','Deo R.','Upendo N.','Kelvin T.','Rehema J.'];
+  function pushFeed(seed){
+    var sell = active.tiers.filter(function(t){ return !t.locked && t.sold < t.cap; });
+    if(!sell.length) return;
+    var t = sell[Math.floor(Math.random()*sell.length)];
+    var q = 1 + Math.floor(Math.random()*Math.min(3, t.cap - t.sold));
+    t.sold += q; active.sold += q; active.grossM += q*priceNum(t.p)/1e6;
+    var item = document.createElement('div'); item.className = 'feeditem';
+    item.innerHTML = '<span class="fdot"></span><span class="ftxt"><b>'+q+' × '+t.n+'</b> · '+buyers[Math.floor(Math.random()*buyers.length)]+'</span><span class="ftime">just now</span>';
+    feed.insertBefore(item, feed.firstChild);
+    while(feed.children.length > 5) feed.removeChild(feed.lastChild);
+    [].forEach.call(feed.children, function(c,i){ if(i>0) c.querySelector('.ftime').textContent = i+'m ago'; });
+    if(!seed) renderLive();
+  }
+  function seedFeed(){
+    feed.innerHTML = '';
+    if(ticking(active)){ for(var i=0;i<4;i++) pushFeed(true); }
+    else { feed.innerHTML = '<div class="feedempty">No live sales — '+(active.status==='draft'?'event is a draft':'event has ended')+'.</div>'; }
+  }
+  setInterval(function(){
+    if(ticking(active) && active.sold < active.cap) pushFeed(false);
+  }, 3000);
+
+  /* ---------- TABS ---------- */
+  function show(id){
+    var tab = tabs.filter(function(t){ return t.dataset.tab===id; })[0]; if(!tab) return;
+    screenIds.forEach(function(sid){ el(sid).classList.toggle('active', sid===id); });
+    tabs.forEach(function(t){ t.classList.toggle('on', t===tab); });
+    viewport.setAttribute('data-theme', tab.dataset.theme);
+  }
+  tabs.forEach(function(t){ t.addEventListener('click', function(){ show(t.dataset.tab); }); });
+
+  /* ---------- DOOR SCAN ---------- */
+  var scanbtn = el('scanbtn');
+  var results = { valid:el('r-valid'), used:el('r-used'), invalid:el('r-invalid') };
+  var vName = el('v-name'), vTier = el('v-tier');
+  var names = ['Amina Kessy','Juma Ally','Grace Mushi','Said Omar','Lucy Meena','Tumaini Paul','Halima Yusuf','Erick Massawe'];
+  var seq = ['valid','valid','valid','used','valid','invalid','valid']; var si = 0; var busy = false;
+  function clearResults(){ Object.keys(results).forEach(function(k){ results[k].classList.remove('show'); }); }
+  scanbtn.addEventListener('click', function(){
+    if(busy) return; busy = true; clearResults();
+    var kind = seq[si % seq.length]; si++;
+    if(kind === 'valid'){
+      vName.textContent = names[Math.floor(Math.random()*names.length)];
+      var sellable = active.tiers.filter(function(t){ return !t.locked; });
+      var tn = (sellable[Math.floor(Math.random()*sellable.length)]||{n:'General'}).n;
+      vTier.textContent = tn + ' · Z-' + (300 + Math.floor(Math.random()*600));
+      active.checked++; renderDoor();
+      el('checked').textContent = fmt(active.checked); el('pin').textContent = fmt(active.checked);
+    }
+    results[kind].classList.add('show');
+    if(navigator.vibrate) navigator.vibrate(kind==='valid'?30:[20,40,20]);
+    setTimeout(function(){ clearResults(); busy = false; }, 1500);
+  });
+
+  /* ---------- PEOPLE ---------- */
+  var plist = el('plist'), psearch = el('psearch'), pchips = el('pchips'); var filter = 'all';
+  var people = [
+    {n:'Amina Kessy',t:'Wave 01',c:'Z001-0417',in:true,vip:false},
+    {n:'Juma Ally',t:'Cabana',c:'Z001-0031',in:true,vip:true},
+    {n:'Grace Mushi',t:'Wave 02',c:'Z001-0288',in:false,vip:false},
+    {n:'Said Omar',t:'Wave 01',c:'Z001-0455',in:true,vip:false},
+    {n:'Lucy Meena',t:'Cabana',c:'Z001-0039',in:false,vip:true},
+    {n:'Tumaini Paul',t:'Wave 01',c:'Z001-0502',in:true,vip:false},
+    {n:'Halima Yusuf',t:'Wave 02',c:'Z001-0611',in:false,vip:false},
+    {n:'Erick Massawe',t:'Wave 01',c:'Z001-0733',in:true,vip:false},
+    {n:'Neema Shirima',t:'Cabana',c:'Z001-0044',in:false,vip:true},
+    {n:'Baraka Lyimo',t:'Wave 02',c:'Z001-0820',in:true,vip:false}
+  ];
+  function initials(n){ return n.split(' ').map(function(w){ return w[0]; }).join('').slice(0,2).toUpperCase(); }
+  function renderPeopleList(){
+    var q = (psearch.value||'').toLowerCase();
+    plist.innerHTML = '';
+    people.filter(function(p){
+      if(filter==='in' && !p.in) return false;
+      if(filter==='out' && p.in) return false;
+      if(filter==='vip' && !p.vip) return false;
+      if(q && p.n.toLowerCase().indexOf(q)<0 && p.c.toLowerCase().indexOf(q)<0) return false;
+      return true;
+    }).forEach(function(p){
+      var row = document.createElement('div'); row.className = 'person';
+      row.innerHTML = '<div class="pi">'+initials(p.n)+'</div>'+
+        '<div class="pmeta"><div class="pname">'+p.n+'</div><div class="psub">'+p.t+' · '+p.c+'</div></div>'+
+        '<button class="statusbtn '+(p.in?'in':'')+'">'+(p.in?'In':'Check in')+'</button>';
+      row.querySelector('.statusbtn').addEventListener('click', function(){ p.in = !p.in; renderPeopleList(); });
+      plist.appendChild(row);
+    });
+  }
+  psearch.addEventListener('input', renderPeopleList);
+  [].forEach.call(pchips.children, function(ch){
+    ch.addEventListener('click', function(){
+      [].forEach.call(pchips.children, function(c){ c.classList.remove('on'); });
+      ch.classList.add('on'); filter = ch.dataset.f; renderPeopleList();
+    });
+  });
+
+  /* ---------- EVENT SWITCHER SHEET ---------- */
+  var sheet = el('eventsheet'), eventList = el('eventList');
+  function openSheet(){ buildEventList(); sheet.classList.add('open'); }
+  function closeSheet(){ sheet.classList.remove('open'); }
+  [].forEach.call(document.querySelectorAll('.evsel'), function(o){ o.addEventListener('click', openSheet); });
+  el('sheetClose').addEventListener('click', closeSheet);
+  el('sheetScrim').addEventListener('click', closeSheet);
+  function buildEventList(){
+    eventList.innerHTML = '';
+    events.forEach(function(ev){
+      var m = statusMeta(ev.status);
+      var row = document.createElement('button'); row.className = 'evrow' + (ev===active?' current':'');
+      row.innerHTML = '<div><div class="evrow-name">'+ev.name+'</div><div class="evrow-sub">'+ev.tag+' · '+ev.date+' · '+ev.city+'</div>'+
+        '<div class="evrow-stat">'+fmt(ev.sold)+' / '+fmt(ev.cap)+' sold · '+ev.cur+' '+ev.grossM.toFixed(1)+'M</div></div>'+
+        '<div class="evrow-right"><span class="'+m.cls+'">'+m.txt+'</span>'+(ev===active?'<span class="curmark">Active</span>':'')+'</div>';
+      row.addEventListener('click', function(){ active = ev; seedFeed(); renderAll(); closeSheet(); show('s-live'); });
+      eventList.appendChild(row);
+    });
+    var cr = document.createElement('button'); cr.className = 'evrow create';
+    cr.innerHTML = '<div><div class="evrow-name" style="color:var(--ultra)">+ Create event</div><div class="evrow-sub">Authoring opens on the Zora web dashboard</div></div>';
+    cr.addEventListener('click', function(){ toast('Event creation opens on the Zora web dashboard'); });
+    eventList.appendChild(cr);
+  }
+
+  /* ---------- TOAST ---------- */
+  function toast(msg){
+    var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+    viewport.appendChild(t); requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 300); }, 2200);
+  }
+
+  /* ---------- LOGIN ---------- */
+  var login = el('login');
+  el('continueBtn').addEventListener('click', function(){
+    var v = el('phoneInput').value.trim();
+    if(!v){ el('phoneInput').focus(); return; }
+    el('otpPhoneLabel').textContent = '+255 ' + v;
+    el('loginStep1').classList.add('hidden'); el('loginStep2').classList.remove('hidden');
+    otp[0].focus();
+  });
+  el('googleBtn').addEventListener('click', enterApp);
+  el('verifyBtn').addEventListener('click', enterApp);
+  el('backToPhone').addEventListener('click', function(){ el('loginStep2').classList.add('hidden'); el('loginStep1').classList.remove('hidden'); });
+  el('resendBtn').addEventListener('click', function(){ toast('New code sent'); });
+  var otp = [].slice.call(el('otpBoxes').querySelectorAll('input'));
+  otp.forEach(function(b,i){
+    b.addEventListener('input', function(){ if(b.value && i < otp.length-1) otp[i+1].focus(); });
+    b.addEventListener('keydown', function(e){ if(e.key==='Backspace' && !b.value && i>0) otp[i-1].focus(); });
+  });
+  function enterApp(){ login.classList.add('gone'); }
+
+  /* ---------- INIT ---------- */
+  seedFeed();
+  renderAll();
+})();
+</script>
+</body>
+</html>

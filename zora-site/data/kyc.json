@@ -1,0 +1,83 @@
+[
+  {
+    "id": "38cd74c3591d291c",
+    "ref": "KYC-MRGFGL6S",
+    "status": "submitted",
+    "idType": "national_id",
+    "country": "Tanzania",
+    "fullName": "Amina Juma Hassan",
+    "docNumberMasked": "19••••19",
+    "docNumberHash": "125556290c504948d3228161a18d2bb9d1b60bbf9f338923c1f6fd5947d03320",
+    "documents": [
+      {
+        "id": "273649957d6a4d7d401ed636de6e85bd",
+        "side": "front",
+        "contentType": "image/png"
+      },
+      {
+        "id": "ff54a36b11de18889b037424cd9a411a",
+        "side": "back",
+        "contentType": "image/png"
+      }
+    ],
+    "attempt": 1,
+    "submittedAt": "2026-07-11T13:56:00.196Z",
+    "reviewedAt": null,
+    "reviewedBy": null,
+    "rejection": null,
+    "vendor": null,
+    "vendorRiskScore": null,
+    "vendorDecision": null,
+    "ip": "::1",
+    "ua": "curl/8.19.0",
+    "events": [
+      {
+        "at": "2026-07-11T13:56:00.196Z",
+        "actor": "user",
+        "action": "submitted",
+        "detail": "national_id / Tanzania"
+      }
+    ]
+  },
+  {
+    "id": "1215412a1ff56d95",
+    "ref": "KYC-MRHEXE83",
+    "status": "submitted",
+    "idType": "passport",
+    "country": "Tanzania",
+    "fullName": "Neema",
+    "docNumberMasked": null,
+    "docNumberHash": null,
+    "documents": [
+      {
+        "id": "2d9b604b92f8e83e8709748647e53b92",
+        "side": "photo_page",
+        "contentType": "image/png"
+      }
+    ],
+    "attempt": 1,
+    "submittedAt": "2026-07-12T06:28:50.883Z",
+    "reviewedAt": null,
+    "reviewedBy": null,
+    "rejection": null,
+    "vendor": null,
+    "vendorRiskScore": null,
+    "vendorDecision": null,
+    "ip": "::1",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Claude/1.20186.1 Chrome/148.0.7778.271 Electron/42.5.1 Safari/537.36 MSIX",
+    "events": [
+      {
+        "at": "2026-07-12T06:28:50.883Z",
+        "actor": "user",
+        "action": "submitted",
+        "detail": "passport / Tanzania"
+      },
+      {
+        "at": "2026-07-12T08:45:32.666Z",
+        "actor": "admin",
+        "action": "viewed_document",
+        "detail": "photo_page"
+      }
+    ]
+  }
+]

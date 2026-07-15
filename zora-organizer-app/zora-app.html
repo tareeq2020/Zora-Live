@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="ZORA" />
+<meta name="theme-color" content="#0A0A0B" />
+<title>ZORA — unified app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0A0A0B; --panel:#141417; --panel2:#1B1B20; --line:rgba(244,241,234,.10); --line2:rgba(244,241,234,.055);
+    --bone:#F4F1EA; --mut:rgba(244,241,234,.56); --mut2:rgba(244,241,234,.34);
+    --ultra:#3D5AFE; --orange:#FF5A1F; --green:#17B368; --red:#FF3B30; --amber:#E9A83B;
+    --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --disp:'Anton',var(--sans);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:var(--sans);background:#111114;color:var(--bone);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 16px;gap:20px;flex-wrap:wrap;
+    background-image:radial-gradient(circle at 25% 12%,rgba(61,90,254,.13),transparent 55%),radial-gradient(circle at 85% 92%,rgba(255,90,31,.10),transparent 50%);}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .caption{color:var(--mut);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  .phone{width:390px;height:820px;border-radius:52px;background:#000;padding:11px;box-shadow:0 40px 90px -30px rgba(0,0,0,.85),0 0 0 2px rgba(255,255,255,.05) inset;position:relative}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:132px;height:30px;background:#000;border-radius:0 0 20px 20px;z-index:60}
+  .viewport{position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+  .statusbar{height:46px;flex:0 0 46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font-size:13px;font-weight:600;font-family:var(--mono);color:var(--bone);z-index:5}
+  .statusbar .dots{display:flex;gap:5px;align-items:center}.statusbar .dots i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;display:block}
+
+  /* shells / modes */
+  .modewrap{position:relative;flex:1 1 auto;overflow:hidden}
+  .shell{position:absolute;inset:0;display:none;flex-direction:column}
+  .shell.on{display:flex;animation:modein .42s cubic-bezier(.2,.8,.2,1)}
+  @keyframes modein{from{opacity:0;transform:scale(1.015)}to{opacity:1;transform:none}}
+  .screens{position:relative;flex:1 1 auto;overflow:hidden}
+  .screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:6px 20px 24px;display:none;animation:fade .26s ease}
+  .screen.active{display:block}.screen::-webkit-scrollbar{width:0}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--mut2)}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px}
+  .muted{color:var(--mut);font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:100px}
+  .pill.live{background:rgba(61,90,254,.16);color:#93a6ff}.pill.ok{background:rgba(23,179,104,.18);color:#4fd699}
+  .pill.warn{background:rgba(233,168,59,.18);color:#f0c579}.pill.bad{background:rgba(255,59,48,.18);color:#ff8b84}.pill.mut{background:var(--panel2);color:var(--mut)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}.dot.pulse{animation:pulse 1.4s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .apphead{display:flex;align-items:center;justify-content:space-between;padding:6px 0 14px}
+  .apphead .t{font-family:var(--disp);font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+  .sectlabel{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut2);font-weight:700;margin:20px 2px 10px}
+  .avatar{width:38px;height:38px;border-radius:50%;background:var(--ultra);color:#fff;display:grid;place-items:center;font-family:var(--disp);font-size:15px}
+  .cap{height:8px;border-radius:100px;background:var(--panel2);overflow:hidden;margin-top:12px}.cap>span{display:block;height:100%;background:var(--ultra);border-radius:100px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+  .btn{width:100%;padding:16px;border:0;border-radius:15px;font-weight:700;font-size:15px;cursor:pointer;font-family:var(--sans);letter-spacing:.02em}
+  .btn-primary{background:var(--ultra);color:#fff}.btn-primary:active{transform:scale(.99)}
+  .btn-ghost{background:var(--panel);color:var(--bone);border:1px solid var(--line)}
+
+  /* tabbar */
+  .tabbar{flex:0 0 76px;display:flex;border-top:1px solid var(--line);background:rgba(10,10,11,.9);backdrop-filter:blur(12px);padding-bottom:12px}
+  .tab{flex:1;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:12px;cursor:pointer;color:var(--mut2);font-family:var(--sans)}
+  .tab svg{width:22px;height:22px}.tab .tl{font-size:9px;letter-spacing:.05em;text-transform:uppercase;font-weight:700}
+  .tab.on{color:var(--bone)}.tab.on[data-accent="ultra"]{color:var(--ultra)}.tab.on[data-accent="orange"]{color:var(--orange)}
+
+  /* ===== CONSUMER ===== */
+  .cbar{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}
+  .wordmark{font-family:var(--disp);font-size:22px;letter-spacing:.08em}
+  .areachip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:100px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .hero{position:relative;border-radius:22px;overflow:hidden;height:200px;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;cursor:pointer;background:linear-gradient(160deg,#2a2140,#101018)}
+  .hero .cover{position:absolute;inset:0;opacity:.9}
+  .hero .scrim{position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(10,10,11,.85))}
+  .hero .play{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(10,10,11,.5);backdrop-filter:blur(6px);display:grid;place-items:center;z-index:2}
+  .hero .meta{position:relative;z-index:2}
+  .hero .badge{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ffd;background:rgba(255,90,31,.85);padding:3px 8px;border-radius:100px;display:inline-block;margin-bottom:8px}
+  .hero .ht{font-family:var(--disp);font-size:26px;text-transform:uppercase;line-height:.95}
+  .hero .hs{font-size:12px;color:rgba(244,241,234,.8);margin-top:6px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0}.chips::-webkit-scrollbar{display:none}
+  .fchip{white-space:nowrap;font-size:12px;font-weight:600;padding:8px 14px;border-radius:100px;border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer}
+  .fchip.on{background:var(--bone);color:var(--bg);border-color:var(--bone)}
+  .egrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ecard{cursor:pointer}
+  .ecard .cov{height:120px;border-radius:16px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:10px}
+  .ecard .cov .s{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.6))}
+  .ecard .cov .fr{position:relative;z-index:2;font-size:10px;font-weight:700;background:rgba(10,10,11,.55);padding:3px 7px;border-radius:100px}
+  .ecard .en{font-weight:700;font-size:13px;margin-top:8px;line-height:1.2}
+  .ecard .ev{font-size:11px;color:var(--mut2);margin-top:3px}
+
+  /* booking overlay */
+  .overlay{position:absolute;inset:0;z-index:40;background:var(--bg);display:none;flex-direction:column;overflow-y:auto;padding:6px 20px 20px;animation:slidein .3s ease}
+  .overlay.show{display:flex}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  .backrow{display:flex;align-items:center;gap:10px;padding:8px 0 12px;color:var(--mut);font-weight:600;font-size:14px;cursor:pointer}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:13px;padding:10px;border-radius:9px;cursor:pointer}
+  .seg button.on{background:var(--ultra);color:#fff}
+  .maparea{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:12px;position:relative;overflow:hidden}
+  .maparea .zoombtns{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px;z-index:3}
+  .zbtn{width:34px;height:34px;border-radius:10px;background:rgba(10,10,11,.7);border:1px solid var(--line);color:var(--bone);font-size:18px;font-weight:700;cursor:pointer}
+  .mapscroll{overflow:hidden;border-radius:12px;touch-action:none}
+  #floormap{display:block;width:100%;transition:transform .25s ease;transform-origin:center top}
+  .maplegend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:11px;color:var(--mut)}
+  .maplegend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:-1px}
+  .selbar{margin-top:14px;background:var(--panel2);border:1px solid var(--ultra);border-radius:15px;padding:14px 16px;display:none;align-items:center;justify-content:space-between}
+  .selbar.show{display:flex}
+  .selbar .sn{font-weight:700}.selbar .sp{font-family:var(--mono);font-size:12px;color:var(--mut);margin-top:3px}
+
+  /* sheet */
+  .sheet{position:absolute;inset:0;z-index:55;display:none}.sheet.open{display:block}
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);animation:fade .25s ease}
+  .panel{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border:1px solid var(--line);border-bottom:0;border-radius:26px 26px 0 0;padding:8px 20px 24px;max-height:90%;overflow-y:auto;animation:slideup .32s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .grab{width:40px;height:4px;border-radius:100px;background:var(--line);margin:8px auto 14px}
+  .sheet h3{font-family:var(--disp);font-size:22px;text-transform:uppercase;margin-bottom:4px}
+  .splitrow{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+  .splitrow .sp2{font-family:var(--disp);font-size:30px}
+  .crew{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line2)}
+  .crew .ci{width:38px;height:38px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 38px}
+  .crew .cn{font-weight:600;font-size:14px}.crew .cs{font-size:11px;color:var(--mut2);margin-top:2px}
+  .addbtn{font-size:12px;font-weight:700;padding:7px 12px;border-radius:100px;border:1px solid var(--line);background:transparent;color:var(--ultra);cursor:pointer}
+  .addbtn.added{background:rgba(23,179,104,.16);color:#4fd699;border-color:transparent}
+  .statustag{font-size:11px;font-weight:700}.statustag.paid{color:var(--green)}.statustag.pend{color:var(--amber)}
+
+  /* tickets */
+  .pass{display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+  .pass .qr{width:56px;height:56px;border-radius:12px;background:#fff;display:grid;place-items:center;flex:0 0 56px}
+  .pass .pn{font-weight:700;font-size:15px}.pass .pd{font-size:12px;color:var(--mut2);margin-top:3px}
+
+  /* profile */
+  .profcard{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .profcard .pa{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#3D5AFE,#8a6bff);display:grid;place-items:center;font-family:var(--disp);font-size:24px;color:#fff}
+  .profcard .pn{font-family:var(--disp);font-size:24px;text-transform:uppercase;line-height:1}
+  .togglecard{background:linear-gradient(160deg,#1a1730,#101018);border:1px solid rgba(61,90,254,.35);border-radius:20px;padding:18px;cursor:pointer;position:relative;overflow:hidden}
+  .togglecard::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(61,90,254,.25),transparent 70%)}
+  .togglecard .tt{font-family:var(--disp);font-size:20px;text-transform:uppercase;margin-top:8px}
+  .togglecard .arw{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:22px;color:var(--ultra)}
+  .plink{display:flex;align-items:center;justify-content:space-between;padding:15px 2px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:14px;font-weight:500}
+  .plink .chev{color:var(--mut2)}
+
+  /* organizer reused */
+  .evsel{display:flex;flex-direction:column;gap:3px;cursor:pointer}.evsel .name{font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px}.evsel .chev{font-size:11px;color:var(--mut2)}
+  .evcard{background:linear-gradient(160deg,#17171d,#0e0e12);border:1px solid var(--line);border-radius:22px;padding:18px;cursor:pointer;position:relative;overflow:hidden}
+  .evcard::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(61,90,254,.2),transparent 70%)}
+  .evcard .etag{font-family:var(--disp);font-size:22px;text-transform:uppercase;margin:12px 0 4px}.evcard .esub{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--mut)}.evcard .editcue{color:var(--ultra);font-weight:700;font-size:12px}
+  .moneygrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.mcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}.mcard.big{grid-column:1/-1;background:linear-gradient(160deg,#161a2e,#101018);border-color:rgba(61,90,254,.3)}
+  .mcard .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}.mcard .v{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:8px}.mcard.big .v{font-family:var(--disp);font-size:38px}
+  .insgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.ins{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}.ins .iv{font-family:var(--disp);font-size:28px;line-height:1}.ins .ik{font-size:11px;color:var(--mut2);font-weight:600;margin-top:7px}
+  .balcard{background:linear-gradient(160deg,#17171c,#0e0e12);border:1px solid var(--line);border-radius:24px;padding:22px;position:relative;overflow:hidden}.balcard .availv{font-family:var(--disp);font-size:48px;margin-top:6px}
+  .balsplit{display:flex;gap:22px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.balsplit .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}.balsplit .v{font-family:var(--mono);font-size:14px;font-weight:700;margin-top:5px}
+  .wh{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line2)}.wh .ic{width:38px;height:38px;border-radius:11px;background:var(--panel2);display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--mut)}.wh .m{flex:1}.wh .a{font-family:var(--mono);font-weight:700;font-size:14px}.wh .s{font-size:11px;color:var(--mut2);margin-top:2px}
+  .route{display:flex;align-items:center;gap:13px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;cursor:pointer;background:var(--panel2)}.route.sel{border-color:var(--ultra);background:rgba(61,90,254,.1)}.route .badge{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:12px;font-family:var(--mono);flex:0 0 42px}.route .rn{font-weight:600;font-size:14px}.route .rs{font-size:11px;color:var(--mut2);margin-top:2px}.route .rad{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);flex:0 0 20px}.route.sel .rad{border-color:var(--ultra);background:radial-gradient(circle,var(--ultra) 42%,transparent 46%)}
+  .search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;color:var(--bone);font-size:14px;padding:13px 15px;font-family:var(--sans);outline:none;margin-bottom:12px}.search:focus{border-color:var(--ultra)}
+  .arow{display:grid;grid-template-columns:36px 1fr auto;gap:11px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line2)}.arow .ai{width:36px;height:36px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;font-size:13px}.arow .an{font-weight:600;font-size:14px}.arow .ac{font-family:var(--mono);font-size:11px;color:var(--mut2);margin-top:3px}
+  .tt{font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 8px;border-radius:100px}.tt.vip{background:rgba(255,90,31,.18);color:#ffab86}.tt.gold{background:rgba(233,168,59,.2);color:#f0c579}.tt.ga{background:var(--panel2);color:var(--mut)}
+  .st{font-size:11px;font-weight:700;margin-top:5px;text-align:right}.st.in{color:var(--green)}.st.out{color:var(--mut2)}
+  .auditbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}.abox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}.abox .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}.abox .v{font-family:var(--disp);font-size:24px;margin-top:5px}.abox .v.g{color:#4fd699}.abox .v.r{color:#ff8b84}
+  .logrow{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line2);animation:slidein .35s ease}.logrow .ld{width:10px;height:10px;border-radius:50%}.logrow.ok .ld{background:var(--green);box-shadow:0 0 10px rgba(23,179,104,.7)}.logrow.bad .ld{background:var(--red);box-shadow:0 0 10px rgba(255,59,48,.7)}.logrow .lid{font-family:var(--mono);font-weight:700;font-size:13px}.logrow .lmeta{font-size:11px;color:var(--mut2);font-family:var(--mono);margin-top:3px}.logrow .lres{font-size:10px;font-weight:700;text-align:right}.logrow.ok .lres{color:#4fd699}.logrow.bad .lres{color:#ff8b84}.logrow .ltime{font-family:var(--mono);font-size:10px;color:var(--mut2);margin-top:3px}
+
+  /* settings */
+  .setrow{display:flex;align-items:center;justify-content:space-between;padding:14px 2px;border-bottom:1px solid var(--line2)}
+  .setrow .sk{font-size:14px;font-weight:500}.setrow .sv{font-family:var(--mono);font-size:12px;color:var(--mut2)}
+  .switch{width:46px;height:27px;border-radius:100px;background:var(--panel2);border:1px solid var(--line);position:relative;cursor:pointer;flex:0 0 46px;transition:.2s}
+  .switch.on{background:var(--ultra);border-color:var(--ultra)}
+  .switch i{position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on i{left:21px}
+  .swatch{display:inline-block;width:20px;height:20px;border-radius:6px;vertical-align:-4px;margin-right:8px;border:1px solid var(--line)}
+
+  /* staff */
+  .staffwrap{flex:1;display:flex;flex-direction:column;padding:14px 20px 22px}
+  .stafftop{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .lockpill{background:rgba(255,90,31,.18);color:#ffab86;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 11px;border-radius:100px}
+  .scanner{position:relative;border-radius:26px;aspect-ratio:1/1;margin:6px 0 16px;overflow:hidden;background:radial-gradient(circle at 50% 42%,#20130b,#0a0a0b 70%);border:1px solid var(--line);display:grid;place-items:center}
+  .scanner .bk{position:absolute;width:52px;height:52px;border:3px solid var(--orange);opacity:.9}
+  .bk.tl{top:20px;left:20px;border-right:0;border-bottom:0;border-radius:14px 0 0 0}.bk.tr{top:20px;right:20px;border-left:0;border-bottom:0;border-radius:0 14px 0 0}.bk.bl{bottom:20px;left:20px;border-right:0;border-top:0;border-radius:0 0 0 14px}.bk.br{bottom:20px;right:20px;border-left:0;border-top:0;border-radius:0 0 14px 0}
+  .scanline{position:absolute;left:20px;right:20px;height:2px;background:linear-gradient(90deg,transparent,var(--orange),transparent);animation:scan 2.4s ease-in-out infinite;box-shadow:0 0 14px var(--orange)}
+  @keyframes scan{0%,100%{top:24px}50%{top:calc(100% - 24px)}}
+  .sres{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;animation:pop .25s ease}
+  @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+  .sres.show{display:flex}.sres.valid{background:rgba(23,179,104,.16)}.sres.bad{background:rgba(255,59,48,.14)}
+  .sres .ic{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;font-size:38px;font-weight:700;margin-bottom:14px}.sres.valid .ic{background:var(--green);color:#04140c}.sres.bad .ic{background:var(--red);color:#1a0402}
+  .sres .rt{font-family:var(--disp);font-size:28px;text-transform:uppercase}.sres .rsub{font-size:13px;color:var(--mut);margin-top:6px}
+  .hc{display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line)}.hc .hn{font-family:var(--disp);font-size:38px}.hc .hl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut2);font-weight:700}
+  .scanbtn{width:100%;padding:16px;border-radius:15px;border:0;background:var(--orange);color:#0a0a0b;font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer}
+
+  /* role picker */
+  .rolepick{position:absolute;inset:0;z-index:80;background:var(--bg);display:flex;flex-direction:column;padding:64px 26px 30px;transition:opacity .4s ease,transform .4s ease}
+  .rolepick.gone{opacity:0;transform:translateY(-20px);pointer-events:none;display:none}
+  .rolepick .bm{font-family:var(--disp);font-size:40px;letter-spacing:.05em}
+  .rolepick .bs{font-size:11px;letter-spacing:.3em;color:var(--mut2);font-weight:700;margin-top:3px}
+  .rolecard{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;cursor:pointer}
+  .rolecard .ri{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;flex:0 0 46px}
+  .rolecard .rn{font-weight:700;font-size:15px}.rolecard .rd{font-size:12px;color:var(--mut2);margin-top:3px}
+
+  .toast{position:absolute;left:50%;bottom:94px;transform:translate(-50%,10px);background:var(--bone);color:var(--bg);font-size:12.5px;font-weight:700;padding:12px 18px;border-radius:100px;opacity:0;transition:.3s;z-index:75;max-width:86%;text-align:center;box-shadow:0 14px 34px -12px rgba(0,0,0,.7)}.toast.show{opacity:1;transform:translate(-50%,0)}
+  .foot{color:var(--mut2);font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-align:center;max-width:390px;line-height:1.7}.foot b{color:var(--mut)}
+  @media(max-width:900px){body{gap:20px}.foot{order:3}}
+  @media (max-width:480px){
+    body{padding:0;gap:0;min-height:100dvh;background:#0A0A0B;display:block}
+    .stage{gap:0}.caption,.foot{display:none}
+    .phone{width:100vw;height:100dvh;min-height:100dvh;border-radius:0;padding:0;box-shadow:none}
+    .notch{display:none}.viewport{border-radius:0;padding-top:env(safe-area-inset-top)}
+    .tabbar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="caption">ZORA — unified app · role-based</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="viewport" id="viewport" data-mode="consumer">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i> <span style="font-family:var(--sans);font-weight:700;font-size:11px">5G</span></span></div>
+
+        <div class="modewrap">
+
+          <!-- ================= CONSUMER ================= -->
+          <div class="shell on" id="shell-consumer">
+            <div class="screens">
+              <!-- HOME -->
+              <section class="screen active" id="c-home">
+                <div class="cbar"><div class="wordmark">ZORA</div><div style="display:flex;gap:8px;align-items:center"><span class="areachip" id="areaChip">Dar es Salaam ▾</span><div class="avatar" style="width:34px;height:34px;font-size:13px">T</div></div></div>
+                <div class="hero" id="heroCard">
+                  <div class="cover" style="background:linear-gradient(135deg,#3D5AFE33,#FF5A1F55),radial-gradient(circle at 70% 30%,#5a3fa8,#161018)"></div>
+                  <div class="scrim"></div>
+                  <div class="play">▶</div>
+                  <div class="meta"><span class="badge">Mega event</span><div class="ht">OFFSHORE</div><div class="hs">Sat 25 Jul · Dar es Salaam · from TZS 65,000</div></div>
+                </div>
+                <div class="chips" id="cChips"><button class="fchip on">This weekend</button><button class="fchip">Concerts</button><button class="fchip">Festivals</button><button class="fchip">Nightlife</button><button class="fchip">Daytime</button></div>
+                <div class="sectlabel" id="areaLabel">Happening in Dar es Salaam</div>
+                <div class="egrid" id="eGrid"></div>
+                <div style="height:8px"></div>
+              </section>
+              <!-- TICKETS -->
+              <section class="screen" id="c-tickets">
+                <div class="apphead"><div class="t">My tickets</div><div class="avatar" style="width:34px;height:34px;font-size:13px">T</div></div>
+                <div id="passList"></div>
+                <div class="muted" style="text-align:center;margin-top:14px;font-size:12px">Your passes live in the app — the app is the only door.</div>
+              </section>
+              <!-- PROFILE -->
+              <section class="screen" id="c-profile">
+                <div class="apphead"><div class="t">Profile</div></div>
+                <div class="profcard"><div class="pa">T</div><div><div class="pn">Tareeq</div><div class="muted num" style="font-size:12px;margin-top:5px">+255 712 345 678 · member since 2025</div></div></div>
+                <div class="sectlabel">Run events?</div>
+                <div class="togglecard" id="toOrganizer">
+                  <span class="eyebrow" style="color:#93a6ff">Role</span>
+                  <div class="tt">Switch to Organizer mode</div>
+                  <div class="muted" style="margin-top:6px;max-width:230px">Your dashboards, live-edit tools and wallet — same account, one tap.</div>
+                  <div class="arw">→</div>
+                </div>
+                <div class="sectlabel">Account</div>
+                <div class="card" style="padding:2px 16px">
+                  <div class="plink">Payment methods <span class="chev">›</span></div>
+                  <div class="plink">Saved events <span class="chev">›</span></div>
+                  <div class="plink">Notifications <span class="chev">›</span></div>
+                  <div class="plink" id="cSignout" style="color:#ff8b84;border-bottom:0">Sign out <span class="chev">›</span></div>
+                </div>
+                <div style="height:8px"></div>
+              </section>
+            </div>
+
+            <!-- BOOKING overlay -->
+            <div class="overlay" id="bookView">
+              <div class="backrow" id="bookBack">‹ Back</div>
+              <div class="apphead" style="padding-top:0"><div><div class="eyebrow" style="margin-bottom:5px">Booking</div><div class="t">OFFSHORE</div></div><span class="pill live"><span class="dot pulse"></span> On sale</span></div>
+              <div class="seg" id="bookSeg"><button class="on" data-s="tables">Tables / VIP</button><button data-s="ga">General</button></div>
+              <div class="maparea">
+                <div class="zoombtns"><button class="zbtn" id="zoomIn">+</button><button class="zbtn" id="zoomOut">−</button></div>
+                <div class="mapscroll">
+                  <svg id="floormap" viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg">
+                    <g id="mapg">
+                      <rect x="70" y="10" width="160" height="26" rx="6" fill="#1B1B20" stroke="#FF5A1F" stroke-width="1.5"/>
+                      <text x="150" y="27" text-anchor="middle" fill="#ffab86" font-family="Arial" font-size="11" font-weight="700" letter-spacing="3">STAGE</text>
+                      <rect x="60" y="150" width="180" height="72" rx="10" fill="rgba(61,90,254,.06)" stroke="#3D5AFE" stroke-dasharray="4 3" stroke-width="1"/>
+                      <text x="150" y="192" text-anchor="middle" fill="rgba(147,166,255,.7)" font-family="Arial" font-size="10" font-weight="700" letter-spacing="2">GENERAL FLOOR</text>
+                    </g>
+                  </svg>
+                </div>
+                <div class="maplegend"><span><i style="background:#3D5AFE"></i>Available</span><span><i style="background:#FF5A1F"></i>Selected</span><span><i style="background:#3a3a42"></i>Sold</span></div>
+              </div>
+              <div class="muted" style="text-align:center;font-size:11px;margin-top:8px"><span id="availCount">10</span> tables available · pinch to zoom · tap a table</div>
+              <div class="selbar" id="selBar"><div><div class="sn" id="selName">Table T1</div><div class="sp" id="selPrice">6 seats · TZS 900,000</div></div><button class="btn btn-primary" id="selContinue" style="width:auto;padding:12px 20px">Continue</button></div>
+              <div style="height:12px"></div>
+            </div>
+
+            <!-- SPLIT sheet -->
+            <div class="sheet" id="splitSheet">
+              <div class="scrim" id="splitScrim"></div>
+              <div class="panel">
+                <div class="grab"></div>
+                <h3>Split with your crew</h3>
+                <div class="muted">Table T1 · 6 seats · locked for 10 min while your crew pays.</div>
+                <div class="splitrow"><div><div class="eyebrow">Per person</div><div class="sp2 num" id="perPerson">TZS 150,000</div></div><div style="text-align:right"><div class="eyebrow">Total</div><div class="num" style="font-weight:700;margin-top:8px" id="splitTotal">TZS 900,000</div></div></div>
+                <div class="sectlabel">Your crew · <span id="crewCount">1</span>/6</div>
+                <div id="crewList"></div>
+                <div class="sectlabel">Invite from contacts</div>
+                <div id="contactList"></div>
+                <button class="btn btn-primary" id="lockBtn" style="margin-top:10px">Lock table &amp; send payment links</button>
+                <div class="muted" style="text-align:center;font-size:11px;margin-top:12px">Each crew member gets a push + M-Pesa / card link to pay their share.</div>
+              </div>
+            </div>
+
+            <nav class="tabbar">
+              <button class="tab on" data-tab="c-home" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 13.5 12 5l9 8.5"/><path d="M5 12v7h14v-7"/></svg><span class="tl">Home</span></button>
+              <button class="tab" data-tab="c-tickets" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-4Z"/></svg><span class="tl">Tickets</span></button>
+              <button class="tab" data-tab="c-profile" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><span class="tl">Profile</span></button>
+            </nav>
+          </div>
+
+          <!-- ================= ORGANIZER ================= -->
+          <div class="shell" id="shell-organizer">
+            <div class="screens">
+              <!-- DASH -->
+              <section class="screen active" id="o-dash">
+                <div class="apphead"><div class="evsel js-switch"><span class="eyebrow" style="margin-bottom:4px">Now managing</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div><div class="avatar">Z</div></div>
+                <div class="evcard" id="evcard">
+                  <div class="row"><span class="pill live" id="dashPill"><span class="dot pulse"></span> On sale</span><span class="muted num" id="dashDate" style="font-size:12px">Sat 25 Jul · Dar es Salaam</span></div>
+                  <div class="etag" id="dashTag">Daytime Yacht Groove</div>
+                  <div class="esub"><span class="num"><b id="dashSold">1,284</b> / <span id="dashCap">3,200</span> sold</span><span class="editcue">Edit details ›</span></div>
+                  <div class="cap"><span id="dashBar" style="width:40%"></span></div>
+                </div>
+                <div class="sectlabel">How much</div>
+                <div class="moneygrid">
+                  <div class="mcard big"><div class="k">Gross revenue</div><div class="v"><span id="mGrossCur">TZS</span> <span id="mGross">96.2</span>M</div></div>
+                  <div class="mcard"><div class="k">Net · after 5%</div><div class="v" id="mNet">TZS 91.4M</div></div>
+                  <div class="mcard"><div class="k">Pending</div><div class="v" id="mPending">TZS 27.2M</div></div>
+                </div>
+                <div class="sectlabel">Insights</div>
+                <div class="insgrid">
+                  <div class="ins"><div class="iv" id="iSold">40%</div><div class="ik">Capacity sold</div></div>
+                  <div class="ins"><div class="iv" id="iCheck">66%</div><div class="ik">Checked in</div></div>
+                  <div class="ins"><div class="iv" id="iVelo">+148</div><div class="ik">Sales / hour</div></div>
+                  <div class="ins"><div class="iv" id="iAvg">TZS 75k</div><div class="ik">Avg order</div></div>
+                </div>
+                <div style="height:8px"></div>
+              </section>
+              <!-- WALLET -->
+              <section class="screen" id="o-wallet">
+                <div class="apphead"><div class="t">Wallet</div><span class="pill ok" id="walletHeadPill"><span class="dot"></span> M-Pesa ready</span></div>
+                <div id="walletKyc" style="display:none;align-items:center;gap:12px;background:rgba(233,168,59,.1);border:1px solid rgba(233,168,59,.32);border-radius:14px;padding:14px;margin-bottom:14px">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#f0c579" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                  <div style="flex:1;min-width:0"><div id="kycNoteT" style="font-weight:700;font-size:14px;color:#f0c579">Verify your identity to cash out</div><div id="kycNoteD" style="font-size:12px;color:var(--mut);margin-top:3px;line-height:1.5">Payouts stay locked until your ID is approved — it protects your money and your buyers.</div></div>
+                  <button class="btn btn-primary" id="kycVerifyBtn" style="width:auto;padding:10px 15px;flex-shrink:0;font-size:13px">Verify</button>
+                </div>
+                <div class="balcard"><div class="eyebrow">Available balance</div><div class="availv num">TZS 64.2M</div><button class="btn btn-primary" id="cashBtn" style="margin-top:14px">Cash out</button><div class="balsplit"><div><div class="k">Pending</div><div class="v">TZS 27.2M</div></div><div><div class="k">Clears</div><div class="v" style="color:var(--mut)">24h post-event</div></div></div></div>
+                <div class="sectlabel">Withdrawal history</div>
+                <div class="card" id="whList"></div>
+                <div style="height:8px"></div>
+              </section>
+              <!-- PEOPLE -->
+              <section class="screen" id="o-people">
+                <div class="apphead"><div class="evsel js-switch"><span class="eyebrow" style="margin-bottom:4px">Attendees</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div><span class="muted num" style="font-size:12px" id="attCount">1,284</span></div>
+                <input class="search" id="attSearch" placeholder="Search name, ticket ID or phone…" />
+                <div id="attList"></div>
+                <div style="height:8px"></div>
+              </section>
+              <!-- AUDIT -->
+              <section class="screen" id="o-audit">
+                <div class="apphead"><div><div class="eyebrow" style="margin-bottom:5px">Scan history · audit</div><div class="t">The door</div></div><span class="pill live"><span class="dot pulse"></span> Live</span></div>
+                <div class="auditbar"><div class="abox"><div class="k">Flow / min</div><div class="v" id="aVelo">37</div></div><div class="abox"><div class="k">Valid</div><div class="v g" id="aValid">1,842</div></div><div class="abox"><div class="k">Rejected</div><div class="v r" id="aRej">14</div></div></div>
+                <div id="auditLog"></div>
+                <div style="height:8px"></div>
+              </section>
+              <!-- SETTINGS (new) -->
+              <section class="screen" id="o-settings">
+                <div class="apphead"><div class="t">Settings</div><span class="pill ok" id="setHeadPill"><span class="dot"></span> Verified</span></div>
+
+                <div class="sectlabel">Account</div>
+                <div class="card" style="padding:2px 16px">
+                  <div class="setrow"><span class="sk">Name</span><span class="sv">Tareeq Twaha</span></div>
+                  <div class="setrow"><span class="sk">Email</span><span class="sv">tareeqtwaha@gmail.com</span></div>
+                  <div class="setrow"><span class="sk">Phone</span><span class="sv">+255 712 345 678</span></div>
+                  <div class="setrow"><span class="sk">Identity (KYC)</span><span class="pill ok" id="setKycPill"><span class="dot"></span> Verified</span></div>
+                  <div class="setrow"><span class="sk">Two-factor auth</span><div class="switch on" data-toggle><i></i></div></div>
+                  <div class="setrow" style="border-bottom:0"><span class="sk">Push notifications</span><div class="switch on" data-toggle><i></i></div></div>
+                </div>
+
+                <div class="sectlabel">Store settings</div>
+                <div class="card" style="padding:2px 16px">
+                  <div class="setrow"><span class="sk">Storefront</span><span class="sv">offshore.zora.app</span></div>
+                  <div class="setrow"><span class="sk">Brand accent</span><span class="sv"><span class="swatch" style="background:#3D5AFE"></span>Ultramarine</span></div>
+                  <div class="setrow"><span class="sk">Default currency</span><span class="sv">TZS</span></div>
+                  <div class="setrow"><span class="sk">Payout account</span><span class="sv">M-Pesa •••• 4471</span></div>
+                  <div class="setrow"><span class="sk">Show fees to buyers</span><div class="switch" data-toggle><i></i></div></div>
+                  <div class="setrow" style="border-bottom:0"><span class="sk">Allow resale (face +10%)</span><div class="switch on" data-toggle><i></i></div></div>
+                </div>
+
+                <div class="sectlabel">Mode</div>
+                <div class="card" id="toConsumer" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between">
+                  <div><div style="font-weight:700">Switch to Consumer mode</div><div class="muted" style="margin-top:3px">Browse & book events as a fan.</div></div>
+                  <span style="color:var(--ultra);font-size:20px">→</span>
+                </div>
+                <button class="btn btn-ghost" id="oSignout" style="margin-top:12px;color:#ff8b84">Sign out</button>
+                <div style="height:8px"></div>
+              </section>
+            </div>
+
+            <!-- edit overlay -->
+            <div class="overlay" id="editView">
+              <div class="backrow" id="editBack">‹ Back to dashboard</div>
+              <div class="apphead" style="padding-top:0"><div><div class="eyebrow" style="margin-bottom:5px">Live edit</div><div class="t"><span class="ev-name">OFFSHORE</span></div></div><span class="pill live"><span class="dot pulse"></span> On sale</span></div>
+              <div style="margin-bottom:14px"><label class="eyebrow">Event title</label><input class="search editable" id="f-title" style="margin-top:8px" /></div>
+              <div class="sectlabel" style="margin-top:4px">Door capacity</div>
+              <div class="row card" style="padding:14px 16px"><div><span id="capVal" class="num" style="font-family:var(--disp);font-size:32px">3,200</span></div><div style="display:flex;gap:8px"><button class="zbtn" data-cap="-100">−</button><button class="zbtn" data-cap="100">+</button></div></div>
+              <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ghost" data-cap="100" style="padding:11px">+100</button><button class="btn btn-ghost" data-cap="250" style="padding:11px">+250</button><button class="btn btn-ghost" data-cap="500" style="padding:11px">+500</button></div>
+              <div class="sectlabel">Tier pricing</div>
+              <div class="card" id="tierEdit" style="padding:2px 16px"></div>
+              <div style="position:sticky;bottom:0;padding:14px 0;background:linear-gradient(180deg,transparent,var(--bg) 34%)"><button class="btn btn-primary" id="saveBtn" disabled>Save &amp; publish changes</button></div>
+            </div>
+
+            <!-- withdraw sheet -->
+            <div class="sheet" id="wSheet">
+              <div class="scrim" id="wScrim"></div>
+              <div class="panel"><div class="grab"></div><h3>Cash out</h3><div class="muted" style="margin-bottom:6px">Available: TZS 64,200,000</div>
+                <div style="font-family:var(--disp);font-size:40px;text-align:center;margin:8px 0 14px">TZS <span id="wAmt">40.0M</span></div>
+                <div class="sectlabel">Send to</div>
+                <div id="routes">
+                  <div class="route sel" data-r="M-Pesa"><div class="badge" style="background:rgba(23,179,104,.16);color:#4fd699">M-P</div><div style="flex:1"><div class="rn">M-Pesa · Vodacom</div><div class="rs">•••• 4471 · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Tigo Pesa"><div class="badge" style="background:rgba(61,90,254,.16);color:#93a6ff">TIG</div><div style="flex:1"><div class="rn">Tigo Pesa</div><div class="rs">Mixx by Yas · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Airtel Money"><div class="badge" style="background:rgba(255,59,48,.16);color:#ff8b84">AIR</div><div style="flex:1"><div class="rn">Airtel Money</div><div class="rs">•••• 8820 · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Bank"><div class="badge" style="background:var(--panel2);color:var(--mut)">BNK</div><div style="flex:1"><div class="rn">Local bank transfer</div><div class="rs">CRDB / NMB · 1–2 days</div></div><div class="rad"></div></div>
+                </div>
+                <button class="btn btn-primary" id="wConfirm">Withdraw TZS 40.0M to M-Pesa</button>
+              </div>
+            </div>
+
+            <!-- event switcher -->
+            <div class="sheet" id="eventsheet">
+              <div class="scrim" id="evScrim"></div>
+              <div class="panel"><div class="grab"></div><div class="row" style="margin-bottom:14px"><h3>Your events</h3><button class="addbtn" id="evClose">Close</button></div><div id="eventList"></div></div>
+            </div>
+
+            <!-- publish overlay -->
+            <div class="overlay" id="publish" style="z-index:58;background:rgba(10,10,11,.92);align-items:center;justify-content:center;text-align:center">
+              <div style="width:60px;height:60px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--ultra);animation:scan 0s;margin-bottom:20px" id="pring"></div>
+              <div style="font-family:var(--disp);font-size:22px;text-transform:uppercase;margin-bottom:16px">Publishing live</div>
+              <div id="targets" style="width:100%;max-width:220px"></div>
+            </div>
+
+            <nav class="tabbar">
+              <button class="tab on" data-tab="o-dash" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/></svg><span class="tl">Dashboard</span></button>
+              <button class="tab" data-tab="o-wallet" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/></svg><span class="tl">Wallet</span></button>
+              <button class="tab" data-tab="o-people" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.8"/></svg><span class="tl">People</span></button>
+              <button class="tab" data-tab="o-audit" data-accent="orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6Z"/><path d="m9 12 2 2 4-4"/></svg><span class="tl">Audit</span></button>
+              <button class="tab" data-tab="o-settings" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.3-1.3L15.7 2h-4l-.3 2.2a7 7 0 0 0-2.3 1.3l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2.6l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.3 1.3l.3 2.2h4l.3-2.2a7 7 0 0 0 2.3-1.3l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg><span class="tl">Settings</span></button>
+            </nav>
+          </div>
+
+          <!-- ================= STAFF (locked) ================= -->
+          <div class="shell" id="shell-staff">
+            <div class="staffwrap">
+              <div class="stafftop"><div><div class="eyebrow" style="color:var(--orange);margin-bottom:4px">Gate agent</div><div style="font-family:var(--mono);font-size:12px;color:var(--mut)">GATE A · OFFSHORE</div></div><span class="lockpill">Locked view</span></div>
+              <div class="scanner" id="staffScanner">
+                <div class="bk tl"></div><div class="bk tr"></div><div class="bk bl"></div><div class="bk br"></div>
+                <div class="scanline"></div>
+                <div class="muted" style="font-family:var(--mono);font-size:12px;color:var(--mut2)">POINT AT A PASS</div>
+                <div class="sres valid" id="sres-valid"><div class="ic">✓</div><div class="rt">Valid</div><div class="rsub" id="svName">Amina K. · Wave 01</div></div>
+                <div class="sres bad" id="sres-bad"><div class="ic">✕</div><div class="rt" id="sbTitle">Already in</div><div class="rsub" id="sbSub">Scanned 13:52 · Gate B</div></div>
+              </div>
+              <div style="margin-top:auto">
+                <div class="hc"><div class="hl">Through your gate</div><div class="hn num"><span id="staffCount">842</span></div></div>
+                <button class="scanbtn" id="staffScan">Simulate scan</button>
+                <div class="row" style="margin-top:14px"><span class="muted" style="font-size:11px">Staff account — marketplace &amp; dashboard locked</span><button class="addbtn" id="staffSignout">Sign out</button></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ROLE PICKER (boot / demo) -->
+        <div class="rolepick" id="rolepick">
+          <div><div class="bm">ZORA</div><div class="bs">ONE APP</div></div>
+          <div style="margin-top:auto;margin-bottom:20px"><div style="font-family:var(--disp);font-size:26px;text-transform:uppercase">Sign in as…</div><div class="muted" style="margin-top:8px">Demo the role-based routing. Same app, three doors.</div></div>
+          <div class="rolecard" data-role="consumer"><div class="ri" style="background:rgba(61,90,254,.16);color:#93a6ff">◎</div><div style="flex:1"><div class="rn">Fan · Consumer</div><div class="rd">Discover, book tables, split with crew</div></div><span style="color:var(--mut2)">›</span></div>
+          <div class="rolecard" data-role="organizer"><div class="ri" style="background:rgba(61,90,254,.16);color:#93a6ff">▤</div><div style="flex:1"><div class="rn">Organizer</div><div class="rd">Dashboard, wallet, live-edit, settings</div></div><span style="color:var(--mut2)">›</span></div>
+          <div class="rolecard" data-role="staff"><div class="ri" style="background:rgba(255,90,31,.16);color:#ffab86">◲</div><div style="flex:1"><div class="rn">Gate agent · Staff</div><div class="rd">Locked to the scanner — nothing else</div></div><span style="color:var(--mut2)">›</span></div>
+          <div class="muted" style="text-align:center;font-size:11px;margin-top:14px">Organizers can toggle roles anytime · staff cannot</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><b>Unified ZORA</b> · pick a role · Fan → tap OFFSHORE → book a table → split with crew · Profile → switch to Organizer · Staff = locked scanner</div>
+
+<script>
+(function(){
+  var el=function(i){return document.getElementById(i);};
+  var vp=el('viewport');
+  function fmt(n){return Math.round(n).toLocaleString('en-US');}
+  function kfmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?Math.round(n/1000)+'k':fmt(n);}
+  function toast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;vp.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},300);},2400);}
+
+  /* ---------- ROLE / MODE STATE MACHINE ---------- */
+  var role='consumer';       // consumer | organizer | staff  (account privilege)
+  var mode='consumer';       // active shell
+  var shells={consumer:el('shell-consumer'),organizer:el('shell-organizer'),staff:el('shell-staff')};
+  function setMode(m){
+    if(role==='staff') m='staff';                 // guard: staff locked in
+    if(m==='organizer' && role==='consumer') role='organizer'; // fan promoting self (demo)
+    mode=m; vp.setAttribute('data-mode',m);
+    Object.keys(shells).forEach(function(k){shells[k].classList.toggle('on',k===m);});
+  }
+  function signIn(r){ role=r; el('rolepick').classList.add('gone'); setMode(r); }
+  [].forEach.call(document.querySelectorAll('.rolecard'),function(c){c.addEventListener('click',function(){signIn(c.dataset.role);});});
+  function signOut(){ role='consumer'; mode='consumer'; el('rolepick').classList.remove('gone'); }
+  el('cSignout').addEventListener('click',signOut);
+  el('oSignout').addEventListener('click',signOut);
+  el('staffSignout').addEventListener('click',signOut);
+  el('toOrganizer').addEventListener('click',function(){setMode('organizer');});
+  el('toConsumer').addEventListener('click',function(){setMode('consumer');});
+
+  /* generic tab switching per shell */
+  [].forEach.call(document.querySelectorAll('.tabbar'),function(bar){
+    var tabs=[].slice.call(bar.querySelectorAll('.tab'));
+    tabs.forEach(function(t){t.addEventListener('click',function(){
+      var id=t.dataset.tab, screens=t.closest('.shell').querySelectorAll('.screen');
+      [].forEach.call(screens,function(s){s.classList.toggle('active',s.id===id);});
+      tabs.forEach(function(x){x.classList.toggle('on',x===t);});
+    });});
+  });
+
+  /* ================= CONSUMER ================= */
+  var cover=function(a,b){return 'linear-gradient(150deg,'+a+','+b+')';};
+  var cevents=[
+    {n:'OFFSHORE',v:'Yacht · Dar',d:'25 Jul',p:'65,000',c:cover('#3D5AFE','#1a1030')},
+    {n:'KULTUR NIGHTS',v:'Nairobi',d:'15 Aug',p:'KES 2,500',c:cover('#FF5A1F','#20110a')},
+    {n:'SUNDOWNER 03',v:'Zanzibar',d:'24 Aug',p:'40,000',c:cover('#E9A83B','#241a08')},
+    {n:'WAREHOUSE',v:'Dar',d:'6 Sep',p:'30,000',c:cover('#17B368','#08201a')},
+    {n:'RIVERSIDE JAZZ',v:'Dar',d:'12 Sep',p:'55,000',c:cover('#8a6bff','#150f2a')},
+    {n:'AMAPIANO ALL DAY',v:'Dar',d:'20 Sep',p:'45,000',c:cover('#ff4f8b','#2a0f1a')}
+  ];
+  function renderGrid(){var g=el('eGrid');g.innerHTML='';cevents.forEach(function(e){
+    var card=document.createElement('div');card.className='ecard';
+    card.innerHTML='<div class="cov" style="background:'+e.c+'"><div class="s"></div><span class="fr">from '+(e.p.indexOf('KES')<0?'TZS ':'')+e.p+'</span></div><div class="en">'+e.n+'</div><div class="ev">'+e.v+' · '+e.d+'</div>';
+    card.addEventListener('click',openBooking);g.appendChild(card);});}
+  el('heroCard').addEventListener('click',openBooking);
+  [].forEach.call(el('cChips').children,function(ch){ch.addEventListener('click',function(){[].forEach.call(el('cChips').children,function(c){c.classList.remove('on');});ch.classList.add('on');});});
+  el('areaChip').addEventListener('click',function(){toast('Area picker · Dar / Nairobi / Zanzibar / Accra / Lagos');});
+  var passes=[{n:'OFFSHORE',d:'Sat 25 Jul · Cabana T3',code:'Z001-0417'},{n:'KULTUR Nights',d:'Fri 15 Aug · General',code:'Z002-0288'}];
+  function renderPasses(){var l=el('passList');l.innerHTML='';passes.forEach(function(p){var r=document.createElement('div');r.className='pass';
+    r.innerHTML='<div class="qr"><svg width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="#fff"/><rect x="4" y="4" width="10" height="10" fill="#0A0A0B"/><rect x="26" y="4" width="10" height="10" fill="#0A0A0B"/><rect x="4" y="26" width="10" height="10" fill="#0A0A0B"/><rect x="20" y="20" width="4" height="4" fill="#0A0A0B"/><rect x="28" y="26" width="4" height="4" fill="#0A0A0B"/><rect x="20" y="30" width="4" height="4" fill="#0A0A0B"/></svg></div><div style="flex:1"><div class="pn">'+p.n+'</div><div class="pd">'+p.d+' · '+p.code+'</div></div><span class="pill live">Pass</span>';l.appendChild(r);});}
+
+  /* ---- interactive seat/table map ---- */
+  var tables=[], sel=null, zoom=1;
+  (function buildTables(){
+    var cols=[80,150,220], rows=[60,95,130]; var i=1;
+    rows.forEach(function(y){cols.forEach(function(x){
+      tables.push({id:'T'+i,x:x,y:y,sold:(i%7===0||i%9===0),seats:6,price:900000}); i++;});});
+    // one extra pair of side tables
+    tables.push({id:'T10',x:45,y:112,sold:false,seats:4,price:600000});
+    tables.push({id:'T11',x:255,y:112,sold:true,seats:4,price:600000});
+  })();
+  function drawMap(){
+    var g=el('mapg');
+    // remove old table nodes
+    [].slice.call(g.querySelectorAll('.tbl')).forEach(function(n){n.remove();});
+    var avail=0;
+    tables.forEach(function(t){
+      if(!t.sold) avail++;
+      var fill=t.sold?'#3a3a42':(sel&&sel.id===t.id?'#FF5A1F':'rgba(61,90,254,.18)');
+      var stroke=t.sold?'#3a3a42':(sel&&sel.id===t.id?'#FF5A1F':'#3D5AFE');
+      var c=document.createElementNS('http://www.w3.org/2000/svg','g');c.setAttribute('class','tbl');c.style.cursor=t.sold?'default':'pointer';
+      c.innerHTML='<circle cx="'+t.x+'" cy="'+t.y+'" r="13" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.6"/><text x="'+t.x+'" y="'+(t.y+3.5)+'" text-anchor="middle" font-family="Arial" font-size="8" font-weight="700" fill="'+(t.sold?'#6a6a72':'#F4F1EA')+'">'+t.id+'</text>';
+      if(!t.sold) c.addEventListener('click',function(){selectTable(t);});
+      g.appendChild(c);
+    });
+    el('availCount').textContent=avail;
+  }
+  function selectTable(t){sel=t;drawMap();el('selName').textContent='Table '+t.id;el('selPrice').textContent=t.seats+' seats · TZS '+fmt(t.price);el('selBar').classList.add('show');}
+  el('zoomIn').addEventListener('click',function(){zoom=Math.min(2.2,zoom+0.3);el('floormap').style.transform='scale('+zoom+')';});
+  el('zoomOut').addEventListener('click',function(){zoom=Math.max(1,zoom-0.3);el('floormap').style.transform='scale('+zoom+')';});
+  function openBooking(){sel=null;zoom=1;el('floormap').style.transform='scale(1)';el('selBar').classList.remove('show');drawMap();el('bookView').classList.add('show');el('bookView').scrollTop=0;}
+  el('bookBack').addEventListener('click',function(){el('bookView').classList.remove('show');});
+  [].forEach.call(el('bookSeg').children,function(b){b.addEventListener('click',function(){[].forEach.call(el('bookSeg').children,function(x){x.classList.remove('on');});b.classList.add('on');toast(b.dataset.s==='ga'?'General floor — pick quantity':'Tap a table on the map');});});
+  el('selContinue').addEventListener('click',function(){if(!sel)return;openSplit(sel);});
+
+  /* ---- split with crew ---- */
+  var contacts=[{n:'Zawadi Kessy',ph:'+255 713 220 101'},{n:'John Peter',ph:'+255 754 900 233'},{n:'Neema Said',ph:'+255 719 110 878'},{n:'Baraka Lyimo',ph:'+255 786 540 611'},{n:'Fatma Hassan',ph:'+255 744 210 733'}];
+  var crew=[]; var splitSheet=el('splitSheet'); var activeTable=null;
+  function openSplit(t){activeTable=t;crew=[{n:'You',ph:'host',paid:true}];renderSplit();splitSheet.classList.add('open');}
+  el('splitScrim').addEventListener('click',function(){splitSheet.classList.remove('open');});
+  function initials(n){return n.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();}
+  function renderSplit(){
+    var per=Math.round(activeTable.price/Math.max(1,crew.length));
+    el('splitTotal').textContent='TZS '+fmt(activeTable.price);el('perPerson').textContent='TZS '+fmt(per);
+    el('crewCount').textContent=crew.length;
+    var cl=el('crewList');cl.innerHTML='';
+    crew.forEach(function(m){var r=document.createElement('div');r.className='crew';
+      r.innerHTML='<div class="ci">'+(m.n==='You'?'★':initials(m.n))+'</div><div style="flex:1"><div class="cn">'+m.n+'</div><div class="cs">TZS '+fmt(per)+'</div></div><span class="statustag '+(m.paid?'paid':'pend')+'">'+(m.paid?'Paid':'Link sent')+'</span>';cl.appendChild(r);});
+    var co=el('contactList');co.innerHTML='';
+    contacts.forEach(function(ct){var added=crew.some(function(m){return m.n===ct.n;});var r=document.createElement('div');r.className='crew';
+      r.innerHTML='<div class="ci">'+initials(ct.n)+'</div><div style="flex:1"><div class="cn">'+ct.n+'</div><div class="cs">'+ct.ph+'</div></div>';
+      var b=document.createElement('button');b.className='addbtn'+(added?' added':'');b.textContent=added?'Added':'Add';
+      b.addEventListener('click',function(){if(added){crew=crew.filter(function(m){return m.n!==ct.n;});}else{if(crew.length>=activeTable.seats){toast('Table is full ('+activeTable.seats+' seats)');return;}crew.push({n:ct.n,ph:ct.ph,paid:false});}renderSplit();});
+      r.appendChild(b);co.appendChild(r);});
+  }
+  el('lockBtn').addEventListener('click',function(){
+    if(crew.length<2){toast('Add at least one crew member to split');return;}
+    splitSheet.classList.remove('open');el('bookView').classList.remove('show');
+    toast('Table '+activeTable.id+' locked · '+(crew.length-1)+' payment links sent');
+  });
+
+  /* ================= ORGANIZER (compact port) ================= */
+  var events=[
+    {id:'offshore',name:'OFFSHORE',tag:'Daytime Yacht Groove',desc:'One day. On the water. Vessel & shore.',date:'Sat 25 Jul 2026',city:'Dar es Salaam',cur:'TZS',status:'live',sold:1284,cap:3200,grossM:96.2,checked:842,velo:148,pending:27.2,tiers:[{n:'Wave 01',p:65000},{n:'Wave 02',p:85000},{n:'Cabana',p:900000}]},
+    {id:'kultur',name:'KULTUR: NAIROBI',tag:'Nights 01',desc:'The activation series lands in Nairobi.',date:'Fri 15 Aug 2026',city:'Nairobi',cur:'KES',status:'upcoming',sold:612,cap:2000,grossM:2.4,checked:0,velo:58,pending:0.5,tiers:[{n:'Early',p:2500},{n:'General',p:3500}]},
+    {id:'drop000',name:'DROP 000',tag:'Warehouse',desc:'The first one.',date:'14 Jun 2026',city:'Dar es Salaam',cur:'TZS',status:'past',sold:1200,cap:1200,grossM:38.1,checked:1180,velo:0,pending:0,tiers:[{n:'GA',p:30000},{n:'VIP',p:80000}]}
+  ];
+  var active=events[0];
+  function sMeta(s){return ({live:{c:'pill live',d:'<span class="dot pulse"></span> ',t:'On sale'},upcoming:{c:'pill live',d:'<span class="dot"></span> ',t:'On sale'},draft:{c:'pill mut',d:'<span class="dot"></span> ',t:'Draft'},past:{c:'pill mut',d:'<span class="dot"></span> ',t:'Ended'}})[s];}
+  function renderNames(){[].forEach.call(document.querySelectorAll('.ev-name'),function(n){n.textContent=active.name;});}
+  function renderDash(){
+    var pct=active.cap?Math.min(100,Math.round(active.sold/active.cap*100)):0;var m=sMeta(active.status);
+    var p=el('dashPill');p.className=m.c;p.innerHTML=m.d+m.t;
+    el('dashDate').textContent=active.date+' · '+active.city;el('dashTag').textContent=active.tag;
+    el('dashSold').textContent=fmt(active.sold);el('dashCap').textContent=fmt(active.cap);el('dashBar').style.width=pct+'%';
+    el('mGrossCur').textContent=active.cur;el('mGross').textContent=active.grossM.toFixed(1);
+    el('mNet').textContent=active.cur+' '+(active.grossM*0.95).toFixed(1)+'M';el('mPending').textContent=active.cur+' '+active.pending.toFixed(1)+'M';
+    el('iSold').textContent=pct+'%';el('iCheck').textContent=active.sold?Math.round(active.checked/active.sold*100)+'%':'0%';
+    el('iVelo').textContent=active.velo?'+'+active.velo:'—';el('iAvg').textContent=active.sold?active.cur+' '+kfmt(active.grossM*1e6/active.sold):'—';
+  }
+  /* live edit */
+  var dirty=0,capWork=0,tiersWork=[];
+  function markDirty(){dirty++;el('saveBtn').disabled=false;}
+  function renderTierEdit(){var c=el('tierEdit');c.innerHTML='';tiersWork.forEach(function(t,i){var r=document.createElement('div');r.className='setrow';
+    r.innerHTML='<span class="sk">'+t.n+'</span><span style="display:flex;align-items:center;gap:8px"><button class="zbtn" data-i="'+i+'" data-d="-5000" style="width:28px;height:28px;font-size:15px">−</button><span class="num" style="min-width:70px;text-align:right">'+fmt(t.p)+'</span><button class="zbtn" data-i="'+i+'" data-d="5000" style="width:28px;height:28px;font-size:15px">＋</button></span>';c.appendChild(r);});
+    [].forEach.call(c.querySelectorAll('.zbtn'),function(b){b.addEventListener('click',function(){tiersWork[+b.dataset.i].p=Math.max(0,tiersWork[+b.dataset.i].p+ +b.dataset.d);renderTierEdit();markDirty();});});}
+  function openEdit(){el('f-title').value=active.name+' — '+active.tag;capWork=active.cap;el('capVal').textContent=fmt(capWork);tiersWork=active.tiers.map(function(t){return{n:t.n,p:t.p};});dirty=0;el('saveBtn').disabled=true;renderTierEdit();el('editView').classList.add('show');el('editView').scrollTop=0;}
+  el('evcard').addEventListener('click',openEdit);
+  el('editBack').addEventListener('click',function(){el('editView').classList.remove('show');});
+  [].forEach.call(document.querySelectorAll('#editView [data-cap]'),function(b){b.addEventListener('click',function(){capWork=Math.max(0,capWork+ +b.dataset.cap);el('capVal').textContent=fmt(capWork);markDirty();});});
+  el('f-title').addEventListener('input',markDirty);
+  el('saveBtn').addEventListener('click',function(){
+    var pub=el('publish');pub.classList.add('show');var tg=el('targets');tg.innerHTML='';
+    var names=['Storefront','Consumer apps','Door devices','Discover feed'];
+    names.forEach(function(nm,i){var d=document.createElement('div');d.style.cssText='display:flex;justify-content:space-between;padding:9px 13px;border:1px solid var(--line);border-radius:11px;margin-bottom:9px;color:var(--mut2);opacity:.4;transition:.25s';d.innerHTML='<span>'+nm+'</span><span style="color:#4fd699">✓</span>';d.id='tg'+i;tg.appendChild(d);
+      setTimeout(function(){d.style.opacity='1';d.style.color='var(--bone)';},250+i*260);});
+    setTimeout(function(){pub.classList.remove('show');active.cap=capWork;active.tiers.forEach(function(t,i){if(tiersWork[i])t.p=tiersWork[i].p;});renderDash();el('editView').classList.remove('show');toast('Live across Zora in 0.4s');},250+names.length*260+500);
+  });
+  /* switcher */
+  var sheet=el('eventsheet');
+  [].forEach.call(document.querySelectorAll('.js-switch'),function(o){o.addEventListener('click',function(){buildEvents();sheet.classList.add('open');});});
+  el('evClose').addEventListener('click',function(){sheet.classList.remove('open');});el('evScrim').addEventListener('click',function(){sheet.classList.remove('open');});
+  function buildEvents(){var l=el('eventList');l.innerHTML='';events.forEach(function(ev){var m=sMeta(ev.status);var r=document.createElement('div');r.className='route'+(ev===active?' sel':'');r.style.marginBottom='10px';
+    r.innerHTML='<div style="flex:1"><div class="rn">'+ev.name+'</div><div class="rs">'+ev.tag+' · '+ev.date+' · '+ev.cur+' '+ev.grossM.toFixed(1)+'M</div></div><span class="'+m.c+'">'+m.t+'</span>';
+    r.addEventListener('click',function(){active=ev;renderNames();renderDash();sheet.classList.remove('open');});l.appendChild(r);});}
+  /* wallet */
+  var history=[{a:'TZS 30,000,000',s:'Completed to M-Pesa',c:'ok',t:'Completed'},{a:'TZS 12,500,000',s:'Processing · Airtel',c:'warn',t:'Processing'},{a:'TZS 8,000,000',s:'Failed · wrong number',c:'bad',t:'Failed'}];
+  function renderHistory(){var c=el('whList');c.innerHTML='';history.forEach(function(h){var r=document.createElement('div');r.className='wh';r.innerHTML='<div class="ic">'+h.a.replace('TZS ','').slice(0,3)+'</div><div class="m"><div class="a">'+h.a+'</div><div class="s">'+h.s+'</div></div><span class="pill '+h.c+'"><span class="dot"></span> '+h.t+'</span>';c.appendChild(r);});}
+  var wSheet=el('wSheet'),wroute='M-Pesa';
+
+  /* ── KYC payout gate: withdrawals are blocked until identity is verified ── */
+  var kycState='unverified';   // 'unverified' | 'pending' | 'verified'
+  function renderKyc(){
+    var verified=kycState==='verified', pending=kycState==='pending';
+    var note=el('walletKyc'), cash=el('cashBtn');
+    if(note) note.style.display=verified?'none':'flex';
+    if(cash){ cash.style.opacity=verified?'':'.5'; cash.style.cursor=verified?'':'not-allowed'; cash.textContent=verified?'Cash out':'Cash out · locked'; }
+    if(el('kycNoteT')) el('kycNoteT').textContent=pending?'Identity under review':'Verify your identity to cash out';
+    if(el('kycNoteD')) el('kycNoteD').textContent=pending?'Usually approved within 24 hours. Payouts unlock the moment it clears.':'Payouts stay locked until your ID is approved — it protects your money and your buyers.';
+    var vb=el('kycVerifyBtn'); if(vb){ vb.style.display=pending?'none':''; }
+    var lbl=verified?['ok','Verified']:pending?['warn','Under review']:['warn','Not verified'];
+    ['setKycPill','setHeadPill','walletHeadPill'].forEach(function(id){
+      var p=el(id); if(!p) return;
+      if(id==='walletHeadPill'){ p.className='pill '+(verified?'ok':'warn'); p.innerHTML='<span class="dot"></span> '+(verified?'M-Pesa ready':'Payouts locked'); return; }
+      p.className='pill '+lbl[0]; p.innerHTML='<span class="dot"></span> '+(id==='setHeadPill'?(verified?'Verified':'Unverified'):lbl[1]);
+    });
+  }
+  function startVerify(){
+    if(kycState==='pending') return;
+    kycState='pending'; renderKyc(); toast('Identity submitted — under review');
+    setTimeout(function(){ kycState='verified'; renderKyc(); toast('Identity verified — payouts unlocked'); },1700); // demo: simulate admin approval
+  }
+  if(el('kycVerifyBtn')) el('kycVerifyBtn').addEventListener('click',startVerify);
+
+  el('cashBtn').addEventListener('click',function(){ if(kycState!=='verified'){ startVerify(); return; } wSheet.classList.add('open'); });
+  el('wScrim').addEventListener('click',function(){wSheet.classList.remove('open');});
+  [].forEach.call(document.querySelectorAll('#routes .route'),function(r){r.addEventListener('click',function(){document.querySelectorAll('#routes .route').forEach(function(x){x.classList.remove('sel');});r.classList.add('sel');wroute=r.dataset.r;el('wConfirm').textContent='Withdraw TZS 40.0M to '+wroute;});});
+  el('wConfirm').addEventListener('click',function(){ if(kycState!=='verified'){ wSheet.classList.remove('open'); toast('Verify your identity to withdraw'); return; } history.unshift({a:'TZS 40,000,000',s:'Processing · '+wroute,c:'warn',t:'Processing'});renderHistory();wSheet.classList.remove('open');toast('Withdrawal requested — '+wroute);});
+  renderKyc();
+  /* people */
+  var people=[{n:'Amina Kessy',id:'Z001-0417',ph:'+255 712 400 417',ty:'VIP',cl:'vip',in:true},{n:'Juma Ally',id:'Z001-0031',ph:'+255 754 220 031',ty:'Golden Circle',cl:'gold',in:true},{n:'Grace Mushi',id:'Z001-0288',ph:'+255 713 900 288',ty:'General',cl:'ga',in:false},{n:'Said Omar',id:'Z001-0455',ph:'+255 778 110 455',ty:'VIP',cl:'vip',in:true},{n:'Lucy Meena',id:'Z001-0039',ph:'+255 765 330 039',ty:'Golden Circle',cl:'gold',in:false},{n:'Halima Yusuf',id:'Z001-0611',ph:'+255 786 540 611',ty:'General',cl:'ga',in:false}];
+  var attSearch=el('attSearch');
+  function renderAtt(){var q=(attSearch.value||'').toLowerCase();var l=el('attList');l.innerHTML='';el('attCount').textContent=fmt(active.sold);
+    people.filter(function(p){return !q||p.n.toLowerCase().indexOf(q)>=0||p.id.toLowerCase().indexOf(q)>=0||p.ph.replace(/\s/g,'').indexOf(q.replace(/\s/g,''))>=0;}).forEach(function(p){var r=document.createElement('div');r.className='arow';
+      r.innerHTML='<div class="ai">'+p.n.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase()+'</div><div><div class="an">'+p.n+'</div><div class="ac">'+p.id+' · '+p.ph+'</div></div><div style="text-align:right"><span class="tt '+p.cl+'">'+p.ty+'</span><div class="st '+(p.in?'in':'out')+'">'+(p.in?'Checked in':'Absent')+'</div></div>';l.appendChild(r);});}
+  attSearch.addEventListener('input',renderAtt);
+  /* audit */
+  var valid=1842,rej=14,gates=['GATE A · DEV 1','GATE A · DEV 2','GATE B · DEV 1','GATE C · DEV 1'],entries=[];
+  function now(){var d=new Date();return [d.getHours(),d.getMinutes(),d.getSeconds()].map(function(x){return(''+x).padStart(2,'0');}).join(':');}
+  function addEntry(seed){var bad=Math.random()<0.16;var kind=bad?(Math.random()<0.6?'DUPLICATE':'INVALID'):'VALID';entries.unshift({id:'Z001-'+(1000+Math.floor(Math.random()*8999)),gate:gates[Math.floor(Math.random()*gates.length)],time:now(),ok:!bad,res:kind});if(entries.length>30)entries.pop();
+    if(!seed){if(!bad)valid++;else rej++;el('aValid').textContent=fmt(valid);el('aRej').textContent=fmt(rej);el('aVelo').textContent=32+Math.floor(Math.random()*12);}renderLog();}
+  function renderLog(){var l=el('auditLog');l.innerHTML='';entries.slice(0,16).forEach(function(e){var r=document.createElement('div');r.className='logrow '+(e.ok?'ok':'bad');r.innerHTML='<div class="ld"></div><div><div class="lid">'+e.id+'</div><div class="lmeta">'+e.gate+'</div></div><div style="text-align:right"><div class="lres">'+e.res+'</div><div class="ltime">'+e.time+'</div></div>';l.appendChild(r);});}
+  for(var i=0;i<10;i++)addEntry(true);
+  setInterval(function(){if(el('o-audit').classList.contains('active')&&mode==='organizer')addEntry(false);},1700);
+  /* settings toggles */
+  [].forEach.call(document.querySelectorAll('[data-toggle]'),function(sw){sw.addEventListener('click',function(){sw.classList.toggle('on');});});
+
+  /* ================= STAFF ================= */
+  var seq=['valid','valid','used','valid','invalid','valid'],si=0,sbusy=false,head=842;
+  var svNames=['Amina K. · Wave 01','Juma A. · VIP','Grace M. · General','Said O. · Wave 02'];
+  el('staffScan').addEventListener('click',function(){
+    if(sbusy)return;sbusy=true;el('sres-valid').classList.remove('show');el('sres-bad').classList.remove('show');
+    var k=seq[si%seq.length];si++;
+    if(k==='valid'){el('svName').textContent=svNames[Math.floor(Math.random()*svNames.length)];head++;el('staffCount').textContent=fmt(head);el('sres-valid').classList.add('show');}
+    else{el('sbTitle').textContent=k==='used'?'Already in':'Not valid';el('sbSub').textContent=k==='used'?'Scanned 13:52 · Gate B':'Signature failed';el('sres-bad').classList.add('show');}
+    if(navigator.vibrate)navigator.vibrate(k==='valid'?30:[20,40,20]);
+    setTimeout(function(){el('sres-valid').classList.remove('show');el('sres-bad').classList.remove('show');sbusy=false;},1400);
+  });
+
+  /* ---------- INIT ---------- */
+  renderGrid();renderPasses();renderNames();renderDash();renderHistory();renderAtt();
+})();
+</script>
+</body>
+</html>

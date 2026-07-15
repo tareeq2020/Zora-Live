@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "ZORA",
+    "slug": "zora",
+    "scheme": "zora",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0B",
+    "splash": {
+      "backgroundColor": "#0A0A0B",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "ZORA uses your contacts so you can invite friends to split a table."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ZORA uses the camera to scan tickets at the gate."
+        }
+      ],
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.zora.mobile"
+    },
+    "android": {
+      "package": "app.zora.mobile"
+    }
+  }
+}

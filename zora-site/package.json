@@ -1,0 +1,19 @@
+{
+  "name": "zora-site",
+  "version": "1.0.0",
+  "description": "ZORA — global ticketing and live experience. DROP 001: OFFSHORE landing + admin CMS.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@supabase/supabase-js": "^2.110.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "pngjs": "^7.0.0",
+    "qrcode": "^1.5.4"
+  }
+}

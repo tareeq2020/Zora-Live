@@ -1,0 +1,22 @@
+{
+  "offshore": {
+    "id": "offshore",
+    "cap": 2700,
+    "tiers": [
+      {
+        "name": "Wave 01",
+        "price": 65000
+      },
+      {
+        "name": "Wave 02",
+        "price": 85000
+      },
+      {
+        "name": "Cabana — crew of 6",
+        "price": 900000
+      }
+    ],
+    "version": 4,
+    "updatedAt": "2026-07-11T14:31:17.801Z"
+  }
+}

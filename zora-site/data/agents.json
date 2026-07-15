@@ -1,0 +1,26 @@
+[
+  {
+    "id": "mra5m2le",
+    "name": "Juma Ally",
+    "contact": "+255700111222",
+    "via": "phone",
+    "event": "OFFSHORE",
+    "role": "agent",
+    "code": "639252",
+    "status": "active",
+    "createdAt": "2026-07-07T04:33:42.819Z",
+    "expiresAt": "2026-07-10T04:33:42.819Z"
+  },
+  {
+    "id": "mra5m2li",
+    "name": "Neema K",
+    "contact": "neema@zora.app",
+    "via": "email",
+    "event": "All events",
+    "role": "agent",
+    "code": "641784",
+    "status": "active",
+    "createdAt": "2026-07-07T04:33:42.822Z",
+    "expiresAt": "2026-07-10T04:33:42.822Z"
+  }
+]

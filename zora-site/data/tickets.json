@@ -1,0 +1,26 @@
+{
+  "ZORA-OFF1-4471-88AK": {
+    "event": "OFFSHORE — The Daytime Yacht Groove",
+    "dateLabel": "Sat 25 Jul 2026 · 14:00",
+    "venue": "Slipway Marina → undisclosed sandbank",
+    "tableName": "VIP Platinum Lounge — Captain's Deck",
+    "tableNo": "Table 04",
+    "seats": "6 guests",
+    "guest": "Amina Juma Hassan",
+    "ticketId": "ZORA-OFF1-4471-88AK",
+    "tier": "VIP Table Package",
+    "organizerHandle": "offshore"
+  },
+  "ZORA-BRC9-2210-3F1D": {
+    "event": "Garden Brunch — Vol. 09",
+    "dateLabel": "Sat 08 Aug 2026 · 12:00",
+    "venue": "The Secret Garden, Oysterbay",
+    "tableName": "Rosé Cabana",
+    "tableNo": "Table 11",
+    "seats": "4 guests",
+    "guest": "Daniel Mwakalinga",
+    "ticketId": "ZORA-BRC9-2210-3F1D",
+    "tier": "Table Package",
+    "organizerHandle": "thebrunchcity"
+  }
+}

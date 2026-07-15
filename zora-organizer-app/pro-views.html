@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Zora" />
+<meta name="theme-color" content="#0A0A0B" />
+<title>Zora Organizer — Pro Views (dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0A0A0B; --panel:#141417; --panel2:#1B1B20; --line:rgba(244,241,234,.10); --line2:rgba(244,241,234,.055);
+    --bone:#F4F1EA; --mut:rgba(244,241,234,.56); --mut2:rgba(244,241,234,.34);
+    --ultra:#3D5AFE; --orange:#FF5A1F; --green:#17B368; --red:#FF3B30; --amber:#E9A83B;
+    --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --disp:'Anton',var(--sans);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:var(--sans);background:#111114;color:var(--bone);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 16px;gap:44px;flex-wrap:wrap;
+    background-image:radial-gradient(circle at 25% 15%,rgba(61,90,254,.12),transparent 55%),radial-gradient(circle at 85% 92%,rgba(255,90,31,.09),transparent 50%);}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .caption{color:var(--mut);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  .phone{width:390px;height:820px;border-radius:52px;background:#000;padding:11px;box-shadow:0 40px 90px -30px rgba(0,0,0,.85),0 0 0 2px rgba(255,255,255,.05) inset;position:relative}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:132px;height:30px;background:#000;border-radius:0 0 20px 20px;z-index:40}
+  .viewport{position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+  .statusbar{height:46px;flex:0 0 46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font-size:13px;font-weight:600;font-family:var(--mono);color:var(--bone)}
+  .statusbar .dots{display:flex;gap:5px;align-items:center}.statusbar .dots i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;display:block}
+
+  .screens{position:relative;flex:1 1 auto;overflow:hidden}
+  .screen{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:6px 20px 24px;display:none;animation:fade .28s ease}
+  .screen.active{display:block}.screen::-webkit-scrollbar{width:0}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--mut2)}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px}
+  .muted{color:var(--mut);font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:100px}
+  .pill.live{background:rgba(61,90,254,.16);color:#93a6ff}
+  .pill.ok{background:rgba(23,179,104,.18);color:#4fd699}
+  .pill.warn{background:rgba(233,168,59,.18);color:#f0c579}
+  .pill.bad{background:rgba(255,59,48,.18);color:#ff8b84}
+  .pill.mut{background:var(--panel2);color:var(--mut)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+  .dot.pulse{animation:pulse 1.4s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .apphead{display:flex;align-items:center;justify-content:space-between;padding:6px 0 14px}
+  .apphead .t{font-family:var(--disp);font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+  .sectlabel{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut2);font-weight:700;margin:20px 2px 10px}
+
+  .evsel{display:flex;flex-direction:column;gap:3px;cursor:pointer}
+  .evsel .name{font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px}
+  .evsel .chev{font-size:11px;color:var(--mut2)}
+  .avatar{width:38px;height:38px;border-radius:50%;background:var(--ultra);color:#fff;display:grid;place-items:center;font-family:var(--disp);font-size:15px}
+  .cap{height:8px;border-radius:100px;background:var(--panel2);overflow:hidden;margin-top:12px}
+  .cap>span{display:block;height:100%;background:var(--ultra);border-radius:100px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+
+  /* dashboard */
+  .evcard{background:linear-gradient(160deg,#17171d,#0e0e12);border:1px solid var(--line);border-radius:22px;padding:18px;cursor:pointer;position:relative;overflow:hidden;transition:.15s}
+  .evcard::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(61,90,254,.2),transparent 70%)}
+  .evcard:active{transform:scale(.99)}
+  .evcard .etag{font-family:var(--disp);font-size:22px;text-transform:uppercase;margin:12px 0 4px}
+  .evcard .esub{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--mut)}
+  .evcard .editcue{color:var(--ultra);font-weight:700;font-size:12px}
+  .moneygrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}
+  .mcard.big{grid-column:1 / -1;background:linear-gradient(160deg,#161a2e,#101018);border-color:rgba(61,90,254,.3)}
+  .mcard .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}
+  .mcard .v{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:8px}
+  .mcard.big .v{font-family:var(--disp);font-size:40px;letter-spacing:.01em}
+  .insgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .ins{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}
+  .ins .iv{font-family:var(--disp);font-size:30px;line-height:1}
+  .ins .ik{font-size:11px;color:var(--mut2);font-weight:600;margin-top:7px;letter-spacing:.04em}
+  .callouts .co{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--line2);font-size:13px;line-height:1.4}
+  .callouts .co:last-child{border-bottom:0}
+  .callouts .co .cd{width:7px;height:7px;border-radius:50%;background:var(--ultra);margin-top:5px;flex:0 0 7px}
+  .callouts .co b{color:var(--bone)}
+  .spark{width:100%;height:52px;display:block;margin-top:4px}
+
+  /* fields / edit */
+  .field{margin-bottom:14px}
+  .field label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut2);font-weight:700;display:block;margin-bottom:8px}
+  .input,.textarea{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;color:var(--bone);font-size:15px;padding:14px;font-family:var(--sans);outline:none}
+  .input:focus,.textarea:focus{border-color:var(--ultra)}.textarea{resize:none;min-height:76px;line-height:1.45}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .stepper{display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+  .stepper .val{font-family:var(--disp);font-size:34px;line-height:1}
+  .stepper .val small{font-family:var(--sans);font-size:11px;font-weight:700;color:var(--mut2);letter-spacing:.1em;display:block;text-transform:uppercase;margin-top:4px}
+  .stepbtns{display:flex;gap:8px}
+  .stepbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--bone);font-size:20px;font-weight:700;cursor:pointer;display:grid;place-items:center}
+  .stepbtn:active{transform:scale(.94)}
+  .quick{display:flex;gap:8px;margin-top:10px}
+  .qbtn{flex:1;padding:11px;border-radius:12px;border:1px dashed var(--line);background:transparent;color:var(--ultra);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--sans)}
+  .qbtn:active{background:rgba(61,90,254,.1)}
+  .tierrow{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line2)}
+  .tierrow:last-child{border-bottom:0}.tierrow .tn{font-weight:600;font-size:14px}
+  .tierrow .was{font-size:11px;color:var(--amber);font-family:var(--mono);margin-top:3px}
+  .pricectl{display:flex;align-items:center;gap:9px}
+  .priceval{font-family:var(--mono);font-size:14px;font-weight:700;min-width:78px;text-align:right}
+  .mini{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--bone);font-size:16px;font-weight:700;cursor:pointer}
+  .savebar{position:sticky;bottom:0;padding:14px 0 4px;background:linear-gradient(180deg,transparent,var(--bg) 34%)}
+  .btn{width:100%;padding:17px;border:0;border-radius:16px;font-weight:700;font-size:15px;cursor:pointer;font-family:var(--sans);letter-spacing:.02em}
+  .btn-primary{background:var(--ultra);color:#fff}.btn-primary:disabled{opacity:.4}.btn-primary:active{transform:scale(.99)}
+  .dirtybadge{display:none;align-items:center;gap:7px;color:var(--amber);font-size:12px;font-weight:600;margin-bottom:10px;justify-content:center}
+  .dirty .dirtybadge{display:flex}
+
+  /* edit overlay */
+  .overlay{position:absolute;inset:0;z-index:52;background:var(--bg);display:none;flex-direction:column;overflow-y:auto;padding:6px 20px 24px;animation:slidein .3s ease}
+  .overlay.show{display:flex}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  .backrow{display:flex;align-items:center;gap:10px;padding:8px 0 12px;color:var(--mut);font-weight:600;font-size:14px;cursor:pointer}
+
+  .publish{position:absolute;inset:0;z-index:58;background:rgba(10,10,11,.92);backdrop-filter:blur(6px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center}
+  .publish.show{display:flex}
+  .publish .ring{width:64px;height:64px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--ultra);animation:spin .8s linear infinite;margin-bottom:22px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .publish h3{font-family:var(--disp);font-size:22px;text-transform:uppercase;margin-bottom:18px}
+  .targets{display:flex;flex-direction:column;gap:9px;width:100%;max-width:230px}
+  .target{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--mut);padding:9px 13px;border:1px solid var(--line);border-radius:11px;opacity:.4;transition:.25s}
+  .target.done{opacity:1;color:var(--bone);border-color:rgba(23,179,104,.4)}.target .chk{color:var(--green);font-weight:700}
+
+  /* wallet */
+  .balcard{background:linear-gradient(160deg,#17171c,#0e0e12);border:1px solid var(--line);border-radius:24px;padding:22px;position:relative;overflow:hidden}
+  .balcard::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(61,90,254,.22),transparent 70%)}
+  .balcard .avail{font-family:var(--disp);font-size:52px;line-height:.92;margin-top:6px}
+  .balsplit{display:flex;gap:22px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .balsplit .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}
+  .balsplit .v{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:6px}
+  .cashbtn{margin-top:14px}
+  .wh{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--line2)}
+  .wh:last-child{border-bottom:0}
+  .wh .ic{width:40px;height:40px;border-radius:11px;background:var(--panel2);display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--mut);flex:0 0 40px}
+  .wh .m{flex:1}.wh .m .a{font-family:var(--mono);font-weight:700;font-size:14px}.wh .m .s{font-size:11.5px;color:var(--mut2);margin-top:2px}
+
+  /* sheet (shared: withdraw + event switcher) */
+  .sheet{position:absolute;inset:0;z-index:55;display:none}.sheet.open{display:block}
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);animation:fade .25s ease}
+  .panel{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border:1px solid var(--line);border-bottom:0;border-radius:26px 26px 0 0;padding:8px 20px 24px;max-height:88%;overflow-y:auto;animation:slideup .32s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .grab{width:40px;height:4px;border-radius:100px;background:var(--line);margin:8px auto 16px}
+  .sheet h3{font-family:var(--disp);font-size:22px;text-transform:uppercase;margin-bottom:4px}
+  .amtbig{font-family:var(--disp);font-size:44px;text-align:center;margin:10px 0 2px}
+  .amtbig .cur{font-size:18px;color:var(--mut);vertical-align:middle;margin-right:4px}
+  .maxrow{text-align:center;margin-bottom:16px}
+  .maxchip{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-size:11px;font-weight:700;padding:5px 11px;border-radius:100px;cursor:pointer}
+  .route{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid var(--line);border-radius:15px;margin-bottom:10px;cursor:pointer;background:var(--panel2)}
+  .route.sel{border-color:var(--ultra);background:rgba(61,90,254,.1)}
+  .route .badge{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:12px;font-family:var(--mono);flex:0 0 44px}
+  .route .rn{font-weight:600;font-size:14px}.route .rs{font-size:11.5px;color:var(--mut2);margin-top:2px}
+  .route .rad{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);flex:0 0 20px}
+  .route.sel .rad{border-color:var(--ultra);background:radial-gradient(circle,var(--ultra) 42%,transparent 46%)}
+  .evrow{width:100%;text-align:left;display:flex;align-items:flex-start;gap:12px;justify-content:space-between;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-bottom:10px;cursor:pointer;font-family:var(--sans);color:var(--bone)}
+  .evrow.current{border-color:var(--ultra)}
+  .evrow-name{font-weight:700;font-size:15px}.evrow-sub{font-size:12px;color:var(--mut2);margin-top:3px}
+  .evrow-stat{font-family:var(--mono);font-size:11px;color:var(--mut2);margin-top:7px}
+  .evrow-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:0 0 auto}
+  .curmark{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ultra)}
+  .evrow.create{background:transparent;border-style:dashed}
+
+  /* attendees */
+  .search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;color:var(--bone);font-size:14px;padding:13px 15px 13px 40px;font-family:var(--sans);outline:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23F4F1EA' stroke-opacity='.4' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:14px center}
+  .search:focus{border-color:var(--ultra)}
+  .thead{display:grid;grid-template-columns:1fr auto;gap:10px;padding:6px 4px 8px;color:var(--mut2);font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .arow{display:grid;grid-template-columns:36px 1fr auto;gap:11px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line2);cursor:pointer}
+  .arow:active{background:var(--panel)}
+  .arow .ai{width:36px;height:36px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;font-size:13px}
+  .arow .an{font-weight:600;font-size:14px}.arow .ac{font-family:var(--mono);font-size:11px;color:var(--mut2);margin-top:3px}
+  .arow .aright{text-align:right}
+  .tt{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:100px}
+  .tt.vip{background:rgba(255,90,31,.18);color:#ffab86}.tt.gold{background:rgba(233,168,59,.2);color:#f0c579}.tt.ga{background:var(--panel2);color:var(--mut)}
+  .aright .st{font-size:11px;font-weight:700;margin-top:5px}.aright .st.in{color:var(--green)}.aright .st.out{color:var(--mut2)}
+  .empty{padding:28px 0;text-align:center;color:var(--mut2);font-size:13px}
+  .dhead{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .dhead .da{width:60px;height:60px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-family:var(--disp);font-size:22px}
+  .dhead .dn{font-family:var(--disp);font-size:24px;text-transform:uppercase;line-height:1}
+  .dactions{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:16px 0}
+  .dact{padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--panel);text-align:center;font-weight:600;font-size:13px;cursor:pointer}
+  .drow{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line2);font-size:14px}
+  .drow .dk{color:var(--mut)}.drow .dv{font-family:var(--mono);font-weight:700;text-align:right}
+
+  /* audit */
+  .auditbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+  .abox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 13px}
+  .abox .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}
+  .abox .v{font-family:var(--disp);font-size:26px;margin-top:5px}.abox .v.g{color:#4fd699}.abox .v.r{color:#ff8b84}
+  .chips{display:flex;gap:8px;margin-bottom:6px}
+  .chip{font-size:12px;font-weight:600;padding:7px 13px;border-radius:100px;border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer}
+  .chip.on{background:var(--bone);color:var(--bg);border-color:var(--bone)}
+  .log{display:flex;flex-direction:column}
+  .logrow{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line2);animation:slidein .35s ease}
+  .logrow .ld{width:10px;height:10px;border-radius:50%;margin-top:2px}
+  .logrow.ok .ld{background:var(--green);box-shadow:0 0 10px rgba(23,179,104,.7)}
+  .logrow.bad .ld{background:var(--red);box-shadow:0 0 10px rgba(255,59,48,.7)}
+  .logrow .lid{font-family:var(--mono);font-weight:700;font-size:13px}
+  .logrow .lmeta{font-size:11px;color:var(--mut2);margin-top:3px;font-family:var(--mono)}
+  .logrow .lres{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;text-align:right}
+  .logrow.ok .lres{color:#4fd699}.logrow.bad .lres{color:#ff8b84}
+  .logrow .ltime{font-family:var(--mono);font-size:10.5px;color:var(--mut2);margin-top:3px}
+
+  .tabbar{flex:0 0 76px;display:flex;border-top:1px solid var(--line);background:rgba(10,10,11,.88);backdrop-filter:blur(12px);padding-bottom:12px}
+  .tab{flex:1;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:12px;cursor:pointer;color:var(--mut2);font-family:var(--sans)}
+  .tab svg{width:22px;height:22px}.tab .tl{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700}
+  .tab.on{color:var(--bone)}.tab.on[data-accent="ultra"]{color:var(--ultra)}.tab.on[data-accent="orange"]{color:var(--orange)}
+
+  .toast{position:absolute;left:50%;bottom:92px;transform:translate(-50%,10px);background:var(--bone);color:var(--bg);font-size:12.5px;font-weight:700;padding:12px 18px;border-radius:100px;opacity:0;transition:.3s;z-index:70;max-width:86%;text-align:center;box-shadow:0 14px 34px -12px rgba(0,0,0,.7)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .foot{color:var(--mut2);font-size:11px;letter-spacing:.1em;text-transform:uppercase;text-align:center;max-width:390px;line-height:1.7}
+  .foot b{color:var(--mut)}
+  @media(max-width:900px){body{gap:24px}.foot{order:3}}
+  @media (max-width:480px){
+    body{padding:0;gap:0;min-height:100dvh;background:#0A0A0B;display:block}
+    .stage{gap:0}
+    .caption,.foot{display:none}
+    .phone{width:100vw;height:100dvh;min-height:100dvh;border-radius:0;padding:0;box-shadow:none}
+    .notch{display:none}
+    .viewport{border-radius:0;padding-top:env(safe-area-inset-top)}
+    .tabbar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="caption">Zora Organizer — pro views · dark</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="viewport" id="viewport">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i> <span style="font-family:var(--sans);font-weight:700;font-size:11px">5G</span></span></div>
+
+        <div class="screens">
+
+          <!-- ===== DASHBOARD ===== -->
+          <section class="screen active" id="s-dash">
+            <div class="apphead">
+              <div class="evsel js-switch"><span class="eyebrow" style="margin-bottom:4px">Now managing</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div>
+              <div class="avatar">Z</div>
+            </div>
+
+            <div class="evcard" id="evcard">
+              <div class="row"><span class="pill live" id="dashPill"><span class="dot pulse"></span> On sale</span><span class="muted num" id="dashDate" style="font-size:12px">Sat 25 Jul · Dar es Salaam</span></div>
+              <div class="etag" id="dashTag">Daytime Yacht Groove</div>
+              <div class="esub"><span class="num"><b id="dashSold">1,284</b> / <span id="dashCap">3,200</span> sold</span><span class="editcue">Edit details ›</span></div>
+              <div class="cap"><span id="dashBar" style="width:40%"></span></div>
+            </div>
+
+            <div class="sectlabel">How much</div>
+            <div class="moneygrid">
+              <div class="mcard big"><div class="k">Gross revenue</div><div class="v"><span id="mGrossCur">TZS</span> <span id="mGross">96.2</span>M</div></div>
+              <div class="mcard"><div class="k">Net · after 5%</div><div class="v" id="mNet">TZS 91.4M</div></div>
+              <div class="mcard"><div class="k">Pending</div><div class="v" id="mPending">TZS 27.2M</div></div>
+            </div>
+
+            <div class="sectlabel">Insights</div>
+            <div class="insgrid">
+              <div class="ins"><div class="iv" id="iSold">40%</div><div class="ik">Capacity sold</div></div>
+              <div class="ins"><div class="iv" id="iCheck">66%</div><div class="ik">Of buyers checked in</div></div>
+              <div class="ins"><div class="iv" id="iVelo">+148</div><div class="ik">Sales / hour</div></div>
+              <div class="ins"><div class="iv" id="iAvg">TZS 75k</div><div class="ik">Avg order value</div></div>
+            </div>
+
+            <div class="sectlabel">Revenue velocity · last 12h</div>
+            <div class="card" style="padding:14px 16px">
+              <svg class="spark" viewBox="0 0 320 52" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="#3D5AFE" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="0,44 26,40 52,42 78,34 104,36 130,28 156,30 182,22 208,24 234,16 260,18 286,9 320,6"/>
+                <polyline fill="rgba(61,90,254,.12)" stroke="none" points="0,44 26,40 52,42 78,34 104,36 130,28 156,30 182,22 208,24 234,16 260,18 286,9 320,6 320,52 0,52"/>
+              </svg>
+            </div>
+
+            <div class="sectlabel">What to know</div>
+            <div class="card callouts" id="callouts"></div>
+            <div style="height:8px"></div>
+          </section>
+
+          <!-- ===== WALLET ===== -->
+          <section class="screen" id="s-wallet">
+            <div class="apphead"><div><div class="eyebrow" style="margin-bottom:5px">Wallet</div><div class="t">Balance</div></div><span class="pill ok"><span class="dot"></span> M-Pesa ready</span></div>
+            <div class="balcard">
+              <div class="eyebrow">Available balance</div>
+              <div class="avail num">TZS 64.2M</div>
+              <button class="btn btn-primary cashbtn" id="cashBtn">Cash out</button>
+              <div class="balsplit"><div><div class="k">Pending settlement</div><div class="v">TZS 27.2M</div></div><div><div class="k">Clears</div><div class="v" style="color:var(--mut)">24h post-event</div></div></div>
+            </div>
+            <div class="sectlabel">Withdrawal history</div>
+            <div class="card" id="whList"></div>
+            <div style="height:8px"></div>
+
+            <div class="sheet" id="wSheet">
+              <div class="scrim" id="wScrim"></div>
+              <div class="panel">
+                <div class="grab"></div>
+                <h3>Cash out</h3>
+                <div class="muted" style="margin-bottom:6px">Available: TZS 64,200,000</div>
+                <div class="amtbig"><span class="cur">TZS</span><span id="wAmt">40,000,000</span></div>
+                <div class="maxrow"><button class="maxchip" id="wMax">Withdraw max</button></div>
+                <div class="sectlabel" style="margin-top:6px">Send to</div>
+                <div id="routes">
+                  <div class="route sel" data-r="M-Pesa"><div class="badge" style="background:rgba(23,179,104,.16);color:#4fd699">M-P</div><div style="flex:1"><div class="rn">M-Pesa · Vodacom</div><div class="rs">•••• 4471 · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Tigo Pesa"><div class="badge" style="background:rgba(61,90,254,.16);color:#93a6ff">TIG</div><div style="flex:1"><div class="rn">Tigo Pesa</div><div class="rs">Mixx by Yas · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Airtel Money"><div class="badge" style="background:rgba(255,59,48,.16);color:#ff8b84">AIR</div><div style="flex:1"><div class="rn">Airtel Money</div><div class="rs">•••• 8820 · instant</div></div><div class="rad"></div></div>
+                  <div class="route" data-r="Bank transfer"><div class="badge" style="background:var(--panel2);color:var(--mut)">BNK</div><div style="flex:1"><div class="rn">Local bank transfer</div><div class="rs">CRDB / NMB / NBC · 1–2 days</div></div><div class="rad"></div></div>
+                </div>
+                <button class="btn btn-primary" id="wConfirm" style="margin-top:8px">Withdraw TZS 40.0M to M-Pesa</button>
+                <div class="muted" style="text-align:center;font-size:11px;margin-top:12px">Zora fee already deducted. No withdrawal charge.</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== ATTENDEES ===== -->
+          <section class="screen" id="s-att">
+            <div class="apphead"><div class="evsel js-switch"><span class="eyebrow" style="margin-bottom:4px">Attendees</span><span class="name"><span class="ev-name">OFFSHORE</span> <span class="chev">▾</span></span></div><span class="muted num" style="font-size:12px" id="attCount">1,284</span></div>
+            <input class="search" id="attSearch" placeholder="Search name, ticket ID or phone…" />
+            <div class="thead"><span>Attendee / contact</span><span>Type · status</span></div>
+            <div id="attList"></div>
+            <div style="height:8px"></div>
+
+            <div class="overlay" id="attDetail">
+              <div class="backrow" id="detBack">‹ Back to list</div>
+              <div class="dhead"><div class="da" id="detInit">AK</div><div><div class="dn" id="detName">Amina Kessy</div><div class="muted num" id="detId" style="margin-top:6px;font-size:12px">Z001-0417</div></div></div>
+              <div class="dactions"><div class="dact" id="detCall">Call</div><div class="dact" id="detMsg">Message</div></div>
+              <div class="card" style="padding:4px 16px">
+                <div class="drow"><span class="dk">Ticket type</span><span class="dv" id="detType">VIP</span></div>
+                <div class="drow"><span class="dk">Phone</span><span class="dv" id="detPhone">+255 712 400 417</span></div>
+                <div class="drow"><span class="dk">Email</span><span class="dv" id="detEmail" style="font-size:12px">amina.k@gmail.com</span></div>
+                <div class="drow"><span class="dk">Purchased</span><span class="dv" id="detBought">21 Jul · 19:04</span></div>
+                <div class="drow"><span class="dk">Order total</span><span class="dv" id="detTotal">TZS 120,000</span></div>
+                <div class="drow"><span class="dk">Check-in</span><span class="dv" id="detStatus" style="color:var(--green)">In · 13:41 Gate A</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== AUDIT ===== -->
+          <section class="screen" id="s-audit">
+            <div class="apphead"><div><div class="eyebrow" style="margin-bottom:5px">Scan history · audit</div><div class="t">The door</div></div><span class="pill live"><span class="dot pulse"></span> Live</span></div>
+            <div class="auditbar">
+              <div class="abox"><div class="k">Flow / min</div><div class="v" id="aVelo">37</div></div>
+              <div class="abox"><div class="k">Valid</div><div class="v g" id="aValid">1,842</div></div>
+              <div class="abox"><div class="k">Rejected</div><div class="v r" id="aRej">14</div></div>
+            </div>
+            <div class="chips" id="aChips"><button class="chip on" data-f="all">All gates</button><button class="chip" data-f="ok">Valid</button><button class="chip" data-f="bad">Rejected</button></div>
+            <div class="log" id="auditLog"></div>
+            <div style="height:8px"></div>
+          </section>
+
+        </div>
+
+        <!-- LIVE EDIT overlay (opened from dashboard event card) -->
+        <div class="overlay" id="editView">
+          <div class="backrow" id="editBack">‹ Back to dashboard</div>
+          <div class="row" style="margin-bottom:14px"><div class="apphead" style="padding:0"><div><div class="eyebrow" style="margin-bottom:5px">Live edit</div><div class="t"><span class="ev-name">OFFSHORE</span></div></div></div><span class="pill live"><span class="dot pulse"></span> On sale</span></div>
+          <div class="muted" style="margin:-6px 0 16px">Changes go live the instant you publish — storefront, apps, and the door.</div>
+
+          <div class="field"><label>Event title</label><input class="input editable" id="f-title" /></div>
+          <div class="field"><label>Description</label><textarea class="textarea editable" id="f-desc"></textarea></div>
+          <div class="two"><div class="field"><label>Date</label><input class="input editable" id="f-date" /></div><div class="field"><label>Doors</label><input class="input editable" id="f-time" value="14:00 EAT" /></div></div>
+
+          <div class="sectlabel">Door capacity</div>
+          <div class="stepper"><div class="val"><span id="capVal" class="num">3,200</span><small>total capacity</small></div><div class="stepbtns"><button class="stepbtn" data-cap="-100">−</button><button class="stepbtn" data-cap="100">+</button></div></div>
+          <div class="quick"><button class="qbtn" data-cap="100">+100 tickets</button><button class="qbtn" data-cap="250">+250</button><button class="qbtn" data-cap="500">+500</button></div>
+          <div class="muted" style="font-size:12px;margin-top:9px">Venue opened up more room? Bump it live — new tickets hit the storefront instantly.</div>
+
+          <div class="sectlabel">Tier pricing</div>
+          <div class="card" id="tierEdit"></div>
+
+          <div class="savebar">
+            <div class="dirtybadge"><span class="dot"></span> Unsaved changes · <span id="dirtyCount">0</span> edits</div>
+            <button class="btn btn-primary" id="saveBtn" disabled>Save &amp; publish changes</button>
+          </div>
+        </div>
+
+        <!-- PUBLISH overlay -->
+        <div class="publish" id="publish">
+          <div class="ring"></div><h3>Publishing live</h3>
+          <div class="targets" id="targets">
+            <div class="target"><span>Storefront</span><span class="chk">✓</span></div>
+            <div class="target"><span>Consumer apps</span><span class="chk">✓</span></div>
+            <div class="target"><span>Door devices</span><span class="chk">✓</span></div>
+            <div class="target"><span>Discover feed</span><span class="chk">✓</span></div>
+          </div>
+        </div>
+
+        <!-- EVENT SWITCHER sheet -->
+        <div class="sheet" id="eventsheet">
+          <div class="scrim" id="evScrim"></div>
+          <div class="panel">
+            <div class="grab"></div>
+            <div class="row" style="margin-bottom:14px"><h3>Your events</h3><button class="maxchip" id="evClose" style="font-size:16px">✕</button></div>
+            <div id="eventList"></div>
+          </div>
+        </div>
+
+        <!-- tabbar -->
+        <nav class="tabbar" id="tabbar">
+          <button class="tab on" data-tab="s-dash" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/></svg><span class="tl">Dashboard</span></button>
+          <button class="tab" data-tab="s-wallet" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="17" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg><span class="tl">Wallet</span></button>
+          <button class="tab" data-tab="s-att" data-accent="ultra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17.5 20a5.5 5.5 0 0 0-3-4.9"/></svg><span class="tl">People</span></button>
+          <button class="tab" data-tab="s-audit" data-accent="orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6Z"/><path d="m9 12 2 2 4-4"/></svg><span class="tl">Audit</span></button>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><b>Pro views · dark</b> · tap <b>OFFSHORE ▾</b> to switch events · tap the event card to <b>edit live</b> · Wallet → Cash out · watch the Audit stream</div>
+
+<script>
+(function(){
+  var el=function(id){return document.getElementById(id);};
+  var vp=el('viewport'), tabs=[].slice.call(document.querySelectorAll('.tab'));
+  var screenIds=['s-dash','s-wallet','s-att','s-audit'];
+  function show(id){var tab=tabs.filter(function(t){return t.dataset.tab===id;})[0];if(!tab)return;
+    screenIds.forEach(function(s){el(s).classList.toggle('active',s===id);});
+    tabs.forEach(function(t){t.classList.toggle('on',t===tab);});}
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.tab);});});
+  function fmt(n){return Math.round(n).toLocaleString('en-US');}
+  function kfmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?Math.round(n/1000)+'k':fmt(n);}
+  function toast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;vp.appendChild(t);
+    requestAnimationFrame(function(){t.classList.add('show');});setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},300);},2400);}
+
+  /* ---------- EVENTS ---------- */
+  var events=[
+    {id:'offshore',name:'OFFSHORE',tag:'Daytime Yacht Groove',desc:'One day. On the water. Day-time vibes for the culture — vessel & shore.',date:'Sat 25 Jul 2026',city:'Dar es Salaam',cur:'TZS',status:'live',
+     sold:1284,cap:3200,grossM:96.2,checked:842,velo:148,pending:27.2,
+     tiers:[{n:'Wave 01',p:65000,sold:1000,cap:1000},{n:'Wave 02',p:85000,sold:210,cap:1200},{n:'Cabana — crew of 6',p:900000,sold:28,cap:40}]},
+    {id:'kultur',name:'KULTUR: NAIROBI',tag:'Nights 01',desc:'The activation series lands in Nairobi. One night only.',date:'Fri 15 Aug 2026',city:'Nairobi',cur:'KES',status:'upcoming',
+     sold:612,cap:2000,grossM:2.4,checked:0,velo:58,pending:0.5,
+     tiers:[{n:'Early',p:2500,sold:500,cap:500},{n:'General',p:3500,sold:112,cap:1300},{n:'Table for 6',p:40000,sold:0,cap:200}]},
+    {id:'sundowner',name:'SUNDOWNER 03',tag:'Rooftop · Stone Town',desc:'Golden hour on the rooftop. Draft — not yet live.',date:'Sun 24 Aug 2026',city:'Zanzibar',cur:'TZS',status:'draft',
+     sold:0,cap:600,grossM:0,checked:0,velo:0,pending:0,
+     tiers:[{n:'Early bird',p:40000,sold:0,cap:300},{n:'General',p:55000,sold:0,cap:300}]},
+    {id:'drop000',name:'DROP 000',tag:'Warehouse',desc:'The first one. Sold out warehouse rave.',date:'14 Jun 2026',city:'Dar es Salaam',cur:'TZS',status:'past',
+     sold:1200,cap:1200,grossM:38.1,checked:1180,velo:0,pending:0,
+     tiers:[{n:'General',p:30000,sold:900,cap:900},{n:'VIP',p:80000,sold:300,cap:300}]}
+  ];
+  var active=events[0];
+  function statusMeta(s){return ({live:{cls:'pill live',dot:'<span class="dot pulse"></span> ',txt:'On sale'},upcoming:{cls:'pill live',dot:'<span class="dot"></span> ',txt:'On sale'},draft:{cls:'pill mut',dot:'<span class="dot"></span> ',txt:'Draft'},past:{cls:'pill mut',dot:'<span class="dot"></span> ',txt:'Ended'}})[s];}
+
+  /* ---------- DASHBOARD ---------- */
+  function renderNames(){[].forEach.call(document.querySelectorAll('.ev-name'),function(n){n.textContent=active.name;});}
+  function renderDash(){
+    var pct=active.cap?Math.min(100,Math.round(active.sold/active.cap*100)):0;
+    var m=statusMeta(active.status);
+    var pill=el('dashPill');pill.className=m.cls;pill.innerHTML=m.dot+m.txt;
+    el('dashDate').textContent=active.date+' · '+active.city;
+    el('dashTag').textContent=active.tag;
+    el('dashSold').textContent=fmt(active.sold);el('dashCap').textContent=fmt(active.cap);
+    el('dashBar').style.width=pct+'%';
+    el('mGrossCur').textContent=active.cur;el('mGross').textContent=active.grossM.toFixed(1);
+    el('mNet').textContent=active.cur+' '+(active.grossM*0.95).toFixed(1)+'M';
+    el('mPending').textContent=active.pending>0?active.cur+' '+active.pending.toFixed(1)+'M':active.cur+' 0';
+    el('iSold').textContent=pct+'%';
+    el('iCheck').textContent=active.sold?Math.round(active.checked/active.sold*100)+'%':'0%';
+    el('iVelo').textContent=active.velo?'+'+active.velo:'—';
+    el('iAvg').textContent=active.sold?active.cur+' '+kfmt(active.grossM*1e6/active.sold):'—';
+    var co=el('callouts');co.innerHTML='';
+    calloutsFor(active).forEach(function(t){var d=document.createElement('div');d.className='co';d.innerHTML='<span class="cd"></span><span>'+t+'</span>';co.appendChild(d);});
+  }
+  function calloutsFor(ev){
+    if(ev.status==='draft')return['This event is a <b>draft</b> — publish it to start selling.','Set your tiers and capacity, then tap the card to go live.','Nothing sells until you publish.'];
+    if(ev.status==='past')return['Event ended. Final: <b>'+fmt(ev.sold)+' / '+fmt(ev.cap)+'</b> sold out.','<b>'+fmt(ev.checked)+'</b> came through the gate ('+Math.round(ev.checked/ev.sold*100)+'%).','Payout <b>completed</b> — see the full gate log in Audit.'];
+    var sell=ev.tiers.filter(function(t){return t.cap;}).map(function(t){return{n:t.n,r:t.sold/t.cap};}).sort(function(a,b){return b.r-a.r;})[0];
+    var days=ev.velo?Math.max(1,Math.round((ev.cap-ev.sold)/ev.velo/12)):null;
+    return[
+      '<b>'+sell.n+'</b> is your fastest mover — '+Math.round(sell.r*100)+'% sold.',
+      ev.checked?'<b>'+fmt(ev.checked)+'</b> of '+fmt(ev.sold)+' buyers already through the gate ('+Math.round(ev.checked/ev.sold*100)+'%).':'Doors not open yet — check-ins populate here live.',
+      days?'At <b>+'+ev.velo+'/hr</b>, on pace to sell out in ~'+days+' day'+(days>1?'s':'')+'.':'Momentum is building — keep an eye on velocity.'
+    ];
+  }
+
+  /* ---------- LIVE EDIT (overlay from card) ---------- */
+  var editView=el('editView'), dirty=0, capWork=0, tiersWork=[];
+  function markDirty(){dirty++;el('dirtyCount').textContent=dirty;editView.classList.add('dirty');el('saveBtn').disabled=false;}
+  function renderTierEdit(){var c=el('tierEdit');c.innerHTML='';tiersWork.forEach(function(t,i){
+    var r=document.createElement('div');r.className='tierrow';
+    r.innerHTML='<div><div class="tn">'+t.n+'</div>'+(t.was!==undefined?'<div class="was">was '+fmt(t.was)+'</div>':'')+'</div>'+
+      '<div class="pricectl"><button class="mini" data-i="'+i+'" data-d="-5000">−</button><span class="priceval">'+fmt(t.p)+' '+active.cur+'</span><button class="mini" data-i="'+i+'" data-d="5000">＋</button></div>';
+    c.appendChild(r);});
+    [].forEach.call(c.querySelectorAll('.mini'),function(b){b.addEventListener('click',function(){
+      var i=+b.dataset.i,d=+b.dataset.d;if(tiersWork[i].was===undefined)tiersWork[i].was=tiersWork[i].p;
+      tiersWork[i].p=Math.max(0,tiersWork[i].p+d);renderTierEdit();markDirty();});});}
+  function openEdit(){
+    el('f-title').value=active.name+' — '+active.tag;el('f-desc').value=active.desc;el('f-date').value=active.date;
+    capWork=active.cap;el('capVal').textContent=fmt(capWork);
+    tiersWork=active.tiers.map(function(t){return{n:t.n,p:t.p,sold:t.sold,cap:t.cap};});
+    dirty=0;el('dirtyCount').textContent=0;editView.classList.remove('dirty');el('saveBtn').disabled=true;
+    renderTierEdit();editView.classList.add('show');editView.scrollTop=0;}
+  el('evcard').addEventListener('click',openEdit);
+  el('editBack').addEventListener('click',function(){editView.classList.remove('show');});
+  [].forEach.call(document.querySelectorAll('#editView [data-cap]'),function(b){b.addEventListener('click',function(){
+    capWork=Math.max(0,capWork+ +b.dataset.cap);el('capVal').textContent=fmt(capWork);markDirty();});});
+  [].forEach.call(document.querySelectorAll('#editView .editable'),function(inp){inp.addEventListener('input',markDirty);});
+  el('saveBtn').addEventListener('click',function(){
+    var pub=el('publish');pub.classList.add('show');
+    var ts=[].slice.call(document.querySelectorAll('#targets .target'));ts.forEach(function(t){t.classList.remove('done');});
+    ts.forEach(function(t,i){setTimeout(function(){t.classList.add('done');},250+i*280);});
+    setTimeout(function(){
+      pub.classList.remove('show');
+      active.cap=capWork;active.tiers.forEach(function(t,i){if(tiersWork[i])t.p=tiersWork[i].p;});
+      renderDash();editView.classList.remove('show');toast('Live across Zora in 0.4s');
+    },250+ts.length*280+500);});
+
+  /* ---------- EVENT SWITCHER ---------- */
+  var sheet=el('eventsheet'), eventList=el('eventList');
+  function openSwitch(){buildEvents();sheet.classList.add('open');}
+  function closeSwitch(){sheet.classList.remove('open');}
+  [].forEach.call(document.querySelectorAll('.js-switch'),function(o){o.addEventListener('click',openSwitch);});
+  el('evClose').addEventListener('click',closeSwitch);el('evScrim').addEventListener('click',closeSwitch);
+  function buildEvents(){eventList.innerHTML='';
+    events.forEach(function(ev){var m=statusMeta(ev.status);var r=document.createElement('button');r.className='evrow'+(ev===active?' current':'');
+      r.innerHTML='<div><div class="evrow-name">'+ev.name+'</div><div class="evrow-sub">'+ev.tag+' · '+ev.date+' · '+ev.city+'</div>'+
+        '<div class="evrow-stat">'+fmt(ev.sold)+' / '+fmt(ev.cap)+' sold · '+ev.cur+' '+ev.grossM.toFixed(1)+'M</div></div>'+
+        '<div class="evrow-right"><span class="'+m.cls+'">'+m.txt+'</span>'+(ev===active?'<span class="curmark">Active</span>':'')+'</div>';
+      r.addEventListener('click',function(){active=ev;renderNames();renderDash();closeSwitch();show('s-dash');});eventList.appendChild(r);});
+    var cr=document.createElement('button');cr.className='evrow create';
+    cr.innerHTML='<div><div class="evrow-name" style="color:var(--ultra)">+ Create event</div><div class="evrow-sub">Authoring opens on the Zora web dashboard</div></div>';
+    cr.addEventListener('click',function(){toast('Event creation opens on the web dashboard');});eventList.appendChild(cr);}
+
+  /* ---------- WALLET ---------- */
+  var history=[
+    {a:'TZS 30,000,000',s:'Completed to M-Pesa',c:'ok',t:'Completed'},
+    {a:'TZS 12,500,000',s:'Processing · Airtel Money',c:'warn',t:'Processing'},
+    {a:'TZS 8,000,000',s:'Failed · wrong Tigo number',c:'bad',t:'Failed'},
+    {a:'TZS 22,700,000',s:'Completed to CRDB bank',c:'ok',t:'Completed'}
+  ];
+  function renderHistory(){var c=el('whList');c.innerHTML='';history.forEach(function(h){var r=document.createElement('div');r.className='wh';
+    r.innerHTML='<div class="ic">'+h.a.replace('TZS ','').slice(0,3)+'</div><div class="m"><div class="a">'+h.a+'</div><div class="s">'+h.s+'</div></div><span class="pill '+h.c+'"><span class="dot"></span> '+h.t+'</span>';c.appendChild(r);});}
+  var wSheet=el('wSheet'), route='M-Pesa';
+  el('cashBtn').addEventListener('click',function(){wSheet.classList.add('open');});
+  el('wScrim').addEventListener('click',function(){wSheet.classList.remove('open');});
+  el('wMax').addEventListener('click',function(){el('wAmt').textContent='64,200,000';syncConfirm();});
+  function syncConfirm(){var m=(parseInt(el('wAmt').textContent.replace(/,/g,''),10)/1e6).toFixed(1);el('wConfirm').textContent='Withdraw TZS '+m+'M to '+route;}
+  [].forEach.call(document.querySelectorAll('#routes .route'),function(r){r.addEventListener('click',function(){
+    document.querySelectorAll('#routes .route').forEach(function(x){x.classList.remove('sel');});r.classList.add('sel');route=r.dataset.r;syncConfirm();});});
+  el('wConfirm').addEventListener('click',function(){history.unshift({a:'TZS '+el('wAmt').textContent,s:'Processing · '+route,c:'warn',t:'Processing'});renderHistory();wSheet.classList.remove('open');toast('Withdrawal requested — '+route);});
+
+  /* ---------- ATTENDEES ---------- */
+  var people=[
+    {n:'Amina Kessy',id:'Z001-0417',ph:'+255 712 400 417',em:'amina.k@gmail.com',ty:'VIP',cl:'vip',bt:'21 Jul · 19:04',tot:'TZS 120,000',in:true,inT:'13:41 Gate A'},
+    {n:'Juma Ally',id:'Z001-0031',ph:'+255 754 220 031',em:'jumaally@yahoo.com',ty:'Golden Circle',cl:'gold',bt:'18 Jul · 09:22',tot:'TZS 300,000',in:true,inT:'13:12 Gate A'},
+    {n:'Grace Mushi',id:'Z001-0288',ph:'+255 713 900 288',em:'grace.mushi@gmail.com',ty:'General',cl:'ga',bt:'22 Jul · 12:40',tot:'TZS 85,000',in:false,inT:''},
+    {n:'Said Omar',id:'Z001-0455',ph:'+255 778 110 455',em:'said.omar@outlook.com',ty:'VIP',cl:'vip',bt:'20 Jul · 15:31',tot:'TZS 120,000',in:true,inT:'13:55 Gate B'},
+    {n:'Lucy Meena',id:'Z001-0039',ph:'+255 765 330 039',em:'lucym@gmail.com',ty:'Golden Circle',cl:'gold',bt:'17 Jul · 20:10',tot:'TZS 300,000',in:false,inT:''},
+    {n:'Tumaini Paul',id:'Z001-0502',ph:'+255 719 870 502',em:'tumaini.p@gmail.com',ty:'General',cl:'ga',bt:'23 Jul · 08:05',tot:'TZS 85,000',in:true,inT:'14:02 Gate A'},
+    {n:'Halima Yusuf',id:'Z001-0611',ph:'+255 786 540 611',em:'halima.y@gmail.com',ty:'VIP',cl:'vip',bt:'19 Jul · 22:47',tot:'TZS 120,000',in:false,inT:''},
+    {n:'Erick Massawe',id:'Z001-0733',ph:'+255 744 210 733',em:'erick.m@gmail.com',ty:'General',cl:'ga',bt:'23 Jul · 11:19',tot:'TZS 85,000',in:true,inT:'13:33 Gate C'}
+  ];
+  function initials(n){return n.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();}
+  var attList=el('attList'), attSearch=el('attSearch');
+  function renderAtt(){var q=(attSearch.value||'').toLowerCase();attList.innerHTML='';
+    var f=people.filter(function(p){return !q||p.n.toLowerCase().indexOf(q)>=0||p.id.toLowerCase().indexOf(q)>=0||p.ph.replace(/\s/g,'').indexOf(q.replace(/\s/g,''))>=0;});
+    el('attCount').textContent=fmt(active.sold);
+    if(!f.length){attList.innerHTML='<div class="empty">No attendee matches that search.</div>';return;}
+    f.forEach(function(p){var r=document.createElement('div');r.className='arow';
+      r.innerHTML='<div class="ai">'+initials(p.n)+'</div><div><div class="an">'+p.n+'</div><div class="ac">'+p.id+' · '+p.ph+'</div></div>'+
+        '<div class="aright"><span class="tt '+p.cl+'">'+p.ty+'</span><div class="st '+(p.in?'in':'out')+'">'+(p.in?'Checked in':'Absent')+'</div></div>';
+      r.addEventListener('click',function(){openDetail(p);});attList.appendChild(r);});}
+  attSearch.addEventListener('input',renderAtt);
+  var det=el('attDetail');
+  function openDetail(p){el('detInit').textContent=initials(p.n);el('detName').textContent=p.n;el('detId').textContent=p.id;
+    el('detType').textContent=p.ty;el('detPhone').textContent=p.ph;el('detEmail').textContent=p.em;el('detBought').textContent=p.bt;el('detTotal').textContent=p.tot;
+    var s=el('detStatus');if(p.in){s.textContent='In · '+p.inT;s.style.color='var(--green)';}else{s.textContent='Absent — not yet scanned';s.style.color='var(--mut2)';}
+    det.classList.add('show');det.scrollTop=0;}
+  el('detBack').addEventListener('click',function(){det.classList.remove('show');});
+  el('detCall').addEventListener('click',function(){toast('Calling '+el('detName').textContent);});
+  el('detMsg').addEventListener('click',function(){toast('Messaging '+el('detName').textContent);});
+
+  /* ---------- AUDIT ---------- */
+  var valid=1842, rej=14, filter='all';
+  var gates=['GATE A · DEV 1','GATE A · DEV 2','GATE B · DEV 1','GATE C · DEV 1'];
+  var log=el('auditLog'), entries=[];
+  function now(){var d=new Date();return [d.getHours(),d.getMinutes(),d.getSeconds()].map(function(x){return(''+x).padStart(2,'0');}).join(':');}
+  function addEntry(seed){var bad=Math.random()<0.16;var kind=bad?(Math.random()<0.6?'DUPLICATE':'INVALID'):'VALID';
+    entries.unshift({id:'Z001-'+(1000+Math.floor(Math.random()*8999)),gate:gates[Math.floor(Math.random()*gates.length)],time:now(),ok:!bad,res:kind});
+    if(entries.length>40)entries.pop();
+    if(!seed){if(!bad)valid++;else rej++;el('aValid').textContent=fmt(valid);el('aRej').textContent=fmt(rej);el('aVelo').textContent=32+Math.floor(Math.random()*12);}
+    renderLog();}
+  function renderLog(){log.innerHTML='';entries.filter(function(e){return filter==='all'||(filter==='ok'&&e.ok)||(filter==='bad'&&!e.ok);}).slice(0,18).forEach(function(e){
+    var r=document.createElement('div');r.className='logrow '+(e.ok?'ok':'bad');
+    r.innerHTML='<div class="ld"></div><div><div class="lid">'+e.id+'</div><div class="lmeta">'+e.gate+'</div></div><div class="aright"><div class="lres">'+e.res+'</div><div class="ltime">'+e.time+'</div></div>';log.appendChild(r);});}
+  [].forEach.call(el('aChips').children,function(ch){ch.addEventListener('click',function(){[].forEach.call(el('aChips').children,function(c){c.classList.remove('on');});ch.classList.add('on');filter=ch.dataset.f;renderLog();});});
+  for(var i=0;i<12;i++)addEntry(true);renderLog();
+  setInterval(function(){if(el('s-audit').classList.contains('active'))addEntry(false);},1600);
+
+  /* ---------- INIT ---------- */
+  renderNames();renderDash();renderHistory();renderAtt();
+})();
+</script>
+</body>
+</html>

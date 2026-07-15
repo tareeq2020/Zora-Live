@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZORA — DROP 001: OFFSHORE</title>
+<meta name="description" content="ZORA DROP 001: OFFSHORE. One vessel, one shore, one night. Boarding passes drop in the Zora app only. Dar es Salaam.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0A0A0B; --ink:#101012; --hair:#222226;
+    --bone:#F4F1EA; --mut:#8A877E;
+    --blue:#3D5AFE;
+    --sans:'Archivo',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',monospace;
+    --stamp:'Anton',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--black);color:var(--bone);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--blue);color:var(--bone)}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  .mono{font-family:var(--mono)}
+
+  /* ── top bar ── */
+  .bar{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--c-nav);backdrop-filter:blur(12px);border-bottom:1px solid var(--hair)}
+  .bar-in{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .wordmark{font-weight:600;font-size:20px;letter-spacing:-.02em}
+  .wordmark .o{color:var(--blue)}
+  .bar .tag{font-family:var(--mono);font-size:12px;letter-spacing:.15em;color:var(--mut)}
+
+  /* ── hero / manifest ── */
+  .hero{padding:150px 0 80px;border-bottom:1px dashed var(--hair)}
+  .stamp-lg{font-family:var(--stamp);line-height:.92;letter-spacing:.01em}
+  .stamp-lg .row1{font-size:clamp(30px,5vw,58px);color:var(--bone)}
+  .stamp-lg .row2{font-size:clamp(70px,14vw,190px);color:var(--blue);display:inline-block;transform:rotate(-2deg);border:5px solid var(--blue);padding:6px 26px 0;margin-top:18px}
+  .tagline{font-family:var(--mono);font-size:12.5px;letter-spacing:.3em;color:var(--mut);margin-top:30px}
+
+  .manifest{margin-top:56px;border:1px dashed var(--mut)}
+  .manifest .head{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--mut);padding:12px 20px;border-bottom:1px dashed var(--mut);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .manifest .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .manifest .cell{padding:20px;border-right:1px dashed var(--hair);border-top:1px dashed var(--hair)}
+  .manifest .cell:last-child{border-right:none}
+  .manifest .cell .k{font-family:var(--mono);font-size:10px;letter-spacing:.25em;color:var(--mut)}
+  .manifest .cell .v{font-family:var(--mono);font-size:15px;letter-spacing:.04em;margin-top:8px;color:var(--bone)}
+
+  /* ── countdown ── */
+  .count{padding:90px 0;text-align:center;border-bottom:1px dashed var(--hair)}
+  .count .label{font-family:var(--mono);font-size:12px;letter-spacing:.35em;color:var(--mut)}
+  .count .clock{font-family:var(--mono);font-weight:500;font-size:clamp(44px,9vw,110px);letter-spacing:.02em;margin-top:18px}
+  .count .clock.live{color:var(--blue)}
+  .count .clock.sold{color:var(--bone)}
+  .count .units{font-family:var(--mono);font-size:11px;letter-spacing:.5em;color:var(--mut);margin-top:10px}
+  .count .apponly{font-family:var(--mono);font-size:12px;letter-spacing:.15em;color:var(--blue);margin-top:36px;border:1px solid var(--blue);display:inline-block;padding:12px 26px;transform:rotate(-1deg)}
+
+  /* ── events / tiers ── */
+  section{padding:100px 0;border-bottom:1px dashed var(--hair)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--blue);margin-bottom:16px}
+  h2{font-family:var(--stamp);font-weight:400;font-size:clamp(30px,4.5vw,54px);letter-spacing:.02em;line-height:1.05}
+  .events{display:grid;grid-template-columns:1fr 1.4fr;gap:24px;margin-top:52px}
+  @media(max-width:860px){.events{grid-template-columns:1fr}}
+  .evt{border:1px solid var(--hair);padding:34px 28px}
+  .evt.vessel{border:2px solid var(--blue)}
+  .evt .etitle{font-family:var(--stamp);font-size:30px;letter-spacing:.03em}
+  .evt.vessel .etitle{color:var(--blue)}
+  .evt .esub{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--mut);margin-top:6px}
+  .tier{border-top:1px dashed var(--hair);margin-top:22px;padding-top:22px}
+  .tier .trow{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .tier .tname{font-weight:600;font-size:16px;letter-spacing:.02em}
+  .tier .tprice{font-family:var(--mono);font-size:16px;font-weight:500;white-space:nowrap}
+  .tier .tdetail{color:var(--mut);font-size:13.5px;margin-top:6px}
+  .tier .tsplit{font-family:var(--mono);font-size:11.5px;color:var(--blue);margin-top:8px;letter-spacing:.04em}
+  .badge{font-family:var(--mono);font-size:10px;letter-spacing:.2em;padding:4px 10px;border:1px solid;white-space:nowrap}
+  .badge.open{color:var(--blue);border-color:var(--blue)}
+  .badge.locked{color:var(--mut);border-color:var(--mut)}
+  .badge.soldout{color:var(--bone);border-color:var(--bone)}
+
+  /* ── rules ── */
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--hair);border:1px solid var(--hair);margin-top:52px}
+  .rule{background:var(--black);padding:30px 26px}
+  .rule .rn{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--blue)}
+  .rule p{font-size:14.5px;color:var(--mut);margin-top:12px}
+  .rule p b{color:var(--bone);font-weight:500}
+
+  /* ── crew form ── */
+  .crew-note{color:var(--mut);max-width:56ch;margin-top:18px}
+  form{margin-top:44px;max-width:640px}
+  .field{margin-bottom:22px}
+  label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--mut);margin-bottom:9px}
+  input,select{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);font-family:var(--mono);font-size:15px;padding:14px 16px;letter-spacing:.03em;outline:none;transition:border-color .2s;border-radius:0;-webkit-appearance:none;appearance:none}
+  input:focus,select:focus{border-color:var(--blue)}
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:600px){.two{grid-template-columns:1fr}}
+  .submit{background:var(--blue);color:var(--bone);border:none;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.2em;padding:17px 40px;cursor:pointer;transition:all .2s;width:100%}
+  .submit:hover{background:var(--bone);color:var(--black)}
+  .submit:disabled{opacity:.5;cursor:wait}
+  .form-msg{font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;margin-top:18px;display:none;padding:14px 18px;border:1px dashed}
+  .form-msg.err{display:block;color:var(--bone);border-color:var(--bone)}
+  .form-msg.ok{display:block;color:var(--blue);border-color:var(--blue)}
+  .received{display:none;border:2px solid var(--blue);padding:48px 32px;text-align:center;margin-top:44px;max-width:640px;transform:rotate(-1deg)}
+  .received .rt{font-family:var(--stamp);font-size:34px;color:var(--blue);letter-spacing:.04em}
+  .received .rcode{font-family:var(--mono);font-size:26px;font-weight:500;margin-top:16px;letter-spacing:.15em}
+  .received .rp{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.1em;margin-top:14px}
+
+  /* ── footer ── */
+  footer{padding:56px 0}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+  .foot .back{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut)}
+  .foot .back .o{color:var(--blue)}
+  .foot .back:hover{color:var(--bone)}
+  .foot .legal{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.08em}
+  .foot .legal a{color:var(--mut)}
+</style>
+<link rel="stylesheet" href="/zora-tokens.css">
+<script src="/zora-theme.js"></script>
+</head>
+<body>
+
+<div class="bar">
+  <div class="wrap bar-in">
+    <a href="index.html" class="wordmark">z<span class="o">o</span>ra</a>
+    <span class="tag">THE OFFSHORE — DAYTIME YACHT GROOVE</span>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="stamp-lg">
+      <div class="row1" id="h-title">DROP 001</div>
+      <div class="row2" id="h-name">OFFSHORE</div>
+    </div>
+    <p class="tagline" id="h-tagline">CULTURE, EXPORTED.</p>
+
+    <div class="manifest">
+      <div class="head"><span>SHIPPING MANIFEST — NO. Z001</span><span id="m-status">STATUS: PRE-DROP</span></div>
+      <div class="grid">
+        <div class="cell"><p class="k">PORT</p><p class="v" id="m-port">SLIPWAY, DAR</p></div>
+        <div class="cell"><p class="k">COORDINATES</p><p class="v" id="m-coords">06&deg;45'S / 039&deg;16'E</p></div>
+        <div class="cell"><p class="k">DATE</p><p class="v" id="m-date">SAT 25 JULY 2026</p></div>
+        <div class="cell"><p class="k">CAPACITY</p><p class="v" id="m-cap">20 PAX PER YACHT</p></div>
+      </div>
+      <div class="grid" style="border-top:1px dashed var(--hair)">
+        <div class="cell" style="grid-column:1/-1;border-top:none"><p class="k">VENUE</p><p class="v" id="m-venue">Undisclosed shore. Revealed 48 hours before boarding.</p></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="count">
+  <div class="wrap">
+    <p class="label" id="count-label">BOARDING PASSES DROP IN</p>
+    <p class="clock" id="clock">--:--:--:--</p>
+    <p class="units" id="clock-units">DAYS&nbsp;&nbsp;&nbsp;HRS&nbsp;&nbsp;&nbsp;MIN&nbsp;&nbsp;&nbsp;SEC</p>
+    <p class="apponly" id="app-note">THE APP IS THE ONLY DOOR — NO WEB SALES, EVER</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">ONE DAY. ON THE WATER.</p>
+    <h2>THE YACHTS &amp; THE SHORE</h2>
+    <div class="events">
+      <div class="evt vessel">
+        <p class="etitle">THE YACHTS</p>
+        <p class="esub">DAYTIME SETS ON THE WATER — 20 PAX PER YACHT, EARNED NEVER SOLD</p>
+        <div id="vessel-tiers"></div>
+      </div>
+      <div class="evt">
+        <p class="etitle">THE SHORE</p>
+        <p class="esub">SHORESIDE — WAVES OPEN AT THE DROP, IN-APP ONLY</p>
+        <div id="shore-tiers"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">HOUSE RULES</p>
+    <h2>READ BEFORE BOARDING</h2>
+    <div class="rules">
+      <div class="rule">
+        <p class="rn">RULE 01</p>
+        <p><b>One honest number.</b> The price on the wave is the price at checkout. No fees appear. They never will.</p>
+      </div>
+      <div class="rule">
+        <p class="rn">RULE 02</p>
+        <p><b>The app is the door.</b> Passes are live objects in the Zora app. No PDFs, no screenshots, no exceptions at the gate.</p>
+      </div>
+      <div class="rule">
+        <p class="rn">RULE 03</p>
+        <p><b>Nobody gets scalped.</b> Resale lives in-app, capped at face +10%. Sell out fast, sleep easy.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="crew">
+  <div class="wrap">
+    <p class="kicker">CREWS BOARD FIRST</p>
+    <h2>REGISTER YOUR CREW</h2>
+    <p class="crew-note">Crews of two to six move up the manifest together. Register now and your whole crew gets the drop signal before it goes public — and priority when the waves open. Split payment is native: everyone pays their own share, card or mobile money.</p>
+
+    <form id="crew-form">
+      <div class="field">
+        <label for="f-crew">CREW NAME</label>
+        <input id="f-crew" name="crewName" maxlength="80" placeholder="WAVY MOB" required>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="f-lead">CREW LEAD</label>
+          <input id="f-lead" name="leadName" maxlength="80" placeholder="Full name" required>
+        </div>
+        <div class="field">
+          <label for="f-size">CREW SIZE</label>
+          <select id="f-size" name="size" required>
+            <option value="" disabled selected>Select</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="f-phone">PHONE (MOBILE MONEY)</label>
+          <input id="f-phone" name="phone" maxlength="20" placeholder="+255 7XX XXX XXX" required>
+        </div>
+        <div class="field">
+          <label for="f-email">EMAIL (OPTIONAL)</label>
+          <input id="f-email" name="email" type="email" maxlength="120" placeholder="name@mail.com">
+        </div>
+      </div>
+      <button class="submit" type="submit" id="f-submit">JOIN THE MANIFEST</button>
+      <p class="form-msg" id="form-msg"></p>
+    </form>
+
+    <div class="received" id="received">
+      <p class="rt">MANIFEST RECEIVED</p>
+      <p class="rcode" id="r-code">CREW Z001-0000</p>
+      <p class="rp">YOUR CREW GETS THE DROP SIGNAL FIRST.<br>KEEP THIS NUMBER. IT MEANS SOMETHING LATER.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <a class="back" href="index.html">&larr; Z<span class="o">O</span>RA — THE TICKET IS THE PRODUCT</a>
+    <p class="legal">THE OFFSHORE / DAYTIME YACHT GROOVE &nbsp;&middot;&nbsp; <a href="/admin">admin</a></p>
+  </div>
+</footer>
+
+<script>
+  const DEFAULTS = {
+    dropTitle: 'THE OFFSHORE DAYTIME YACHT GROOVE', dropName: 'THE OFFSHORE', status: 'countdown',
+    dropAt: '2026-07-10T20:00:00+03:00', eventDateLabel: 'SAT 25 JULY 2026',
+    coordinates: "06°45'S / 039°16'E", port: 'SLIPWAY, DAR',
+    venue: 'Undisclosed shore. Revealed 48 hours before boarding.',
+    capacityLabel: '20 PAX PER YACHT', tagline: 'Day time vibes for the culture',
+    appNote: 'The app is the only door.'
+  };
+  const DEFAULT_TIERS = [
+    { event:'vessel', name:'A SEAT ON THE WATER', detail:'20 pax per yacht. Noon cast-off from Slipway, back by sundown.', priceLabel:'NOT FOR SALE', splitNote:'Earned. Top crews, top referrers, verified attendance.', status:'locked' },
+    { event:'shore', name:'WAVE 01', detail:'First 1,000 shoreside passes.', priceLabel:'65,000 TZS', splitNote:'One number. No fees at checkout.', status:'open' },
+    { event:'shore', name:'WAVE 02', detail:'Next 1,200 shoreside passes.', priceLabel:'85,000 TZS', splitNote:'Unlocks when Wave 01 closes.', status:'locked' },
+    { event:'shore', name:'WAVE 03', detail:'Final 800 shoreside passes.', priceLabel:'105,000 TZS', splitNote:'Unlocks when Wave 02 closes.', status:'locked' },
+    { event:'shore', name:'CABANA — CREW OF 6', detail:'40 beach cabanas. Table service all afternoon.', priceLabel:'900,000 TZS', splitNote:'Crew split in-app: 150,000 TZS each.', status:'open' }
+  ];
+  let S = DEFAULTS;
+
+  function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  const BADGE = { open:'OPEN AT DROP', locked:'LOCKED', soldout:'SOLD OUT' };
+
+  function renderSettings(){
+    document.getElementById('h-title').textContent = S.dropTitle;
+    document.getElementById('h-name').textContent = S.dropName;
+    document.getElementById('h-tagline').textContent = (S.tagline || '').toUpperCase();
+    document.getElementById('m-port').textContent = S.port;
+    document.getElementById('m-coords').textContent = S.coordinates;
+    document.getElementById('m-date').textContent = S.eventDateLabel;
+    document.getElementById('m-cap').textContent = S.capacityLabel;
+    document.getElementById('m-venue').textContent = S.venue;
+    document.getElementById('app-note').textContent = (S.appNote || '').toUpperCase().replace(/\.\s*$/, '') + ' — NO WEB SALES, EVER';
+    const st = { countdown:'PRE-DROP', live:'BOARDING OPEN', soldout:'SOLD OUT' };
+    document.getElementById('m-status').textContent = 'STATUS: ' + (st[S.status] || 'PRE-DROP');
+  }
+
+  function renderTiers(tiers){
+    const v = document.getElementById('vessel-tiers');
+    const s = document.getElementById('shore-tiers');
+    v.innerHTML = ''; s.innerHTML = '';
+    tiers.forEach(t => {
+      const host = t.event === 'vessel' ? v : s;
+      host.innerHTML +=
+        '<div class="tier">' +
+          '<div class="trow">' +
+            '<span class="tname">' + esc(t.name) + '</span>' +
+            '<span class="tprice mono">' + esc(t.priceLabel) + '</span>' +
+          '</div>' +
+          '<div class="trow" style="margin-top:4px">' +
+            '<p class="tdetail">' + esc(t.detail) + '</p>' +
+            '<span class="badge ' + esc(t.status) + '">' + (BADGE[t.status] || esc(t.status)) + '</span>' +
+          '</div>' +
+          (t.splitNote ? '<p class="tsplit">' + esc(t.splitNote) + '</p>' : '') +
+        '</div>';
+    });
+  }
+
+  const pad = n => String(n).padStart(2, '0');
+  function tick(){
+    const clock = document.getElementById('clock');
+    const label = document.getElementById('count-label');
+    const units = document.getElementById('clock-units');
+    if (S.status === 'soldout'){
+      label.textContent = 'THE MANIFEST IS FULL';
+      clock.textContent = 'SOLD OUT';
+      clock.className = 'clock sold';
+      units.textContent = 'RESALE AT FACE +10% — IN APP ONLY';
+      return;
+    }
+    const diff = new Date(S.dropAt) - Date.now();
+    if (S.status === 'live' || diff <= 0){
+      label.textContent = S.dropTitle;
+      clock.textContent = 'BOARDING OPEN';
+      clock.className = 'clock live';
+      units.textContent = 'PASSES LIVE IN THE APP NOW';
+      return;
+    }
+    clock.textContent = pad(Math.floor(diff/86400000)) + ':' + pad(Math.floor(diff/3600000)%24) + ':' + pad(Math.floor(diff/60000)%60) + ':' + pad(Math.floor(diff/1000)%60);
+  }
+
+  renderSettings(); renderTiers(DEFAULT_TIERS); tick(); setInterval(tick, 1000);
+
+  fetch('/api/settings').then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => { S = { ...DEFAULTS, ...d }; renderSettings(); tick(); }).catch(() => {});
+  fetch('/api/tiers').then(r => r.ok ? r.json() : Promise.reject())
+    .then(renderTiers).catch(() => {});
+
+  /* ── crew registration ── */
+  document.getElementById('crew-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('f-submit');
+    const msg = document.getElementById('form-msg');
+    msg.className = 'form-msg';
+    btn.disabled = true; btn.textContent = 'FILING...';
+    const body = {
+      crewName: document.getElementById('f-crew').value.trim(),
+      leadName: document.getElementById('f-lead').value.trim(),
+      phone:    document.getElementById('f-phone').value.trim(),
+      email:    document.getElementById('f-email').value.trim(),
+      size:     document.getElementById('f-size').value
+    };
+    try {
+      const r = await fetch('/api/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Something went wrong. Try again.');
+      document.getElementById('crew-form').style.display = 'none';
+      document.getElementById('r-code').textContent = 'CREW ' + data.code;
+      document.getElementById('received').style.display = 'block';
+    } catch (err) {
+      msg.textContent = (err.message === 'Failed to fetch')
+        ? 'THE MANIFEST SERVER IS OFFLINE. OPEN THE LIVE SITE TO REGISTER.'
+        : String(err.message || err).toUpperCase();
+      msg.className = 'form-msg err';
+    } finally {
+      btn.disabled = false; btn.textContent = 'JOIN THE MANIFEST';
+    }
+  });
+</script>
+
+</body>
+</html>
