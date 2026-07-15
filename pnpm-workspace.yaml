@@ -1,0 +1,6 @@
+# legacy/ is intentionally NOT a workspace member: the legacy oracle keeps its
+# own self-contained npm node_modules so pnpm hoisting can't alter its runtime
+# behavior during the migration. It boots via `npm --prefix legacy/zora-site start`.
+packages:
+  - "apps/*"
+  - "packages/*"
