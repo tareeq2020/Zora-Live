@@ -16,6 +16,7 @@ import session from 'express-session';
 import express from 'express';
 import { AppModule } from './app.module';
 import { seed } from './bootstrap/seed';
+import { ExpressStatusInterceptor } from './common/express-status.interceptor';
 
 async function bootstrap() {
   seed(DATA_DIR);
@@ -26,6 +27,9 @@ async function bootstrap() {
   // Every backend route lives under /api (front-end owns /admin, /events/:id,
   // /@handle, static). Global prefix keeps controller paths clean.
   app.setGlobalPrefix('api');
+
+  // Match Express: POST handlers return 200, not Nest's default 201.
+  app.useGlobalInterceptors(new ExpressStatusInterceptor());
 
   // Body parser: 12mb to fit base64 image uploads (matches server.js).
   app.use(express.json({ limit: '12mb' }));
