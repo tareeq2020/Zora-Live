@@ -56,6 +56,12 @@ async function run() {
   if (tenant.status === 200 && tenant.body === tenantHtml.body) ok('/@handle -> tenant.html');
   else bad('/@handle -> tenant.html', `status ${tenant.status}, body match ${tenant.body === tenantHtml.body}`);
 
+  // 4a2. nested /@handle/events/:id ALSO rewrites to tenant.html — regression
+  // guard: the narrow matcher used to miss multi-segment tenant paths (404).
+  const tenantNested = await get(WEB, '/@thebrunchcity/events/brunch-vol-09');
+  if (tenantNested.status === 200 && tenantNested.body === tenantHtml.body) ok('/@handle/events/:id -> tenant.html');
+  else bad('/@handle/events/:id -> tenant.html', `status ${tenantNested.status}, body match ${tenantNested.body === tenantHtml.body}`);
+
   // 4b. /events/:id matches the oracle exactly (302 to the tenant URL when the
   // backend has the event, 404 when it doesn't). Compare, don't assume — the
   // active backend (file vs Supabase) decides which. Strip origin before diffing
