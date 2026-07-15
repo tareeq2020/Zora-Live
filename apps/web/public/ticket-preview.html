@@ -1,0 +1,91 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zora — Ticket Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0A0B10; --panel:#14151C; --ink:#F4F1EA; --mut:#8B8C97; --hair:rgba(255,255,255,.12); --accent:#4C6FFF; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .head{padding:26px 30px;border-bottom:1px solid var(--hair);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .head h1{font-size:20px;font-weight:700}.head .o{background:linear-gradient(90deg,#D53AD8,#FF4D7D,#FF9145);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .head p{color:var(--mut);font-size:13px;margin-top:3px}
+  .layout{display:grid;grid-template-columns:340px 1fr;gap:0;min-height:calc(100vh - 84px)}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}}
+  .panel{padding:24px 26px;border-right:1px solid var(--hair)}
+  .fld{margin-bottom:15px}
+  label{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;color:var(--mut);margin-bottom:7px}
+  input{width:100%;background:var(--panel);border:1px solid var(--hair);border-radius:10px;color:var(--ink);font-family:inherit;font-size:14px;padding:11px 13px;outline:none}
+  input:focus{border-color:var(--accent)}
+  .seg{display:flex;gap:6px;background:var(--panel);border:1px solid var(--hair);border-radius:11px;padding:4px}
+  .seg button{flex:1;background:none;border:none;color:var(--mut);font-family:inherit;font-weight:600;font-size:13px;padding:9px;border-radius:8px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#fff}
+  .stage{padding:40px;display:flex;flex-direction:column;align-items:center;gap:20px;background:radial-gradient(70% 60% at 50% 0%,rgba(76,111,255,.08),transparent 60%)}
+  .ticket-img{width:min(460px,100%);border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.5);display:block}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .btn{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;text-decoration:none;color:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:11px 18px;cursor:pointer;background:none}
+  .btn.solid{background:var(--accent);border-color:var(--accent);color:#fff}
+</style>
+
+<div class="head">
+  <div><h1>Zora — Ticket Studio</h1><p>Programmatic collector's passes · rendered server-side to PNG</p></div>
+  <a class="btn" href="/discover.html">← marketplace</a>
+</div>
+
+<div class="layout">
+  <div class="panel" id="form"></div>
+  <div class="stage">
+    <img class="ticket-img" id="preview" alt="Ticket preview">
+    <div class="row">
+      <a class="btn solid" id="dl-png" download>Download PNG</a>
+      <a class="btn" id="open-svg" target="_blank">Open SVG (vector)</a>
+    </div>
+    <p style="color:var(--mut);font-size:12px;font-family:'IBM Plex Mono',monospace" id="url-note"></p>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const FIELDS = [
+    ['event','Event name'],['dateLabel','Date'],['venue','Venue'],
+    ['tableName','Table name'],['tableNo','Table number'],['seats','Seats / guests'],
+    ['guest','Guest name'],['ticketId','Ticket ID'],['tier','Tier'],
+  ];
+  const state = {
+    event:'OFFSHORE — The Daytime Yacht Groove', dateLabel:'Sat 25 Jul 2026 · 14:00',
+    venue:'Slipway Marina → undisclosed sandbank', tableName:"VIP Platinum Lounge — Captain's Deck",
+    tableNo:'Table 04', seats:'6 guests', guest:'Amina Juma Hassan',
+    ticketId:'ZORA-OFF1-4471-88AK', tier:'VIP Table Package', theme:'dark',
+  };
+
+  $('form').innerHTML =
+    '<div class="fld"><label>THEME</label><div class="seg" id="theme-seg">' +
+      '<button data-t="dark" class="on">Dark</button><button data-t="light">Light</button></div></div>' +
+    FIELDS.map(([k,l]) => '<div class="fld"><label>' + l.toUpperCase() + '</label><input id="f-' + k + '" value="' + state[k].replace(/"/g,'&quot;') + '"></div>').join('');
+
+  function qs(){
+    const p = new URLSearchParams();
+    FIELDS.forEach(([k]) => p.set(k, state[k]));
+    p.set('theme', state.theme);
+    return p.toString();
+  }
+  function refresh(){
+    const code = encodeURIComponent(state.ticketId || 'ZORA-PREVIEW');
+    const q = qs();
+    $('preview').src = '/api/tickets/' + code + '.png?' + q;
+    $('dl-png').href = '/api/tickets/' + code + '.png?' + q;
+    $('dl-png').setAttribute('download', code + '.png');
+    $('open-svg').href = '/api/tickets/' + code + '.svg?' + q;
+    $('url-note').textContent = 'GET /api/tickets/' + code + '.png';
+  }
+  FIELDS.forEach(([k]) => $('f-' + k).addEventListener('input', e => { state[k] = e.target.value; refresh(); }));
+  $('theme-seg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.theme = b.dataset.t;
+    document.querySelectorAll('#theme-seg button').forEach(x => x.classList.toggle('on', x === b));
+    refresh();
+  });
+  refresh();
+</script>

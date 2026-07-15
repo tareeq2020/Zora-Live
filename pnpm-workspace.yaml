@@ -3,4 +3,7 @@
 # behavior during the migration. It boots via `npm --prefix legacy/zora-site start`.
 packages:
   - "apps/*"
+  # apps/mobile (Expo) keeps its own npm tooling until Phase 4; excluding it here
+  # stops pnpm from pulling the whole React Native dep tree into the workspace.
+  - "!apps/mobile"
   - "packages/*"
