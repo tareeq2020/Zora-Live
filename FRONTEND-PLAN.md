@@ -146,55 +146,59 @@ handle.zora.com  •  /@handle (Plane 2 — storefront rendering; middleware unc
 8. *[Judgment call]* **Do NOT put a live event grid in the apex hero** — CEO lens
    over the demand lens's grid-up-top, because the grid is empty at launch. The
    grid leads once discover is populated (decision #3's flip).
-9. **The parity gate is a normalized structural-DOM snapshot of *initial* markup
-   against committed goldens, with volatile nodes masked — NOT a byte-diff.** A
-   byte-diff of React output false-fails immediately; countdowns / `Math.random`
-   make post-hydration DOM non-deterministic. Behavior is asserted by smoke tests
-   against a seeded backend with a frozen clock. *(Keystone — see §7.)*
-10. **Every route is served EITHER static OR React, flipped atomically per PR
-    behind an env allowlist (`ZORA_REACT_ROUTES`); static `public/*.html` stay for
-    the whole phase and are decommissioned only in a final F10.** Gives per-route
-    rollback with no redeploy and prevents a converted page and its `.html` twin
-    both being live. *(See §7.)*
+9. **The gate proves the React build matches the *approved design*, not byte-parity
+   with the old HTML** — visual-regression screenshots (React route vs the static
+   page as design reference, frozen clock / seeded data) + behavior smoke on a
+   seeded backend + design review. A byte/DOM diff of React output is the wrong
+   surface (hydration attrs; countdowns / `Math.random` are non-deterministic).
+   *(See §7.1.)*
+10. **Clean cutover — no `.html` maintenance.** *(Revised: 0 live users, get it
+    right the first time.)* Each page's static `public/*.html` twin is deleted (and
+    its `next.config`/static mapping removed) in the **same PR** that ships its
+    React route. No `ZORA_REACT_ROUTES` allowlist, no keep-both coexistence, no
+    `.html`→clean redirects, no F10 — that machinery existed to protect live users
+    during an incremental cutover, and there are none. Regressions are caught in
+    review/QA and fixed forward. Build each page's intended end-state directly
+    (converted + any IA change together) — no convert-at-parity/apply-delta split.
+    *(See §7.2.)*
 
 ---
 
 ## 6. PR sequence (Phase F — builds on PR-1..5g; revised by eng review)
 
 Same cadence: feature branch → verify → PR to `develop` → merge → push origin +
-mirror. Distinct from the dormant payments track (PR-6..12). Convert-and-change
-surfaces split into **a** (convert at parity — golden unchanged) then **b** (apply
-the IA delta as a deliberately re-captured golden, so the review diff shows *only*
-the intended change). Order changed: the **event contract moves before the home**
-(home's `/api/events`-fed modules depend on it), and a **backend organizer-auth
-PR (F-AUTH)** is inserted before the seller gate.
+mirror. Distinct from the dormant payments track (PR-6..12). **With 0 live users,
+each conversion PR deletes its `public/*.html` twin and builds the intended
+end-state directly** — no parity-preserving a/b split, no rollback allowlist, no
+redirect shim. The **event contract precedes the home** (home's `/api/events`-fed
+modules depend on it), and a **backend organizer-auth PR (F-AUTH)** precedes the
+seller gate.
 
-- **F0 — this plan.** ✅ Committed (+ this hardening revision).
-- **F1 — App shell + parity harness + rollback rail.** Root layout (Server
-  Component) + global `zora-tokens.css` + a no-flash inline theme boot script with
+- **F0 — this plan.** ✅ Committed (+ hardening + 0-users revision).
+- **F1 — App shell + verification harness.** Root layout (Server Component) +
+  global `zora-tokens.css` + a no-flash inline theme boot script with
   `suppressHydrationWarning` on `<html>`; decompose `zora-theme.js` into
   `<Wordmark>` / `<ThemeToggle>` (it currently mutates DOM React will own); favicon
   → layout `metadata`. `(marketing)` / `(app)` route groups; `<SiteNav>` /
-  `<SiteFooter>`. **The parity harness (§7.1)** and the **`ZORA_REACT_ROUTES`
-  allowlist (§7.2)**. No page converted yet.
-- **F2 — Consumer pages → React (parity):** about, brand, commission, help,
-  discover — each convert-at-parity behind the allowlist; `.html` twin kept +
-  `.html`→clean redirect; outbound links repointed. Discover fed by seeded
-  `/api/events` + placements.
+  `<SiteFooter>`. **The verification harness (§7.1).** No page converted yet.
+- **F2 — Consumer pages → React:** about, brand, commission, help, discover — each
+  PR deletes its `.html` twin and repoints internal links to clean routes.
+  Discover fed by seeded `/api/events` + placements.
 - **F3 — Canonical event contract + flagship URL** *(was F4 — moved earlier)*. One
   `<EventPage>` for `/events/:id`, `/@handle/events/:id`, subdomain. Add a **slug
   alias** (`offshore` → `offshore-001`) in `getEvent`, and **skip the apex→owner
   302 for canonical flagship slugs** so `/events/offshore` renders in place. Flag
   OFFSHORE `mega`. Add a real **`/events/:id/seats`** route + **event-scoped
   floor-plan** fetch; repoint the tenant CTA off `?ev=NAME`.
-- **F4 — Home → React** *(was F3)*. **F4a** convert at parity; **F4b** apply the
-  reorder + CTA swap + nav reweight, and wire drop/gallery to `/api/events`/`mega`
-  (now available from F3).
+- **F4 — Home → React (converted + IA in one)** *(was F3)*. Blocks → components;
+  apply the reorder + CTA swap + nav reweight; wire drop/gallery to
+  `/api/events`/`mega` (from F3). Verified against the approved design, not the old
+  byte output.
 - **F5 — Tenant storefront index** *(needs shape-aware middleware)*. Split `/@handle`
   root (→ storefront index) from `/@handle/events/:id` leaf via shape-aware regex;
   add a `tenant && pathname==='/'` branch **before** the `next.config` `/`→index
-  rewrite. **F5a** convert at parity; **F5b** the index route + owner-only "Manage"
-  link (renders unconditionally here; gated to the owner once F-AUTH lands).
+  rewrite. Convert + add the index route in one PR; owner-only "Manage" link
+  (owner-gated once F-AUTH lands).
 - **F-AUTH — Organizer principal (backend).** Extend `ZoraSession`
   (`organizerHandle`/`role`/`kycStatus`); organizer login endpoint against the
   `organizers` collection; `OrganizerGuard`; role-aware `/api/me`
@@ -203,52 +207,60 @@ PR (F-AUTH)** is inserted before the seller gate.
   **impersonation handoff** (short-lived signed token) so the later `app.zora.com`
   move is a no-op. Extend the reserved-handle set (`dashboard, events, discover,
   drops, t`). **Prerequisite for F6; unblocks F5's owner link.**
-- **F6 — Seller namespace + organizer gate.** Consolidate seller pages under
-  `/dashboard/*`; middleware gate the **whole namespace incl. raw `*.html`
-  filenames**, prefix-match (`=== '/dashboard' || startsWith('/dashboard/')`),
-  **exempt `/dashboard/login`** (loop), fail-closed; rebrand Studio as a *mode*;
-  fix the footer `ORGANIZERS→admin` mislink. Cookie stays host-only (path-prefix
-  phase); built subdomain-ready per §7.3.
-- **F7 — Seller pages → React (parity, authed):** dashboard, create-event, studio,
-  seatbuilder, signup — behind the F6 gate; harness gains an organizer-session
-  login (curl + cookie-jar, mirroring pg-parity). Breadcrumbs / "← Dashboard".
+- **F6/F7 — Seller pages → React under `/dashboard/*`, gated.** Convert the seller
+  pages (dashboard, create-event, studio, seatbuilder, signup) to React under the
+  new namespace **and** stand up the gate together, deleting each `.html` twin in
+  its PR (so there is no ungated filename backdoor). Middleware gate: prefix-match
+  (`=== '/dashboard' || startsWith('/dashboard/')`), **exempt `/dashboard/login`**
+  (loop), fail-closed on `/api/me`. Rebrand Studio as a *mode*; fix the footer
+  `ORGANIZERS→admin` mislink; breadcrumbs / "← Dashboard". Cookie host-only
+  (path-prefix phase), built subdomain-ready per §7.3. Harness gains an
+  organizer-session login (curl + cookie-jar, mirroring pg-parity).
 - **F8 — Shared-ticket / QR landing.** `/t/:code` resolves a pass → app-claim +
   web-pass fallback; wire discover QR + scan landing.
 - **F9 — Admin console → React + separation.** Convert admin/*; `/admin` reads
-  clearly as internal.
-- **F10 — Decommission static.** After bake, remove `public/*.html` twins and the
-  `ZORA_REACT_ROUTES` allowlist; leave only clean routes + `.html` redirects.
+  clearly as internal. *(Last static twins removed as their pages convert — no
+  separate decommission phase.)*
 
 ---
 
 ## 7. Execution guardrails (from the engineering review)
 
-### 7.1 The parity gate (redefine before F1 ships — the keystone)
-A byte-diff of served HTML (today's `apps/web/test/verify.mjs`) **cannot** survive
-React (hydration attrs, `__next` data, attribute/whitespace normalization) and is
-meaningless on the non-deterministic pages (`index`/`drop-001` countdowns,
-`thebrunchcity` claim-code, `dashboard` live-scan feed + sparklines — `Date.now`,
-`setInterval`, `Math.random`). Replace it with, committed under
-`apps/web/test/golden/` (mirroring `db/test/golden/`):
-1. **Structural-DOM snapshot of *initial served markup* (pre-hydration):** parse →
-   strip Next hydration artifacts → canonicalize attribute order + whitespace →
-   **mask volatile nodes by selector** (countdowns, claim-codes, live feeds,
-   sparkline `path d`, injected placement `src`) → diff vs the committed golden.
-2. **Behavior smoke** against a seeded backend (reuse pg-parity's throwaway PG) with
-   a **frozen `Date.now`** and **seeded random**: countdown exists/ticks, discover
-   renders N cards from a fixture, QR SVG 200s, seatmap loads the event-scoped
-   floor plan, the organizer gate redirects (anon→login, authed→page, wrong-org
-   blocked).
-Keep the byte-diff only for still-static pages and the `/api/*` proxy. Retire it
-per page as each converts.
+### 7.1 The verification gate (goal: matches the approved design)
+With 0 users we are **not** preserving byte-parity with the old HTML for a live
+site — the static page is the **design reference to port from**, and the goal is
+"the React build faithfully reproduces the approved design + behaves correctly."
+The right surface is therefore visual + behavioral, not a byte/DOM diff (which
+false-fails on hydration attrs and is meaningless on the non-deterministic pages —
+`index`/`drop-001` countdowns, `thebrunchcity` claim-code, `dashboard` live-scan +
+sparklines). The gate (extend `apps/web/test/verify.mjs`; commit references under
+`apps/web/test/golden/`):
+1. **Visual regression** — screenshot the React route with a **frozen `Date.now`**
+   and **seeded random** and compare to the static page rendered under the same
+   frozen conditions (for converted-at-parity pages) or to a committed approved
+   screenshot (for IA-changed pages like the home). Design review signs off the
+   intentional-change screenshots.
+2. **Behavior smoke** against a seeded backend (reuse pg-parity's throwaway PG):
+   countdown exists/ticks, discover renders N cards from a fixture, QR SVG 200s,
+   seatmap loads the event-scoped floor plan, the organizer gate redirects
+   (anon→login, authed→page, wrong-org blocked).
+3. **Structural snapshot** (optional, forward-looking) — once a page is React, a
+   normalized-DOM snapshot with volatile nodes masked guards against *future*
+   unintended regressions between React PRs. It is a regression guard, not the
+   conversion oracle.
+Retire the byte-diff-vs-legacy oracle per page as each converts; keep it only for
+the `/api/*` proxy (still a valid contract). Include `<head>`/canonical/OG/title
+in the visual/behavior checks (SEO).
 
-### 7.2 Atomic route flip + rollback
-Each route is served **either** static `public/*.html` **or** its React route —
-never both — flipped in `next.config`/`middleware` in the same PR, gated by a
-`ZORA_REACT_ROUTES` env allowlist so a regressing route drops back to static with
-no redeploy or revert. Do **not** delete `public/*.html` in a conversion PR;
-decommission all twins in F10 after bake. Add `.html`→clean-URL redirects and
-snapshot `<head>`/canonical/OG/title in the gate (SEO parity).
+### 7.2 Clean cutover (0 live users)
+No rollback rail is needed. Each conversion PR: add the React route, remove the
+page's `next.config`/static mapping, and **delete its `public/*.html`** — in one
+PR. No `ZORA_REACT_ROUTES` allowlist, no static/React coexistence, no `.html`
+redirects (nothing external links to them pre-launch; internal links are repointed
+in the same PR). The one care: gate any seller `.html` that would outlive its
+conversion (see F6/F7 — they convert + gate + delete together, so it doesn't).
+Build each page's intended end-state directly; a regression is a fix-forward in
+review/QA, not a production rollback.
 
 ### 7.3 Auth / session hardening
 - **Path-prefix phase (now):** keep the cookie **host-only** (no `Domain`),
