@@ -1,6 +1,6 @@
 import { Controller, Get, Module, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { TICKET_FIELDS } from '../common/defaults';
 
 // Vendored, framework-agnostic renderer (copied verbatim from lib/ticket.js).
@@ -9,12 +9,12 @@ const { ticketSVG, ticketPNG } = require('../vendor/ticket');
 
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly store: FileStore) {}
+  constructor(private readonly entities: EntityStore) {}
 
-  // A stored ticket (data/tickets.json) rendered by code; any field overridable
+  // A stored ticket (tickets collection) rendered by code; any field overridable
   // via query string for live preview in the organizer studio.
-  private resolveTicket(code: string, query: Record<string, any>) {
-    const store = this.store.readJson<Record<string, any>>('tickets.json', {});
+  private async resolveTicket(code: string, query: Record<string, any>) {
+    const store = await this.entities.read<Record<string, any>>('tickets', {});
     const base = code && store[code] ? store[code] : {};
     const data: Record<string, any> = { ...base };
     if (code && !data.ticketId) data.ticketId = code;
@@ -25,15 +25,15 @@ export class TicketsController {
   }
 
   @Get(':code.svg')
-  svg(@Param('code') code: string, @Query() query: Record<string, any>, @Res() res: Response) {
-    const svg = ticketSVG(this.resolveTicket(code, query), { theme: query.theme });
+  async svg(@Param('code') code: string, @Query() query: Record<string, any>, @Res() res: Response) {
+    const svg = ticketSVG(await this.resolveTicket(code, query), { theme: query.theme });
     res.type('image/svg+xml').set('Cache-Control', 'no-store').send(svg);
   }
 
   @Get(':code.png')
   async png(@Param('code') code: string, @Query() query: Record<string, any>, @Res() res: Response) {
     try {
-      const png = await ticketPNG(this.resolveTicket(code, query), {
+      const png = await ticketPNG(await this.resolveTicket(code, query), {
         theme: query.theme,
         scale: Math.min(3, Number(query.scale) || 2),
       });

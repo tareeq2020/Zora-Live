@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PR-3 gate: prove the file->Postgres flip is byte-identical.
-# For a batch of collections: snapshot each read endpoint on the JSON backend,
+# For each flipped collection: snapshot its read endpoint on the JSON backend,
 # backfill into Postgres, snapshot again on the PG backend, and diff. Any byte
 # difference fails. Self-contained (throwaway local Postgres; no Supabase).
 set -euo pipefail
@@ -11,8 +11,11 @@ API_PORT="${TEST_API_PORT:-4108}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-FLAG="pg:settings|tiers|placements|theme"
-PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme)
+
+ENTITIES="settings tiers placements theme agents floorplan tickets"
+FLAG="pg:settings|tiers|placements|theme|agents|floorplan|tickets"
+PUBLIC_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan /api/tickets/ZORA-OFF1-4471-88AK.svg)
+AUTHED_PATHS=(/api/agents)
 
 cleanup() {
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -30,11 +33,14 @@ URL="postgres://$USER_NAME@127.0.0.1:$PG_PORT/zora_test"
 DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
 
 boot_and_snapshot() {
-  local tag="$1"; shift   # remaining args = extra env
+  local tag="$1"; shift
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.5
   ( cd "$ROOT/apps/api" && env PORT="$API_PORT" ZORA_DATA_DIR="$ROOT/data" "$@" node dist/main.js ) >"$SNAP/api-$tag.log" 2>&1 &
   for i in $(seq 1 25); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
-  for p in "${PATHS[@]}"; do curl -s "http://localhost:$API_PORT$p" > "$SNAP/${tag}${p//\//_}"; done
+  local jar="$SNAP/cookies-$tag"
+  curl -s -c "$jar" -X POST "http://localhost:$API_PORT/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}' >/dev/null
+  for p in "${PUBLIC_PATHS[@]}"; do curl -s "http://localhost:$API_PORT$p" > "$SNAP/${tag}${p//\//_}"; done
+  for p in "${AUTHED_PATHS[@]}"; do curl -s -b "$jar" "http://localhost:$API_PORT$p" > "$SNAP/${tag}${p//\//_}"; done
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.5
 }
 
@@ -42,14 +48,14 @@ echo "== snapshot JSON backend =="
 boot_and_snapshot json
 
 echo "== backfill -> Postgres =="
-DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" settings tiers placements theme
+DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" $ENTITIES
 
 echo "== snapshot PG backend =="
 boot_and_snapshot pg DATABASE_URL="$URL" DATA_BACKEND="$FLAG" PG_PREPARE=false
 
 echo "== golden diff =="
 fail=0
-for p in "${PATHS[@]}"; do
+for p in "${PUBLIC_PATHS[@]}" "${AUTHED_PATHS[@]}"; do
   f="${p//\//_}"
   if diff -q "$SNAP/json$f" "$SNAP/pg$f" >/dev/null; then
     echo "  ✓ $p  ($(wc -c < "$SNAP/json$f" | tr -d ' ') bytes, byte-identical)"
@@ -57,6 +63,6 @@ for p in "${PATHS[@]}"; do
     echo "  ✗ $p  DIFFERS"; diff "$SNAP/json$f" "$SNAP/pg$f" | head -6; fail=1
   fi
 done
-[ "$fail" = "0" ] || { echo ""; echo "PR-3 GOLDEN DIFF: FAIL"; exit 1; }
+[ "$fail" = "0" ] || { echo ""; echo "GOLDEN DIFF: FAIL"; exit 1; }
 echo ""
-echo "PR-3 GOLDEN DIFF: PASS (json == pg for all $(echo ${#PATHS[@]}) endpoints)"
+echo "GOLDEN DIFF: PASS (json == pg for all $(( ${#PUBLIC_PATHS[@]} + ${#AUTHED_PATHS[@]} )) endpoints)"

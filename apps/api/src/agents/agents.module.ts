@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Module, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 
 const THREE_DAYS = 1000 * 60 * 60 * 24 * 3;
@@ -8,18 +8,18 @@ const genCode = () => String(Math.floor(100000 + Math.random() * 900000)); // 6-
 @UseGuards(SessionGuard)
 @Controller()
 export class AgentsController {
-  constructor(private readonly store: FileStore) {}
+  constructor(private readonly entities: EntityStore) {}
 
   @Get('agents')
   list() {
-    return this.store.readJson('agents.json', []);
+    return this.entities.read('agents', []);
   }
 
   @Post('agents')
-  create(@Body() body: any) {
+  async create(@Body() body: any) {
     const { name, contact, event } = body || {};
     if (!name || !contact) throw new BadRequestException({ error: 'Agent name and phone or email are required' });
-    const agents = this.store.readJson<any[]>('agents.json', []);
+    const agents = await this.entities.read<any[]>('agents', []);
     const agent = {
       id: Date.now().toString(36),
       name: String(name).slice(0, 80),
@@ -33,24 +33,25 @@ export class AgentsController {
       expiresAt: new Date(Date.now() + THREE_DAYS).toISOString(),
     };
     agents.push(agent);
-    this.store.writeJson('agents.json', agents);
+    await this.entities.write('agents', agents);
     return agent;
   }
 
   @Post('agents/:id/rotate')
-  rotate(@Param('id') id: string) {
-    const agents = this.store.readJson<any[]>('agents.json', []);
+  async rotate(@Param('id') id: string) {
+    const agents = await this.entities.read<any[]>('agents', []);
     const a = agents.find((x) => x.id === id);
     if (!a) throw new NotFoundException({ error: 'Not found' });
     a.code = genCode();
     a.expiresAt = new Date(Date.now() + THREE_DAYS).toISOString();
-    this.store.writeJson('agents.json', agents);
+    await this.entities.write('agents', agents);
     return a;
   }
 
   @Delete('agents/:id')
-  remove(@Param('id') id: string) {
-    this.store.writeJson('agents.json', this.store.readJson<any[]>('agents.json', []).filter((x) => x.id !== id));
+  async remove(@Param('id') id: string) {
+    const agents = await this.entities.read<any[]>('agents', []);
+    await this.entities.write('agents', agents.filter((x) => x.id !== id));
     return { ok: true };
   }
 }
