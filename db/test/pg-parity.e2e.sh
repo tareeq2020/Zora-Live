@@ -40,7 +40,8 @@ DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" $ENT
 
 echo "== boot api on Postgres =="
 lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.5
-( cd "$ROOT/apps/api" && env PORT="$API_PORT" ZORA_DATA_DIR="$ROOT/data" DATABASE_URL="$URL" node dist/main.js ) >"$SNAP/api.log" 2>&1 &
+# API is disk-free: secrets come from env (no .session-secret file); backfill above still reads data/ (migration tool).
+( cd "$ROOT/apps/api" && env PORT="$API_PORT" DATABASE_URL="$URL" SESSION_SECRET=e2e-test-secret KYC_SECRET=e2e-test-secret node dist/main.js ) >"$SNAP/api.log" 2>&1 &
 for i in $(seq 1 25); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
 jar="$SNAP/jar"
 login=$(curl -s -c "$jar" -X POST "http://localhost:$API_PORT/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}')

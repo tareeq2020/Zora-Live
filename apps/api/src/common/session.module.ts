@@ -3,11 +3,11 @@ import type { Request, Response } from 'express';
 import { resolveSessionSecret } from './secret';
 import { ZoraSession, setSessionCookie, clearSessionCookie, verifySession, readSessionCookie } from './session-cookie';
 
-/* Signs/reads the stateless session cookie. Secret = SESSION_SECRET env, else the
-   local data/.session-secret file (dev) — separate from the KYC encryption key. */
+/* Signs/reads the stateless session cookie. Secret = SESSION_SECRET env
+   (separate from the KYC encryption key). */
 @Injectable()
 export class SessionService {
-  private readonly secret = resolveSessionSecret(process.env.ZORA_DATA_DIR || '');
+  private readonly secret = resolveSessionSecret();
 
   set(res: Response, payload: ZoraSession): void {
     setSessionCookie(res, payload, this.secret);
