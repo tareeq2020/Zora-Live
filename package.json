@@ -17,6 +17,7 @@
     "db:test": "bash db/test/migrate.e2e.sh"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.2",
     "dotenv": "^17.4.2",
     "postgres": "^3.4.5"
   },
