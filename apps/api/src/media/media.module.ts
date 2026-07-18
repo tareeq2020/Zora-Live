@@ -28,7 +28,7 @@ export class MediaController {
 
   // Open in the demo so the organizer Studio can upload; gated in production.
   @Post('upload')
-  upload(@Body() body: any) {
+  async upload(@Body() body: any) {
     const { name, dataUrl } = body || {};
     return this.media.upload(name, dataUrl);
   }
