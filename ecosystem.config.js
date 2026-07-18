@@ -5,7 +5,7 @@
  *
  * ── First deploy ────────────────────────────────────────────────────────────
  *   pnpm install
- *   pnpm --filter @zora/api build          # produces apps/api/dist/main.js
+ *   pnpm --filter "@zora/api..." build      # builds @zora/core first, then the API (dist/main.js)
  *   node db/migrate.mjs                     # create tables (idempotent)
  *   node db/backfill.mjs settings tiers placements theme agents floorplan \
  *        tickets organizers audit admin kyc media media_manifest registrations
@@ -13,7 +13,7 @@
  *   pm2 save && pm2 startup                 # persist across reboots
  *
  * ── Update ──────────────────────────────────────────────────────────────────
- *   git pull && pnpm install && pnpm --filter @zora/api build
+ *   git pull && pnpm install && pnpm --filter "@zora/api..." build
  *   node db/migrate.mjs                     # apply any new migrations
  *   pm2 reload zora-api
  *
