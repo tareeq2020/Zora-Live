@@ -17,7 +17,7 @@ export class EventsController {
   async list(@Query('city') city: string, @Req() req: Request, @Res() res: Response) {
     try {
       const events = await eventsApi.listEvents(city);
-      res.json(events.map((ev: any) => this.tenant.enrichEvent(ev, req)));
+      res.json(await Promise.all(events.map((ev: any) => this.tenant.enrichEvent(ev, req))));
     } catch (e: any) {
       res.status(503).json({ error: e.message });
     }
@@ -26,7 +26,7 @@ export class EventsController {
   @Get('events/:id')
   async get(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     try {
-      res.json(this.tenant.enrichEvent(await eventsApi.getEvent(id), req));
+      res.json(await this.tenant.enrichEvent(await eventsApi.getEvent(id), req));
     } catch (e: any) {
       res.status(404).json({ error: e.message });
     }
