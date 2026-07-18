@@ -1,27 +1,17 @@
 import 'reflect-metadata';
 import './common/session'; // session type augmentation
-import * as path from 'path';
-import * as fs from 'fs';
 try { require('dotenv').config(); } catch { /* dotenv optional */ }
-
-// Resolve the shared data dir to an absolute path BEFORE anything reads it, so
-// FileStore and the vendored events.js (both read ZORA_DATA_DIR) agree exactly.
-const RAW_DATA_DIR = process.env.ZORA_DATA_DIR || path.join(__dirname, '..', '..', 'data');
-const DATA_DIR = path.isAbsolute(RAW_DATA_DIR) ? RAW_DATA_DIR : path.resolve(process.cwd(), RAW_DATA_DIR);
-process.env.ZORA_DATA_DIR = DATA_DIR;
 
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import { verifySession, readSessionCookie } from './common/session-cookie';
 import { AppModule } from './app.module';
-import { seed } from './bootstrap/seed';
 import { ExpressStatusInterceptor } from './common/express-status.interceptor';
 import { resolveSessionSecret } from './common/secret';
 
 async function bootstrap() {
-  seed(DATA_DIR);
-  const SESSION_SECRET = resolveSessionSecret(DATA_DIR);
+  const SESSION_SECRET = resolveSessionSecret();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
@@ -44,6 +34,6 @@ async function bootstrap() {
 
   const PORT = process.env.PORT || 4101;
   await app.listen(PORT);
-  console.log(`ZORA api (NestJS) -> http://localhost:${PORT}   (data: ${DATA_DIR})`);
+  console.log(`ZORA api (NestJS) -> http://localhost:${PORT}`);
 }
 bootstrap();

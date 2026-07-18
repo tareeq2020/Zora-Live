@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { FileStore } from '../storage/file-store.service';
 import { SupabaseStorage } from '../storage/supabase-storage.service';
 import { resolveKycSecret } from '../common/secret';
 
@@ -13,8 +12,8 @@ export class KycService {
   private readonly key: Buffer;
   private readonly bucket = process.env.KYC_BUCKET || 'kyc-private';
 
-  constructor(store: FileStore, private readonly storage: SupabaseStorage) {
-    const secret = resolveKycSecret(store.dataDir); // KYC_SECRET env, else the .session-secret file
+  constructor(private readonly storage: SupabaseStorage) {
+    const secret = resolveKycSecret(); // KYC_SECRET env
     this.key = crypto.createHash('sha256').update('kyc:' + secret).digest();
   }
 
