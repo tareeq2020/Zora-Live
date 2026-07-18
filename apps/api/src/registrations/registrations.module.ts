@@ -1,15 +1,16 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Module, Param, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 
+/* Crew registrations live in the 'registrations' Postgres collection. */
 @Controller()
 export class RegistrationsController {
-  constructor(private readonly store: FileStore) {}
+  constructor(private readonly entities: EntityStore) {}
 
   // Public write.
   @Post('register')
-  register(@Body() body: any) {
+  async register(@Body() body: any) {
     const { crewName, leadName, phone, email, size } = body || {};
     if (!crewName || !leadName || !phone) {
       throw new BadRequestException({ error: 'Crew name, lead name and phone are required' });
@@ -18,7 +19,7 @@ export class RegistrationsController {
     if (!crewSize || crewSize < 2 || crewSize > 6) {
       throw new BadRequestException({ error: 'Crew size must be between 2 and 6' });
     }
-    const regs = this.store.readJson<any[]>('registrations.json', []);
+    const regs = await this.entities.read<any[]>('registrations', []);
     const cleanPhone = String(phone).replace(/[^\d+]/g, '');
     if (regs.some((r) => r.phone === cleanPhone)) {
       throw new ConflictException({ error: 'This phone number is already on the manifest' });
@@ -35,27 +36,28 @@ export class RegistrationsController {
       at: new Date().toISOString(),
     };
     regs.push(reg);
-    this.store.writeJson('registrations.json', regs);
+    await this.entities.write('registrations', regs);
     return { ok: true, code };
   }
 
   @UseGuards(SessionGuard)
   @Get('registrations')
-  list() {
-    return this.store.readJson('registrations.json', []);
+  async list() {
+    return this.entities.read('registrations', []);
   }
 
   @UseGuards(SessionGuard)
   @Delete('registrations/:id')
-  remove(@Param('id') id: string) {
-    this.store.writeJson('registrations.json', this.store.readJson<any[]>('registrations.json', []).filter((x) => x.id !== id));
+  async remove(@Param('id') id: string) {
+    const regs = await this.entities.read<any[]>('registrations', []);
+    await this.entities.write('registrations', regs.filter((x) => x.id !== id));
     return { ok: true };
   }
 
   @UseGuards(SessionGuard)
   @Get('registrations.csv')
-  csv(@Res() res: Response) {
-    const regs = this.store.readJson<any[]>('registrations.json', []);
+  async csv(@Res() res: Response) {
+    const regs = await this.entities.read<any[]>('registrations', []);
     const esc = (v: any) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const rows = [['code', 'crew', 'lead', 'phone', 'email', 'size', 'registered_at']]
       .concat(regs.map((r) => [r.code, r.crewName, r.leadName, r.phone, r.email, r.size, r.at]));

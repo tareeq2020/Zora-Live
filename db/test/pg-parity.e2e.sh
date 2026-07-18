@@ -13,14 +13,14 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest"
+ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest registrations"
 
 # parallel arrays: public endpoint -> fixture file
 PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
 PUB_FIX=(settings.json tiers.json placements.json storefront-theme.json floorplan.json ticket.svg)
 # authed endpoint -> fixture (login exercises the migrated 'admin' collection)
-AUTH_PATHS=(/api/agents /api/organizers /api/audit /api/kyc)
-AUTH_FIX=(agents.json organizers.json audit.json kyc.json)
+AUTH_PATHS=(/api/agents /api/organizers /api/audit /api/kyc /api/registrations)
+AUTH_FIX=(agents.json organizers.json audit.json kyc.json registrations.json)
 
 cleanup() {
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -66,6 +66,10 @@ curl -s -b "$jar" "http://localhost:$API_PORT/api/media" \
 if diff -q "$SNAP/media-norm" "$GOLDEN/media.json" >/dev/null; then
   echo "  ✓ /api/media  ($(wc -c < "$GOLDEN/media.json" | tr -d ' ') bytes, modified-stripped)"
 else echo "  ✗ /api/media DIFFERS"; diff "$GOLDEN/media.json" "$SNAP/media-norm" | head -6; fail=1; fi
+
+echo "== tenant: organizer resolved from Postgres (not disk) =="
+tenant=$(curl -s "http://localhost:$API_PORT/api/tenant/thebrunchcity")
+echo "$tenant" | grep -q '"handle":"thebrunchcity"' && echo "  ✓ tenant/:handle resolves organizer from the 'organizers' collection" || { echo "  ✗ tenant: $tenant"; fail=1; }
 
 echo "== session: impersonation round-trip (signed cookie carries the claim) =="
 curl -s -b "$jar" -c "$jar" -X POST "http://localhost:$API_PORT/api/organizers/o1/impersonate" >/dev/null
