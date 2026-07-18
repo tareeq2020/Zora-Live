@@ -10,14 +10,19 @@ import postgres from 'postgres';
 import { config } from 'dotenv';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, isAbsolute } from 'node:path';
 
+const HERE = dirname(fileURLToPath(import.meta.url));       // db/
+const API_DIR = join(HERE, '..', 'apps', 'api');
 // Load the API's env (single source for DATABASE_URL); shell env still wins.
-config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', 'apps', 'api', '.env') });
+config({ path: join(API_DIR, '.env') });
 
 const url = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
 if (!url) { console.error('backfill: set DATABASE_URL'); process.exit(1); }
-const dataDir = process.env.ZORA_DATA_DIR || 'data';
+// ZORA_DATA_DIR is written relative to apps/api (where the API runs), so anchor a
+// relative value there — NOT to backfill's cwd (usually the repo root).
+const rawData = process.env.ZORA_DATA_DIR || join(HERE, '..', 'data');
+const dataDir = isAbsolute(rawData) ? rawData : resolve(API_DIR, rawData);
 const entities = process.argv.slice(2).flatMap((a) => a.split(',')).map((s) => s.trim()).filter(Boolean);
 if (!entities.length) { console.error('backfill: pass entity names, e.g. node db/backfill.mjs settings tiers'); process.exit(1); }
 

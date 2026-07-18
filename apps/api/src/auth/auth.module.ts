@@ -1,19 +1,20 @@
 import { BadRequestException, Body, Controller, Get, Module, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
 
 @Controller()
 export class AuthController {
-  constructor(private readonly store: FileStore) {}
+  constructor(private readonly entities: EntityStore) {}
 
   @Post('login')
-  login(@Body() body: any, @Req() req: Request) {
+  async login(@Body() body: any, @Req() req: Request) {
     const { username, password } = body || {};
-    const acct = this.store.readJson('admin.json', ADMIN_FALLBACK);
+    const acct = await this.entities.read('admin', ADMIN_FALLBACK);
+    // bcrypt hash ($2a$...) — verifier stays bcrypt-compatible.
     if (username === acct.username && bcrypt.compareSync(password || '', acct.passwordHash)) {
       req.session.isAdmin = true;
       return { ok: true };
@@ -33,9 +34,9 @@ export class AuthController {
 
   @UseGuards(SessionGuard)
   @Post('password')
-  password(@Body() body: any) {
+  async password(@Body() body: any) {
     const { current, next } = body || {};
-    const acct = this.store.readJson('admin.json', ADMIN_FALLBACK);
+    const acct = await this.entities.read('admin', ADMIN_FALLBACK);
     if (!bcrypt.compareSync(current || '', acct.passwordHash)) {
       throw new BadRequestException({ error: 'Current password is wrong' });
     }
@@ -43,7 +44,7 @@ export class AuthController {
       throw new BadRequestException({ error: 'New password must be at least 8 characters' });
     }
     acct.passwordHash = bcrypt.hashSync(next, 10);
-    this.store.writeJson('admin.json', acct);
+    await this.entities.write('admin', acct);
     return { ok: true };
   }
 }

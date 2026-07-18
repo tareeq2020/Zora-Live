@@ -13,11 +13,14 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets"
+ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin"
 
 # parallel arrays: public endpoint -> fixture file
 PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
 PUB_FIX=(settings.json tiers.json placements.json storefront-theme.json floorplan.json ticket.svg)
+# authed endpoint -> fixture (login exercises the migrated 'admin' collection)
+AUTH_PATHS=(/api/agents /api/organizers /api/audit)
+AUTH_FIX=(agents.json organizers.json audit.json)
 
 cleanup() {
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -40,7 +43,8 @@ lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.
 ( cd "$ROOT/apps/api" && env PORT="$API_PORT" ZORA_DATA_DIR="$ROOT/data" DATABASE_URL="$URL" node dist/main.js ) >"$SNAP/api.log" 2>&1 &
 for i in $(seq 1 25); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
 jar="$SNAP/jar"
-curl -s -c "$jar" -X POST "http://localhost:$API_PORT/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}' >/dev/null
+login=$(curl -s -c "$jar" -X POST "http://localhost:$API_PORT/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}')
+[ "$login" = '{"ok":true}' ] || { echo "FAIL: admin login (from Postgres) returned: $login"; exit 1; }
 
 echo "== diff endpoints vs golden fixtures =="
 fail=0
@@ -50,10 +54,12 @@ check() { # $1 path, $2 fixture, $3 optional -b jar
     echo "  ✓ $1  ($(wc -c < "$GOLDEN/$2" | tr -d ' ') bytes)"
   else echo "  ✗ $1 DIFFERS from golden/$2"; diff "$GOLDEN/$2" "$out" | head -6; fail=1; fi
 }
+echo "  ✓ /api/login (admin from Postgres) -> {ok:true}"
 i=0
 while [ $i -lt ${#PUB_PATHS[@]} ]; do check "${PUB_PATHS[$i]}" "${PUB_FIX[$i]}"; i=$((i+1)); done
-check /api/agents agents.json jar
+i=0
+while [ $i -lt ${#AUTH_PATHS[@]} ]; do check "${AUTH_PATHS[$i]}" "${AUTH_FIX[$i]}" jar; i=$((i+1)); done
 
 [ "$fail" = "0" ] || { echo ""; echo "PG PARITY: FAIL"; exit 1; }
 echo ""
-echo "PG PARITY: PASS (api-on-Postgres == golden fixtures for all 7 endpoints)"
+echo "PG PARITY: PASS (api-on-Postgres == golden fixtures for all $(( ${#PUB_PATHS[@]} + ${#AUTH_PATHS[@]} )) endpoints + admin login)"
