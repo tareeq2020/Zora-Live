@@ -8,9 +8,21 @@ import type { Request, Response, CookieOptions } from 'express';
 
 export const COOKIE_NAME = 'zora_session';
 
+// 8h session lifetime (mirrors cookie maxAge below); iat/exp are unix seconds.
+export const SESSION_LIFETIME_SEC = 60 * 60 * 8;
+
 export interface ZoraSession {
   isAdmin?: boolean;
   impersonating?: { id: string; name: string; handle: string; startedAt: string } | null;
+  // PR-F-AUTH: real ORGANIZER identity. An organizer session carries its handle +
+  // role; admin sessions keep isAdmin (role is derived/optional). Additive — legacy
+  // admin cookies ({ isAdmin }) remain valid.
+  organizerHandle?: string;
+  role?: 'admin' | 'organizer';
+  kycStatus?: string;
+  // Signed-token clock: stamped by signSession, enforced by verifySession.
+  iat?: number;
+  exp?: number;
 }
 
 export function cookieOptions(): CookieOptions {
@@ -24,7 +36,11 @@ export function cookieOptions(): CookieOptions {
 }
 
 export function signSession(payload: ZoraSession, secret: string): string {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  // Stamp a fresh iat/exp on every write (sliding 8h window). Overwrites any
+  // iat/exp carried in via `{ ...req.session }` spreads.
+  const now = Math.floor(Date.now() / 1000);
+  const stamped: ZoraSession = { ...payload, iat: now, exp: now + SESSION_LIFETIME_SEC };
+  const body = Buffer.from(JSON.stringify(stamped)).toString('base64url');
   const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
   return body + '.' + sig;
 }
@@ -37,7 +53,13 @@ export function verifySession(token: string | null | undefined, secret: string):
   const expect = crypto.createHmac('sha256', secret).update(body).digest('base64url');
   const a = Buffer.from(sig), b = Buffer.from(expect);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  try { return JSON.parse(Buffer.from(body, 'base64url').toString('utf8')); } catch { return null; }
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as ZoraSession;
+    // Reject expired tokens. A MISSING exp is treated as legacy-valid (cookies
+    // signed before this field existed) — backward compat until secret rotation.
+    if (typeof payload.exp === 'number' && payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch { return null; }
 }
 
 export function readSessionCookie(req: Request): string | null {

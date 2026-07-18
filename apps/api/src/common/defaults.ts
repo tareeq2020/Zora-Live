@@ -27,6 +27,15 @@ export const DEFAULT_TIERS = [
   { id: 's4', event: 'shore',  order: 4, name: 'CABANA — CREW OF 6',   detail: '40 cabanas on the sand. Table service all night.',       priceLabel: '900,000 TZS', splitNote: 'Crew split in-app: 150,000 TZS each.',                  status: 'open'   },
 ];
 
+/* Reserved handles that can never be claimed as an organizer handle — they
+   collide with reserved subdomains or top-level app routes. Canonical backend
+   copy of the front-end signup TAKEN set (apps/web/public/signup.html). PR-F-AUTH
+   extends it with the path-prefix app routes: dashboard, events, discover, drops, t. */
+export const RESERVED_HANDLES = [
+  'zora', 'admin', 'www', 'app', 'port', 'api', 'help', 'offshore',
+  'dashboard', 'events', 'discover', 'drops', 't',
+];
+
 export const DEFAULT_ORGANIZERS = [
   { id:'o1', name:'The Brunch City', handle:'thebrunchcity', email:'hello@thebrunchcity.co', status:'active',    events:9, revenue:167713000, joined:'2024-03-11' },
   { id:'o2', name:'Offshore Ltd',    handle:'offshore',      email:'board@offshore.app',     status:'active',    events:1, revenue:84200000,  joined:'2026-05-02' },
