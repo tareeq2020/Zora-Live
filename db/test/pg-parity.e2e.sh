@@ -60,6 +60,14 @@ while [ $i -lt ${#PUB_PATHS[@]} ]; do check "${PUB_PATHS[$i]}" "${PUB_FIX[$i]}";
 i=0
 while [ $i -lt ${#AUTH_PATHS[@]} ]; do check "${AUTH_PATHS[$i]}" "${AUTH_FIX[$i]}" jar; i=$((i+1)); done
 
+echo "== session: impersonation round-trip (signed cookie carries the claim) =="
+curl -s -b "$jar" -c "$jar" -X POST "http://localhost:$API_PORT/api/organizers/o1/impersonate" >/dev/null
+imp=$(curl -s -b "$jar" "http://localhost:$API_PORT/api/impersonation")
+echo "$imp" | grep -q '"handle":"thebrunchcity"' && echo "  ✓ impersonate -> cookie carries claim" || { echo "  ✗ impersonate: $imp"; fail=1; }
+curl -s -b "$jar" -c "$jar" -X POST "http://localhost:$API_PORT/api/impersonate/exit" >/dev/null
+imp2=$(curl -s -b "$jar" "http://localhost:$API_PORT/api/impersonation")
+[ "$imp2" = '{"impersonating":null}' ] && echo "  ✓ exit -> claim cleared" || { echo "  ✗ exit: $imp2"; fail=1; }
+
 [ "$fail" = "0" ] || { echo ""; echo "PG PARITY: FAIL"; exit 1; }
 echo ""
 echo "PG PARITY: PASS (api-on-Postgres == golden fixtures for all $(( ${#PUB_PATHS[@]} + ${#AUTH_PATHS[@]} )) endpoints + admin login)"
