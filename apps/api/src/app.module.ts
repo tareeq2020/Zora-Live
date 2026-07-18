@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StorageModule } from './storage/storage.module';
+import { SessionModule } from './common/session.module';
 import { AuditModule } from './audit/audit.module';
 import { TenantModule } from './tenant/tenant.module';
 import { AuthModule } from './auth/auth.module';
@@ -21,6 +22,7 @@ import { EventsModule } from './events/events.module';
 @Module({
   imports: [
     StorageModule,
+    SessionModule,
     AuditModule,
     TenantModule,
     AuthModule,

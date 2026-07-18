@@ -14,3 +14,13 @@ export function resolveSessionSecret(dataDir: string): string {
   if (fromEnv && fromEnv.trim()) return fromEnv.trim();
   return fs.readFileSync(path.join(dataDir, '.session-secret'), 'utf8');
 }
+
+/* KYC encryption key material — SEPARATE from the session-signing secret.
+   KYC_SECRET env in prod (set it to the value that encrypted existing .enc docs),
+   else the local data/.session-secret file (dev). Read untrimmed from the file so
+   existing docs stay decryptable; env value trimmed defensively. */
+export function resolveKycSecret(dataDir: string): string {
+  const fromEnv = process.env.KYC_SECRET;
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  return fs.readFileSync(path.join(dataDir, '.session-secret'), 'utf8');
+}

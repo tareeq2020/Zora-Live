@@ -2,29 +2,31 @@ import { BadRequestException, Body, Controller, Get, Module, Post, Req, Res, Una
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { EntityStore } from '../storage/entity-store';
+import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
 
 @Controller()
 export class AuthController {
-  constructor(private readonly entities: EntityStore) {}
+  constructor(private readonly entities: EntityStore, private readonly sessions: SessionService) {}
 
   @Post('login')
-  async login(@Body() body: any, @Req() req: Request) {
+  async login(@Body() body: any, @Res({ passthrough: true }) res: Response) {
     const { username, password } = body || {};
     const acct = await this.entities.read('admin', ADMIN_FALLBACK);
     // bcrypt hash ($2a$...) — verifier stays bcrypt-compatible.
     if (username === acct.username && bcrypt.compareSync(password || '', acct.passwordHash)) {
-      req.session.isAdmin = true;
+      this.sessions.set(res, { isAdmin: true });
       return { ok: true };
     }
     throw new UnauthorizedException({ error: 'Wrong username or password' });
   }
 
   @Post('logout')
-  logout(@Req() req: Request, @Res() res: Response) {
-    req.session.destroy(() => res.json({ ok: true }));
+  logout(@Res({ passthrough: true }) res: Response) {
+    this.sessions.clear(res);
+    return { ok: true };
   }
 
   @Get('me')

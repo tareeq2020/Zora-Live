@@ -12,8 +12,8 @@ process.env.ZORA_DATA_DIR = DATA_DIR;
 
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import session from 'express-session';
 import express from 'express';
+import { verifySession, readSessionCookie } from './common/session-cookie';
 import { AppModule } from './app.module';
 import { seed } from './bootstrap/seed';
 import { ExpressStatusInterceptor } from './common/express-status.interceptor';
@@ -35,15 +35,12 @@ async function bootstrap() {
   // Body parser: 12mb to fit base64 image uploads (matches server.js).
   app.use(express.json({ limit: '12mb' }));
 
-  // Session: identical cookie config to the legacy server (httpOnly, lax, 8h).
-  app.use(
-    session({
-      secret: SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-      cookie: { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 8 },
-    }),
-  );
+  // Stateless signed-cookie session (no server store): populate req.session from
+  // the verified cookie. Controllers set it via SessionService.
+  app.use((req: any, _res: any, next: any) => {
+    req.session = verifySession(readSessionCookie(req), SESSION_SECRET) || {};
+    next();
+  });
 
   const PORT = process.env.PORT || 4101;
   await app.listen(PORT);
