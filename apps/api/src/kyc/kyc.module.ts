@@ -117,7 +117,7 @@ export class KycController {
   // Approve — unlocks payouts (is_verified). Decision is audited.
   @UseGuards(SessionGuard)
   @Post('kyc/:id/approve')
-  approve(@Param('id') id: string, @Req() req: Request) {
+  async approve(@Param('id') id: string, @Req() req: Request) {
     const all = this.store.readJson<any[]>('kyc.json', []);
     const v = all.find((x) => x.id === id);
     if (!v) throw new NotFoundException({ error: 'Not found' });
@@ -125,7 +125,7 @@ export class KycController {
       v.status = 'approved'; v.reviewedAt = new Date().toISOString(); v.reviewedBy = 'admin'; v.rejection = null;
       this.kyc.event(v, 'admin', 'approved');
       this.store.writeJson('kyc.json', all);
-      this.audit.record('kyc_approve', (v.fullName || v.ref) + ' · ' + v.idType + '/' + v.country, req.ip);
+      await this.audit.record('kyc_approve', (v.fullName || v.ref) + ' · ' + v.idType + '/' + v.country, req.ip);
     }
     return this.kyc.public(v);
   }
@@ -133,7 +133,7 @@ export class KycController {
   // Reject — requires a standardized reason; user is shown the mapped message.
   @UseGuards(SessionGuard)
   @Post('kyc/:id/reject')
-  reject(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+  async reject(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
     const { code, note } = body || {};
     if (!KYC_REASONS.find((r) => r.code === code)) throw new BadRequestException({ error: 'Pick a rejection reason' });
     const all = this.store.readJson<any[]>('kyc.json', []);
@@ -143,7 +143,7 @@ export class KycController {
     v.rejection = { code, note: String(note || '').slice(0, 300) };
     this.kyc.event(v, 'admin', 'rejected', code);
     this.store.writeJson('kyc.json', all);
-    this.audit.record('kyc_reject', (v.fullName || v.ref) + ' · ' + code, req.ip);
+    await this.audit.record('kyc_reject', (v.fullName || v.ref) + ' · ' + code, req.ip);
     return this.kyc.public(v);
   }
 }
