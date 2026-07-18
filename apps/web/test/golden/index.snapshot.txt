@@ -1,0 +1,311 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>
+      #text ZORA — The ticket is the product
+    <meta content="Global ticketing infrastructure. Zero fees at checkout, drops not listings, native crew split, resale capped at face value. Built in Africa, engineered for the world." name="description">
+    <link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E" rel="icon">
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      #text :root{ --black:#0A0A0B; --ink:#101012; --hair:#222226; --bone:#F4F1EA; --mut:#8A877E; --blue:#3D5AFE; --sans:'Archivo',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace; --stamp:'Anton',sans-serif; } *{margin:0;padding:0;box-sizing:border-box} html{scroll-behavior:smooth} body{background:var(--black);color:var(--bone);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased} a{color:inherit;text-decoration:none} ::selection{background:var(--blue);color:var(--bone)} .wrap{max-width:1200px;margin:0 auto;padding:0 24px} .mono{font-family:var(--mono)} /* ── nav ── */ nav{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--c-nav);backdrop-filter:blur(12px);border-bottom:1px solid var(--hair)} .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px} .wordmark{font-weight:600;font-size:22px;letter-spacing:-.02em} .wordmark .o{color:var(--blue)} .nav-links{display:flex;gap:28px;align-items:center;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:lowercase} .nav-links a{color:var(--mut);transition:color .2s} .nav-links a:hover{color:var(--bone)} .nav-links .kbtn{color:var(--blue);border:1px solid var(--blue);padding:7px 14px;transition:all .2s} .nav-links .kbtn:hover{background:var(--blue);color:var(--bone)} @media(max-width:720px){.nav-links a:not(.kbtn){display:none}} /* ── hero (full-width video) ── */ .hero{position:relative;min-height:96vh;display:flex;align-items:center;overflow:hidden;border-bottom:1px solid var(--hair)} .hero .media{position:absolute;inset:0;z-index:0;background:linear-gradient(150deg,#1a2350,#0A0A0B)} .hero .media::after{content:'FESTIVAL FOOTAGE — ADD assets/hero-crowd.mp4';position:absolute;left:24px;bottom:18px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:rgba(244,241,234,.35);z-index:0} .hero .media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s;animation:kenburns 22s ease-in-out infinite alternate} .hero .media img.loaded{opacity:1} .hero video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1} @keyframes kenburns{from{transform:scale(1)}to{transform:scale(1.12)}} .hero .sheen{position:absolute;inset:0;z-index:2;background:radial-gradient(120% 90% at 12% 8%,rgba(61,90,254,.26),transparent 55%),linear-gradient(180deg,rgba(10,10,11,.4),rgba(10,10,11,.12) 45%,rgba(10,10,11,.92))} .hero .wrap{position:relative;z-index:3;padding-top:64px} .hero h1{font-weight:600;letter-spacing:-.035em;line-height:.96;font-size:clamp(46px,9vw,120px);text-transform:lowercase;max-width:15ch} .hero h1 .dot{color:var(--blue)} .hero .sub{font-family:var(--mono);color:#B4B1A8;font-size:clamp(12px,1.4vw,15px);letter-spacing:.06em;margin-top:28px;max-width:60ch} .hero .ctas{display:flex;gap:14px;margin-top:44px;flex-wrap:wrap} .btn{display:inline-block;font-family:var(--mono);font-size:13px;letter-spacing:.1em;padding:15px 30px;border:1px solid var(--bone);transition:all .2s} .btn.solid{background:var(--bone);color:var(--black)} .btn.solid:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)} .btn.ghost:hover{background:var(--bone);color:var(--black)} .btn.k{border-color:var(--blue);color:var(--blue)} .btn.k:hover{background:var(--blue);color:var(--bone)} /* ── marquee ── */ .marquee{overflow:hidden;border-bottom:1px solid var(--hair);padding:14px 0;white-space:nowrap} .marquee-track{display:inline-block;animation:slide 28s linear infinite;font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--mut)} .marquee-track b{color:var(--bone);font-weight:500} @keyframes slide{from{transform:translateX(0)}to{transform:translateX(-50%)}} /* ── pillars ── */ section{padding:110px 0;border-bottom:1px solid var(--hair)} .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--blue);margin-bottom:18px} h2{font-weight:600;font-size:clamp(28px,4vw,48px);letter-spacing:-.02em;line-height:1.1;text-transform:lowercase;max-width:22ch} .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--hair);border:1px solid var(--hair);margin-top:56px} .pillar{background:var(--black);padding:36px 28px;transition:background .25s} .pillar:hover{background:var(--ink)} .pillar .num{font-family:var(--mono);font-size:12px;color:var(--blue);letter-spacing:.15em} .pillar h3{font-size:19px;font-weight:600;margin:16px 0 10px;letter-spacing:-.01em;text-transform:lowercase} .pillar p{color:var(--mut);font-size:14.5px} /* ── festival gallery carousel ── */ .gallery-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:34px;flex-wrap:wrap} .gcar-nav{display:flex;gap:8px} .gcar-nav button{width:44px;height:44px;border-radius:50%;border:1px solid var(--hair);background:var(--ink);color:var(--bone);cursor:pointer;font-size:18px;transition:all .2s} .gcar-nav button:hover{border-color:var(--blue);background:var(--blue)} .ph{position:relative;overflow:hidden;background:linear-gradient(150deg,var(--a,#26262B),var(--b,#0A0A0B))} .ph::before{content:'';position:absolute;inset:0;background:radial-gradient(70% 60% at 75% 12%,rgba(255,255,255,.13),transparent 60%);z-index:1} .ph::after{content:attr(data-label);position:absolute;left:14px;bottom:12px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:rgba(244,241,234,.72);z-index:1} .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;opacity:0;transition:opacity .5s} .ph img.loaded{opacity:1} .gallery{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:4px} .gallery::-webkit-scrollbar{display:none} .gslide{flex:0 0 auto;width:min(320px,76vw);scroll-snap-align:start} .gslide .ph{border-radius:16px;aspect-ratio:3/4} .gslide .cap{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.03em;margin-top:12px} .gslide .cap b{color:var(--bone);font-weight:500} /* ── drop strip ── */ .drops{background:var(--black);position:relative} .k-card{border:2px solid var(--blue);padding:56px 40px;display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:center} @media(max-width:860px){.k-card{grid-template-columns:1fr}} .k-stamp{font-family:var(--stamp);color:var(--blue);font-size:clamp(38px,5.5vw,72px);line-height:.95;letter-spacing:.02em;transform:rotate(-2deg);display:inline-block} .k-stamp small{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--bone);transform:none;margin-bottom:14px} .k-meta{font-family:var(--mono);font-size:12.5px;color:var(--mut);letter-spacing:.08em;margin-top:22px;line-height:2} .k-meta b{color:var(--bone);font-weight:500} .k-count{text-align:center} .k-count .label{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--mut);margin-bottom:14px} .k-count .clock{font-family:var(--mono);font-size:clamp(30px,4.5vw,52px);font-weight:500;letter-spacing:.04em;color:var(--bone)} .k-count .clock.live{color:var(--blue)} .k-count .clock.sold{color:var(--bone)} .k-count .units{font-family:var(--mono);font-size:10px;letter-spacing:.35em;color:var(--mut);margin-top:8px} .k-count .btn{margin-top:30px} /* ── the O ── */ .osec{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center} @media(max-width:860px){.osec{grid-template-columns:1fr}} .the-o{width:min(300px,70vw);aspect-ratio:1;border-radius:50%;border:3px solid var(--blue);margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center} .the-o::after{content:'';position:absolute;inset:26px;border-radius:50%;border:1px solid var(--hair)} .the-o span{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--mut)} .stores{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap} .stores .store{font-family:var(--mono);font-size:12px;letter-spacing:.08em;border:1px solid var(--hair);color:var(--mut);padding:13px 22px} .osec p.lead{color:var(--mut);margin-top:20px;max-width:46ch} /* ── manifesto ── */ .manifesto p{font-size:clamp(22px,3vw,34px);font-weight:500;letter-spacing:-.015em;line-height:1.35;text-transform:lowercase;max-width:30ch} .manifesto p+p{margin-top:28px} .manifesto .hl{color:var(--blue)} /* ── footer ── */ footer{padding:56px 0;border-bottom:none} .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap} .foot .cols{display:flex;gap:48px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--mut)} .foot .cols a{display:block;margin-top:8px;color:var(--mut)} .foot .cols a:hover{color:var(--bone)} .foot .legal{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.08em} .foot .legal a{color:var(--mut)}
+    <link href="/zora-tokens.css" rel="stylesheet">
+    <script src="/zora-theme.js">
+  <body>
+    <nav>
+      <div class="wrap nav-in">
+        <a class="wordmark" href="#top">
+          #text z
+          <span class="o">
+            #text o
+          #text ra
+        <div class="nav-links">
+          <a href="discover.html">
+            #text events
+          <a href="about.html">
+            #text about
+          <a href="commission.html">
+            #text pricing
+          <a href="help.html">
+            #text help
+          <a href="#organizers">
+            #text organizers
+          <a class="kbtn" href="discover.html">
+            #text FIND EVENTS
+    <header class="hero" id="top">
+      <div class="media">
+        <img alt data-slot="home-hero" onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-01.jpg">
+      <video autoplay loop muted playsinline poster="assets/event-01.jpg">
+        <source src="assets/hero-crowd.mp4" type="video/mp4">
+      <div class="sheen">
+      <div class="wrap">
+        <h1 id="hero-line">
+          #text the ticket is the product
+          <span class="dot">
+            #text .
+        <p class="sub">
+          #text GLOBAL TICKETING, BUILT IN AFRICA. EVERY EVENT WORTH BEING AT — ONE HONEST PRICE, A LIVE PASS IN YOUR POCKET, NOTHING ADDED AT CHECKOUT.
+        <div class="ctas">
+          <a class="btn solid" href="discover.html">
+            #text FIND EVENTS NEAR YOU
+          <a class="btn k" href="drop-001.html">
+            #text SEE THE OFFSHORE DROP
+    <div aria-hidden="true" class="marquee">
+      <span class="marquee-track" id="marquee">
+        #text ZERO FEES AT CHECKOUT &nbsp;/&nbsp;
+        <b>
+          #text DROPS, NOT LISTINGS
+        #text &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp;
+        <b>
+          #text RESALE CAPPED AT FACE +10%
+        #text &nbsp;/&nbsp; ZERO FEES AT CHECKOUT &nbsp;/&nbsp;
+        <b>
+          #text DROPS, NOT LISTINGS
+        #text &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp;
+        <b>
+          #text RESALE CAPPED AT FACE +10%
+        #text &nbsp;/&nbsp;
+    <section id="platform">
+      <div class="wrap">
+        <p class="kicker">
+          #text THE PLATFORM
+        <h2>
+          #text everything ticketing broke, rebuilt.
+        <div class="pillars">
+          <div class="pillar">
+            <p class="num mono">
+              #text 01
+            <h3>
+              #text one honest number
+            <p>
+              #text The price you see is the price you pay. No service fee, no processing fee, no facility charge. The checkout has one line.
+          <div class="pillar">
+            <p class="num mono">
+              #text 02
+            <h3>
+              #text drops, not listings
+            <p>
+              #text Events land like releases — numbered, dated, counted down. A feed you actually want to open, not a spreadsheet with a search bar.
+          <div class="pillar">
+            <p class="num mono">
+              #text 03
+            <h3>
+              #text crew split
+            <p>
+              #text Book the table, split the bill inside the app. Card or mobile money — M-Pesa, Tigo Pesa, Airtel Money. Nobody plays banker.
+          <div class="pillar">
+            <p class="num mono">
+              #text 04
+            <h3>
+              #text face value, protected
+            <p>
+              #text Can't make it? List your pass in-app, capped at face +10%. The new pass is issued, yours is void. Scalping isn't policed — it's impossible.
+    <section id="gallery">
+      <div class="wrap">
+        <div class="gallery-head">
+          <div>
+            <p class="kicker">
+              #text LIVE ON ZORA
+            <h2>
+              #text festivals, nights, and the people in them.
+          <div class="gcar-nav">
+            <button aria-label="Previous" id="g-prev">
+              #text &#8249;
+            <button aria-label="Next" id="g-next">
+              #text &#8250;
+        <div class="gallery" id="gallery-track">
+          <div class="gslide">
+            <div class="ph" data-label="FESTIVAL" style="--a:#B23A17">
+              <img alt data-slot="home-gallery-1" onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-01.jpg">
+            <p class="cap">
+              <b>
+                #text Offshore
+              #text — daytime yacht groove
+          <div class="gslide">
+            <div class="ph" data-label="NIGHTLIFE" style="--a:#3D2A8F">
+              <img alt data-slot="home-gallery-2" onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-02.jpg">
+            <p class="cap">
+              <b>
+                #text Basement 001
+              #text — after dark
+          <div class="gslide">
+            <div class="ph" data-label="ARTIST" style="--a:#0F6E56">
+              <img alt data-slot="home-gallery-3" onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-05.jpg">
+            <p class="cap">
+              <b>
+                #text Guest selectors
+              #text — live sets
+          <div class="gslide">
+            <div class="ph" data-label="CROWD" style="--a:#1E4FD8">
+              <img alt data-slot="home-gallery-4" onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-06.jpg">
+            <p class="cap">
+              <b>
+                #text Sunset Social
+              #text — Coco Beach
+          <div class="gslide">
+            <div class="ph" data-label="DAYTIME" style="--a:#C46A28">
+              <img alt onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-03.jpg">
+            <p class="cap">
+              <b>
+                #text Garden Brunch
+              #text — the city's daytime
+          <div class="gslide">
+            <div class="ph" data-label="FESTIVAL" style="--a:#993556">
+              <img alt onerror="this.remove()" onload="this.classList.add('loaded')" src="assets/event-04.jpg">
+            <p class="cap">
+              <b>
+                #text Palmwine Festival
+              #text — Lagos
+    <script>
+      #text (function(){ const t = document.getElementById('gallery-track'); const s = () => Math.min(t.clientWidth * 0.8, 360); document.getElementById('g-next').onclick = () => t.scrollBy({ left: s(), behavior:'smooth' }); document.getElementById('g-prev').onclick = () => t.scrollBy({ left: -s(), behavior:'smooth' }); })();
+    <section class="drops" id="drops">
+      <div class="wrap">
+        <p class="kicker">
+          #text THE DROPS — ZORA LIVE
+        <div class="k-card">
+          <div>
+            <span class="k-stamp">
+              <small>
+                #text THE DROP SERIES — 001
+              <span id="k-title">
+                #text «MASK»
+                <br>
+                #text «MASK»
+            <p class="k-meta">
+              #text PORT:
+              <b id="k-port">
+                #text DAR ES SALAAM
+              <br>
+              #text COORDS:
+              <b id="k-coords">
+                #text 06&deg;45'S / 039&deg;16'E
+              <br>
+              #text DATE:
+              <b id="k-date">
+                #text SAT 15 AUG 2026
+              <br>
+              #text CAPACITY:
+              <b id="k-cap">
+                #text VESSEL 200 / SHORE 3,000
+          <div class="k-count">
+            <p class="label" id="count-label">
+              #text «MASK»
+            <p class="clock" id="clock">
+              #text «MASK»
+            <p class="units" id="clock-units">
+              #text «MASK»
+            <a class="btn k" href="drop-001.html">
+              #text VIEW THE MANIFEST
+    <section id="app">
+      <div class="wrap osec">
+        <div class="the-o">
+          <span>
+            #text THE O IS THE DOOR
+        <div>
+          <p class="kicker">
+            #text THE APP
+          <h2>
+            #text your pass lives here. nowhere else.
+          <p class="lead">
+            #text No PDFs. No screenshots. A live pass that moves when it's real and dies when it's not. Every drop, every split, every entry — through the O.
+          <div class="stores">
+            <span class="store">
+              #text APP STORE — SOON
+            <span class="store">
+              #text GOOGLE PLAY — SOON
+    <section id="organizers">
+      <div class="wrap">
+        <p class="kicker">
+          #text FOR ORGANIZERS — ZORA DASHBOARD
+        <h2>
+          #text run the night. keep the morning after.
+        <p class="lead" style="max-width:60ch;color:var(--mut);margin-top:20px">
+          #text Every promoter gets a premium storefront at
+          <span class="mono" style="color:var(--bone)">
+            #text yourname.zora.com
+          #text , a real-time dashboard, a customer database that's yours to keep, and built-in email to reach it. One flat line, no junk fees passed to your crowd. The audience you bring compounds into an audience you share.
+        <div class="pillars" style="margin-top:44px">
+          <div class="pillar">
+            <p class="num mono">
+              #text A
+            <h3>
+              #text your own storefront
+            <p>
+              #text A branded page at yourname.zora.com. You style the invitation; Zora runs the checkout and the promise underneath it.
+          <div class="pillar">
+            <p class="num mono">
+              #text B
+            <h3>
+              #text the live dashboard
+            <p>
+              #text Live revenue, ticket velocity, entry scans by the minute, and the CRM only crew splitting can build — you know who parties together.
+          <div class="pillar">
+            <p class="num mono">
+              #text C
+            <h3>
+              #text signals, built in
+            <p>
+              #text Free native email tuned for drops. Pick a segment, pick a template, send. No Mailchimp, no export, no leaving.
+        <div class="ctas" style="margin-top:40px">
+          <a class="btn solid" href="signup.html">
+            #text OPEN YOUR DASHBOARD
+          <a class="btn k" href="dashboard.html">
+            #text SEE A LIVE DEMO
+    <section class="manifesto" id="manifesto">
+      <div class="wrap">
+        <p class="kicker">
+          #text MANIFESTO
+        <p>
+          #text we don't sell tickets. we open doors
+          <span class="hl">
+            #text .
+        <p>
+          #text the fee era is over. the spreadsheet era is over. the scalper era is over
+          <span class="hl">
+            #text .
+        <p>
+          #text built in dar es salaam. dressed for the world
+          <span class="hl">
+            #text .
+    <footer>
+      <div class="wrap foot">
+        <div>
+          <a class="wordmark" href="#top">
+            #text z
+            <span class="o">
+              #text o
+            #text ra
+          <p class="legal" style="margin-top:14px">
+            #text DAR ES SALAAM / NAIROBI / LAGOS / LONDON
+        <div class="cols">
+          <div>
+            #text EXPLORE
+            <a href="#platform">
+              #text platform
+            <a href="drop-001.html">
+              #text drop 001
+            <a href="#manifesto">
+              #text manifesto
+          <div>
+            #text ORGANIZERS
+            <a href="signup.html">
+              #text get started
+            <a href="dashboard.html">
+              #text dashboard
+            <a href="thebrunchcity.html">
+              #text live storefront
+            <a href="/admin">
+              #text admin
+          <div>
+            #text CONTACT
+            <a href="mailto:board@zora.app" id="foot-mail">
+              #text board@zora.app
+            <a href="/admin">
+              #text admin
+        <p class="legal">
+          #text &copy; 2026 ZORA. THE TICKET IS THE PRODUCT.
+    <script>
+      #text const DEFAULTS = { dropTitle: 'THE OFFSHORE', dropName: 'DAYTIME YACHT GROOVE', status: 'countdown', dropAt: '2026-07-10T20:00:00+03:00', eventDateLabel: 'SAT 25 JULY 2026', coordinates: "06°45'S / 039°16'E", port: 'SLIPWAY, DAR', capacityLabel: '20 PAX PER YACHT', contactEmail: 'board@zora.app' }; let S = DEFAULTS; function render(){ document.getElementById('k-title').innerHTML = S.dropTitle + '<br>' + S.dropName; document.getElementById('k-port').textContent = S.port; document.getElementById('k-coords').textContent = S.coordinates; document.getElementById('k-date').textContent = S.eventDateLabel; document.getElementById('k-cap').textContent = S.capacityLabel; if (S.contactEmail){ const m = document.getElementById('foot-mail'); m.textContent = S.contactEmail; m.href = 'mailto:' + S.contactEmail; } } const pad = n => String(n).padStart(2, '0'); function tick(){ const clock = document.getElementById('clock'); const label = document.getElementById('count-label'); const units = document.getElementById('clock-units'); if (S.status === 'soldout'){ label.textContent = S.dropTitle; clock.textContent = 'SOLD OUT'; clock.className = 'clock sold'; units.textContent = 'RESALE AT FACE +10% — IN APP ONLY'; return; } const diff = new Date(S.dropAt) - Date.now(); if (S.status === 'live' || diff <= 0){ label.textContent = S.dropTitle; clock.textContent = 'BOARDING OPEN'; clock.className = 'clock live'; units.textContent = 'PASSES LIVE IN THE APP'; return; } const d = Math.floor(diff / 86400000); const h = Math.floor(diff / 3600000) % 24; const m = Math.floor(diff / 60000) % 60; const s = Math.floor(diff / 1000) % 60; clock.textContent = pad(d) + ':' + pad(h) + ':' + pad(m) + ':' + pad(s); } render(); tick(); setInterval(tick, 1000); fetch('/api/settings') .then(r => r.ok ? r.json() : Promise.reject()) .then(data => { S = { ...DEFAULTS, ...data }; render(); tick(); }) .catch(() => {}); /* static fallback: keep defaults */
+    <script src="/placements.js">
