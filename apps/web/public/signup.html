@@ -298,7 +298,8 @@
 <script>
   const $ = id => document.getElementById(id);
   let step = 0;
-  const TAKEN = ['zora','admin','www','app','port','api','help','offshore'];
+  // Keep in sync with RESERVED_HANDLES in apps/api/src/common/defaults.ts.
+  const TAKEN = ['zora','admin','www','app','port','api','help','offshore','dashboard','events','discover','drops','t'];
 
   function goStep(n){
     step = n;
