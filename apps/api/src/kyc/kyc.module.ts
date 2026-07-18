@@ -2,18 +2,19 @@ import { BadRequestException, Body, Controller, Get, Module, NotFoundException, 
 import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 import { AuditService } from '../audit/audit.module';
 import { KycService } from './kyc.service';
 import { ID_TYPES, KYC_REASONS } from '../common/defaults';
 
+/* KYC records live in the 'kyc' Postgres collection; the encrypted document blobs
+   (.enc) still live on disk via KycService (moved to Supabase Storage in PR-5b). */
 @Controller()
 export class KycController {
-  constructor(private readonly store: FileStore, private readonly kyc: KycService, private readonly audit: AuditService) {}
+  constructor(private readonly entities: EntityStore, private readonly kyc: KycService, private readonly audit: AuditService) {}
 
   // Step 1 — receive one document, encrypt, store privately, return an opaque docId.
-  // (Open in the demo like /api/upload; gate to the authenticated user in production.)
   @Post('kyc/upload')
   upload(@Body() body: any) {
     const { dataUrl } = body || {};
@@ -30,7 +31,7 @@ export class KycController {
 
   // Step 2 — create the verification record from the uploaded docIds.
   @Post('kyc/submit')
-  submit(@Body() body: any, @Req() req: Request) {
+  async submit(@Body() body: any, @Req() req: Request) {
     const { idType, country, fullName, docNumber, documents } = body || {};
     if (!ID_TYPES.includes(idType)) throw new BadRequestException({ error: 'Choose a valid ID type' });
     if (!country) throw new BadRequestException({ error: 'Select your country' });
@@ -42,7 +43,7 @@ export class KycController {
       if (!fs.existsSync(this.kyc.docPath(d.docId))) throw new BadRequestException({ error: 'A document expired before submit — please re-upload' });
       docs.push({ id: d.docId, side: String(d.side || 'front').slice(0, 20), contentType: d.contentType || 'image/jpeg' });
     }
-    const all = this.store.readJson<any[]>('kyc.json', []);
+    const all = await this.entities.read<any[]>('kyc', []);
     const name = String(fullName).trim().slice(0, 120);
     const prior = all.filter((v) => (v.fullName || '').toLowerCase() === name.toLowerCase()).length;
     const dn = String(docNumber || '').replace(/\s+/g, '');
@@ -63,14 +64,14 @@ export class KycController {
     };
     this.kyc.event(rec, 'user', 'submitted', idType + ' / ' + country);
     all.push(rec);
-    this.store.writeJson('kyc.json', all);
+    await this.entities.write('kyc', all);
     return { ok: true, ref: rec.ref, status: rec.status };
   }
 
   // User-facing status poll (by ref, no PII, no documents).
   @Get('kyc/status/:ref')
-  status(@Param('ref') ref: string) {
-    const v = this.store.readJson<any[]>('kyc.json', []).find((x) => x.ref === ref);
+  async status(@Param('ref') ref: string) {
+    const v = (await this.entities.read<any[]>('kyc', [])).find((x) => x.ref === ref);
     if (!v) throw new NotFoundException({ error: 'Not found' });
     let reason: string | null = null;
     if (v.status === 'rejected' && v.rejection) {
@@ -88,15 +89,15 @@ export class KycController {
   // Admin review queue (newest first).
   @UseGuards(SessionGuard)
   @Get('kyc')
-  queue() {
-    return this.store.readJson<any[]>('kyc.json', []).map((v) => this.kyc.public(v)).reverse();
+  async queue() {
+    return (await this.entities.read<any[]>('kyc', [])).map((v) => this.kyc.public(v)).reverse();
   }
 
   // Gated document stream — authenticated admin only, never cached, view is logged.
   @UseGuards(SessionGuard)
   @Get('kyc/:id/documents/:docId')
-  document(@Param('id') id: string, @Param('docId') docId: string, @Res() res: Response) {
-    const all = this.store.readJson<any[]>('kyc.json', []);
+  async document(@Param('id') id: string, @Param('docId') docId: string, @Res() res: Response) {
+    const all = await this.entities.read<any[]>('kyc', []);
     const v = all.find((x) => x.id === id);
     if (!v) return res.status(404).json({ error: 'Not found' });
     const doc = (v.documents || []).find((d: any) => d.id === docId);
@@ -107,7 +108,7 @@ export class KycController {
     try { buf = this.kyc.decrypt(fs.readFileSync(file)); }
     catch { return res.status(500).json({ error: 'Could not decrypt document' }); }
     this.kyc.event(v, 'admin', 'viewed_document', doc.side);
-    this.store.writeJson('kyc.json', all);
+    await this.entities.write('kyc', all);
     res.setHeader('Content-Type', doc.contentType || 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Disposition', 'inline');
@@ -118,13 +119,13 @@ export class KycController {
   @UseGuards(SessionGuard)
   @Post('kyc/:id/approve')
   async approve(@Param('id') id: string, @Req() req: Request) {
-    const all = this.store.readJson<any[]>('kyc.json', []);
+    const all = await this.entities.read<any[]>('kyc', []);
     const v = all.find((x) => x.id === id);
     if (!v) throw new NotFoundException({ error: 'Not found' });
     if (v.status !== 'approved') {
       v.status = 'approved'; v.reviewedAt = new Date().toISOString(); v.reviewedBy = 'admin'; v.rejection = null;
       this.kyc.event(v, 'admin', 'approved');
-      this.store.writeJson('kyc.json', all);
+      await this.entities.write('kyc', all);
       await this.audit.record('kyc_approve', (v.fullName || v.ref) + ' · ' + v.idType + '/' + v.country, req.ip);
     }
     return this.kyc.public(v);
@@ -136,13 +137,13 @@ export class KycController {
   async reject(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
     const { code, note } = body || {};
     if (!KYC_REASONS.find((r) => r.code === code)) throw new BadRequestException({ error: 'Pick a rejection reason' });
-    const all = this.store.readJson<any[]>('kyc.json', []);
+    const all = await this.entities.read<any[]>('kyc', []);
     const v = all.find((x) => x.id === id);
     if (!v) throw new NotFoundException({ error: 'Not found' });
     v.status = 'rejected'; v.reviewedAt = new Date().toISOString(); v.reviewedBy = 'admin';
     v.rejection = { code, note: String(note || '').slice(0, 300) };
     this.kyc.event(v, 'admin', 'rejected', code);
-    this.store.writeJson('kyc.json', all);
+    await this.entities.write('kyc', all);
     await this.audit.record('kyc_reject', (v.fullName || v.ref) + ' · ' + code, req.ip);
     return this.kyc.public(v);
   }

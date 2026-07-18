@@ -13,14 +13,14 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin"
+ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media"
 
 # parallel arrays: public endpoint -> fixture file
 PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
 PUB_FIX=(settings.json tiers.json placements.json storefront-theme.json floorplan.json ticket.svg)
 # authed endpoint -> fixture (login exercises the migrated 'admin' collection)
-AUTH_PATHS=(/api/agents /api/organizers /api/audit)
-AUTH_FIX=(agents.json organizers.json audit.json)
+AUTH_PATHS=(/api/agents /api/organizers /api/audit /api/kyc)
+AUTH_FIX=(agents.json organizers.json audit.json kyc.json)
 
 cleanup() {
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -59,6 +59,13 @@ i=0
 while [ $i -lt ${#PUB_PATHS[@]} ]; do check "${PUB_PATHS[$i]}" "${PUB_FIX[$i]}"; i=$((i+1)); done
 i=0
 while [ $i -lt ${#AUTH_PATHS[@]} ]; do check "${AUTH_PATHS[$i]}" "${AUTH_FIX[$i]}" jar; i=$((i+1)); done
+
+# /api/media has fs-derived 'modified' mtimes -> strip before comparing (golden fixture is also stripped)
+curl -s -b "$jar" "http://localhost:$API_PORT/api/media" \
+  | node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8"));a.forEach(x=>delete x.modified);process.stdout.write(JSON.stringify(a))' > "$SNAP/media-norm"
+if diff -q "$SNAP/media-norm" "$GOLDEN/media.json" >/dev/null; then
+  echo "  ✓ /api/media  ($(wc -c < "$GOLDEN/media.json" | tr -d ' ') bytes, modified-stripped)"
+else echo "  ✗ /api/media DIFFERS"; diff "$GOLDEN/media.json" "$SNAP/media-norm" | head -6; fail=1; fi
 
 echo "== session: impersonation round-trip (signed cookie carries the claim) =="
 curl -s -b "$jar" -c "$jar" -X POST "http://localhost:$API_PORT/api/organizers/o1/impersonate" >/dev/null

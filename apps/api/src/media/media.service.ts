@@ -1,22 +1,22 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { FileStore } from '../storage/file-store.service';
+import { BadRequestException } from '@nestjs/common';
+import { EntityStore } from '../storage/entity-store';
 
-/* Central media management + CDN sorting — direct port of server.js listMedia /
-   imageSize / categorize / upload. ASSETS_DIR is resolved from ZORA_ASSETS_DIR so
-   listings match the legacy oracle during migration. */
+/* Central media management + CDN sorting. Statuses live in the 'media' Postgres
+   collection; the asset files are still read from disk (ZORA_ASSETS_DIR) — the
+   asset blobs move to Supabase Storage in PR-5b. */
 @Injectable()
 export class MediaService {
   readonly assetsDir: string;
 
-  constructor(private readonly store: FileStore) {
+  constructor(private readonly entities: EntityStore) {
     const raw = process.env.ZORA_ASSETS_DIR || path.join(__dirname, '..', '..', 'public', 'assets');
     this.assetsDir = path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
   }
 
-  // Read intrinsic dimensions straight from the file header (PNG + JPEG SOF scan).
   private imageSize(fp: string): { w: number; h: number } | null {
     try {
       const b = fs.readFileSync(fp);
@@ -41,8 +41,8 @@ export class MediaService {
     return 'asset';
   }
 
-  listMedia() {
-    const statuses = this.store.readJson<Record<string, any>>('media.json', {});
+  async listMedia() {
+    const statuses = await this.entities.read<Record<string, any>>('media', {});
     let files: string[] = [];
     try { files = fs.readdirSync(this.assetsDir).filter((f) => /\.(jpe?g|png|gif|webp|avif|svg)$/i.test(f)); } catch {}
     return files
