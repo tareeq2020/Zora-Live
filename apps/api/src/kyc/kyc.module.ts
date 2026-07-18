@@ -1,6 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Module, NotFoundException, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
@@ -9,14 +8,14 @@ import { KycService } from './kyc.service';
 import { ID_TYPES, KYC_REASONS } from '../common/defaults';
 
 /* KYC records live in the 'kyc' Postgres collection; the encrypted document blobs
-   (.enc) still live on disk via KycService (moved to Supabase Storage in PR-5b). */
+   (.enc) live in the private Supabase Storage bucket via KycService. */
 @Controller()
 export class KycController {
   constructor(private readonly entities: EntityStore, private readonly kyc: KycService, private readonly audit: AuditService) {}
 
   // Step 1 — receive one document, encrypt, store privately, return an opaque docId.
   @Post('kyc/upload')
-  upload(@Body() body: any) {
+  async upload(@Body() body: any) {
     const { dataUrl } = body || {};
     const m = /^data:(image\/(?:jpe?g|png|webp)|application\/pdf);base64,/.exec(dataUrl || '');
     if (!m) throw new BadRequestException({ error: 'Upload a JPG, PNG, WEBP or PDF' });
@@ -25,7 +24,7 @@ export class KycController {
     if (!buf.length) throw new BadRequestException({ error: 'Empty file' });
     if (buf.length > 8 * 1024 * 1024) throw new BadRequestException({ error: 'File is over 8MB' });
     const docId = crypto.randomBytes(16).toString('hex');
-    fs.writeFileSync(this.kyc.docPath(docId), this.kyc.encrypt(buf));
+    await this.kyc.store(docId, buf); // encrypt + upload to the private bucket
     return { ok: true, docId, contentType, size: buf.length, sha256: crypto.createHash('sha256').update(buf).digest('hex') };
   }
 
@@ -40,7 +39,7 @@ export class KycController {
     const docs: any[] = [];
     for (const d of documents) {
       if (!d || !/^[a-f0-9]{32}$/.test(d.docId || '')) throw new BadRequestException({ error: 'Bad document reference' });
-      if (!fs.existsSync(this.kyc.docPath(d.docId))) throw new BadRequestException({ error: 'A document expired before submit — please re-upload' });
+      if (!(await this.kyc.exists(d.docId))) throw new BadRequestException({ error: 'A document expired before submit — please re-upload' });
       docs.push({ id: d.docId, side: String(d.side || 'front').slice(0, 20), contentType: d.contentType || 'image/jpeg' });
     }
     const all = await this.entities.read<any[]>('kyc', []);
@@ -102,11 +101,10 @@ export class KycController {
     if (!v) return res.status(404).json({ error: 'Not found' });
     const doc = (v.documents || []).find((d: any) => d.id === docId);
     if (!doc) return res.status(404).json({ error: 'No such document' });
-    const file = this.kyc.docPath(doc.id);
-    if (!fs.existsSync(file)) return res.status(410).json({ error: 'Document purged' });
-    let buf: Buffer;
-    try { buf = this.kyc.decrypt(fs.readFileSync(file)); }
+    let buf: Buffer | null;
+    try { buf = await this.kyc.load(doc.id); }
     catch { return res.status(500).json({ error: 'Could not decrypt document' }); }
+    if (buf === null) return res.status(410).json({ error: 'Document purged' });
     this.kyc.event(v, 'admin', 'viewed_document', doc.side);
     await this.entities.write('kyc', all);
     res.setHeader('Content-Type', doc.contentType || 'image/jpeg');

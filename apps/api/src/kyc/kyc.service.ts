@@ -1,29 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as crypto from 'crypto';
 import { FileStore } from '../storage/file-store.service';
+import { SupabaseStorage } from '../storage/supabase-storage.service';
 import { resolveKycSecret } from '../common/secret';
 
-/* KYC crypto + record helpers — direct port of server.js.
-   SECURITY: documents live in data/kyc-private (outside any static root) and are
-   encrypted at rest with AES-256-GCM. Key = SHA-256('kyc:' + session secret), so
-   it matches the legacy oracle's key when they share a data dir (existing .enc
-   docs stay decryptable). Blob = iv(12) | tag(16) | ciphertext. */
+/* KYC crypto + record helpers.
+   Documents are AES-256-GCM encrypted at rest and stored in a PRIVATE Supabase
+   Storage bucket (kyc-private) — no public URL exists for an ID. Key = SHA-256
+   ('kyc:' + KYC_SECRET). Blob = iv(12) | tag(16) | ciphertext. */
 @Injectable()
 export class KycService {
-  readonly kycDir: string;
   private readonly key: Buffer;
+  private readonly bucket = process.env.KYC_BUCKET || 'kyc-private';
 
-  constructor(store: FileStore) {
-    this.kycDir = path.join(store.dataDir, 'kyc-private');
-    fs.mkdirSync(this.kycDir, { recursive: true });
+  constructor(store: FileStore, private readonly storage: SupabaseStorage) {
     const secret = resolveKycSecret(store.dataDir); // KYC_SECRET env, else the .session-secret file
     this.key = crypto.createHash('sha256').update('kyc:' + secret).digest();
-  }
-
-  docPath(id: string): string {
-    return path.join(this.kycDir, id + '.enc');
   }
 
   encrypt(buf: Buffer): Buffer {
@@ -38,6 +30,21 @@ export class KycService {
     const d = crypto.createDecipheriv('aes-256-gcm', this.key, iv);
     d.setAuthTag(tag);
     return Buffer.concat([d.update(enc), d.final()]);
+  }
+
+  /** Encrypt the raw doc bytes and upload to the private bucket. */
+  async store(id: string, raw: Buffer): Promise<void> {
+    await this.storage.upload(this.bucket, id + '.enc', this.encrypt(raw));
+  }
+
+  /** Download + decrypt; null if the object does not exist. Throws on a decrypt failure. */
+  async load(id: string): Promise<Buffer | null> {
+    const enc = await this.storage.download(this.bucket, id + '.enc');
+    return enc === null ? null : this.decrypt(enc);
+  }
+
+  async exists(id: string): Promise<boolean> {
+    return (await this.storage.download(this.bucket, id + '.enc')) !== null;
   }
 
   // Shape sent to the admin queue — no raw storage internals, doc-number masked.
