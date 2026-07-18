@@ -13,7 +13,7 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media"
+ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest"
 
 # parallel arrays: public endpoint -> fixture file
 PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
@@ -60,7 +60,7 @@ while [ $i -lt ${#PUB_PATHS[@]} ]; do check "${PUB_PATHS[$i]}" "${PUB_FIX[$i]}";
 i=0
 while [ $i -lt ${#AUTH_PATHS[@]} ]; do check "${AUTH_PATHS[$i]}" "${AUTH_FIX[$i]}" jar; i=$((i+1)); done
 
-# /api/media has fs-derived 'modified' mtimes -> strip before comparing (golden fixture is also stripped)
+# /api/media carries per-asset 'modified' (from the media_manifest collection) -> strip before comparing (golden fixture is also stripped)
 curl -s -b "$jar" "http://localhost:$API_PORT/api/media" \
   | node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8"));a.forEach(x=>delete x.modified);process.stdout.write(JSON.stringify(a))' > "$SNAP/media-norm"
 if diff -q "$SNAP/media-norm" "$GOLDEN/media.json" >/dev/null; then
