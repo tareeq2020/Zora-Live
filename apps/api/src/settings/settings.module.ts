@@ -1,23 +1,23 @@
 import { Body, Controller, Get, Module, Put, UseGuards } from '@nestjs/common';
-import { FileStore } from '../storage/file-store.service';
+import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 import { DEFAULT_SETTINGS } from '../common/defaults';
 
 @Controller()
 export class SettingsController {
-  constructor(private readonly store: FileStore) {}
+  constructor(private readonly entities: EntityStore) {}
 
   @Get('settings')
-  get() {
-    return this.store.readJson('settings.json', DEFAULT_SETTINGS);
+  async get() {
+    return this.entities.read('settings', DEFAULT_SETTINGS);
   }
 
   @UseGuards(SessionGuard)
   @Put('settings')
-  update(@Body() body: any) {
-    const current = this.store.readJson('settings.json', DEFAULT_SETTINGS);
+  async update(@Body() body: any) {
+    const current = await this.entities.read('settings', DEFAULT_SETTINGS);
     const updated = { ...current, ...body };
-    this.store.writeJson('settings.json', updated);
+    await this.entities.write('settings', updated);
     return updated;
   }
 }
