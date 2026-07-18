@@ -7,8 +7,13 @@
           node db/backfill.mjs settings tiers placements theme
 */
 import postgres from 'postgres';
+import { config } from 'dotenv';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// Load the API's env (single source for DATABASE_URL); shell env still wins.
+config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', 'apps', 'api', '.env') });
 
 const url = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
 if (!url) { console.error('backfill: set DATABASE_URL'); process.exit(1); }

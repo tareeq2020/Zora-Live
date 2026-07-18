@@ -11,11 +11,14 @@
    Usage: DATABASE_URL_MIGRATE=postgres://... node db/migrate.mjs
 */
 import postgres from 'postgres';
+import { config } from 'dotenv';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// Load the API's env (single source for DATABASE_URL); shell env still wins.
+config({ path: join(HERE, '..', 'apps', 'api', '.env') });
 const MIGRATIONS_DIR = join(HERE, 'migrations');
 const LOCK_KEY = 727274; // arbitrary, shared by all runners
 
