@@ -12,7 +12,12 @@
     "dev": "turbo run dev",
     "start": "turbo run start",
     "lint": "turbo run lint",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "db:migrate": "node db/migrate.mjs",
+    "db:test": "bash db/test/migrate.e2e.sh"
+  },
+  "dependencies": {
+    "postgres": "^3.4.5"
   },
   "devDependencies": {
     "turbo": "^2.5.4"
