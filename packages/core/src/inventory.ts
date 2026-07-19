@@ -23,6 +23,14 @@ export async function releaseHolds(sql: Sql, orderId: string): Promise<void> {
   await sql`select release_order_holds(${orderId}::uuid)`;
 }
 
+/** Payment-success reacquire (PR-7's try_reacquire_order): all-or-nothing re-take
+    of the order's stock when the checkout holds already lapsed. Returns true only
+    if every tier had enough available (else it applies NOTHING). */
+export async function tryReacquire(sql: Sql, orderId: string): Promise<boolean> {
+  const rows = await sql`select try_reacquire_order(${orderId}::uuid) as ok`;
+  return rows[0].ok === true;
+}
+
 /** Soft reserved-bucket hold (available → reserved). Returns reservation id or null. */
 export async function reserveInventory(sql: Sql, tierId: string, refType: string, refId: string, quantity: number, ttlSecs: number): Promise<string | null> {
   const rows = await sql`select reserve_inventory(${tierId}, ${refType}, ${refId}::uuid, ${quantity}, ${ttlSecs}) as id`;
