@@ -1,9 +1,9 @@
-/* SiteFooter — the marketing-plane footer, ported verbatim from the <footer>
-   in public/index.html. The legacy wordmark anchor is replaced by <Wordmark>.
-   Links are kept pointing at the still-static *.html pages (and /admin) so they
-   resolve against today's static site; each conversion PR repoints its own link
-   and the mislinked "ORGANIZERS → /admin" is fixed in F6/F7 per the plan.
-   Styling (.foot / .cols / .legal) comes from the marketing page CSS (F2+). */
+/* SiteFooter — the marketing-plane footer, ported from the <footer> in
+   public/index.html. The legacy wordmark anchor is replaced by <Wordmark>.
+   Internal links are repointed to the clean React routes for F4 (the flagship at
+   /events/offshore, the dashboard at /dashboard/*); the live storefront keeps its
+   still-static tenant page. Styling (.foot / .cols / .legal) comes from the home
+   page CSS. */
 
 import { Wordmark } from './wordmark';
 
@@ -21,14 +21,14 @@ export function SiteFooter() {
           <div>
             EXPLORE
             <a href="#platform">platform</a>
-            <a href="drop-001.html">drop 001</a>
+            <a href="/events/offshore">drop 001</a>
             <a href="#manifesto">manifesto</a>
           </div>
           <div>
             ORGANIZERS
             <a href="/dashboard/onboarding">get started</a>
-            <a href="dashboard.html">dashboard</a>
-            <a href="thebrunchcity.html">live storefront</a>
+            <a href="/dashboard/login">dashboard</a>
+            <a href="/@thebrunchcity">live storefront</a>
             <a href="/dashboard/login">admin</a>
           </div>
           <div>
