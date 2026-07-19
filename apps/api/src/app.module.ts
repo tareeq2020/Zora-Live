@@ -16,6 +16,7 @@ import { ThemeModule } from './theme/theme.module';
 import { AgentsModule } from './agents/agents.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { EventsModule } from './events/events.module';
+import { CheckoutModule } from './checkout/checkout.module';
 
 /* Every feature module = one route group from the legacy server.js.
    StorageModule, AuditModule, TenantModule are @Global (injected everywhere). */
@@ -38,6 +39,7 @@ import { EventsModule } from './events/events.module';
     AgentsModule,
     TicketsModule,
     EventsModule,
+    CheckoutModule,
   ],
 })
 export class AppModule {}
