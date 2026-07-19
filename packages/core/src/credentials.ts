@@ -5,6 +5,7 @@
    verify simultaneously; retiring a key needs no scanner change). Offline &
    constant-time. Does NOT check used/revoked state (that's a DB lookup). */
 import * as crypto from 'crypto';
+import * as QRCode from 'qrcode';
 
 export const QR_SCHEME = 'zora';
 
@@ -61,6 +62,19 @@ export function verifyCredential(claims: CredentialClaims, signature: string, ke
 /** Compact QR payload: `zora:<code>:<signature>` — no personal data. */
 export function qrPayload(code: string, signature: string): string {
   return `${QR_SCHEME}:${code}:${signature}`;
+}
+
+/** Render a QR payload to a PNG buffer (scannable at the gate).
+    Error-correction 'M' tolerates print smudging; 320px suits both inline
+    email display and PDF placement. Caller MUST isolate render failures —
+    a missing QR never blocks delivery (the human public_ref is the fallback). */
+export function renderQrPng(payload: string): Promise<Buffer> {
+  return QRCode.toBuffer(payload, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 320,
+    type: 'png',
+  });
 }
 
 /** Resolve the signing key list from env (comma-separated allows rotation). */
