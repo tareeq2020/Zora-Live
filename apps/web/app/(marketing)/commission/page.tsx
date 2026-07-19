@@ -1,15 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZORA — Pricing & commission</title>
-<meta name="description" content="Zora's ticketing commission, in plain sight. Tanzania launch rate: a flat 5%. No junk fees passed to your buyers, ever.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
+import type { Metadata } from 'next';
+import { Wordmark } from '../../components/wordmark';
+import { ZBot } from '../../components/zbot';
+import { Calc } from './calc';
+
+/* /commission — React port of public/commission.html (the "pricing" route). Keeps
+   its own nav/footer, inline <style> and per-page fonts. The calculator is <Calc>
+   and the support widget is <ZBot> (both client). Links to still-static pages
+   (signup) keep their .html target; converted pages get clean routes. */
+
+export const metadata: Metadata = {
+  title: 'ZORA — Pricing & commission',
+  description:
+    "Zora's ticketing commission, in plain sight. Tanzania launch rate: a flat 5%. No junk fees passed to your buyers, ever.",
+};
+
+const CSS = `
   :root{
     --black:#0A0A0B; --ink:#101012; --ink2:#16161A; --hair:#26262B; --hair2:#33333A;
     --bone:#F4F1EA; --mut:#8A877E; --mut2:#B4B1A8;
@@ -126,150 +131,111 @@
   .zbot-input input:focus{border-color:var(--blue)}
   .zbot-input button{background:var(--blue);border:none;border-radius:10px;width:42px;color:var(--bone);cursor:pointer;display:flex;align-items:center;justify-content:center}
   .zbot-input button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2}
-</style>
-<link rel="stylesheet" href="/zora-tokens.css">
-<script src="/zora-theme.js"></script>
-</head>
-<body>
+`;
 
-<nav>
-  <div class="wrap nav-in">
-    <a href="index.html" class="wordmark">z<span class="o">o</span>ra</a>
-    <div class="nav-links">
-      <a href="discover.html">events</a>
-      <a href="about.html">about</a>
-      <a href="commission.html" class="on">pricing</a>
-      <a href="help.html">help</a>
-    </div>
-    <a href="signup.html" class="nav-cta">START SELLING</a>
-  </div>
-</nav>
+export default function CommissionPage() {
+  return (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-<section>
-  <div class="wrap">
-    <p class="kicker">PRICING &amp; COMMISSION</p>
-    <h1>Fair pricing, in <span class="g">plain sight</span>.</h1>
-    <p class="lede">One flat commission on tickets sold. No listing fees, no monthly fees, and — the part your crowd will love — nothing added at their checkout.</p>
+      <nav>
+        <div className="wrap nav-in">
+          <Wordmark href="/" />
+          <div className="nav-links">
+            <a href="/discover">events</a>
+            <a href="/about">about</a>
+            <a href="/commission" className="on">pricing</a>
+            <a href="/help">help</a>
+          </div>
+          <a href="/signup.html" className="nav-cta">START SELLING</a>
+        </div>
+      </nav>
 
-    <div class="rate-card">
-      <div class="rate-big">5%<small>PER TICKET SOLD</small></div>
-      <div class="rate-txt">
-        <span class="flag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 21V4l7 2 7-2v11l-7 2-7-2"/></svg>TANZANIA LAUNCH RATE</span>
-        <h2>5% flat, for our Tanzania starters.</h2>
-        <p>For the initial rollout in Tanzania, platform commission is a competitive <b style="color:var(--bone)">5%</b> of face value — well below the 10–15%+ (plus buyer fees) charged by the global platforms. Lock it in early.</p>
-      </div>
-    </div>
-  </div>
-</section>
+      <section>
+        <div className="wrap">
+          <p className="kicker">PRICING &amp; COMMISSION</p>
+          <h1>Fair pricing, in <span className="g">plain sight</span>.</h1>
+          <p className="lede">One flat commission on tickets sold. No listing fees, no monthly fees, and — the part your crowd will love — nothing added at their checkout.</p>
 
-<section>
-  <div class="wrap">
-    <p class="kicker">HOW IT WORKS</p>
-    <h2 class="sec">Where every shilling goes.</h2>
-    <div class="flow">
-      <div class="node">
-        <p class="nl">BUYER PAYS</p><p class="nv">50,000</p>
-        <p class="nd">The face price you set. That's the exact number at checkout.</p>
-      </div>
-      <div class="arrow">&rarr;</div>
-      <div class="node">
-        <p class="nl">ZORA — 5%</p><p class="nv" style="color:var(--orange)">2,500</p>
-        <p class="nd">One flat line. Payments, dashboard, marketing — all in.</p>
-      </div>
-      <div class="arrow">&rarr;</div>
-      <div class="node net">
-        <p class="nl">YOU KEEP</p><p class="nv">47,500</p>
-        <p class="nd">Settled to mobile money or bank on your schedule.</p>
-      </div>
-    </div>
+          <div className="rate-card">
+            <div className="rate-big">5%<small>PER TICKET SOLD</small></div>
+            <div className="rate-txt">
+              <span className="flag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 21V4l7 2 7-2v11l-7 2-7-2" /></svg>TANZANIA LAUNCH RATE</span>
+              <h2>5% flat, for our Tanzania starters.</h2>
+              <p>For the initial rollout in Tanzania, platform commission is a competitive <b style={{ color: 'var(--bone)' }}>5%</b> of face value — well below the 10–15%+ (plus buyer fees) charged by the global platforms. Lock it in early.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <div class="calc">
-      <p class="kicker" style="margin-bottom:20px">QUICK CALCULATOR</p>
-      <div class="calc-grid">
-        <div><label>TICKET PRICE (TZS)</label><input id="c-price" type="number" min="0" value="50000"></div>
-        <div><label>TICKETS SOLD</label><input id="c-qty" type="number" min="0" value="500"></div>
-      </div>
-      <div class="calc-out">
-        <div class="co"><p class="col">GROSS SALES</p><p class="cov mono" id="o-gross">—</p></div>
-        <div class="co zora"><p class="col">ZORA 5%</p><p class="cov mono" id="o-fee">—</p></div>
-        <div class="co net"><p class="col">YOUR NET</p><p class="cov mono" id="o-net">—</p></div>
-      </div>
-    </div>
-  </div>
-</section>
+      <section>
+        <div className="wrap">
+          <p className="kicker">HOW IT WORKS</p>
+          <h2 className="sec">Where every shilling goes.</h2>
+          <div className="flow">
+            <div className="node">
+              <p className="nl">BUYER PAYS</p><p className="nv">50,000</p>
+              <p className="nd">The face price you set. That&apos;s the exact number at checkout.</p>
+            </div>
+            <div className="arrow">&rarr;</div>
+            <div className="node">
+              <p className="nl">ZORA — 5%</p><p className="nv" style={{ color: 'var(--orange)' }}>2,500</p>
+              <p className="nd">One flat line. Payments, dashboard, marketing — all in.</p>
+            </div>
+            <div className="arrow">&rarr;</div>
+            <div className="node net">
+              <p className="nl">YOU KEEP</p><p className="nv">47,500</p>
+              <p className="nd">Settled to mobile money or bank on your schedule.</p>
+            </div>
+          </div>
 
-<section>
-  <div class="wrap">
-    <p class="kicker">WHAT THE 5% INCLUDES</p>
-    <h2 class="sec">Everything, actually.</h2>
-    <div class="incl">
-      <div class="inc"><div class="ic">&#9679;</div><h3>Payments &amp; payouts</h3><p>Card and mobile money in, fast settlement out. No separate processor bill.</p></div>
-      <div class="inc"><div class="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zora.com, live in minutes.</p></div>
-      <div class="inc"><div class="ic">&#9650;</div><h3>Dashboard &amp; CRM</h3><p>Real-time sales, entry scans, and a customer database that's yours.</p></div>
-      <div class="inc"><div class="ic">&#9993;</div><h3>Built-in marketing</h3><p>Native email to your audience. No Mailchimp, no add-on.</p></div>
-    </div>
+          <Calc />
+        </div>
+      </section>
 
-    <div class="promise">
-      <div class="pi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-      <div>
-        <h3>Zero fees at checkout — the buyer promise.</h3>
-        <p>The 5% comes out of your side, not theirs. Buyers see one honest number and pay exactly that. No service fee, no facility fee, no surprise on the last screen. It's the reason they trust the checkout.</p>
-      </div>
-    </div>
-  </div>
-</section>
+      <section>
+        <div className="wrap">
+          <p className="kicker">WHAT THE 5% INCLUDES</p>
+          <h2 className="sec">Everything, actually.</h2>
+          <div className="incl">
+            <div className="inc"><div className="ic">&#9679;</div><h3>Payments &amp; payouts</h3><p>Card and mobile money in, fast settlement out. No separate processor bill.</p></div>
+            <div className="inc"><div className="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zora.com, live in minutes.</p></div>
+            <div className="inc"><div className="ic">&#9650;</div><h3>Dashboard &amp; CRM</h3><p>Real-time sales, entry scans, and a customer database that&apos;s yours.</p></div>
+            <div className="inc"><div className="ic">&#9993;</div><h3>Built-in marketing</h3><p>Native email to your audience. No Mailchimp, no add-on.</p></div>
+          </div>
 
-<section class="cta">
-  <div class="wrap">
-    <h2>Lock in 5% while it lasts.</h2>
-    <p>Open your dashboard, claim your address, and start selling today.</p>
-    <a class="big-btn" href="signup.html">START SELLING ON ZORA</a>
-  </div>
-</section>
+          <div className="promise">
+            <div className="pi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></div>
+            <div>
+              <h3>Zero fees at checkout — the buyer promise.</h3>
+              <p>The 5% comes out of your side, not theirs. Buyers see one honest number and pay exactly that. No service fee, no facility fee, no surprise on the last screen. It&apos;s the reason they trust the checkout.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<footer>
-  <div class="wrap foot">
-    <span>© 2026 ZORA · PRICING SHOWN IS THE TANZANIA LAUNCH RATE</span>
-    <span><a href="help.html">help centre</a> &middot; <a href="about.html">about</a> &middot; <a href="index.html">home</a></span>
-  </div>
-</footer>
+      <section className="cta">
+        <div className="wrap">
+          <h2>Lock in 5% while it lasts.</h2>
+          <p>Open your dashboard, claim your address, and start selling today.</p>
+          <a className="big-btn" href="/signup.html">START SELLING ON ZORA</a>
+        </div>
+      </section>
 
-<!-- chat widget -->
-<div class="zbot" id="zbot">
-  <button class="zbot-fab" id="zbot-fab" aria-label="Open help chat">
-    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Help
-  </button>
-  <div class="zbot-panel" id="zbot-panel" role="dialog" aria-label="Zora help chat">
-    <div class="zbot-head">
-      <span class="zbot-avatar">Z</span>
-      <div><p class="zbot-name">Zora Assist</p><p class="zbot-status"><span class="d"></span>Online · replies instantly</p></div>
-      <button class="zbot-x" id="zbot-x" aria-label="Close">&times;</button>
-    </div>
-    <div class="zbot-msgs" id="zbot-msgs"></div>
-    <div class="zbot-quick" id="zbot-quick"></div>
-    <form class="zbot-input" id="zbot-form">
-      <input id="zbot-text" placeholder="Type your question…" autocomplete="off">
-      <button type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
-    </form>
-  </div>
-</div>
+      <footer>
+        <div className="wrap foot">
+          <span>© 2026 ZORA · PRICING SHOWN IS THE TANZANIA LAUNCH RATE</span>
+          <span><a href="/help">help centre</a> &middot; <a href="/about">about</a> &middot; <a href="/">home</a></span>
+        </div>
+      </footer>
 
-<script>
-  /* ── commission calculator ── */
-  const nf = new Intl.NumberFormat('en-US');
-  function calc(){
-    const p = Math.max(0, parseFloat(document.getElementById('c-price').value) || 0);
-    const q = Math.max(0, parseInt(document.getElementById('c-qty').value) || 0);
-    const gross = p * q, fee = Math.round(gross * 0.05), net = gross - fee;
-    document.getElementById('o-gross').textContent = nf.format(gross) + ' TZS';
-    document.getElementById('o-fee').textContent = '−' + nf.format(fee) + ' TZS';
-    document.getElementById('o-net').textContent = nf.format(net) + ' TZS';
-  }
-  document.getElementById('c-price').addEventListener('input', calc);
-  document.getElementById('c-qty').addEventListener('input', calc);
-  calc();
-</script>
-<script src="zbot.js"></script>
-
-</body>
-</html>
+      <ZBot />
+    </>
+  );
+}

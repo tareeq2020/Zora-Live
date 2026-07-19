@@ -1,21 +1,13 @@
 import type { ReactNode } from 'react';
-import { SiteNav } from '../components/site-nav';
-import { SiteFooter } from '../components/site-footer';
-import { ThemeToggle } from '../components/theme-toggle';
+import { MarketingChrome } from './marketing-chrome';
 
 /* Marketing plane (Plane 1 — consumer marketing + marketplace). Wraps its pages
-   in the shared marketing chrome: <SiteNav>, the page, <SiteFooter>, and the
-   floating <ThemeToggle> that zora-theme.js used to append. No page routes live
-   in this group yet (F1 is foundation only); F2+ add about/brand/commission/
-   help/discover here and delete their static twins. */
+   in the shared marketing chrome via <MarketingChrome>, which renders the shared
+   <SiteNav>/<SiteFooter> for routes that match them (home, F4) but omits them for
+   routes that carry their own divergent nav/footer (about/help/commission/brand/
+   discover, F2). The floating <ThemeToggle> — which zora-theme.js used to append
+   to <body> — is always present. */
 
 export default function MarketingLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <SiteNav />
-      {children}
-      <SiteFooter />
-      <ThemeToggle />
-    </>
-  );
+  return <MarketingChrome>{children}</MarketingChrome>;
 }
