@@ -1,121 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZORA STUDIO — Storefront customizer</title>
-<meta name="description" content="Design your white-label Zora storefront. Live preview, drag-drop assets, publish to your subdomain.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4F1EA'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --paper:#F4F1EA; --card:#FBF9F4; --ink:#0A0A0B; --hair:#DDD8CB; --hair2:#C9C3B4; --mut:#8A877E;
-    --blue:#3D5AFE; --bluewash:#E8EBFE; --green:#1D9E75;
-    --sans:'Archivo',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%}
-  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased;overflow:hidden}
-  a{color:inherit;text-decoration:none}
-  .mono{font-family:var(--mono)}
-  button{font-family:inherit}
+'use client';
 
-  .studio{display:flex;flex-direction:column;height:100dvh}
+/* PR-F6/F7 — the white-label storefront customizer (studio.html) at
+   /dashboard/storefront/studio, rebranded from bare "STUDIO" to the
+   "Storefront Studio" mode of the dashboard. Faithful port: page-scoped styles +
+   markup via dangerouslySetInnerHTML, original script (live postMessage preview,
+   drag-drop CDN uploads, PUT /api/storefront-theme) run once on mount. Styles
+   scoped under `.zora-studio`; the DASHBOARD breadcrumb points to /dashboard and
+   the preview iframe to the still-static /thebrunchcity.html. */
 
-  /* top bar */
-  .top{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--hair);background:var(--card);flex-shrink:0}
-  .top .back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut)}
-  .top .back:hover{color:var(--ink)}
-  .top .brand{font-weight:600;font-size:16px;letter-spacing:-.02em}
-  .top .brand .o{color:var(--blue)}
-  .top .brand small{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--mut);margin-left:10px}
-  .top .url{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--mut);background:var(--paper);border:1px solid var(--hair);border-radius:8px;padding:8px 14px}
-  .top .url b{color:var(--ink);font-weight:500}
-  .top .save-state{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--mut)}
-  .publish{background:var(--ink);color:var(--paper);border:none;border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s}
-  .publish:hover{background:var(--blue)}
-  .publish:disabled{opacity:.5;cursor:wait}
+import { useEffect } from 'react';
 
-  /* workspace split */
-  .workspace{display:flex;flex:1;min-height:0}
-  .controls{width:35%;min-width:340px;max-width:460px;border-right:1px solid var(--hair);overflow-y:auto;background:var(--card)}
-  .preview{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--paper)}
-  @media(max-width:820px){.workspace{flex-direction:column}.controls{width:100%;max-width:none;height:auto}}
+const STYLE = `
+.zora-studio{--paper:#F4F1EA;--card:#FBF9F4;--ink:#0A0A0B;--hair:#DDD8CB;--hair2:#C9C3B4;--mut:#8A877E;--blue:#3D5AFE;--bluewash:#E8EBFE;--green:#1D9E75;--sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased;height:100dvh;overflow:hidden}
+.zora-studio *{margin:0;padding:0;box-sizing:border-box}
+.zora-studio a{color:inherit;text-decoration:none}
+.zora-studio .mono{font-family:var(--mono)}
+.zora-studio button{font-family:inherit}
+.zora-studio .studio{display:flex;flex-direction:column;height:100dvh}
+.zora-studio .top{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--hair);background:var(--card);flex-shrink:0}
+.zora-studio .top .back{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut)}
+.zora-studio .top .back:hover{color:var(--ink)}
+.zora-studio .top .brand{font-weight:600;font-size:16px;letter-spacing:-.02em}
+.zora-studio .top .brand .o{color:var(--blue)}
+.zora-studio .top .brand small{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--mut);margin-left:10px}
+.zora-studio .top .url{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--mut);background:var(--paper);border:1px solid var(--hair);border-radius:8px;padding:8px 14px}
+.zora-studio .top .url b{color:var(--ink);font-weight:500}
+.zora-studio .top .save-state{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--mut)}
+.zora-studio .publish{background:var(--ink);color:var(--paper);border:none;border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s}
+.zora-studio .publish:hover{background:var(--blue)}
+.zora-studio .publish:disabled{opacity:.5;cursor:wait}
+.zora-studio .workspace{display:flex;flex:1;min-height:0}
+.zora-studio .controls{width:35%;min-width:340px;max-width:460px;border-right:1px solid var(--hair);overflow-y:auto;background:var(--card)}
+.zora-studio .preview{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--paper)}
+@media(max-width:820px){.zora-studio .workspace{flex-direction:column}.zora-studio .controls{width:100%;max-width:none;height:auto}}
+.zora-studio .acc{border-bottom:1px solid var(--hair)}
+.zora-studio .acc-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:18px 22px;background:none;border:none;cursor:pointer;text-align:left}
+.zora-studio .acc-h .t{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--ink)}
+.zora-studio .acc-h .n{font-family:var(--mono);font-size:10px;color:var(--mut);margin-right:10px}
+.zora-studio .acc-h .chev{color:var(--mut);transition:transform .2s;font-size:12px}
+.zora-studio .acc.open .acc-h .chev{transform:rotate(180deg);color:var(--blue)}
+.zora-studio .acc-body{display:none;padding:4px 22px 26px}
+.zora-studio .acc.open .acc-body{display:block}
+.zora-studio label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--mut);margin-bottom:8px}
+.zora-studio .field{margin-bottom:20px}
+.zora-studio .in{width:100%;background:var(--paper);border:1px solid var(--hair);border-radius:9px;color:var(--ink);font-family:var(--sans);font-size:14px;padding:11px 13px;outline:none;transition:border-color .2s}
+.zora-studio .in:focus{border-color:var(--blue)}
+.zora-studio select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center}
+.zora-studio .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:9px;overflow:hidden;background:var(--paper)}
+.zora-studio .handle-wrap:focus-within{border-color:var(--blue)}
+.zora-studio .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:13.5px;padding:11px 4px 11px 13px;background:none;text-align:right}
+.zora-studio .handle-wrap .suf{display:flex;align-items:center;padding:0 13px 0 0;font-family:var(--mono);font-size:13.5px;color:var(--mut)}
+.zora-studio .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--paper);min-height:104px;display:flex;align-items:center;gap:14px;padding:14px;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.zora-studio .dz:hover{border-color:var(--hair2)}
+.zora-studio .dz.drag{border-color:var(--blue);background:var(--bluewash)}
+.zora-studio .dz .thumb{width:76px;height:76px;border-radius:10px;background:var(--card) center/contain no-repeat;border:1px solid var(--hair);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--mut);font-family:var(--mono);font-size:9px;overflow:hidden}
+.zora-studio .dz .dz-txt{flex:1;min-width:0}
+.zora-studio .dz .dz-txt .tt{font-size:13px;font-weight:500}
+.zora-studio .dz .dz-txt .tt b{color:var(--blue)}
+.zora-studio .dz .dz-txt .dd{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);margin-top:5px;line-height:1.6}
+.zora-studio .dz .dz-txt .up{font-family:var(--mono);font-size:9.5px;color:var(--green);margin-top:5px}
+.zora-studio .dz .dz-txt .up.err{color:#C0431F}
+.zora-studio .dz .rm{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);border:none;width:22px;height:22px;border-radius:50%;font-size:13px;cursor:pointer;display:none}
+.zora-studio .dz.filled .rm{display:block}
+.zora-studio .color-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.zora-studio .color-row .cl{flex:1;font-size:13px}
+.zora-studio .color-row .cl small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mut);margin-top:2px}
+.zora-studio .color-row .hex{width:96px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;background:var(--paper);border:1px solid var(--hair);border-radius:8px;padding:9px 10px;outline:none}
+.zora-studio .color-row .hex:focus{border-color:var(--blue)}
+.zora-studio .swatch{width:38px;height:38px;border-radius:9px;border:1px solid var(--hair);padding:0;cursor:pointer;overflow:hidden}
+.zora-studio .swatch::-webkit-color-swatch-wrapper{padding:0}
+.zora-studio .swatch::-webkit-color-swatch{border:none;border-radius:8px}
+.zora-studio .pv-bar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--hair);flex-shrink:0}
+.zora-studio .seg{display:flex;background:var(--card);border:1px solid var(--hair);border-radius:9px;padding:4px;gap:4px}
+.zora-studio .seg button{border:none;background:none;border-radius:6px;padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--mut);cursor:pointer;display:flex;align-items:center;gap:7px}
+.zora-studio .seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.zora-studio .seg button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
+.zora-studio .pv-url{font-family:var(--mono);font-size:11.5px;color:var(--mut);background:var(--card);border:1px solid var(--hair);border-radius:8px;padding:8px 14px}
+.zora-studio .pv-reload{margin-left:auto;background:none;border:1px solid var(--hair);border-radius:8px;color:var(--mut);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;padding:9px 14px;cursor:pointer}
+.zora-studio .pv-reload:hover{border-color:var(--blue);color:var(--blue)}
+.zora-studio .pv-stage{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:26px;background:repeating-conic-gradient(#EEE9DE 0% 25%, #F4F1EA 0% 50%) 50% / 22px 22px}
+.zora-studio .device{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.14);transition:width .3s,max-width .3s;width:100%;max-width:1200px;height:calc(100dvh - 200px)}
+.zora-studio .device.mobile{width:390px;max-width:390px;border-radius:34px;border:9px solid #111;height:780px;max-height:calc(100dvh - 150px)}
+.zora-studio .device iframe{width:100%;height:100%;border:none;display:block;background:#fff}
+.zora-studio .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:13px 26px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+.zora-studio .toast.err{background:#C0431F}
+.zora-studio .toast.show{opacity:1}
+`;
 
-  /* accordion */
-  .acc{border-bottom:1px solid var(--hair)}
-  .acc-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:18px 22px;background:none;border:none;cursor:pointer;text-align:left}
-  .acc-h .t{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--ink)}
-  .acc-h .n{font-family:var(--mono);font-size:10px;color:var(--mut);margin-right:10px}
-  .acc-h .chev{color:var(--mut);transition:transform .2s;font-size:12px}
-  .acc.open .acc-h .chev{transform:rotate(180deg);color:var(--blue)}
-  .acc-body{display:none;padding:4px 22px 26px}
-  .acc.open .acc-body{display:block}
-
-  label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--mut);margin-bottom:8px}
-  .field{margin-bottom:20px}
-  .in{width:100%;background:var(--paper);border:1px solid var(--hair);border-radius:9px;color:var(--ink);font-family:var(--sans);font-size:14px;padding:11px 13px;outline:none;transition:border-color .2s}
-  .in:focus{border-color:var(--blue)}
-  select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center}
-  .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:9px;overflow:hidden;background:var(--paper)}
-  .handle-wrap:focus-within{border-color:var(--blue)}
-  .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:13.5px;padding:11px 4px 11px 13px;background:none;text-align:right}
-  .handle-wrap .suf{display:flex;align-items:center;padding:0 13px 0 0;font-family:var(--mono);font-size:13.5px;color:var(--mut)}
-
-  /* dropzone */
-  .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--paper);min-height:104px;display:flex;align-items:center;gap:14px;padding:14px;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
-  .dz:hover{border-color:var(--hair2)}
-  .dz.drag{border-color:var(--blue);background:var(--bluewash)}
-  .dz .thumb{width:76px;height:76px;border-radius:10px;background:var(--card) center/contain no-repeat;border:1px solid var(--hair);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--mut);font-family:var(--mono);font-size:9px;overflow:hidden}
-  .dz .dz-txt{flex:1;min-width:0}
-  .dz .dz-txt .tt{font-size:13px;font-weight:500}
-  .dz .dz-txt .tt b{color:var(--blue)}
-  .dz .dz-txt .dd{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--mut);margin-top:5px;line-height:1.6}
-  .dz .dz-txt .up{font-family:var(--mono);font-size:9.5px;color:var(--green);margin-top:5px}
-  .dz .dz-txt .up.err{color:#C0431F}
-  .dz .rm{position:absolute;top:8px;right:8px;background:var(--ink);color:var(--paper);border:none;width:22px;height:22px;border-radius:50%;font-size:13px;cursor:pointer;display:none}
-  .dz.filled .rm{display:block}
-
-  /* color rows */
-  .color-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-  .color-row .cl{flex:1;font-size:13px}
-  .color-row .cl small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mut);margin-top:2px}
-  .color-row .hex{width:96px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;background:var(--paper);border:1px solid var(--hair);border-radius:8px;padding:9px 10px;outline:none}
-  .color-row .hex:focus{border-color:var(--blue)}
-  .swatch{width:38px;height:38px;border-radius:9px;border:1px solid var(--hair);padding:0;cursor:pointer;overflow:hidden}
-  .swatch::-webkit-color-swatch-wrapper{padding:0}
-  .swatch::-webkit-color-swatch{border:none;border-radius:8px}
-
-  /* preview */
-  .pv-bar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--hair);flex-shrink:0}
-  .seg{display:flex;background:var(--card);border:1px solid var(--hair);border-radius:9px;padding:4px;gap:4px}
-  .seg button{border:none;background:none;border-radius:6px;padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--mut);cursor:pointer;display:flex;align-items:center;gap:7px}
-  .seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
-  .seg button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
-  .pv-url{font-family:var(--mono);font-size:11.5px;color:var(--mut);background:var(--card);border:1px solid var(--hair);border-radius:8px;padding:8px 14px}
-  .pv-reload{margin-left:auto;background:none;border:1px solid var(--hair);border-radius:8px;color:var(--mut);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;padding:9px 14px;cursor:pointer}
-  .pv-reload:hover{border-color:var(--blue);color:var(--blue)}
-
-  .pv-stage{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:26px;background:repeating-conic-gradient(#EEE9DE 0% 25%, #F4F1EA 0% 50%) 50% / 22px 22px}
-  .device{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.14);transition:width .3s,max-width .3s;width:100%;max-width:1200px;height:calc(100dvh - 200px)}
-  .device.mobile{width:390px;max-width:390px;border-radius:34px;border:9px solid #111;height:780px;max-height:calc(100dvh - 150px)}
-  .device iframe{width:100%;height:100%;border:none;display:block;background:#fff}
-
-  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:13px 26px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
-  .toast.err{background:#C0431F}
-  .toast.show{opacity:1}
-</style>
-<link rel="stylesheet" href="/zora-tokens.css">
-<script src="/zora-theme.js"></script>
-</head>
-<body data-ui="creator">
-
+const MARKUP = `
 <div class="studio">
   <div class="top">
-    <a class="back" href="dashboard.html">&larr; DASHBOARD</a>
-    <span class="brand">z<span class="o">o</span>ra<small>STUDIO</small></span>
+    <a class="back" href="/dashboard">&larr; DASHBOARD</a>
+    <span class="brand">z<span class="o">o</span>ra<small>STOREFRONT STUDIO</small></span>
     <span class="url" id="live-url">thebrunchcity.zora.com</span>
     <span class="save-state" id="save-state">All changes staged</span>
     <button class="publish" id="publish">PUBLISH TO WEB</button>
@@ -217,7 +193,7 @@
       </div>
       <div class="pv-stage">
         <div class="device" id="device">
-          <iframe id="preview-frame" src="thebrunchcity.html?preview=1" title="Storefront preview"></iframe>
+          <iframe id="preview-frame" src="/thebrunchcity.html?preview=1" title="Storefront preview"></iframe>
         </div>
       </div>
     </main>
@@ -225,8 +201,9 @@
 </div>
 
 <p class="toast" id="toast"></p>
+`;
 
-<script>
+const SCRIPT = String.raw`
   const $ = id => document.getElementById(id);
   function toast(m, err){ const t=$('toast'); t.textContent=m; t.className='toast show'+(err?' err':''); clearTimeout(t._h); t._h=setTimeout(()=>t.className='toast'+(err?' err':''),2600); }
 
@@ -239,7 +216,7 @@
 
   const frame = $('preview-frame');
   let frameReady = false;
-  function pushToPreview(){                 // instant, no reload — postMessage a CSS-variable patch
+  function pushToPreview(){
     if (!frameReady) return;
     frame.contentWindow.postMessage({ type:'zora-theme', theme }, '*');
   }
@@ -284,7 +261,7 @@
       if(err){ up.textContent=err; up.className='up err'; return; }
       const reader=new FileReader();
       reader.onload=async ev=>{
-        thumb.style.backgroundImage='url('+ev.target.result+')'; thumb.textContent=''; dz.classList.add('filled'); // instant client-side preview
+        thumb.style.backgroundImage='url('+ev.target.result+')'; thumb.textContent=''; dz.classList.add('filled');
         up.textContent='Uploading to CDN…'; up.className='up';
         try{
           const r=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.name,dataUrl:ev.target.result})});
@@ -339,7 +316,26 @@
     });
     pushToPreview();
   }).catch(()=>{});
-</script>
+`;
 
-</body>
-</html>
+export default function StorefrontStudioPage() {
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function(SCRIPT)();
+    } catch (e) {
+      console.error('[storefront-studio] script error', e);
+    }
+  }, []);
+
+  return (
+    <>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: STYLE }} />
+      <div className="zora-studio" dangerouslySetInnerHTML={{ __html: MARKUP }} />
+    </>
+  );
+}
