@@ -8,7 +8,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "db:test:xbridge": "node --test test/xbridge.test.mjs"
   },
   "dependencies": {
     "postgres": "^3.4.5"
