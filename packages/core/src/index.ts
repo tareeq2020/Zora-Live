@@ -14,3 +14,19 @@ export { createGaVipOrder, issueCredentials, SoldOut } from './payments/service'
 export type {
   CartLine, CreateGaVipOrderInput, CreateGaVipOrderResult,
 } from './payments/service';
+export {
+  resolveFsp, feeRateForFsp, DEFAULT_FSP_ROUTE_MAP, DEFAULT_FEE_RATE,
+} from './payments/fsp';
+export type { FspId, PaymentMethod, FspRouteMap } from './payments/fsp';
+export {
+  xbridgeConfig, normalizeMsisdn, cardCheckoutUrl,
+  collectMobile, collectBillPay, collectCard, collectionStatus,
+  __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus,
+} from './payments/xbridge';
+export type {
+  XbridgeConfig,
+  CollectMobileInput, CollectMobileResponse,
+  CollectBillPayInput, CollectBillPayResponse,
+  CollectCardInput, CollectCardResponse,
+  CollectionStatus, CollectionStatusResponse,
+} from './payments/xbridge';
