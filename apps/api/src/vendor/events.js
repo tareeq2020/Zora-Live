@@ -24,6 +24,11 @@ function writeLocal(rows) {
 }
 function byDate(a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }
 
+// Canonical slug aliases: friendly flagship URLs (/events/offshore) resolve to the
+// real event id (offshore-001). Keeps the marketing URL stable if the id ever moves.
+const SLUG_ALIASES = { offshore: 'offshore-001' };
+function resolveSlug(id) { return SLUG_ALIASES[id] || id; }
+
 // Supabase row → the site's canonical event shape. `props` holds the full object;
 // fall back to top-level columns for rows written before props existed.
 function fromRow(r) {
@@ -58,6 +63,7 @@ async function listEvents(city) {
 }
 
 async function getEvent(id) {
+  id = resolveSlug(id);
   if (supabase) {
     // id is the slug (events.json id). Match props->>id, or the uuid as fallback.
     const { data, error } = await supabase.from('events').select('*');
@@ -94,4 +100,4 @@ async function upsertEvent(event) {
   return row;
 }
 
-module.exports = { listEvents, getEvent, upsertEvent };
+module.exports = { listEvents, getEvent, upsertEvent, resolveSlug };
