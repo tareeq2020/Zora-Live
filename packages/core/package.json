@@ -12,10 +12,13 @@
     "db:test:xbridge": "node --test test/xbridge.test.mjs"
   },
   "dependencies": {
-    "postgres": "^3.4.5"
+    "pdf-lib": "^1.17.1",
+    "postgres": "^3.4.5",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
+    "@types/qrcode": "^1.5.5",
     "typescript": "^5.6.2"
   }
 }
