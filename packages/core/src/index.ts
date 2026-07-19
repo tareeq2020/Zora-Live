@@ -8,6 +8,7 @@ export {
 export type { PoolSnapshot } from './inventory';
 export {
   QR_SCHEME, generateCode, generatePublicRef, signCredential, verifyCredential, qrPayload, ticketSigningKeys,
+  renderQrPng,
 } from './credentials';
 export type { CredentialClaims } from './credentials';
 export { createGaVipOrder, issueCredentials, SoldOut } from './payments/service';
@@ -30,3 +31,11 @@ export type {
   CollectCardInput, CollectCardResponse,
   CollectionStatus, CollectionStatusResponse,
 } from './payments/xbridge';
+export { buildTicketsPdf } from './credentials/ticket-pdf';
+export type { TicketForPdf } from './credentials/ticket-pdf';
+export { sendSms } from './sms';
+export type { SmsDriver, SmsResult } from './sms';
+export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
+export type {
+  EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
+} from './email';
