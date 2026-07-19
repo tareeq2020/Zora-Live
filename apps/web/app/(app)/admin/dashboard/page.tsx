@@ -1,174 +1,184 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZORA — Control room</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;
-        --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace}
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-  a{color:inherit;text-decoration:none}
-  .mono{font-family:var(--mono)}
+'use client';
 
-  header{position:sticky;top:0;z-index:20;background:var(--c-nav);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
-  .head-in{max-width:1100px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between}
-  .wordmark{font-weight:600;font-size:20px;letter-spacing:-.02em}
-  .wordmark .o{color:var(--blue)}
-  .wordmark small{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--mut);margin-left:12px}
-  .head-actions{display:flex;gap:18px;align-items:center;font-family:var(--mono);font-size:11.5px;letter-spacing:.1em}
-  .head-actions a{color:var(--mut)} .head-actions a:hover{color:var(--bone)}
-  .head-actions button{background:none;border:1px solid var(--hair);color:var(--mut);font-family:var(--mono);font-size:11px;letter-spacing:.15em;padding:8px 14px;cursor:pointer}
-  .head-actions button:hover{border-color:var(--orange);color:var(--orange)}
+/* PR-F9 — the INTERNAL STAFF console (admin/dashboard.html) as a React route at
+   /admin/dashboard. The middleware /admin gate rewrites an authenticated admin
+   here; an anon lands on /admin/login instead.
 
-  .tabs{max-width:1100px;margin:0 auto;padding:0 24px;display:flex;gap:4px;border-bottom:1px solid var(--hair)}
-  .tabs{border-bottom:none}
-  .tabbar{border-bottom:1px solid var(--hair)}
-  .tab{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--mut);background:none;border:none;border-bottom:2px solid transparent;padding:16px 18px;cursor:pointer}
-  .tab:hover{color:var(--bone)}
-  .tab.on{color:var(--bone);border-bottom-color:var(--blue)}
+   CONVERSION APPROACH — wrapped markup + scoped script (the same faithful port
+   the F6 organizer /dashboard used, and for the same reason): this page is
+   deeply behavior-heavy — nine API-driven panels (drop settings, tiers, crews,
+   media/CDN approval, scanning-agent codes, site-media drag-drop uploads,
+   organizers + impersonation, a KYC review drawer, access/password), each
+   loading and mutating live /api/* data through imperative DOM code. Rewriting
+   all of that as idiomatic JSX is out of scope for a faithful port, so the
+   original markup renders via dangerouslySetInnerHTML and the original script
+   runs once on mount inside an effect. setInterval/setTimeout are captured and
+   cleared on unmount (SPA-safe — the legacy page relied on full-page unload),
+   and any node the script appends to <body> is removed on unmount. Styles are
+   scoped under `.admin-console` so the bespoke dark control-room palette never
+   leaks past this route.
 
-  main{max-width:1100px;margin:0 auto;padding:40px 24px 90px}
-  .panel{display:none}
-  .panel.on{display:block}
-  h2{font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px}
-  .hint{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.05em;margin-bottom:28px}
+   SEPARATION: this is the internal STAFF console (labeling: "INTERNAL STAFF
+   CONSOLE"), distinct from the organizer seller app at /dashboard. Session loss,
+   logout and the impersonation "exit" handoff all send the staffer back to
+   /admin, where the gate re-runs. */
 
-  label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--mut);margin-bottom:7px}
-  input,select,textarea{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);font-family:var(--mono);font-size:14px;padding:12px 14px;outline:none;border-radius:0;-webkit-appearance:none;appearance:none}
-  input:focus,select:focus,textarea:focus{border-color:var(--blue)}
-  .field{margin-bottom:20px}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
-  @media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+import { useEffect } from 'react';
 
-  .btn{background:var(--bone);color:var(--black);border:none;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.18em;padding:14px 30px;cursor:pointer;transition:background .2s}
-  .btn:hover{background:var(--blue);color:var(--bone)}
-  .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
-  .btn.ghost:hover{border-color:var(--bone);color:var(--bone)}
-  .btn.danger{background:none;border:1px solid var(--hair);color:var(--mut);padding:8px 14px;font-size:10.5px}
-  .btn.danger:hover{border-color:var(--orange);color:var(--orange)}
-  .btn.small{padding:8px 14px;font-size:10.5px}
+const STYLE = `
+.admin-console{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;
+  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+.admin-console *{margin:0;padding:0;box-sizing:border-box}
+.admin-console a{color:inherit;text-decoration:none}
+.admin-console .mono{font-family:var(--mono)}
 
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blue);color:var(--bone);font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:13px 26px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
-  .toast.err{background:var(--orange);color:var(--black)}
-  .toast.show{opacity:1}
+.admin-console header{position:sticky;top:0;z-index:20;background:var(--black);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.admin-console .head-in{max-width:1100px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between}
+.admin-console .wordmark{font-weight:600;font-size:20px;letter-spacing:-.02em}
+.admin-console .wordmark .o{color:var(--blue)}
+.admin-console .wordmark small{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--mut);margin-left:12px}
+.admin-console .head-actions{display:flex;gap:18px;align-items:center;font-family:var(--mono);font-size:11.5px;letter-spacing:.1em}
+.admin-console .head-actions a{color:var(--mut)} .admin-console .head-actions a:hover{color:var(--bone)}
+.admin-console .head-actions button{background:none;border:1px solid var(--hair);color:var(--mut);font-family:var(--mono);font-size:11px;letter-spacing:.15em;padding:8px 14px;cursor:pointer}
+.admin-console .head-actions button:hover{border-color:var(--orange);color:var(--orange)}
 
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);text-align:left;padding:10px 12px;border-bottom:1px solid var(--hair);white-space:nowrap}
-  td{padding:12px;border-bottom:1px solid var(--hair);vertical-align:top}
-  td .mono{font-size:12.5px}
-  .pill{font-family:var(--mono);font-size:10px;letter-spacing:.15em;padding:3px 9px;border:1px solid}
-  .pill.open{color:var(--blue);border-color:var(--blue)}
-  .pill.locked{color:var(--mut);border-color:var(--mut)}
-  .pill.soldout{color:var(--orange);border-color:var(--orange)}
-  .pill.vessel{color:var(--orange);border-color:var(--orange)}
-  .pill.shore{color:var(--teal);border-color:var(--teal)}
+.admin-console .tabs{max-width:1100px;margin:0 auto;padding:0 24px;display:flex;gap:4px;border-bottom:none}
+.admin-console .tabbar{border-bottom:1px solid var(--hair)}
+.admin-console .tab{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--mut);background:none;border:none;border-bottom:2px solid transparent;padding:16px 18px;cursor:pointer}
+.admin-console .tab:hover{color:var(--bone)}
+.admin-console .tab.on{color:var(--bone);border-bottom-color:var(--blue)}
 
-  .stat-row{display:flex;gap:14px;margin-bottom:30px;flex-wrap:wrap}
-  .stat{border:1px solid var(--hair);padding:18px 24px;min-width:150px}
-  .stat .sv{font-family:var(--mono);font-size:26px;font-weight:500}
-  .stat .sk{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-top:4px}
+.admin-console main{max-width:1100px;margin:0 auto;padding:40px 24px 90px}
+.admin-console .panel{display:none}
+.admin-console .panel.on{display:block}
+.admin-console h2{font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px}
+.admin-console .hint{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.05em;margin-bottom:28px}
 
-  .editor{border:1px solid var(--hair);padding:26px;margin-bottom:34px;display:none}
-  .editor.on{display:block}
-  .editor h3{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--blue);margin-bottom:20px;font-weight:500}
-  .row-actions{display:flex;gap:10px;flex-wrap:wrap}
-  .table-scroll{overflow-x:auto}
+.admin-console label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--mut);margin-bottom:7px}
+.admin-console input,.admin-console select,.admin-console textarea{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);font-family:var(--mono);font-size:14px;padding:12px 14px;outline:none;border-radius:0;-webkit-appearance:none;appearance:none}
+.admin-console input:focus,.admin-console select:focus,.admin-console textarea:focus{border-color:var(--blue)}
+.admin-console .field{margin-bottom:20px}
+.admin-console .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.admin-console .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:700px){.admin-console .grid2,.admin-console .grid3{grid-template-columns:1fr}}
 
-  /* media & CDN */
-  .filterbar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
-  .fbtn{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:none;border:1px solid var(--hair);color:var(--mut);padding:9px 15px;cursor:pointer}
-  .fbtn.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
-  .media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
-  .mcard{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
-  .mcard .thumb{aspect-ratio:16/10;background:#000 center/cover no-repeat;position:relative}
-  .mcard .thumb .cat{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;background:rgba(10,10,11,.72);padding:4px 8px;border-radius:99px;color:var(--bone)}
-  .mstatus{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 8px;border-radius:99px}
-  .mstatus.approved{background:var(--teal);color:#04342C}
-  .mstatus.flagged{background:var(--orange);color:#0A0A0B}
-  .mstatus.pending{background:var(--hair);color:var(--bone)}
-  .mcard .minfo{padding:12px 14px}
-  .mcard .mname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mcard .mmeta{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.7}
-  .mcard .mmeta .warn{color:var(--orange)}
-  .mcard .mcdn{font-family:var(--mono);font-size:9.5px;color:var(--blue);word-break:break-all;margin-top:8px;background:var(--black);border:1px solid var(--hair);padding:6px 8px;border-radius:6px}
-  .mcard .mact{display:flex;gap:8px;padding:0 14px 14px}
-  .mcard .mact button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:9px;border-radius:7px;cursor:pointer;border:1px solid var(--hair);background:none;color:var(--mut)}
-  .mcard .mact .ok:hover{border-color:var(--teal);color:var(--teal)}
-  .mcard .mact .flag:hover{border-color:var(--orange);color:var(--orange)}
+.admin-console .btn{background:var(--bone);color:var(--black);border:none;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.18em;padding:14px 30px;cursor:pointer;transition:background .2s}
+.admin-console .btn:hover{background:var(--blue);color:var(--bone)}
+.admin-console .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
+.admin-console .btn.ghost:hover{border-color:var(--bone);color:var(--bone)}
+.admin-console .btn.danger{background:none;border:1px solid var(--hair);color:var(--mut);padding:8px 14px;font-size:10.5px}
+.admin-console .btn.danger:hover{border-color:var(--orange);color:var(--orange)}
+.admin-console .btn.small{padding:8px 14px;font-size:10.5px}
 
-  /* roles & agents */
-  .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:32px}
-  .role{border:1px solid var(--hair);border-radius:10px;padding:20px}
-  .role.master{border-color:var(--blue)}
-  .role .rt{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
-  .role .rt .lock{color:var(--mut);font-size:13px}
-  .role .rtag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);margin-top:6px}
-  .role ul{list-style:none;margin-top:14px;font-size:12.5px;color:var(--mut)}
-  .role li{padding:5px 0;display:flex;gap:8px}
-  .role li::before{content:'—';color:var(--blue)}
-  .agentcode{font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:var(--teal);background:var(--black);border:1px dashed var(--teal);padding:4px 10px;border-radius:6px;white-space:nowrap}
+.admin-console .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blue);color:var(--bone);font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:13px 26px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+.admin-console .toast.err{background:var(--orange);color:var(--black)}
+.admin-console .toast.show{opacity:1}
 
-  /* site media / placements */
-  .slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-  .slot-card{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
-  .slot-card .sc-h{padding:12px 14px;border-bottom:1px solid var(--hair)}
-  .slot-card .sc-h .rn{font-weight:500;font-size:14px}
-  .slot-card .sc-h .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--mut);margin-top:3px}
-  .slot-dz{aspect-ratio:16/9;background:#000 center/cover no-repeat;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center}
-  .slot-dz.drag{outline:2px dashed var(--blue);outline-offset:-6px}
-  .slot-dz .hint{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--bone);background:rgba(10,10,11,.55);padding:6px 12px;border-radius:99px;text-align:center}
-  .slot-dz .up-badge{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;background:var(--blue);color:#fff;padding:4px 8px;border-radius:99px;display:none}
+.admin-console table{width:100%;border-collapse:collapse;font-size:13px}
+.admin-console th{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);text-align:left;padding:10px 12px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.admin-console td{padding:12px;border-bottom:1px solid var(--hair);vertical-align:top}
+.admin-console td .mono{font-size:12.5px}
+.admin-console .pill{font-family:var(--mono);font-size:10px;letter-spacing:.15em;padding:3px 9px;border:1px solid}
+.admin-console .pill.open{color:var(--blue);border-color:var(--blue)}
+.admin-console .pill.locked{color:var(--mut);border-color:var(--mut)}
+.admin-console .pill.soldout{color:var(--orange);border-color:var(--orange)}
+.admin-console .pill.vessel{color:var(--orange);border-color:var(--orange)}
+.admin-console .pill.shore{color:var(--teal);border-color:var(--teal)}
 
-  /* organizers */
-  .pill.active{color:var(--teal);border-color:var(--teal)}
-  .pill.suspended{color:var(--orange);border-color:var(--orange)}
-  .imp-banner{display:flex;align-items:center;gap:14px;background:#241a05;border:1px solid #BA7517;border-radius:10px;padding:14px 18px;margin-bottom:22px}
-  .imp-banner .ib-t{font-weight:500;font-size:14px;color:#F0C674}
-  .imp-banner .ib-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;margin-top:2px}
+.admin-console .stat-row{display:flex;gap:14px;margin-bottom:30px;flex-wrap:wrap}
+.admin-console .stat{border:1px solid var(--hair);padding:18px 24px;min-width:150px}
+.admin-console .stat .sv{font-family:var(--mono);font-size:26px;font-weight:500}
+.admin-console .stat .sk{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-top:4px}
 
-  /* KYC review */
-  .pill.submitted,.pill.in_review{color:var(--blue);border-color:var(--blue)}
-  .pill.approved{color:var(--teal);border-color:var(--teal)}
-  .pill.rejected{color:var(--orange);border-color:var(--orange)}
-  .kyc-sla{font-family:var(--mono);font-size:10px;color:var(--mut)}
-  .kyc-sla.late{color:var(--orange)}
-  .kyc-drawer{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,12,.72);backdrop-filter:blur(3px)}
-  .kyc-drawer.on{display:flex;justify-content:flex-end}
-  .kyc-sheet{width:min(720px,100%);height:100%;overflow-y:auto;background:var(--ink);border-left:1px solid var(--hair);padding:26px 28px 60px}
-  .kyc-sheet h3{font-size:19px;margin:0}
-  .kyc-close{position:absolute;top:20px;right:24px;background:none;border:none;color:var(--mut);font-size:26px;cursor:pointer;line-height:1}
-  .kyc-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;margin:18px 0 22px}
-  .kyc-meta .m-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--mut)}
-  .kyc-meta .m-v{font-size:14px;margin-top:2px}
-  .kyc-docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:18px}
-  .kyc-doc{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--black);position:relative}
-  .kyc-doc .kd-h{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--hair)}
-  .kyc-doc img{display:block;width:100%;max-height:230px;object-fit:contain;background:#000;cursor:zoom-in}
-  .kyc-doc .kd-wm{position:absolute;bottom:8px;left:8px;font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.5);pointer-events:none}
-  .kyc-decide{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  .kyc-reject-box{margin-top:14px;padding:14px;border:1px solid var(--orange);border-radius:10px;display:none}
-  .kyc-reject-box.on{display:block}
-  .kyc-reject-box select,.kyc-reject-box textarea{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:8px;color:var(--bone);padding:9px 11px;font:inherit;font-size:13px;margin-top:8px}
-  .kyc-events{margin-top:22px;border-top:1px solid var(--hair);padding-top:16px}
-  .kyc-events li{display:flex;gap:10px;font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:3px 0;list-style:none}
-  .kyc-events .ke-a{color:var(--bone)}
-</style>
-<link rel="stylesheet" href="/zora-tokens.css">
-<script src="/zora-theme.js"></script>
-</head>
-<body>
+.admin-console .editor{border:1px solid var(--hair);padding:26px;margin-bottom:34px;display:none}
+.admin-console .editor.on{display:block}
+.admin-console .editor h3{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--blue);margin-bottom:20px;font-weight:500}
+.admin-console .row-actions{display:flex;gap:10px;flex-wrap:wrap}
+.admin-console .table-scroll{overflow-x:auto}
 
+.admin-console .filterbar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.admin-console .fbtn{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:none;border:1px solid var(--hair);color:var(--mut);padding:9px 15px;cursor:pointer}
+.admin-console .fbtn.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
+.admin-console .media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.admin-console .mcard{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
+.admin-console .mcard .thumb{aspect-ratio:16/10;background:#000 center/cover no-repeat;position:relative}
+.admin-console .mcard .thumb .cat{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;background:rgba(10,10,11,.72);padding:4px 8px;border-radius:99px;color:var(--bone)}
+.admin-console .mstatus{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 8px;border-radius:99px}
+.admin-console .mstatus.approved{background:var(--teal);color:#04342C}
+.admin-console .mstatus.flagged{background:var(--orange);color:#0A0A0B}
+.admin-console .mstatus.pending{background:var(--hair);color:var(--bone)}
+.admin-console .mcard .minfo{padding:12px 14px}
+.admin-console .mcard .mname{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-console .mcard .mmeta{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.7}
+.admin-console .mcard .mmeta .warn{color:var(--orange)}
+.admin-console .mcard .mcdn{font-family:var(--mono);font-size:9.5px;color:var(--blue);word-break:break-all;margin-top:8px;background:var(--black);border:1px solid var(--hair);padding:6px 8px;border-radius:6px}
+.admin-console .mcard .mact{display:flex;gap:8px;padding:0 14px 14px}
+.admin-console .mcard .mact button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:9px;border-radius:7px;cursor:pointer;border:1px solid var(--hair);background:none;color:var(--mut)}
+.admin-console .mcard .mact .ok:hover{border-color:var(--teal);color:var(--teal)}
+.admin-console .mcard .mact .flag:hover{border-color:var(--orange);color:var(--orange)}
+
+.admin-console .roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:32px}
+.admin-console .role{border:1px solid var(--hair);border-radius:10px;padding:20px}
+.admin-console .role.master{border-color:var(--blue)}
+.admin-console .role .rt{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.admin-console .role .rt .lock{color:var(--mut);font-size:13px}
+.admin-console .role .rtag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);margin-top:6px}
+.admin-console .role ul{list-style:none;margin-top:14px;font-size:12.5px;color:var(--mut)}
+.admin-console .role li{padding:5px 0;display:flex;gap:8px}
+.admin-console .role li::before{content:'—';color:var(--blue)}
+.admin-console .agentcode{font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:var(--teal);background:var(--black);border:1px dashed var(--teal);padding:4px 10px;border-radius:6px;white-space:nowrap}
+
+.admin-console .slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.admin-console .slot-card{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--ink)}
+.admin-console .slot-card .sc-h{padding:12px 14px;border-bottom:1px solid var(--hair)}
+.admin-console .slot-card .sc-h .rn{font-weight:500;font-size:14px}
+.admin-console .slot-card .sc-h .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--mut);margin-top:3px}
+.admin-console .slot-dz{aspect-ratio:16/9;background:#000 center/cover no-repeat;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.admin-console .slot-dz.drag{outline:2px dashed var(--blue);outline-offset:-6px}
+.admin-console .slot-dz .hint{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--bone);background:rgba(10,10,11,.55);padding:6px 12px;border-radius:99px;text-align:center}
+.admin-console .slot-dz .up-badge{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;background:var(--blue);color:#fff;padding:4px 8px;border-radius:99px;display:none}
+
+.admin-console .pill.active{color:var(--teal);border-color:var(--teal)}
+.admin-console .pill.suspended{color:var(--orange);border-color:var(--orange)}
+.admin-console .imp-banner{display:flex;align-items:center;gap:14px;background:#241a05;border:1px solid #BA7517;border-radius:10px;padding:14px 18px;margin-bottom:22px}
+.admin-console .imp-banner .ib-t{font-weight:500;font-size:14px;color:#F0C674}
+.admin-console .imp-banner .ib-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;margin-top:2px}
+
+.admin-console .pill.submitted,.admin-console .pill.in_review{color:var(--blue);border-color:var(--blue)}
+.admin-console .pill.approved{color:var(--teal);border-color:var(--teal)}
+.admin-console .pill.rejected{color:var(--orange);border-color:var(--orange)}
+.admin-console .kyc-sla{font-family:var(--mono);font-size:10px;color:var(--mut)}
+.admin-console .kyc-sla.late{color:var(--orange)}
+.admin-console .kyc-drawer{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,12,.72);backdrop-filter:blur(3px)}
+.admin-console .kyc-drawer.on{display:flex;justify-content:flex-end}
+.admin-console .kyc-sheet{width:min(720px,100%);height:100%;overflow-y:auto;background:var(--ink);border-left:1px solid var(--hair);padding:26px 28px 60px}
+.admin-console .kyc-sheet h3{font-size:19px;margin:0}
+.admin-console .kyc-close{position:absolute;top:20px;right:24px;background:none;border:none;color:var(--mut);font-size:26px;cursor:pointer;line-height:1}
+.admin-console .kyc-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;margin:18px 0 22px}
+.admin-console .kyc-meta .m-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--mut)}
+.admin-console .kyc-meta .m-v{font-size:14px;margin-top:2px}
+.admin-console .kyc-docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:18px}
+.admin-console .kyc-doc{border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--black);position:relative}
+.admin-console .kyc-doc .kd-h{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--hair)}
+.admin-console .kyc-doc img{display:block;width:100%;max-height:230px;object-fit:contain;background:#000;cursor:zoom-in}
+.admin-console .kyc-doc .kd-wm{position:absolute;bottom:8px;left:8px;font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.5);pointer-events:none}
+.admin-console .kyc-decide{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.admin-console .kyc-reject-box{margin-top:14px;padding:14px;border:1px solid var(--orange);border-radius:10px;display:none}
+.admin-console .kyc-reject-box.on{display:block}
+.admin-console .kyc-reject-box select,.admin-console .kyc-reject-box textarea{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:8px;color:var(--bone);padding:9px 11px;font:inherit;font-size:13px;margin-top:8px}
+.admin-console .kyc-events{margin-top:22px;border-top:1px solid var(--hair);padding-top:16px}
+.admin-console .kyc-events li{display:flex;gap:10px;font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:3px 0;list-style:none}
+.admin-console .kyc-events .ke-a{color:var(--bone)}
+`;
+
+const MARKUP = `
 <header>
   <div class="head-in">
-    <span class="wordmark">z<span class="o">o</span>ra<small>CONTROL ROOM</small></span>
+    <span class="wordmark">z<span class="o">o</span>ra<small>INTERNAL STAFF CONSOLE</small></span>
     <div class="head-actions">
       <a href="/" target="_blank">VIEW SITE</a>
-      <a href="/drop-001.html" target="_blank">DROP 001</a>
+      <a href="/events/offshore" target="_blank">DROP 001</a>
       <button id="logout">LOG OUT</button>
     </div>
   </div>
@@ -404,8 +414,9 @@
 </div>
 
 <p class="toast" id="toast"></p>
+`;
 
-<script>
+const SCRIPT = String.raw`
   /* ── helpers ── */
   const $ = id => document.getElementById(id);
   function toast(msg, isErr){
@@ -749,7 +760,44 @@
   loadAgents().catch(ex => toast(ex.message, true));
   loadPlacements().catch(ex => toast(ex.message, true));
   loadOrganizers().catch(ex => toast(ex.message, true));
-</script>
+`;
 
-</body>
-</html>
+export default function AdminDashboardPage() {
+  useEffect(() => {
+    const intervals: number[] = [];
+    const timeouts: number[] = [];
+    const nativeInterval = window.setInterval.bind(window);
+    const nativeTimeout = window.setTimeout.bind(window);
+    const scopedSetInterval = (fn: TimerHandler, ms?: number) => {
+      const id = nativeInterval(fn, ms);
+      intervals.push(id);
+      return id;
+    };
+    const scopedSetTimeout = (fn: TimerHandler, ms?: number) => {
+      const id = nativeTimeout(fn, ms);
+      timeouts.push(id);
+      return id;
+    };
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function('setInterval', 'setTimeout', SCRIPT)(scopedSetInterval, scopedSetTimeout);
+    } catch (e) {
+      console.error('[admin console] script error', e);
+    }
+    return () => {
+      intervals.forEach((id) => clearInterval(id));
+      timeouts.forEach((id) => clearTimeout(id));
+    };
+  }, []);
+
+  return (
+    <>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: STYLE }} />
+      <div className="admin-console" dangerouslySetInnerHTML={{ __html: MARKUP }} />
+    </>
+  );
+}
