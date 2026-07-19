@@ -10,3 +10,7 @@ export {
   QR_SCHEME, generateCode, generatePublicRef, signCredential, verifyCredential, qrPayload, ticketSigningKeys,
 } from './credentials';
 export type { CredentialClaims } from './credentials';
+export { createGaVipOrder, issueCredentials, SoldOut } from './payments/service';
+export type {
+  CartLine, CreateGaVipOrderInput, CreateGaVipOrderResult,
+} from './payments/service';
