@@ -249,9 +249,9 @@
             <p>
               #text Free native email tuned for drops. Pick a segment, pick a template, send. No Mailchimp, no export, no leaving.
         <div class="ctas" style="margin-top:40px">
-          <a class="btn solid" href="signup.html">
+          <a class="btn solid" href="/dashboard/onboarding">
             #text OPEN YOUR DASHBOARD
-          <a class="btn k" href="dashboard.html">
+          <a class="btn k" href="/dashboard">
             #text SEE A LIVE DEMO
     <section class="manifesto" id="manifesto">
       <div class="wrap">
@@ -290,9 +290,9 @@
               #text manifesto
           <div>
             #text ORGANIZERS
-            <a href="signup.html">
+            <a href="/dashboard/onboarding">
               #text get started
-            <a href="dashboard.html">
+            <a href="/dashboard">
               #text dashboard
             <a href="thebrunchcity.html">
               #text live storefront

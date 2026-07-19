@@ -656,7 +656,7 @@
     const imp=e.target.getAttribute('data-imp'), sid=e.target.getAttribute('data-status'), to=e.target.getAttribute('data-to');
     if(imp){
       if(!confirm('Act on behalf of this organizer? This is logged, and you will view their dashboard until you exit.')) return;
-      try{ const r=await api('/api/organizers/'+imp+'/impersonate',{method:'POST'}); toast('Acting as '+r.impersonating.name); location.href='/dashboard.html'; }
+      try{ const r=await api('/api/organizers/'+imp+'/impersonate',{method:'POST'}); toast('Acting as '+r.impersonating.name); location.href='/dashboard'; }
       catch(ex){ toast(ex.message,true); }
     }
     if(sid){

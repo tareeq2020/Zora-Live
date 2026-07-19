@@ -72,6 +72,30 @@ export async function middleware(req: NextRequest) {
     return new NextResponse('Event not found', { status: 404 });
   }
 
+  // /dashboard/* -> organizer-gated seller app (PR-F6/F7). Prefix match so every
+  // seller route is covered, but EXEMPT /dashboard/login (the sign-in page must
+  // render to anon so an organizer can obtain a session — gating it would loop).
+  // Fail-closed: any /api/me error leaves us unauthorized and we rewrite to the
+  // login page. Allow a real organizer, or an admin actively impersonating one.
+  // (F3 adds its own event branches separately; this only ADDS the /dashboard
+  // branch — the orchestrator reconciles.)
+  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+    if (pathname === '/dashboard/login') return NextResponse.next();
+    let allowed = false;
+    try {
+      const me = await fetch(`${API_URL}/api/me`, {
+        headers: { cookie: req.headers.get('cookie') || '' },
+      }).then((r) => r.json());
+      allowed = me.role === 'organizer' || (!!me.isAdmin && !!me.impersonating);
+    } catch {}
+    if (!allowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/dashboard/login';
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.next();
+  }
+
   // /admin and /login -> serve dashboard or login based on the API session.
   if (pathname === '/admin' || pathname === '/login') {
     let isAdmin = false;

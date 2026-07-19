@@ -153,7 +153,7 @@ export default function CommissionPage() {
             <a href="/commission" className="on">pricing</a>
             <a href="/help">help</a>
           </div>
-          <a href="/signup.html" className="nav-cta">START SELLING</a>
+          <a href="/dashboard/onboarding" className="nav-cta">START SELLING</a>
         </div>
       </nav>
 
@@ -224,7 +224,7 @@ export default function CommissionPage() {
         <div className="wrap">
           <h2>Lock in 5% while it lasts.</h2>
           <p>Open your dashboard, claim your address, and start selling today.</p>
-          <a className="big-btn" href="/signup.html">START SELLING ON ZORA</a>
+          <a className="big-btn" href="/dashboard/onboarding">START SELLING ON ZORA</a>
         </div>
       </section>
 

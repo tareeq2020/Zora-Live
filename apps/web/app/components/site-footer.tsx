@@ -26,7 +26,7 @@ export function SiteFooter() {
           </div>
           <div>
             ORGANIZERS
-            <a href="signup.html">get started</a>
+            <a href="/dashboard/onboarding">get started</a>
             <a href="dashboard.html">dashboard</a>
             <a href="thebrunchcity.html">live storefront</a>
             <a href="/dashboard/login">admin</a>
