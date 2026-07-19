@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
 
 export type StorefrontEvent = {
   id: string;
@@ -25,6 +26,10 @@ export type StorefrontEvent = {
   time?: string;
   priceFrom?: number;
   seated?: boolean;
+  // PR-11: real product tiers wired to the payments backend. Present only on
+  // web-sellable events (webCheckout.tiers in the event store); when absent the
+  // event stays app-claim (the old sheet).
+  webCheckout?: { tiers?: CheckoutTier[] };
 };
 
 export type StorefrontTheme = {
@@ -179,6 +184,14 @@ export default function StorefrontClient(props: StorefrontProps) {
   const cur = CUR[active?.city || ''] || 'TZS';
   const total = unit * qty;
 
+  // PR-11: a web-sellable event carries real product tiers → the live payments
+  // flow replaces the old app-claim sheet. Everything else keeps the app-claim path.
+  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId) || [];
+  const webSellable = webTiers.length > 0;
+  const activeWhen = active
+    ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()
+    : '';
+
   const rootStyle = {
     ['--accent' as string]: accent,
     ['--accent-deep' as string]: accentDeep,
@@ -308,8 +321,19 @@ export default function StorefrontClient(props: StorefrontProps) {
           </div>
         </footer>
 
-        {/* ═══ ZORA CHECKOUT SHEET ═══ */}
-        <div className={'sheet' + (open ? ' on' : '')} onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
+        {/* PR-11: live payments flow for web-sellable events (real checkout → pay → QR) */}
+        {webSellable && (
+          <CheckoutFlow
+            open={open}
+            onClose={() => setOpen(false)}
+            eventName={active?.name || ''}
+            when={activeWhen}
+            tiers={webTiers}
+          />
+        )}
+
+        {/* ═══ ZORA CHECKOUT SHEET (app-claim path; hidden when web-sellable) ═══ */}
+        <div className={'sheet' + (open && !webSellable ? ' on' : '')} onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
           {active ? (
             <div className="checkout">
               <div className="co-head">
