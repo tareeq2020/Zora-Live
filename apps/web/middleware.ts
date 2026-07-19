@@ -38,8 +38,32 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // /@handle and /@handle/events/:id -> branded tenant page (tenant.html reads the
-  // handle from location itself).
+  // Shape-aware white-label tenant routing (PR-F5). The /@handle front door is
+  // TWO distinct surfaces:
+  //   /@handle            (root) -> the storefront INDEX: the organizer's own
+  //                                 multi-event index, rendered by the React
+  //                                 /storefront/:handle route.
+  //   /@handle/events/:id (leaf) -> the single-event branded page (tenant.html
+  //                                 reads handle+id from location itself).
+  // Only the /@ / tenant-root handling is touched here; F3's flagship /events
+  // branches and F6's /dashboard branch below are left intact.
+  //
+  // Subdomain root: on a tenant subdomain, "/" IS that organizer's storefront
+  // index. Handle it here — middleware runs before next.config's "/"→home
+  // rewrite, so this wins.
+  if (tenant && pathname === '/') {
+    const url = req.nextUrl.clone();
+    url.pathname = `/storefront/${tenant}`;
+    return NextResponse.rewrite(url);
+  }
+  const storefrontRoot = pathname.match(/^\/@([^/]+)$/);
+  if (storefrontRoot) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/storefront/${storefrontRoot[1]}`;
+    return NextResponse.rewrite(url);
+  }
+  // The leaf (/@handle/events/:id) — and any other deeper /@ path — stays on the
+  // branded single-event page.
   if (pathname.startsWith('/@')) {
     const url = req.nextUrl.clone();
     url.pathname = '/tenant.html';
