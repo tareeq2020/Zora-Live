@@ -1,15 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZORA — Design system</title>
-<meta name="description" content="ZORA rebrand — obsidian dark mode, sunrise aura, electric blue anchor.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23D53AD8'/%3E%3Cstop offset='.5' stop-color='%23FF4D7D'/%3E%3Cstop offset='1' stop-color='%23FF9145'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='url(%23a)'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
+import type { Metadata } from 'next';
+import { Wordmark } from '../../components/wordmark';
+import { BrandNav } from './brand-nav';
+
+/* /brand — React port of public/brand.html (the "Design system" showcase). Keeps
+   its own scroll-reactive nav (<BrandNav>), inline design tokens + <style>, and
+   per-page fonts. Every .wordmark on the page became the theme logo image at
+   runtime (zora-theme.js), so we render <Wordmark>; the ticket-preview wordmark
+   was a <span>, reproduced inline. Links are in-page hash anchors, left as-is. */
+
+export const metadata: Metadata = {
+  title: 'ZORA — Design system',
+  description: 'ZORA rebrand — obsidian dark mode, sunrise aura, electric blue anchor.',
+};
+
+const CSS = `
   /* ══════════════════════════════════════════════════════
      ZORA · DESIGN TOKENS
      ══════════════════════════════════════════════════════ */
@@ -174,129 +178,122 @@
   .foot .legal{font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:.06em}
   .foot .cols{display:flex;gap:26px;font-size:13.5px;color:var(--text-2)}
   .foot .cols a:hover{color:var(--text)}
-</style>
-<link rel="stylesheet" href="/zora-tokens.css">
-<script src="/zora-theme.js"></script>
-</head>
-<body>
+`;
 
-<nav id="nav">
-  <div class="wrap nav-in">
-    <a href="#top" class="wordmark">z<span class="o"></span>ra</a>
-    <div class="nav-links">
-      <a href="#events">Events</a>
-      <a href="#checkout">Tickets</a>
-      <a href="#">Organizers</a>
-      <a href="#">About</a>
-    </div>
-    <div class="nav-right">
-      <a class="btn btn-ghost">Sign in</a>
-      <a class="btn btn-aura">Get the app</a>
-    </div>
-  </div>
-</nav>
+export default function BrandPage() {
+  return (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-<header class="hero" id="top">
-  <div class="wrap">
-    <span class="eyebrow"><span class="dot"></span>NOW LIVE IN DAR ES SALAAM · NAIROBI · LAGOS</span>
-    <h1>The night is <span class="grad">yours</span>.</h1>
-    <p class="sub">A premium ticketing and live-experience platform. One honest price, a pass that lives in your pocket, and nothing added at checkout.</p>
-    <div class="ctas">
-      <a class="btn btn-aura" style="padding:15px 28px;font-size:15px">Find events near you</a>
-      <a class="btn btn-blue" style="padding:15px 28px;font-size:15px">For organizers</a>
-    </div>
-    <div class="stats">
-      <div class="stat"><p class="v aura">100k+</p><p class="k">TICKETS IN POCKETS</p></div>
-      <div class="stat"><p class="v blue">40+</p><p class="k">EVENTS POWERED</p></div>
-      <div class="stat"><p class="v blue">5</p><p class="k">CITIES LIVE</p></div>
-      <div class="stat"><p class="v blue">0%</p><p class="k">JUNK FEES</p></div>
-    </div>
-  </div>
-  <div class="badge-float badge">ZORA</div>
-</header>
+      <BrandNav />
 
-<section id="events">
-  <div class="wrap">
-    <div class="sec-head">
-      <div>
-        <p class="k">TONIGHT · NEAR YOU</p>
-        <h2>Every event worth being at.</h2>
-      </div>
-      <p>Aura marks the flagship. Blue holds the grid.</p>
-    </div>
-    <div class="events">
-      <div class="ecard featured">
-        <div class="cover"><span class="tag">MEGA EVENT</span><span class="ct">OFFSHORE</span></div>
-        <div class="body">
-          <h3>The Offshore — daytime yacht groove</h3>
-          <p class="meta">SAT 25 JUL · 14:00<br>SLIPWAY → THE COAST</p>
-          <div class="foot"><span class="price">65,000 TZS<small>FROM</small></span><span class="get">Get ticket</span></div>
+      <header className="hero" id="top">
+        <div className="wrap">
+          <span className="eyebrow"><span className="dot"></span>NOW LIVE IN DAR ES SALAAM · NAIROBI · LAGOS</span>
+          <h1>The night is <span className="grad">yours</span>.</h1>
+          <p className="sub">A premium ticketing and live-experience platform. One honest price, a pass that lives in your pocket, and nothing added at checkout.</p>
+          <div className="ctas">
+            <a className="btn btn-aura" style={{ padding: '15px 28px', fontSize: 15 }}>Find events near you</a>
+            <a className="btn btn-blue" style={{ padding: '15px 28px', fontSize: 15 }}>For organizers</a>
+          </div>
+          <div className="stats">
+            <div className="stat"><p className="v aura">100k+</p><p className="k">TICKETS IN POCKETS</p></div>
+            <div className="stat"><p className="v blue">40+</p><p className="k">EVENTS POWERED</p></div>
+            <div className="stat"><p className="v blue">5</p><p className="k">CITIES LIVE</p></div>
+            <div className="stat"><p className="v blue">0%</p><p className="k">JUNK FEES</p></div>
+          </div>
         </div>
-      </div>
-      <div class="ecard">
-        <div class="cover"><span class="tag">NIGHTLIFE</span><span class="ct">BASEMENT 001</span></div>
-        <div class="body">
-          <h3>Basement 001</h3>
-          <p class="meta">FRI 14 AUG · 23:00<br>SLOW LEOPARD, DAR</p>
-          <div class="foot"><span class="price">25,000 TZS<small>FROM</small></span><span class="get">Get ticket</span></div>
+        <div className="badge-float badge">ZORA</div>
+      </header>
+
+      <section id="events">
+        <div className="wrap">
+          <div className="sec-head">
+            <div>
+              <p className="k">TONIGHT · NEAR YOU</p>
+              <h2>Every event worth being at.</h2>
+            </div>
+            <p>Aura marks the flagship. Blue holds the grid.</p>
+          </div>
+          <div className="events">
+            <div className="ecard featured">
+              <div className="cover"><span className="tag">MEGA EVENT</span><span className="ct">OFFSHORE</span></div>
+              <div className="body">
+                <h3>The Offshore — daytime yacht groove</h3>
+                <p className="meta">SAT 25 JUL · 14:00<br />SLIPWAY → THE COAST</p>
+                <div className="foot"><span className="price">65,000 TZS<small>FROM</small></span><span className="get">Get ticket</span></div>
+              </div>
+            </div>
+            <div className="ecard">
+              <div className="cover"><span className="tag">NIGHTLIFE</span><span className="ct">BASEMENT 001</span></div>
+              <div className="body">
+                <h3>Basement 001</h3>
+                <p className="meta">FRI 14 AUG · 23:00<br />SLOW LEOPARD, DAR</p>
+                <div className="foot"><span className="price">25,000 TZS<small>FROM</small></span><span className="get">Get ticket</span></div>
+              </div>
+            </div>
+            <div className="ecard">
+              <div className="cover"><span className="tag">CONCERT</span><span className="ct">AMAPIANO<br />NIGHTS</span></div>
+              <div className="body">
+                <h3>Amapiano Nights</h3>
+                <p className="meta">SAT 22 AUG · 20:00<br />NGONG RACECOURSE, NAIROBI</p>
+                <div className="foot"><span className="price">3,500 KES<small>FROM</small></span><span className="get">Get ticket</span></div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="ecard">
-        <div class="cover"><span class="tag">CONCERT</span><span class="ct">AMAPIANO<br>NIGHTS</span></div>
-        <div class="body">
-          <h3>Amapiano Nights</h3>
-          <p class="meta">SAT 22 AUG · 20:00<br>NGONG RACECOURSE, NAIROBI</p>
-          <div class="foot"><span class="price">3,500 KES<small>FROM</small></span><span class="get">Get ticket</span></div>
+      </section>
+
+      <section className="checkout-sec" id="checkout">
+        <div className="wrap co-grid">
+          <div className="co-copy">
+            <p className="k" style={{ fontFamily: 'var(--mono)', fontSize: 12, letterSpacing: '.2em', color: 'var(--ice)', marginBottom: 14 }}>THE CHECKOUT</p>
+            <h2>Warm aura. Cool structure.</h2>
+            <p>The sunrise gradient is reserved for the moments that matter — the logo, the one primary action. Electric blue anchors everything structural, so the interface feels balanced, not busy.</p>
+            <div className="pts">
+              <div className="pt"><span className="ic">&#9679;</span><span><b>Aura</b> — one CTA per view, the logo, focal stats. It stays rare, so it stays premium.</span></div>
+              <div className="pt"><span className="ic">&#9679;</span><span><b>Blue</b> — borders, hover states, data, secondary actions, links.</span></div>
+              <div className="pt"><span className="ic">&#9679;</span><span><b>Obsidian</b> — deep charcoal surfaces, never harsh black.</span></div>
+            </div>
+          </div>
+
+          <div className="ticket">
+            <div className="t-top">
+              <span className="secure">SECURE CHECKOUT · <b>ZORA</b></span>
+              <span className="wordmark" style={{ fontSize: 17 }}>
+                <img className="zora-logo zora-logo-dark" src="/assets/zora-wordmark-white.png" alt="ZORA" draggable={false} />
+                <img className="zora-logo zora-logo-light" src="/assets/zora-wordmark-black.png" alt="ZORA" draggable={false} />
+              </span>
+            </div>
+            <div className="t-body">
+              <p className="ev">The Offshore</p>
+              <p className="when">SAT 25 JUL · SLIPWAY → THE COAST</p>
+              <div className="qty"><span>Passes</span><div className="ctrl"><button>&minus;</button><span className="n">2</span><button>+</button></div></div>
+              <div className="honest">
+                <div className="row"><span>2 × 65,000 TZS</span><span>130,000 TZS</span></div>
+                <div className="row"><span>Service fees</span><span className="free">0 TZS</span></div>
+                <div className="total"><span className="l">Total</span><span className="v">130,000 TZS</span></div>
+              </div>
+              <button className="btn btn-aura pay">Lock in &amp; check out</button>
+              <p className="nofee">The price is the price. <b>Nothing added on the next screen.</b></p>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
-<section class="checkout-sec" id="checkout">
-  <div class="wrap co-grid">
-    <div class="co-copy">
-      <p class="k" style="font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--ice);margin-bottom:14px">THE CHECKOUT</p>
-      <h2>Warm aura. Cool structure.</h2>
-      <p>The sunrise gradient is reserved for the moments that matter — the logo, the one primary action. Electric blue anchors everything structural, so the interface feels balanced, not busy.</p>
-      <div class="pts">
-        <div class="pt"><span class="ic">&#9679;</span><span><b>Aura</b> — one CTA per view, the logo, focal stats. It stays rare, so it stays premium.</span></div>
-        <div class="pt"><span class="ic">&#9679;</span><span><b>Blue</b> — borders, hover states, data, secondary actions, links.</span></div>
-        <div class="pt"><span class="ic">&#9679;</span><span><b>Obsidian</b> — deep charcoal surfaces, never harsh black.</span></div>
-      </div>
-    </div>
-
-    <div class="ticket">
-      <div class="t-top"><span class="secure">SECURE CHECKOUT · <b>ZORA</b></span><span class="wordmark" style="font-size:17px">z<span class="o"></span>ra</span></div>
-      <div class="t-body">
-        <p class="ev">The Offshore</p>
-        <p class="when">SAT 25 JUL · SLIPWAY → THE COAST</p>
-        <div class="qty"><span>Passes</span><div class="ctrl"><button>&minus;</button><span class="n">2</span><button>+</button></div></div>
-        <div class="honest">
-          <div class="row"><span>2 × 65,000 TZS</span><span>130,000 TZS</span></div>
-          <div class="row"><span>Service fees</span><span class="free">0 TZS</span></div>
-          <div class="total"><span class="l">Total</span><span class="v">130,000 TZS</span></div>
+      <footer>
+        <div className="wrap foot">
+          <Wordmark href="#top" />
+          <div className="cols"><a href="#events">Events</a><a href="#checkout">Tickets</a><a href="#">Organizers</a><a href="#">Help</a></div>
+          <p className="legal">© 2026 ZORA · THE TICKET IS THE PRODUCT</p>
         </div>
-        <button class="btn btn-aura pay">Lock in &amp; check out</button>
-        <p class="nofee">The price is the price. <b>Nothing added on the next screen.</b></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot">
-    <a href="#top" class="wordmark">z<span class="o"></span>ra</a>
-    <div class="cols"><a href="#events">Events</a><a href="#checkout">Tickets</a><a href="#">Organizers</a><a href="#">Help</a></div>
-    <p class="legal">© 2026 ZORA · THE TICKET IS THE PRODUCT</p>
-  </div>
-</footer>
-
-<script>
-  const nav = document.getElementById('nav');
-  const onScroll = () => nav.classList.toggle('glass', window.scrollY > 40);
-  onScroll(); window.addEventListener('scroll', onScroll, { passive:true });
-</script>
-
-</body>
-</html>
+      </footer>
+    </>
+  );
+}
