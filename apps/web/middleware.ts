@@ -7,6 +7,11 @@ import { NextRequest, NextResponse } from 'next/server';
 const API_URL = process.env.API_URL || 'http://localhost:4101';
 const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
 
+// Canonical flagship slugs: /events/offshore (the alias) and its real id render
+// IN PLACE on the apex via the <EventPage> route — no 302 to the owning organizer.
+// Every other apex event id still bounces to its tenant leaf.
+const FLAGSHIP_SLUGS = new Set(['offshore', 'offshore-001']);
+
 function tenantHandleFromHost(host: string): string | null {
   const h = host.split(':')[0];
   if (h.endsWith('.' + ROOT_DOMAIN)) {
@@ -20,6 +25,19 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const tenant = tenantHandleFromHost(req.headers.get('host') || '');
 
+  // Old flagship paths, now deleted, alias to the canonical React routes so the
+  // many static links to them (index/discover/dashboards/footer) keep working.
+  const FLAGSHIP_ALIAS: Record<string, string> = {
+    '/drop-001.html': '/events/offshore',
+    '/seatmap.html': '/events/offshore/seats',
+  };
+  if (FLAGSHIP_ALIAS[pathname]) {
+    const url = req.nextUrl.clone();
+    url.pathname = FLAGSHIP_ALIAS[pathname];
+    url.search = '';
+    return NextResponse.redirect(url, 301);
+  }
+
   // /@handle and /@handle/events/:id -> branded tenant page (tenant.html reads the
   // handle from location itself).
   if (pathname.startsWith('/@')) {
@@ -32,6 +50,12 @@ export async function middleware(req: NextRequest) {
   // 302 to the owning organizer's tenant URL (path alias locally).
   const evMatch = pathname.match(/^\/events\/([^/]+)$/);
   if (evMatch) {
+    // Canonical flagship: render the <EventPage> route in place on the apex,
+    // BEFORE the apex→owner 302 below. (On a tenant subdomain the branded
+    // tenant page still wins.)
+    if (!tenant && FLAGSHIP_SLUGS.has(evMatch[1])) {
+      return NextResponse.next();
+    }
     if (tenant) {
       const url = req.nextUrl.clone();
       url.pathname = '/tenant.html';
