@@ -1,18 +1,20 @@
 /* Structural-snapshot runner + the ONE working end-to-end example.
 
-   Example (self-contained, no server needed): snapshot the current static
-   homepage (public/index.html) and diff it against its committed golden
-   (golden/index.snapshot.txt). This is the reference golden the plan calls for —
-   proof the pipeline works today. When index.html is converted to React (F4),
-   that PR points `getHtml` at the running route instead of the file, keeps the
-   same golden, and the diff proves the React DOM still matches structurally.
+   The home case snapshots the homepage and diffs it against its committed golden
+   (golden/index.snapshot.txt). F4 converted public/index.html to the React `/`
+   route and deleted the static file, so — exactly as this header anticipated —
+   `getHtml` now reads the home from the running route (cases marked `web: true`)
+   instead of the file. The golden was regenerated for the intentional F4 reorder;
+   the diff still proves the live DOM stays structurally stable release to release.
+   File-based cases (no `web` flag) still read public/ directly, no server needed.
 
    Usage:
-     node apps/web/test/snapshot.mjs            # verify all cases vs goldens
-     node apps/web/test/snapshot.mjs --update   # (re)generate goldens
-     WEB=http://localhost:3000 node apps/web/test/snapshot.mjs --from-web
-                                                # snapshot the live route instead
-                                                # of the static file (post-convert)
+     WEB=http://localhost:3000 node apps/web/test/snapshot.mjs
+                                                # verify all cases vs goldens
+                                                # (home needs the web server up)
+     WEB=http://localhost:3000 node apps/web/test/snapshot.mjs --update
+                                                # (re)generate goldens
+     node apps/web/test/snapshot.mjs --from-web # force EVERY case to the live route
 */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -38,7 +40,9 @@ const FROM_WEB = process.argv.includes('--from-web');
 const CASES = [
   {
     name: 'home',
-    file: 'index.html',
+    // public/index.html was deleted in F4; the home is now the React `/` route, so
+    // this case always sources from the running web server.
+    web: true,
     route: '/',
     golden: 'index.snapshot.txt',
     // Selectors are compound-simple only (tag/.class/#id/[attr]); no descendant
@@ -54,7 +58,9 @@ const CASES = [
 ];
 
 async function getHtml(c) {
-  if (FROM_WEB) {
+  // Web-sourced when forced (--from-web) or when the case has no static twin left
+  // (c.web — e.g. the home, whose public/index.html was deleted in F4).
+  if (FROM_WEB || c.web) {
     const res = await fetch(WEB + c.route);
     if (!res.ok) throw new Error(`${c.route} -> HTTP ${res.status}`);
     return res.text();
