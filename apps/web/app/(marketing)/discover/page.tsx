@@ -1,15 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZORA — Find your night</title>
-<meta name="description" content="Every event worth being at, near you. Concerts, festivals, nightlife and daytime — one honest price, no fees at checkout. Powered by Zora.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%233D5AFE' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
+import type { Metadata } from 'next';
+import { DiscoverApp } from './discover-app';
+
+/* /discover — React port of public/discover.html (the marketplace). The whole
+   body is interactive (location/currency, chips, search, /api/events, ticket
+   sheet, ZBot, placements) so it lives in <DiscoverApp> (client). This server
+   shell just carries the page metadata, per-page fonts and the two inline
+   <style> blocks. Its nav diverges from the shared SiteNav, so the marketing
+   layout omits SiteNav for /discover (see marketing-chrome.tsx). */
+
+export const metadata: Metadata = {
+  title: 'ZORA — Find your night',
+  description:
+    'Every event worth being at, near you. Concerts, festivals, nightlife and daytime — one honest price, no fees at checkout. Powered by Zora.',
+};
+
+const CSS = `
   :root{
     --black:#0A0A0B; --ink:#101012; --ink2:#16161A; --hair:#26262B; --hair2:#33333A;
     --bone:#F4F1EA; --mut:#8A877E; --mut2:#B4B1A8;
@@ -186,58 +191,8 @@
 
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bone);color:var(--black);font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:13px 24px;border-radius:99px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99;text-align:center;max-width:90vw}
   .toast.show{opacity:1}
-</style>
-<link rel="stylesheet" href="/zora-tokens.css">
-<script src="/zora-theme.js"></script>
-</head>
-<body>
 
-<nav>
-  <div class="wrap nav-in">
-    <a href="index.html" class="wordmark">z<span class="o">o</span>ra</a>
-    <div class="loc">
-      <button class="loc-btn" id="loc-btn">
-        <span class="pin"></span>
-        <span class="detecting" id="loc-detecting">locating you…</span>
-        <span class="city" id="loc-city" style="display:none"></span>
-        <span class="chev">&#9662;</span>
-      </button>
-      <div class="loc-menu" id="loc-menu">
-        <p class="lm-h">SHOWING EVENTS IN</p>
-        <div id="loc-list"></div>
-      </div>
-    </div>
-    <div class="search">
-      <svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="nav-search" placeholder="Search events, artists, venues" autocomplete="off">
-    </div>
-    <div class="nav-right">
-      <a href="about.html" class="link">about</a>
-      <a href="commission.html" class="link">pricing</a>
-      <a href="help.html" class="link">help</a>
-      <a href="signup.html" class="link">organizers</a>
-      <a href="#app" class="app-btn">GET THE APP</a>
-    </div>
-  </div>
-</nav>
-
-<header class="hero">
-  <div class="hero-bg"></div>
-  <div class="wrap hero-in">
-    <span class="now"><span class="live-dot"></span><b id="hero-count">—</b>&nbsp;events live near <b id="hero-city">you</b></span>
-    <h1>find your <span class="g">night</span>.</h1>
-    <p class="subline">Every event worth being at, near you — concerts, festivals, nightlife and daytime. One honest price. Nothing added at checkout.</p>
-    <div class="hero-search">
-      <div class="box">
-        <svg class="mag" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="hero-search" placeholder="Try “Offshore”, an artist, or a venue" autocomplete="off">
-      </div>
-      <button class="go" id="hero-go">SEARCH</button>
-    </div>
-  </div>
-</header>
-
-<style>
+  /* ── featured card ── */
   .featured{padding:24px 0 4px}
   .feat-card{display:grid;grid-template-columns:1.05fr 1fr;border:1px solid var(--hair2);border-radius:20px;overflow:hidden;background:var(--ink);cursor:pointer;transition:border-color .2s,transform .2s}
   .feat-card:hover{border-color:var(--blue);transform:translateY(-2px)}
@@ -282,333 +237,19 @@
   .zbot-input input:focus{border-color:var(--blue)}
   .zbot-input button{background:var(--blue);border:none;border-radius:10px;width:42px;color:var(--bone);cursor:pointer;display:flex;align-items:center;justify-content:center}
   .zbot-input button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2}
-</style>
+`;
 
-<section class="featured">
-  <div class="wrap">
-    <a class="feat-card" id="feat-card" href="#">
-      <div class="feat-media" id="feat-media"><img id="feat-img" src="assets/event-01.jpg" data-slot="discover-featured" alt="" onload="this.classList.add('loaded')" onerror="this.remove()"></div>
-      <div class="feat-body">
-        <span class="feat-badge" id="feat-badge">MEGA EVENT</span>
-        <h2 class="feat-title" id="feat-title">—</h2>
-        <p class="feat-art" id="feat-art"></p>
-        <p class="feat-meta" id="feat-meta"></p>
-        <div class="feat-row">
-          <span class="feat-price" id="feat-price"></span>
-          <span class="feat-get">GET TICKET</span>
-        </div>
-      </div>
-    </a>
-  </div>
-</section>
-
-<div class="filters">
-  <div class="wrap filters-in" id="chips"></div>
-</div>
-
-<section>
-  <div class="wrap">
-    <div class="sec-head">
-      <h2 id="grid-title">Upcoming near you</h2>
-      <span class="count" id="grid-count"></span>
-    </div>
-    <div class="grid" id="grid-top"></div>
-
-    <!-- KULTUR banner injected between grids -->
-    <div class="kultur" style="margin-top:44px" id="kultur">
-      <div class="kultur-bg"></div>
-      <div class="kultur-in">
-        <div>
-          <p class="tagpre">THE ACTIVATION DIVISION — INVITE &amp; EARN ONLY</p>
-          <p class="big">KULTUR<span class="div">BY ZORA · NOT ON SALE ANYWHERE ELSE</span></p>
-          <p class="flag"><b>OFFSHORE.</b> One coast, one long daytime session off Dar. You don't buy your way on — you earn it, in the app.</p>
-          <div class="cta-row">
-            <button class="k-btn" id="k-download">GET THE APP TO ENTER</button>
-            <a class="k-btn ghost" href="drop-001.html">SEE THE FLAGSHIP &rarr;</a>
-          </div>
-        </div>
-        <div class="qr-card">
-          <div class="qr" id="qr"></div>
-          <p class="qlabel">SCAN TO DOWNLOAD<br>ZORA &amp; UNLOCK KULTUR</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec-head" style="margin-top:44px">
-      <h2>More this month</h2>
-      <span class="count" id="grid-count2"></span>
-    </div>
-    <div class="grid" id="grid-bottom"></div>
-  </div>
-</section>
-
-<section id="app">
-  <div class="wrap">
-    <div class="organize">
-      <p class="pre">FOR ORGANIZERS</p>
-      <h2>Take control of your event.</h2>
-      <p>Launch a custom Zora subdomain in two minutes — your own storefront, your data, built-in marketing, and one honest price your crowd will love. No fees passed to them, ever.</p>
-      <a class="big-btn" href="signup.html">
-        <svg class="g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Start organizing — sign up with Google
-      </a>
-      <p class="fine">Two clicks in. Your storefront is live before you finish signing up.</p>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot">
-    <a href="index.html" class="wordmark">z<span class="o">o</span>ra</a>
-    <div class="cols">
-      <a href="index.html">brand</a>
-      <a href="drop-001.html">kultur</a>
-      <a href="signup.html">organizers</a>
-      <a href="/admin">admin</a>
-    </div>
-    <p class="legal">© 2026 ZORA · FIND YOUR NIGHT</p>
-  </div>
-</footer>
-
-<!-- ticket sheet -->
-<div class="sheet" id="sheet">
-  <div class="tk">
-    <div class="tk-cover" id="tk-cover">
-      <button class="x" id="tk-x" aria-label="Close">&times;</button>
-      <p class="tt" id="tk-title">Event</p>
-    </div>
-    <div class="tk-body">
-      <p class="tk-meta" id="tk-meta"></p>
-      <div class="honest">
-        <span class="l">Total — 1 ticket</span>
-        <span class="p" id="tk-price">—</span>
-      </div>
-      <p class="nofee">The price is the price. <b>No fees on the next screen.</b></p>
-      <button class="tk-pay" id="tk-pay">GET TICKET</button>
-      <div class="methods"><span>M-PESA</span><span>TIGO PESA</span><span>AIRTEL</span><span>VISA</span><span>MASTERCARD</span></div>
-    </div>
-  </div>
-</div>
-
-<p class="toast" id="toast"></p>
-
-<script>
-  const $ = id => document.getElementById(id);
-  const fmt = n => n.toLocaleString('en-US');
-  function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
-
-  /* ── cities (currency per location) ── */
-  const CITIES = [
-    { id:'dar',     city:'Dar es Salaam', country:'Tanzania', cur:'TZS' },
-    { id:'zanzibar',city:'Zanzibar',      country:'Tanzania', cur:'TZS' },
-    { id:'nairobi', city:'Nairobi',       country:'Kenya',    cur:'KES' },
-    { id:'accra',   city:'Accra',         country:'Ghana',    cur:'GHS' },
-    { id:'lagos',   city:'Lagos',         country:'Nigeria',  cur:'NGN' }
-  ];
-
-  /* ── palettes by category ── */
-  const PAL = {
-    Nightlife:['#3D2A8F','#0A0A0B'], Concerts:['#1E4FD8','#0A0A0B'], Festivals:['#B23A17','#0A0A0B'],
-    Daytime:['#C46A28','#171012'], Arts:['#0F6E56','#0A0A0B']
-  };
-
-  /* ── events ── */
-  /* Marketplace is sourced ONLY from our own database (/api/events) — every event
-     was created inside the Zora ecosystem and carries its organizer's subdomain.
-     No generic or external listings. */
-  let EVENTS = [];
-  function mapEvent(e){
-    return {
-      id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: e.category || 'Festivals',
-      city: e.city, venue: e.venue, date: e.dateLabel || e.date || '', time: e.time || '',
-      price: e.priceFrom != null ? e.priceFrom : (e.price || 0),
-      wknd: !!e.weekend, mega: !!e.mega, seated: !!e.seated,
-      organizer: e.organizer, subdomain: e.subdomain, url: e.url   // white-label routing target
-    };
-  }
-  async function loadEvents(){
-    try {
-      const r = await fetch('/api/events');
-      if (!r.ok) throw new Error('events');
-      EVENTS = (await r.json()).map(mapEvent);
-    } catch { EVENTS = []; }   // isolation: if our DB is empty, the marketplace is empty
-  }
-
-  const CATS = ['All','This Weekend','Concerts','Festivals','Nightlife','Daytime','Arts'];
-  let activeCity = 'dar', activeCat = 'All', query = '';
-
-  /* ── location menu ── */
-  function renderLocList(){
-    $('loc-list').innerHTML = CITIES.map(c =>
-      '<div class="loc-opt' + (c.id === activeCity ? ' on' : '') + '" data-c="' + c.id + '">' +
-        '<span>' + c.city + '</span><span class="co">' + c.country + '</span></div>').join('');
-  }
-  function curCity(){ return CITIES.find(c => c.id === activeCity); }
-  function setCity(id){
-    activeCity = id;
-    const c = curCity();
-    $('loc-detecting').style.display = 'none';
-    $('loc-city').style.display = 'inline';
-    $('loc-city').textContent = c.city + ', ' + c.country;
-    $('hero-city').textContent = c.city;
-    renderLocList(); render();
-    $('loc-menu').classList.remove('on');
-  }
-  $('loc-btn').addEventListener('click', () => $('loc-menu').classList.toggle('on'));
-  $('loc-list').addEventListener('click', e => { const o = e.target.closest('.loc-opt'); if (o) setCity(o.dataset.c); });
-  document.addEventListener('click', e => { if (!e.target.closest('.loc')) $('loc-menu').classList.remove('on'); });
-
-  /* ── chips ── */
-  $('chips').innerHTML = CATS.map((c, i) => '<button class="chip' + (i === 0 ? ' on' : '') + '" data-cat="' + c + '">' + c + '</button>').join('');
-  $('chips').addEventListener('click', e => {
-    const b = e.target.closest('.chip'); if (!b) return;
-    document.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
-    b.classList.add('on'); activeCat = b.dataset.cat; render();
-  });
-
-  /* ── search (both inputs synced) ── */
-  function onSearch(v){ query = v.toLowerCase().trim(); $('nav-search').value = v; $('hero-search').value = v; render(); }
-  $('nav-search').addEventListener('input', e => onSearch(e.target.value));
-  $('hero-search').addEventListener('input', e => onSearch(e.target.value));
-  $('hero-go').addEventListener('click', () => { document.querySelector('section').scrollIntoView({ behavior:'smooth' }); });
-
-  /* ── render grid ── */
-  function money(v){ const c = curCity(); return c.cur + ' ' + fmt(v); }
-  function tileHTML(e, i){
-    const pal = PAL[e.cat] || ['#26262B','#0A0A0B'];
-    return '<article class="tile" data-i="' + i + '">' +
-      '<div class="cover" style="--a:' + pal[0] + ';--b:' + pal[1] + '">' +
-        '<span class="cat">' + e.cat.toUpperCase() + '</span>' +
-        (e.wknd ? '<span class="wknd">THIS WEEKEND</span>' : '') +
-        '<span class="ct">' + e.t + '</span>' +
-      '</div>' +
-      '<div class="info">' +
-        '<h3>' + e.t + '</h3>' +
-        '<p class="art">' + e.art + '</p>' +
-        '<p class="meta"><span class="ic">&#9679;</span>' + e.date + ' · ' + e.time + '<br><span class="ic">&#9678;</span>' + e.venue + '</p>' +
-        '<div class="foot">' +
-          '<span class="price"><small>FROM</small><b>' + money(e.price) + '</b></span>' +
-          '<button class="get" data-i="' + i + '">Get ticket</button>' +
-        '</div>' +
-      '</div></article>';
-  }
-  function render(){
-    let list = EVENTS.map((e, i) => ({ e, i })).filter(({ e }) => e.city === activeCity);
-    if (activeCat === 'This Weekend') list = list.filter(({ e }) => e.wknd);
-    else if (activeCat !== 'All') list = list.filter(({ e }) => e.cat === activeCat);
-    if (query) list = list.filter(({ e }) => (e.t + ' ' + e.art + ' ' + e.venue).toLowerCase().includes(query));
-
-    const c = curCity();
-    $('hero-count').textContent = EVENTS.filter(e => e.city === activeCity).length;
-    $('grid-title').textContent = 'Upcoming in ' + c.city;
-    $('grid-count').textContent = list.length + ' event' + (list.length === 1 ? '' : 's');
-
-    const top = list.length <= 3 ? list : list.slice(0, Math.ceil(list.length / 2));
-    const bottom = list.slice(top.length);
-    $('grid-top').innerHTML = top.map(({ e, i }) => tileHTML(e, i)).join('') ||
-      '<div class="empty" style="grid-column:1/-1">No events match here yet. <b>Try another filter or city.</b></div>';
-    $('grid-bottom').innerHTML = bottom.map(({ e, i }) => tileHTML(e, i)).join('');
-    $('grid-count2').textContent = bottom.length ? bottom.length + ' more' : '';
-    document.querySelector('.sec-head[style]').style.display = bottom.length ? 'flex' : 'none';
-  }
-
-  /* ── ticket sheet ── */
-  function openTicket(i){
-    const e = EVENTS[i];
-    const pal = PAL[e.cat] || ['#3D5AFE','#101012'];
-    $('tk-cover').style.setProperty('--a', pal[0]);
-    $('tk-cover').style.setProperty('--b', pal[1]);
-    $('tk-title').textContent = e.t;
-    $('tk-meta').innerHTML = e.art + '<br>' + e.date + ' · ' + e.time + '<br>' + e.venue + ' · ' + curCity().city;
-    $('tk-price').textContent = (e.seated ? 'from ' : '') + money(e.price);
-    $('tk-pay').textContent = e.subdomain ? ('GET TICKET AT ' + e.subdomain.toUpperCase()) : 'GET TICKET';
-    /* Route to the organizer's white-label subdomain event page. */
-    $('sheet')._href = e.url || null;
-    $('sheet').classList.add('on'); document.body.style.overflow = 'hidden';
-  }
-  function closeTicket(){ $('sheet').classList.remove('on'); document.body.style.overflow = ''; }
-  $('grid-top').addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (el) openTicket(+el.dataset.i); });
-  $('grid-bottom').addEventListener('click', e => { const el = e.target.closest('[data-i]'); if (el) openTicket(+el.dataset.i); });
-  $('tk-x').addEventListener('click', closeTicket);
-  $('sheet').addEventListener('click', e => { if (e.target === $('sheet')) closeTicket(); });
-  $('tk-pay').addEventListener('click', () => {
-    const href = $('sheet')._href;
-    if (href) location.href = href;
-    else { closeTicket(); toast('Your pass is waiting in the Zora app — download to claim'); }
-  });
-
-  /* ── KULTUR ── */
-  $('k-download').addEventListener('click', () => toast('Get the Zora app to enter KULTUR — invite & earn only'));
-
-  /* faux QR (deterministic modules) */
-  (function drawQR(){
-    const N = 21, cell = 114 / N;
-    let rects = '';
-    function block(x, y, s){ rects += '<rect x="' + (x*cell) + '" y="' + (y*cell) + '" width="' + (s*cell) + '" height="' + (s*cell) + '" fill="#0A0A0B"/>'; }
-    /* finder squares */
-    [[0,0],[N-7,0],[0,N-7]].forEach(([fx,fy]) => {
-      rects += '<rect x="' + (fx*cell) + '" y="' + (fy*cell) + '" width="' + (7*cell) + '" height="' + (7*cell) + '" fill="#0A0A0B"/>';
-      rects += '<rect x="' + ((fx+1)*cell) + '" y="' + ((fy+1)*cell) + '" width="' + (5*cell) + '" height="' + (5*cell) + '" fill="#fff"/>';
-      rects += '<rect x="' + ((fx+2)*cell) + '" y="' + ((fy+2)*cell) + '" width="' + (3*cell) + '" height="' + (3*cell) + '" fill="#0A0A0B"/>';
-    });
-    let seed = 7;
-    const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
-      const inFinder = (x < 7 && y < 7) || (x >= N-7 && y < 7) || (x < 7 && y >= N-7);
-      if (inFinder) continue;
-      if (rnd() > 0.55) block(x, y, 1);
-    }
-    $('qr').innerHTML = '<svg viewBox="0 0 114 114" width="100%" height="100%">' + rects + '</svg>';
-  })();
-
-  /* ── dynamic featured hero: Mega event first, else latest ── */
-  function featured(){
-    const card = document.getElementById('feat-card');
-    if (!EVENTS.length){ if (card) card.style.display = 'none'; return; }
-    let idx = EVENTS.findIndex(e => e.mega);
-    if (idx < 0){ idx = EVENTS.length - 1; document.getElementById('feat-badge').textContent = 'JUST DROPPED'; }
-    const e = EVENTS[idx];
-    const pal = PAL[e.cat] || ['#1E4FD8','#0A0A0B'];
-    if (card) card.style.display = '';
-    document.getElementById('feat-media').style.setProperty('--a', pal[0]);
-    document.getElementById('feat-title').textContent = e.t;
-    document.getElementById('feat-art').textContent = e.art;
-    document.getElementById('feat-meta').textContent = e.date + ' · ' + e.time + '   —   ' + e.venue;
-    document.getElementById('feat-price').textContent = 'FROM ' + money(e.price);
-    card.onclick = ev => { ev.preventDefault(); openTicket(idx); };
-  }
-
-  /* ── boot: fetch our-DB events, then render ── */
-  renderLocList();
-  (async () => {
-    await loadEvents();
-    setCity('dar');           // sets the city + triggers render()
-    featured();
-    setTimeout(() => toast('Located you in Dar es Salaam — switch anytime'), 900);
-  })();
-</script>
-
-<!-- chat support bot -->
-<div class="zbot" id="zbot">
-  <button class="zbot-fab" id="zbot-fab" aria-label="Open help chat">
-    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Help
-  </button>
-  <div class="zbot-panel" id="zbot-panel" role="dialog" aria-label="Zora help chat">
-    <div class="zbot-head">
-      <span class="zbot-avatar">Z</span>
-      <div><p class="zbot-name">Zora Assist</p><p class="zbot-status"><span class="d"></span>Online · replies instantly</p></div>
-      <button class="zbot-x" id="zbot-x" aria-label="Close">&times;</button>
-    </div>
-    <div class="zbot-msgs" id="zbot-msgs"></div>
-    <div class="zbot-quick" id="zbot-quick"></div>
-    <form class="zbot-input" id="zbot-form">
-      <input id="zbot-text" placeholder="Type your question…" autocomplete="off">
-      <button type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
-    </form>
-  </div>
-</div>
-<script src="zbot.js"></script>
-<script src="/placements.js"></script>
-
-</body>
-</html>
+export default function DiscoverPage() {
+  return (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <DiscoverApp />
+    </>
+  );
+}
