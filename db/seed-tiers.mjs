@@ -42,6 +42,7 @@ async function loadEvents() {
 try {
   const events = await loadEvents();
   let seeded = 0;
+  let wiredWeb = false;
   for (const ev of events) {
     if (!ev || !ev.id || ev.priceFrom == null) continue;
     const tierId = `${ev.id}-ga`;
@@ -58,8 +59,23 @@ try {
     await sql`insert into inventory_pool (product_tier_id, capacity, available_count)
               values (${tierId}, ${CAPACITY}, ${CAPACITY})
               on conflict (product_tier_id) do nothing`;
+    // Flag the event web-sellable so the storefront mounts the live checkout
+    // flow (CheckoutFlow reads webCheckout.tiers → {tierId,name,unitPrice,currency}).
+    const tiers = [{ tierId, name: 'General Admission', unitPrice: ev.priceFrom, currency: 'TZS' }];
+    if (JSON.stringify(ev.webCheckout?.tiers || null) !== JSON.stringify(tiers)) {
+      ev.webCheckout = { tiers };
+      wiredWeb = true;
+    }
     seeded++;
     console.log(`✓ seed ${tierId} (cap ${CAPACITY}, ${ev.priceFrom} TZS)`);
+  }
+  // Persist webCheckout.tiers back onto the events collection (live only; the
+  // storefront reads /api/events). Additive + idempotent; /api/events is not
+  // golden-tested, so byte format is not load-bearing.
+  if (wiredWeb) {
+    await sql`update collection_store set data = ${JSON.stringify(events)}, updated_at = now()
+              where name = 'events'`;
+    console.log('✓ wired webCheckout.tiers onto the events collection');
   }
   console.log(`seed-tiers: ${seeded} event(s) seeded`);
 } finally {

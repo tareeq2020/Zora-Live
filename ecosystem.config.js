@@ -5,23 +5,29 @@
  *
  * ── First deploy ────────────────────────────────────────────────────────────
  *   pnpm install
- *   pnpm --filter "@zora/api..." build      # builds @zora/core first, then the API (dist/main.js)
- *   node db/migrate.mjs                     # create tables (idempotent)
+ *   pnpm --filter "@zora/api..." build      # @zora/core → api (dist/main.js)
+ *   pnpm --filter "@zora/worker..." build   # the reconciliation worker
+ *   node db/migrate.mjs                     # create tables incl. payments (idempotent)
  *   node db/backfill.mjs settings tiers placements theme agents floorplan \
  *        tickets organizers audit admin kyc media media_manifest registrations
- *   pm2 start ecosystem.config.js
+ *   node db/seed-tiers.mjs                  # GA tiers + inventory + web-sellable flag
+ *   pm2 start ecosystem.config.js           # starts zora-api AND zora-worker
  *   pm2 save && pm2 startup                 # persist across reboots
  *
  * ── Update ──────────────────────────────────────────────────────────────────
- *   git pull && pnpm install && pnpm --filter "@zora/api..." build
+ *   git pull && pnpm install
+ *   pnpm --filter "@zora/api..." build && pnpm --filter "@zora/worker..." build
  *   node db/migrate.mjs                     # apply any new migrations
- *   pm2 reload zora-api
+ *   pm2 reload zora-api && pm2 reload zora-worker
  *
- * ── Secrets ─────────────────────────────────────────────────────────────────
- * DATABASE_URL, SESSION_SECRET, KYC_SECRET, SUPABASE_URL and
- * SUPABASE_SERVICE_ROLE_KEY are loaded from apps/api/.env by the app's own
- * dotenv at boot (cwd is apps/api). Keep them there — NEVER in this committed
- * file. See apps/api/.env.example for the full list.
+ * ── Secrets / env ───────────────────────────────────────────────────────────
+ * All loaded from apps/api/.env by each app's own dotenv (NEVER in this file):
+ *   DATABASE_URL, SESSION_SECRET, KYC_SECRET, TICKET_SIGNING_KEY, SUPABASE_URL,
+ *   SUPABASE_SERVICE_ROLE_KEY, and — for live payments — XBRIDGE_BASE_URL/KEY_ID/
+ *   SECRET, PUBLIC_ORIGIN (the API's own public https URL — the gateway webhook
+ *   must hit the API host DIRECTLY, not via the Next /api rewrite), and the
+ *   SMS/EMAIL driver creds. Without XBRIDGE_KEY_ID the gateway runs in MOCK mode.
+ *   See apps/api/.env.example for the full list.
  */
 module.exports = {
   apps: [
@@ -48,6 +54,27 @@ module.exports = {
         ZORA_ROOT_DOMAIN: 'zora.com',
       },
       // Logs (pm2 default dir ~/.pm2/logs unless overridden).
+      merge_logs: true,
+      time: true,
+    },
+    {
+      // Payments reconciliation worker (PR-9). Sweeps expired inventory holds/
+      // reservations and reconciles pending payments (re-fetches gateway status).
+      // MUST be a singleton — it also self-guards with pg_try_advisory_lock, so a
+      // stray second instance simply exits, but keep instances:1 regardless.
+      name: 'zora-worker',
+      cwd: './apps/worker',
+      script: 'dist/main.js',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      max_memory_restart: '256M',
+      env: {
+        NODE_ENV: 'production',
+        // Reads DATABASE_URL + XBRIDGE_* from apps/api/.env via its own dotenv.
+      },
       merge_logs: true,
       time: true,
     },
