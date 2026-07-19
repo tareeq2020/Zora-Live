@@ -18,9 +18,11 @@ const ok = (label) => { pass++; console.log(`✓ ${label}`); };
 const bad = (label, detail) => fails.push(`✗ ${label}\n    ${detail}`);
 
 const PAGES = [
+  // drop-001.html + seatmap.html were deleted in F3: the flagship + seat map are
+  // now the React routes /events/offshore and /events/:id/seats (see section 4b/4c).
   'index.html', 'about.html', 'brand.html', 'commission.html', 'create-event.html',
-  'dashboard.html', 'dashboard-seatbuilder.html', 'discover.html', 'drop-001.html',
-  'help.html', 'seatmap.html', 'signup.html', 'studio.html', 'tenant.html',
+  'dashboard.html', 'dashboard-seatbuilder.html', 'discover.html',
+  'help.html', 'signup.html', 'studio.html', 'tenant.html',
   'thebrunchcity.html', 'ticket-preview.html', 'zora-tokens.css', 'zora-theme.js',
   'placements.js', 'zbot.js',
 ];
@@ -62,17 +64,34 @@ async function run() {
   if (tenantNested.status === 200 && tenantNested.body === tenantHtml.body) ok('/@handle/events/:id -> tenant.html');
   else bad('/@handle/events/:id -> tenant.html', `status ${tenantNested.status}, body match ${tenantNested.body === tenantHtml.body}`);
 
-  // 4b. /events/:id matches the oracle exactly (302 to the tenant URL when the
-  // backend has the event, 404 when it doesn't). Compare, don't assume — the
-  // active backend (file vs Supabase) decides which. Strip origin before diffing
-  // Location since web/oracle run on different ports.
+  // 4b. Canonical flagship renders IN PLACE on the apex (F3): /events/offshore
+  // (slug alias) and /events/offshore-001 return the 200 <EventPage>, NOT the old
+  // 302-to-tenant that the oracle still does — an intentional divergence. A
+  // NON-canonical apex id still 302s to its tenant leaf, matching the oracle.
   const stripOrigin = (l) => (l || '').replace(/^https?:\/\/[^/]+/, '');
-  let firstId = null;
-  try { firstId = (JSON.parse((await get(WEB, '/api/events')).body)[0] || {}).id; } catch {}
-  for (const id of ['offshore-001', firstId].filter(Boolean)) {
+  for (const slug of ['offshore', 'offshore-001']) {
+    const w = await get(WEB, '/events/' + slug);
+    if (w.status === 200 && /OFFSHORE/i.test(w.body)) ok(`/events/${slug} renders flagship in place (200)`);
+    else bad(`/events/${slug} renders flagship in place`, `web ${w.status}, has-name ${/OFFSHORE/i.test(w.body)}`);
+  }
+  {
+    const id = 'brunch-vol-09'; // non-canonical apex id -> still 302 to tenant leaf
     const [w, o] = await Promise.all([get(WEB, '/events/' + id), get(ORACLE, '/events/' + id)]);
-    if (w.status === o.status && stripOrigin(w.loc) === stripOrigin(o.loc)) ok(`/events/${id} matches oracle (${w.status})`);
-    else bad(`/events/${id} matches oracle`, `web ${w.status} loc ${stripOrigin(w.loc)} vs oracle ${o.status} loc ${stripOrigin(o.loc)}`);
+    if (w.status === o.status && stripOrigin(w.loc) === stripOrigin(o.loc)) ok(`/events/${id} still 302s to tenant leaf (${w.status})`);
+    else bad(`/events/${id} 302s to tenant leaf`, `web ${w.status} loc ${stripOrigin(w.loc)} vs oracle ${o.status} loc ${stripOrigin(o.loc)}`);
+  }
+
+  // 4c. /events/:id/seats renders the seat map; the old static paths (now deleted)
+  // 301-alias to the canonical React routes so existing links keep working.
+  {
+    const seats = await get(WEB, '/events/offshore/seats');
+    if (seats.status === 200) ok('/events/offshore/seats renders seat map (200)');
+    else bad('/events/offshore/seats renders', `status ${seats.status}`);
+    for (const [oldPath, dest] of [['/drop-001.html', '/events/offshore'], ['/seatmap.html', '/events/offshore/seats']]) {
+      const r = await get(WEB, oldPath);
+      if (r.status === 301 && stripOrigin(r.loc) === dest) ok(`${oldPath} -> ${dest} (301 alias)`);
+      else bad(`${oldPath} alias`, `status ${r.status} loc ${stripOrigin(r.loc)}`);
+    }
   }
 
   // 5. /admin anonymous -> login page

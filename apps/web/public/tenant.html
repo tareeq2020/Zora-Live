@@ -102,7 +102,7 @@
         '<a href="/discover.html">← back to the marketplace</a></div>';
 
     $('cta').addEventListener('click', () => {
-      if (ev.seated) { location.href = '/seatmap.html?ev=' + encodeURIComponent(ev.name); return; }
+      if (ev.seated) { location.href = '/events/' + encodeURIComponent(id) + '/seats'; return; }
       toast('Your pass is waiting in the Zora app — download to claim');
     });
   }

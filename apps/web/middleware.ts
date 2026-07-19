@@ -25,6 +25,19 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const tenant = tenantHandleFromHost(req.headers.get('host') || '');
 
+  // Old flagship paths, now deleted, alias to the canonical React routes so the
+  // many static links to them (index/discover/dashboards/footer) keep working.
+  const FLAGSHIP_ALIAS: Record<string, string> = {
+    '/drop-001.html': '/events/offshore',
+    '/seatmap.html': '/events/offshore/seats',
+  };
+  if (FLAGSHIP_ALIAS[pathname]) {
+    const url = req.nextUrl.clone();
+    url.pathname = FLAGSHIP_ALIAS[pathname];
+    url.search = '';
+    return NextResponse.redirect(url, 301);
+  }
+
   // /@handle and /@handle/events/:id -> branded tenant page (tenant.html reads the
   // handle from location itself).
   if (pathname.startsWith('/@')) {
