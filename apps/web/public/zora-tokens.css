@@ -72,6 +72,14 @@
 /* real logo image (injected site-wide by zora-theme.js: white on dark, dark on light) */
 .wordmark img.zora-logo, .brand img.zora-logo{ height:.86em; width:auto; display:inline-block; vertical-align:-0.14em; user-select:none; }
 .wordmark:has(img.zora-logo), .brand:has(img.zora-logo){ letter-spacing:normal; }
+/* Theme-driven logo swap with pure CSS (F1 follow-up): <Wordmark> renders both
+   assets (white letters for dark, black for light); data-theme on <html> shows
+   exactly one, so no useTheme() mount effect and no hydration flash. */
+.wordmark img.zora-logo-light, .brand img.zora-logo-light{ display:none; }
+[data-theme="light"] .wordmark img.zora-logo-dark,
+[data-theme="light"] .brand img.zora-logo-dark{ display:none; }
+[data-theme="light"] .wordmark img.zora-logo-light,
+[data-theme="light"] .brand img.zora-logo-light{ display:inline-block; }
 
 /* ── primary CTAs carry the aura; everything structural stays blue ── */
 .btn.solid, .nav-cta, .app-btn, .btn-aura, .kbtn:hover, .big-btn{

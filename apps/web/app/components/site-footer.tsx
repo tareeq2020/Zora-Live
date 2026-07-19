@@ -29,7 +29,7 @@ export function SiteFooter() {
             <a href="signup.html">get started</a>
             <a href="dashboard.html">dashboard</a>
             <a href="thebrunchcity.html">live storefront</a>
-            <a href="/admin">admin</a>
+            <a href="/dashboard/login">admin</a>
           </div>
           <div>
             CONTACT
