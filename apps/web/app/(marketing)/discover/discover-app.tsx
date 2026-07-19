@@ -339,10 +339,15 @@ export function DiscoverApp() {
                   <a className="k-btn ghost" href="/drop-001.html">SEE THE FLAGSHIP &rarr;</a>
                 </div>
               </div>
-              <div className="qr-card">
+              {/* The QR now resolves to the /t/:code scan landing (F8) instead of a
+                  bare app-download: that landing offers the app deep link (zora://t/<code>)
+                  AND a basic web-pass fallback, so a scan works whether or not the app
+                  is installed. Wrapped in an anchor so a tap on desktop follows the same
+                  target a phone camera would open. */}
+              <a className="qr-card" href="/t/OFFSHORE" aria-label="Open your OFFSHORE pass">
                 <div className="qr" id="qr" dangerouslySetInnerHTML={{ __html: QR_SVG }} />
-                <p className="qlabel">SCAN TO DOWNLOAD<br />ZORA &amp; UNLOCK KULTUR</p>
-              </div>
+                <p className="qlabel">SCAN TO OPEN<br />YOUR OFFSHORE PASS</p>
+              </a>
             </div>
           </div>
 

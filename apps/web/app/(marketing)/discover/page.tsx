@@ -144,7 +144,7 @@ const CSS = `
   .k-btn:hover{background:transparent;color:var(--orange)}
   .k-btn.ghost{background:transparent;color:var(--orange)}
   .k-btn.ghost:hover{background:var(--orange);color:#0A0A0B}
-  .kultur .qr-card{background:#0A0A0B;border:1px solid #3a1c10;border-radius:16px;padding:20px;text-align:center;width:180px;justify-self:end}
+  .kultur .qr-card{display:block;text-decoration:none;color:inherit;background:#0A0A0B;border:1px solid #3a1c10;border-radius:16px;padding:20px;text-align:center;width:180px;justify-self:end}
   @media(max-width:820px){.kultur .qr-card{justify-self:start}}
   .kultur .qr-card .qr{width:130px;height:130px;margin:0 auto;background:#fff;border-radius:8px;padding:8px}
   .kultur .qr-card .qlabel{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--orange);margin-top:14px;line-height:1.5}
