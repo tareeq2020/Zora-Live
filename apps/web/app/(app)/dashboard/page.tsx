@@ -370,7 +370,7 @@ const MARKUP = `
               <option value="monoforward">Mono-forward — technical</option>
             </select>
           </div>
-          <div class="row-actions"><a class="btn" href="/dashboard/storefront/studio">OPEN THE STUDIO &rarr;</a><a class="btn ghost" href="/thebrunchcity.html" target="_blank">LIVE PILOT</a></div>
+          <div class="row-actions"><a class="btn" href="/dashboard/storefront/studio">OPEN THE STUDIO &rarr;</a><a class="btn ghost" href="/@thebrunchcity" target="_blank">LIVE PILOT</a></div>
         </div>
         <div>
           <div class="sf-preview">

@@ -6,7 +6,8 @@
    markup via dangerouslySetInnerHTML, original script (live postMessage preview,
    drag-drop CDN uploads, PUT /api/storefront-theme) run once on mount. Styles
    scoped under `.zora-studio`; the DASHBOARD breadcrumb points to /dashboard and
-   the preview iframe to the still-static /thebrunchcity.html. */
+   the preview iframe to the React storefront index at /@thebrunchcity (PR-F5;
+   it listens for the same `zora-theme` postMessage for live preview). */
 
 import { useEffect } from 'react';
 
@@ -193,7 +194,7 @@ const MARKUP = `
       </div>
       <div class="pv-stage">
         <div class="device" id="device">
-          <iframe id="preview-frame" src="/thebrunchcity.html?preview=1" title="Storefront preview"></iframe>
+          <iframe id="preview-frame" src="/@thebrunchcity?preview=1" title="Storefront preview"></iframe>
         </div>
       </div>
     </main>
