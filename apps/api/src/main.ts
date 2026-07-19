@@ -22,6 +22,12 @@ async function bootstrap() {
   // Match Express: POST handlers return 200, not Nest's default 201.
   app.useGlobalInterceptors(new ExpressStatusInterceptor());
 
+  // PR-9: the x-bridge webhook needs the RAW request bytes so its sha256 dedup key
+  // is computed over exactly what the provider sent. Mount express.raw for ONLY
+  // that path BEFORE the global express.json — raw sets req._body, so the json
+  // parser below skips it. Every other route still gets parsed JSON.
+  app.use('/api/webhooks/xbridge', express.raw({ type: '*/*', limit: '1mb' }));
+
   // Body parser: 12mb to fit base64 image uploads (matches server.js).
   app.use(express.json({ limit: '12mb' }));
 

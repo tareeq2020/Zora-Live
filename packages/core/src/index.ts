@@ -1,7 +1,7 @@
 export { makeSql, db, tx, closeDb } from './db';
 export type { Sql } from './db';
 export {
-  placeHold, convertHolds, releaseHolds,
+  placeHold, convertHolds, releaseHolds, tryReacquire,
   reserveInventory, convertReservation, releaseReservation, sweepExpiredReservations,
   poolSnapshots, poolSnapshotsCached,
 } from './inventory';
@@ -14,6 +14,13 @@ export type { CredentialClaims } from './credentials';
 export { createGaVipOrder, issueCredentials, SoldOut } from './payments/service';
 export type {
   CartLine, CreateGaVipOrderInput, CreateGaVipOrderResult,
+} from './payments/service';
+export {
+  nextAttemptKey, initiatePayment, mapStatus, applyOutcome, reconcile,
+  notifyOrderPaid, alertOps, resolveTransactionId, reconcilePending, sweepExpiredHolds,
+} from './payments/service';
+export type {
+  PaymentOutcome, InitiatePaymentInput, InitiatePaymentResult,
 } from './payments/service';
 export {
   resolveFsp, feeRateForFsp, DEFAULT_FSP_ROUTE_MAP, DEFAULT_FEE_RATE,

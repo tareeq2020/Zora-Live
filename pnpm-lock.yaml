@@ -102,6 +102,22 @@ importers:
         specifier: ^5.6.2
         version: 5.9.3
 
+  apps/worker:
+    dependencies:
+      '@zora/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.4
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+
   packages/core:
     dependencies:
       pdf-lib:
