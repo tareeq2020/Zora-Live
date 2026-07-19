@@ -96,7 +96,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // /admin and /login -> serve dashboard or login based on the API session.
+  // /admin and /login -> serve the internal staff console or its login based on
+  // the API session. Targets are the PR-F9 React routes (the static
+  // admin/*.html twins are deleted). Distinct from the organizer /dashboard gate.
   if (pathname === '/admin' || pathname === '/login') {
     let isAdmin = false;
     try {
@@ -104,7 +106,7 @@ export async function middleware(req: NextRequest) {
       isAdmin = !!me.isAdmin;
     } catch {}
     const url = req.nextUrl.clone();
-    url.pathname = isAdmin ? '/admin/dashboard.html' : '/admin/login.html';
+    url.pathname = isAdmin ? '/admin/dashboard' : '/admin/login';
     return NextResponse.rewrite(url);
   }
 
