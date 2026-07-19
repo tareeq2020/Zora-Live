@@ -125,7 +125,25 @@ function Countdown({ ev }: { ev: StorefrontEvent }) {
 }
 
 export default function StorefrontClient(props: StorefrontProps) {
-  const { handle, brandName, subdomain, eyebrow, lede, aboutHeading, aboutBody, events, theme, canManage } = props;
+  const { handle, subdomain, eyebrow, lede, aboutHeading, aboutBody, events, canManage } = props;
+
+  // Live theming: start from the published theme (props) and merge any `zora-theme`
+  // postMessage the Studio preview iframe sends — mirrors the original page's
+  // applyTheme() so the Studio's live preview keeps working against this route.
+  const [theme, setTheme] = useState<StorefrontTheme>(props.theme);
+  const [brandName, setBrandName] = useState(props.brandName);
+  useEffect(() => {
+    function onMsg(ev: MessageEvent) {
+      const d = ev.data;
+      if (!d || d.type !== 'zora-theme' || !d.theme) return;
+      const t = d.theme as StorefrontTheme & { brandName?: string };
+      setTheme((prev) => ({ ...prev, ...t }));
+      if (t.brandName != null) setBrandName(t.brandName);
+    }
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
   const accent = theme.accent || '#C46A28';
   const accentDeep = shade(accent, -0.3);
   const font = (theme.typography && FONTS[theme.typography]) || FONTS.editorial;
