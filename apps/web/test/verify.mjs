@@ -94,11 +94,12 @@ async function run() {
     }
   }
 
-  // 5. /admin anonymous -> login page
+  // 5. /admin anonymous -> internal staff login (PR-F9 React route; the static
+  // /admin/login.html twin is deleted — the gate now rewrites to /admin/login).
   const admin = await get(WEB, '/admin');
-  const loginHtml = await get(WEB, '/admin/login.html');
-  if (admin.status === 200 && admin.body === loginHtml.body) ok('/admin (anon) -> login.html');
-  else bad('/admin (anon) -> login.html', `status ${admin.status}, body match ${admin.body === loginHtml.body}`);
+  const login = await get(WEB, '/admin/login');
+  if (admin.status === 200 && admin.body === login.body) ok('/admin (anon) -> /admin/login');
+  else bad('/admin (anon) -> /admin/login', `status ${admin.status}, body match ${admin.body === login.body}`);
 
   console.log(`\n${pass} passed, ${fails.length} failed`);
   if (fails.length) { console.log('\n' + fails.join('\n\n')); process.exit(1); }
