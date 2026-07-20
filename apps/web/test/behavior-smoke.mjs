@@ -71,11 +71,21 @@ async function run() {
       name: "'/' renders homepage",
     });
 
+    // MT4: the organizer dashboard HOME is behind the /dashboard gate. Anonymous
+    // (no organizer session) must rewrite to the seller sign-in card IN PLACE
+    // (200, not a redirect) — this exercises the route + middleware wiring without
+    // needing a seeded session. The authed render of the real KPI/drops home is
+    // covered by /qa once an organizer session exists.
+    await assertRenders(WEB, '/dashboard', {
+      marker: 'SELLER SIGN-IN',
+      name: '/dashboard (anon) -> seller sign-in gate',
+    });
+
     // ── scaffold for later PRs (uncomment/extend as pages convert) ──
     // await assertRenders(WEB, '/discover', { marker: 'data-event-card' });
     // await assertRenders(WEB, '/events/offshore', { marker: 'countdown' });
     // const t = await fetch(`${WEB}/t/DEMO`); ...QR SVG 200...
-    // Gate matrix (F6): anon -> /dashboard/login, authed -> page, wrong-org -> blocked.
+    // Gate matrix (F6): authed -> page, wrong-org -> blocked.
   });
 
   console.log(`\n${pass} passed, ${fails.length} failed`);
