@@ -11,6 +11,11 @@
 #   BASE_URL defaults to the production Vercel origin.
 set -euo pipefail
 
+# Default to the public production origin. Override with $1.
+# NOTE: the production alias only updates when a PRODUCTION deploy runs — check
+# Vercel Settings → Git → Production Branch = main. If /api/* 404s with
+# x-vercel-error: DNS_HOSTNAME_RESOLVED_PRIVATE, the serving build baked a
+# private/localhost API_URL (API_URL missing on the *Production* env).
 BASE="${1:-https://zora-web-omega.vercel.app}"
 fail=0
 echo "== deploy smoke @ $BASE =="
