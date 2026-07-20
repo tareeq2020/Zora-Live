@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OrgController } from './org.controller';
+import { OrgEventsController } from './org-events.controller';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService } from './event-provisioning.service';
 
@@ -8,7 +9,7 @@ import { EventProvisioningService } from './event-provisioning.service';
    CRUD) and MT3 (sales/reporting) add their controllers HERE and inject the
    exported services, so app.module.ts churn is a single import line (MT1 only). */
 @Module({
-  controllers: [OrgController],
+  controllers: [OrgController, OrgEventsController],
   providers: [OrgScopeService, EventProvisioningService],
   exports: [OrgScopeService, EventProvisioningService],
 })

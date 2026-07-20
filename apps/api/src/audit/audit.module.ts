@@ -7,9 +7,11 @@ import { SessionGuard } from '../common/session.guard';
 export class AuditService {
   constructor(private readonly entities: EntityStore) {}
 
-  async record(action: string, detail: string, ip?: string) {
+  async record(action: string, detail: string, ip?: string, actor?: string) {
     const log = await this.entities.read<any[]>('audit', []);
-    log.push({ at: new Date().toISOString(), admin: 'admin', action, detail: detail || '', ip: ip || '' });
+    // `actor` names the acting principal (MT2 org writes pass the organizer handle);
+    // it defaults to 'admin' so every existing admin-side caller is byte-unchanged.
+    log.push({ at: new Date().toISOString(), admin: actor || 'admin', action, detail: detail || '', ip: ip || '' });
     await this.entities.write('audit', log.slice(-500)); // keep last 500
   }
 }
