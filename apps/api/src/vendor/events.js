@@ -12,6 +12,15 @@ function resolveSlug(id) { return SLUG_ALIASES[id] || id; }
 
 function byDate(a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }
 
+// C5: public-read status filter. Events gain status ∈ {draft,published,archived}
+// (added by the org CRUD in MT2). Public reads expose ONLY published events — a
+// MISSING/null status means a legacy event (the 7 seed events predate the field)
+// and is treated as published for backward-compat. Drafts/archived vanish from
+// /api/events, /api/events/:id, the storefront, and the middleware event lookup.
+function isPubliclyVisible(e) {
+  return !!e && (e.status == null || e.status === 'published');
+}
+
 async function readAll() {
   const rows = await db()`select data from collection_store where name = 'events'`;
   return rows.length ? JSON.parse(rows[0].data) : [];
@@ -23,7 +32,7 @@ async function writeAll(rows) {
 }
 
 async function listEvents(city) {
-  let rows = await readAll();
+  let rows = (await readAll()).filter(isPubliclyVisible);
   if (city) rows = rows.filter((e) => e.city === city);
   return rows.sort(byDate);
 }
@@ -31,7 +40,9 @@ async function listEvents(city) {
 async function getEvent(id) {
   id = resolveSlug(id);
   const row = (await readAll()).find((e) => e.id === id);
-  if (!row) throw new Error('Event not found');
+  // A non-published event is treated as non-existent on the public read path
+  // (404), same as an unknown id — no draft/archived leak.
+  if (!row || !isPubliclyVisible(row)) throw new Error('Event not found');
   return row;
 }
 
