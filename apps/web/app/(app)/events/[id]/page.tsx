@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GetTicketButton } from './event-cta';
+import type { CheckoutTier } from '../../../components/checkout-flow';
 import styles from './event-page.module.css';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
@@ -30,6 +31,9 @@ type ZoraEvent = {
   mega?: boolean;
   organizer?: string;
   organizerHandle?: string;
+  // Present when the event is web-sellable (seed-tiers wires a GA tier). Its
+  // presence flips the CTA from the app-claim toast to the real <CheckoutFlow>.
+  webCheckout?: { tiers?: CheckoutTier[] };
 };
 
 async function fetchEvent(id: string): Promise<ZoraEvent | null> {
@@ -71,6 +75,9 @@ export default async function EventPage({ params }: { params: { id: string } }) 
   const cur = CUR[ev.city || ''] || 'TZS';
   const price = (ev.priceFrom != null ? ev.priceFrom : 0).toLocaleString();
   const cover = PAL[ev.category || ''] || '#4C6FFF';
+  // Same "when" line the storefront sheet builds, so both surfaces open an
+  // identically-labelled checkout.
+  const when = [ev.dateLabel || 'TBA', ev.time, ev.venue].filter(Boolean).join(' · ').toUpperCase();
 
   return (
     <main className={styles.wrap}>
@@ -121,7 +128,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
             CHOOSE YOUR SEATS →
           </Link>
         ) : (
-          <GetTicketButton />
+          <GetTicketButton eventName={ev.name} when={when} tiers={ev.webCheckout?.tiers} />
         )}
       </div>
 
