@@ -9,7 +9,7 @@
  *   pnpm --filter "@zora/worker..." build   # the reconciliation worker
  *   node db/migrate.mjs                     # create tables incl. payments (idempotent)
  *   node db/backfill.mjs settings tiers placements theme agents floorplan \
- *        tickets organizers audit admin kyc media media_manifest registrations
+ *        tickets organizers audit admin kyc media media_manifest registrations events
  *   node db/seed-tiers.mjs                  # GA tiers + inventory + web-sellable flag
  *   pm2 start ecosystem.config.js           # starts zora-api AND zora-worker
  *   pm2 save && pm2 startup                 # persist across reboots
