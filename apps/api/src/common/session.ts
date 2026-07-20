@@ -7,6 +7,11 @@ declare global {
   namespace Express {
     interface Request {
       session: ZoraSession;
+      // C1: stamped by OrganizerGuard from the resolved acting context so
+      // downstream org-scoped controllers + audit read a single source of truth.
+      actingHandle?: string;
+      actingViaImpersonation?: boolean;
+      actingAdminId?: string;
     }
   }
 }
