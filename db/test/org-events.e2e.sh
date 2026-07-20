@@ -142,6 +142,14 @@ n_dtier=$(psql_q "select count(*) from product_tier where event_id='$DRAFTID';")
 PUB=$(curl -s "$BASE/api/events")
 echo "$PUB" | grep -q "$DRAFTID" && { echo "  ✗ draft leaked into /api/events"; fail=1; } || echo "  ✓ draft absent from public /api/events"
 
+# Regression: ISSUE-001 — a DRAFT with ONLY a name must succeed. Before the fix,
+# create() ran the full field validation unconditionally and 400'd with
+# dateLabel_required, breaking the "fill what you know" draft promise. Found by
+# /qa 2026-07-20.
+BARE=$(curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{"name":"Bare Draft","sellable":false,"tiers":[]}')
+BSTATUS=$(echo "$BARE" | jq_get status)
+[ "$BSTATUS" = "draft" ] && echo "  ✓ ISSUE-001: name-only draft → status=draft (no dateLabel_required)" || { echo "  ✗ ISSUE-001 regressed: $BARE"; fail=1; }
+
 echo ""
 echo "== 3. PARTIAL-FAILURE ROLLBACK (tx atomicity, C4) =="
 # capacity 3e9 passes the API's positive-integer check but overflows the int event
