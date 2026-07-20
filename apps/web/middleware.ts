@@ -74,11 +74,20 @@ export async function middleware(req: NextRequest) {
     url.pathname = `/storefront/${storefrontRoot[1]}`;
     return NextResponse.rewrite(url);
   }
-  // The leaf (/@handle/events/:id) — and any other deeper /@ path — stays on the
-  // branded single-event page.
-  if (pathname.startsWith('/@')) {
+  // The branded single-event leaf: /@handle/events/:id -> the React route
+  // /storefront/:handle/events/:id, whose GET TICKET opens the real CheckoutFlow
+  // (replaces the retired static public/tenant.html + its app-claim toast).
+  const storefrontLeaf = pathname.match(/^\/@([^/]+)\/events\/([^/]+)$/);
+  if (storefrontLeaf) {
     const url = req.nextUrl.clone();
-    url.pathname = '/tenant.html';
+    url.pathname = `/storefront/${storefrontLeaf[1]}/events/${storefrontLeaf[2]}`;
+    return NextResponse.rewrite(url);
+  }
+  // Any other deeper /@ path falls back to that organizer's storefront index.
+  const anyTenant = pathname.match(/^\/@([^/]+)/);
+  if (anyTenant) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/storefront/${anyTenant[1]}`;
     return NextResponse.rewrite(url);
   }
 
@@ -94,7 +103,7 @@ export async function middleware(req: NextRequest) {
     }
     if (tenant) {
       const url = req.nextUrl.clone();
-      url.pathname = '/tenant.html';
+      url.pathname = `/storefront/${tenant}/events/${encodeURIComponent(evMatch[1])}`;
       return NextResponse.rewrite(url);
     }
     try {

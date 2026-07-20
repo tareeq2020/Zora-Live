@@ -7,7 +7,8 @@ import StorefrontClient, { type StorefrontEvent, type StorefrontTheme } from './
 // front door (and a tenant subdomain's "/") to /storefront/:handle, which lands
 // here. This resolves the handle -> organizer + their event index via the API and
 // renders the multi-event storefront (StorefrontClient). Distinct from the
-// single-event leaf (/@handle/events/:id -> tenant.html). Lives in the (app) group
+// single-event leaf (/@handle/events/:id -> the storefront/[handle]/events/[id]
+// React route). Lives in the (app) group
 // (app-plane chrome — no marketing nav/footer).
 
 export const dynamic = 'force-dynamic';
