@@ -13,7 +13,7 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest registrations"
+ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest registrations events"
 
 # parallel arrays: public endpoint -> fixture file
 PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
@@ -71,6 +71,19 @@ else echo "  ✗ /api/media DIFFERS"; diff "$GOLDEN/media.json" "$SNAP/media-nor
 echo "== tenant: organizer resolved from Postgres (not disk) =="
 tenant=$(curl -s "http://localhost:$API_PORT/api/tenant/thebrunchcity")
 echo "$tenant" | grep -q '"handle":"thebrunchcity"' && echo "  ✓ tenant/:handle resolves organizer from the 'organizers' collection" || { echo "  ✗ tenant: $tenant"; fail=1; }
+
+# events live in the collection_store blob (like every other collection), served
+# by vendor/events.js. Regression guard for the "events.js split-brain" bug: the
+# old code queried a supabase-js `events` TABLE that never existed, so /api/events
+# returned an error and every storefront showed 0 events. Assert the endpoint
+# reads the backfilled blob and returns all catalog events (non-empty, right count).
+echo "== events: /api/events reads the collection_store blob (not a phantom table) =="
+want=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).length))' "$ROOT/data/events.json")
+got=$(curl -s "http://localhost:$API_PORT/api/events" \
+  | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write(Array.isArray(d)?String(d.length):"ERR:"+JSON.stringify(d))')
+if [ "$got" = "$want" ] && [ "$want" -gt 0 ]; then
+  echo "  ✓ /api/events -> $got event(s) from the blob (matches data/events.json)"
+else echo "  ✗ /api/events returned '$got', expected array of $want"; fail=1; fi
 
 echo "== session: impersonation round-trip (signed cookie carries the claim) =="
 curl -s -b "$jar" -c "$jar" -X POST "http://localhost:$API_PORT/api/organizers/o1/impersonate" >/dev/null
