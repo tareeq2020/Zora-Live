@@ -71,6 +71,15 @@ async function run() {
       name: "'/' renders homepage",
     });
 
+    // MT5 — /dashboard/sales exists and is organizer-gated: an anon request is
+    // rewritten to the organizer sign-in (middleware fail-closed), so the route
+    // both resolves (renders, not 404) AND enforces its gate. (Authed content is
+    // exercised by /qa with a real org session.)
+    await assertRenders(WEB, '/dashboard/sales', {
+      marker: 'ORGANIZER HANDLE',
+      name: "'/dashboard/sales' resolves + gates anon to organizer sign-in",
+    });
+
     // ── scaffold for later PRs (uncomment/extend as pages convert) ──
     // await assertRenders(WEB, '/discover', { marker: 'data-event-card' });
     // await assertRenders(WEB, '/events/offshore', { marker: 'countdown' });
