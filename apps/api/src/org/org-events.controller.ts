@@ -88,8 +88,11 @@ export class OrgEventsController {
   async create(@Req() req: Request, @Body() body: any) {
     const handle = req.actingHandle as string;
     await this.assertActiveOrganizer(handle); // I2
-    const fields = this.validateEventFields(body);
     const sellable = body?.sellable === true;
+    // A DRAFT only needs a name — "fill what you know, publish when you're ready".
+    // Full field validation (date/city/venue/category/priceFrom/seated) is enforced
+    // only when PUBLISHING a sellable, public drop.
+    const fields = sellable ? this.validateEventFields(body) : this.validateDraftFields(body);
     const tiers = this.normalizeTiers(body?.tiers, sellable);
     const idempotencyKey = typeof body?.idempotencyKey === 'string' ? body.idempotencyKey : null;
 
@@ -349,6 +352,22 @@ export class OrgEventsController {
     if (typeof body?.seated !== 'boolean') throw new BadRequestException({ error: 'seated_required' });
     const time = typeof body?.time === 'string' ? body.time.trim() : undefined;
     return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time };
+  }
+
+  // A draft only requires a name. Every other field is optional and stored as
+  // given, so an organizer can "fill what they know" and finish later. Publishing
+  // (sellable) re-runs validateEventFields, which enforces the full set.
+  private validateDraftFields(body: any) {
+    const name = body?.name;
+    if (typeof name !== 'string' || !name.trim()) throw new BadRequestException({ error: 'name_required' });
+    const out: Record<string, unknown> = { name: name.trim() };
+    for (const k of ['dateLabel', 'city', 'venue', 'category', 'time'] as const) {
+      if (typeof body?.[k] === 'string' && body[k].trim()) out[k] = body[k].trim();
+    }
+    const priceFrom = Number(body?.priceFrom);
+    if (Number.isFinite(priceFrom) && priceFrom >= 0) out.priceFrom = priceFrom;
+    if (typeof body?.seated === 'boolean') out.seated = body.seated;
+    return out as { name: string } & Record<string, unknown>;
   }
 
   private normalizeTiers(raw: any, requireNonEmpty: boolean): TierInput[] {

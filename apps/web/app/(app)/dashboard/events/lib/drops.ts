@@ -268,6 +268,23 @@ export function messageForError(err: ApiError, context: 'save' | 'delete'): stri
     return "This drop can't be deleted — it already has sales. Archive it instead once the event has passed.";
   if (err.status === 404) return "That drop no longer exists, or it isn't yours.";
   if (err.status === 401) return 'Your session expired. Sign in again to continue.';
+  // Map the server's field-validation codes to readable copy (publish enforces the
+  // full field set; a draft only needs a name). Keeps a missing field from ever
+  // surfacing as a raw code like "city_required".
+  const REQUIRED_LABELS: Record<string, string> = {
+    name_required: 'name',
+    dateLabel_required: 'date',
+    city_required: 'city',
+    venue_required: 'venue',
+    category_required: 'category',
+  };
+  if (err.error && REQUIRED_LABELS[err.error])
+    return `Add a ${REQUIRED_LABELS[err.error]} to publish this drop (drafts can skip it).`;
+  if (err.error === 'priceFrom_invalid') return 'Set a valid starting price to publish.';
+  if (err.error === 'seated_required') return 'Choose whether this is a seated event.';
+  if (err.error === 'tiers_required') return 'A public drop needs at least one ticket tier.';
+  if (err.error === 'capacity_below_committed') return "You can't drop capacity below tickets already sold or held.";
+  if (err.error === 'suspended') return 'Your account is suspended. Contact ZORA support.';
   if (err.message) return err.message;
   if (err.error) return err.error;
   return context === 'delete' ? 'Could not delete this drop. Please try again.' : 'Could not save this drop. Please try again.';
