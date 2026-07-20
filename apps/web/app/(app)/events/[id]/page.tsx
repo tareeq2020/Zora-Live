@@ -37,11 +37,18 @@ type ZoraEvent = {
 };
 
 async function fetchEvent(id: string): Promise<ZoraEvent | null> {
+  const target = `${API_URL}/api/events/${encodeURIComponent(id)}`;
   try {
-    const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(id)}`, { cache: 'no-store' });
-    if (!res.ok) return null;
+    const res = await fetch(target, { cache: 'no-store' });
+    if (!res.ok) {
+      // The page renders its not-found branch on null. Log WHY so a proxy/API_URL
+      // misconfig shows in Vercel runtime logs instead of a silent "not found".
+      console.error(`[zora-web] event-page fetch ${target} -> HTTP ${res.status}`);
+      return null;
+    }
     return (await res.json()) as ZoraEvent;
-  } catch {
+  } catch (err) {
+    console.error(`[zora-web] event-page fetch ${target} FAILED: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }

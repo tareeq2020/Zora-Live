@@ -7,6 +7,18 @@ import { NextRequest, NextResponse } from 'next/server';
 const API_URL = process.env.API_URL || 'http://localhost:4101';
 const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
 
+// Runtime diagnostics. Middleware fetches the API on the edge (tenant redirect,
+// /dashboard + /admin gates); when API_URL is wrong those fetches throw and the
+// catch blocks below fail closed to login screens with NO signal. Log the
+// resolved API_URL once per cold start, and every fetch failure with context, so
+// the deployed runtime is debuggable straight from the Vercel logs.
+console.log(
+  `[zora-mw] init API_URL=${process.env.API_URL ? JSON.stringify(process.env.API_URL) : `(unset -> ${API_URL})`} ROOT_DOMAIN=${ROOT_DOMAIN}`,
+);
+function logApiFail(where: string, path: string, err: unknown): void {
+  console.error(`[zora-mw] ${where} fetch ${API_URL}${path} FAILED: ${err instanceof Error ? err.message : String(err)}`);
+}
+
 // Canonical flagship slugs: /events/offshore (the alias) and its real id render
 // IN PLACE on the apex via the <EventPage> route — no 302 to the owning organizer.
 // Every other apex event id still bounces to its tenant leaf.
@@ -86,13 +98,17 @@ export async function middleware(req: NextRequest) {
       return NextResponse.rewrite(url);
     }
     try {
-      const ev = await fetch(`${API_URL}/api/events/${encodeURIComponent(evMatch[1])}`).then((r) => (r.ok ? r.json() : null));
+      const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(evMatch[1])}`);
+      if (!res.ok) console.error(`[zora-mw] events lookup ${API_URL}/api/events/${evMatch[1]} -> HTTP ${res.status}`);
+      const ev = res.ok ? await res.json() : null;
       if (ev && ev.organizerHandle) {
         const url = req.nextUrl.clone();
         url.pathname = `/@${ev.organizerHandle}/events/${encodeURIComponent(evMatch[1])}`;
         return NextResponse.redirect(url, 302);
       }
-    } catch {}
+    } catch (err) {
+      logApiFail('events', `/api/events/${evMatch[1]}`, err);
+    }
     return new NextResponse('Event not found', { status: 404 });
   }
 
@@ -107,11 +123,15 @@ export async function middleware(req: NextRequest) {
     if (pathname === '/dashboard/login') return NextResponse.next();
     let allowed = false;
     try {
-      const me = await fetch(`${API_URL}/api/me`, {
+      const res = await fetch(`${API_URL}/api/me`, {
         headers: { cookie: req.headers.get('cookie') || '' },
-      }).then((r) => r.json());
+      });
+      if (!res.ok) console.error(`[zora-mw] dashboard gate ${API_URL}/api/me -> HTTP ${res.status}`);
+      const me = await res.json();
       allowed = me.role === 'organizer' || (!!me.isAdmin && !!me.impersonating);
-    } catch {}
+    } catch (err) {
+      logApiFail('dashboard-gate', '/api/me', err);
+    }
     if (!allowed) {
       const url = req.nextUrl.clone();
       url.pathname = '/dashboard/login';
@@ -126,9 +146,13 @@ export async function middleware(req: NextRequest) {
   if (pathname === '/admin' || pathname === '/login') {
     let isAdmin = false;
     try {
-      const me = await fetch(`${API_URL}/api/me`, { headers: { cookie: req.headers.get('cookie') || '' } }).then((r) => r.json());
+      const res = await fetch(`${API_URL}/api/me`, { headers: { cookie: req.headers.get('cookie') || '' } });
+      if (!res.ok) console.error(`[zora-mw] admin gate ${API_URL}/api/me -> HTTP ${res.status}`);
+      const me = await res.json();
       isAdmin = !!me.isAdmin;
-    } catch {}
+    } catch (err) {
+      logApiFail('admin-gate', '/api/me', err);
+    }
     const url = req.nextUrl.clone();
     url.pathname = isAdmin ? '/admin/dashboard' : '/admin/login';
     return NextResponse.rewrite(url);
