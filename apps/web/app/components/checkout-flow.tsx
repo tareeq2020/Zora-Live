@@ -33,6 +33,8 @@ export type CheckoutTier = {
   name: string;
   unitPrice: number;
   currency?: string;
+  split?: boolean;   // BS8: a splittable table tier — surfaces the "Split a table" CTA
+  seats?: number;    // BS8: seats per table (max splitters); defaults to 8
 };
 
 export type CheckoutFlowProps = {

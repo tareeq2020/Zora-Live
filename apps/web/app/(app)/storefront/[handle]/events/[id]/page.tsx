@@ -142,6 +142,18 @@ export default async function TenantEventPage({ params }: { params: { handle: st
           )}
         </div>
 
+        {(() => {
+          // BS8: if a table tier is split-enabled, offer "Split a table" → the host flow.
+          const splitTier = ev.webCheckout?.tiers?.find((t) => t.split);
+          if (!splitTier) return null;
+          const href = `/split/new?tier=${encodeURIComponent(splitTier.tierId)}&event=${encodeURIComponent(ev.name)}&price=${splitTier.unitPrice}&cap=${splitTier.seats || 8}`;
+          return (
+            <Link href={href} className={styles.splitCta}>
+              Split a table with your crew — everyone pays their share →
+            </Link>
+          );
+        })()}
+
         <p className={styles.nofee}>The price is the price. No fees at checkout.</p>
 
         <div className={styles.foot}>
