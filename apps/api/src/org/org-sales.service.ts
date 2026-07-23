@@ -75,6 +75,34 @@ export interface OrgOrderRow {
 export class OrgSalesService {
   constructor(private readonly scope: OrgScopeService) {}
 
+  /** GET /api/org/splits — bill-split status for the org's events: tables still
+      forming, and the REFUND WORKLIST (refund_pending splits that took money but
+      didn't fill; A5/OV3/D8). Ops refunds each within 24h, then releases. */
+  async splits(actingHandle: string): Promise<{
+    forming: any[]; refundPending: any[];
+  }> {
+    const ownedIds = await this.scope.ownedEventIds(actingHandle);
+    if (!ownedIds.length) return { forming: [], refundPending: [] };
+    const rows = await db()`
+      select ts.id, ts.event_id, ts.capacity_n, ts.status, ts.window_expires_at, ts.created_at,
+             (select count(*) from split_share where split_id = ts.id and state = 'paid') as paid_count,
+             (select coalesce(sum(amount), 0) from split_share where split_id = ts.id and state = 'paid') as collected,
+             hc.name as host_name
+        from table_split ts left join customer hc on hc.id = ts.host_customer_id
+       where ts.event_id = any(${ownedIds}) and ts.status in ('forming', 'refund_pending')
+       order by ts.created_at desc`;
+    const forming: any[] = [], refundPending: any[] = [];
+    for (const r of rows) {
+      const item = {
+        id: r.id, eventId: r.event_id, capacityN: r.capacity_n, paidCount: Number(r.paid_count),
+        collected: Number(r.collected), hostName: r.host_name ? String(r.host_name).split(/\s+/)[0] : null,
+        windowExpiresAt: r.window_expires_at,
+      };
+      (r.status === 'refund_pending' ? refundPending : forming).push(item);
+    }
+    return { forming, refundPending };
+  }
+
   /** GET /api/org/summary payload for the acting handle. */
   async summary(actingHandle: string): Promise<OrgSummary> {
     const events = await this.scope.readEvents();

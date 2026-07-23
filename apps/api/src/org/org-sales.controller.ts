@@ -27,4 +27,11 @@ export class OrgSalesController {
     const parsed = limit != null ? parseInt(limit, 10) : NaN;
     return this.sales.orders(handle, eventId, Number.isFinite(parsed) ? parsed : 50);
   }
+
+  // ── GET /api/org/splits — splits forming + the refund worklist (BS12) ─────
+  @Get('splits')
+  async splits(@Req() req: Request) {
+    const handle = req.actingHandle as string;
+    return this.sales.splits(handle);
+  }
 }
