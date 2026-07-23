@@ -16,7 +16,8 @@
     "db:migrate": "node db/migrate.mjs",
     "db:media-manifest": "node db/gen-media-manifest.mjs",
     "db:test": "bash db/test/migrate.e2e.sh",
-    "db:test:delivery": "pnpm --filter \"@zora/core...\" build && node packages/core/test/delivery.test.mjs"
+    "db:test:delivery": "pnpm --filter \"@zora/core...\" build && node packages/core/test/delivery.test.mjs",
+    "db:seed:apricot": "node db/seed-apricot-crush.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
