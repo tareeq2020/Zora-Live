@@ -68,6 +68,16 @@ export async function middleware(req: NextRequest) {
     url.pathname = `/storefront/${tenant}`;
     return NextResponse.rewrite(url);
   }
+  // D1 (bill-split launch): the apex landing is the DISCOVERY marketplace, not the
+  // OFFSHORE manifesto home. Rewrite '/' (non-tenant) → /discover so the URL stays
+  // clean and the change is reversible. Runs before next.config's '/' handling;
+  // tenant '/' is handled above. Uses the broad matcher (a narrow one would miss
+  // multi-segment paths — see the matcher note at the bottom).
+  if (!tenant && pathname === '/') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/discover';
+    return NextResponse.rewrite(url);
+  }
   const storefrontRoot = pathname.match(/^\/@([^/]+)$/);
   if (storefrontRoot) {
     const url = req.nextUrl.clone();
