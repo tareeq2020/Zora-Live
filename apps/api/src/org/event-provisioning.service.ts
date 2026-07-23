@@ -23,6 +23,9 @@ export interface ProvisionTierInput {
   currency?: string;
   /** Optional explicit tier id; otherwise derived deterministically from the event id. */
   tierId?: string;
+  /** BS10: opt this (table) tier into bill-split + its hold window. */
+  splitEnabled?: boolean;
+  splitWindowSecs?: number;
 }
 
 export interface ProvisionedTier {
@@ -30,6 +33,7 @@ export interface ProvisionedTier {
   name: string;
   unitPrice: number;
   currency: string;
+  split?: boolean;
 }
 
 function slugPart(name: string, index: number): string {
@@ -67,8 +71,9 @@ export class EventProvisioningService {
       const capacity = Number(tier.capacity);
       const price = Number(tier.price);
 
-      await t`insert into product_tier (id, event_id, name, capacity)
-              values (${tierId}, ${eventId}, ${tier.name}, ${capacity})
+      await t`insert into product_tier (id, event_id, name, capacity, kind, split_enabled, split_window_secs)
+              values (${tierId}, ${eventId}, ${tier.name}, ${capacity},
+                      ${tier.splitEnabled ? 'table' : 'shore'}, ${!!tier.splitEnabled}, ${tier.splitWindowSecs ?? 2700})
               on conflict (id) do nothing`;
       // Only add a price_version if this tier has none (no natural conflict key).
       await t`insert into price_version (tier_id, price, currency)
@@ -78,7 +83,7 @@ export class EventProvisioningService {
               values (${tierId}, ${capacity}, ${capacity})
               on conflict (product_tier_id) do nothing`;
 
-      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency });
+      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled });
       i++;
     }
     return provisioned;
@@ -140,6 +145,7 @@ export class EventProvisioningService {
       name: p.name,
       unitPrice: p.unitPrice,
       currency: p.currency,
+      ...(p.split ? { split: true } : {}),
     }));
     const row = { ...event, webCheckout: { tiers: webTiers }, updated_at: new Date().toISOString() };
     const idx = rows.findIndex((e) => e && e.id === row.id);

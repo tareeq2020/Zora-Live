@@ -47,6 +47,8 @@ interface TierInput {
   price: number;
   capacity: number;
   currency?: string;
+  splitEnabled?: boolean;
+  splitWindowSecs?: number;
 }
 
 const PAID_STATES = ['paid', 'paid_unseatable', 'payment_short'];
@@ -123,6 +125,8 @@ export class OrgEventsController {
           price: t2.price,
           capacity: t2.capacity,
           currency: t2.currency,
+          splitEnabled: t2.splitEnabled,
+          splitWindowSecs: t2.splitWindowSecs,
         }));
         const { event } = await this.prov.provisionSellableDrop(
           t,
@@ -174,10 +178,10 @@ export class OrgEventsController {
         const provisioned = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency })),
+          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs })),
           ev.name,
         );
-        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency })) };
+        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}) })) };
         ev.status = 'published';
         delete ev.tiers; // sellable events carry tiers via webCheckout + the pool
       } else if (wasSellable && incomingTiers) {
@@ -232,11 +236,22 @@ export class OrgEventsController {
         const [p] = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency }],
+          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs }],
           ev.name,
         );
-        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency });
+        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}) });
         continue;
+      }
+
+      // BS10 — split toggle on an EXISTING sellable tier: persist the flag + window
+      // and mirror it onto the blob webCheckout tier (drives the storefront CTA).
+      if (tier.splitEnabled !== undefined) {
+        await t`update product_tier
+                   set split_enabled = ${!!tier.splitEnabled},
+                       split_window_secs = ${tier.splitWindowSecs ?? 2700},
+                       kind = ${tier.splitEnabled ? 'table' : 'shore'}
+                 where id = ${match.tierId}`;
+        if (tier.splitEnabled) match.split = true; else delete match.split;
       }
 
       // C6 — re-price: close the open version, open a new one, update the blob price.
@@ -382,7 +397,12 @@ export class OrgEventsController {
       if (!Number.isFinite(price) || price < 0) throw new BadRequestException({ error: `tier_${i}_price_invalid` });
       const capacity = Number(t?.capacity);
       if (!Number.isInteger(capacity) || capacity <= 0) throw new BadRequestException({ error: `tier_${i}_capacity_invalid` });
-      return { tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity, currency: (t?.currency || 'TZS') as string };
+      return {
+        tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity,
+        currency: (t?.currency || 'TZS') as string,
+        splitEnabled: !!t?.splitEnabled,
+        splitWindowSecs: Number.isInteger(t?.splitWindowSecs) ? Number(t.splitWindowSecs) : undefined,
+      };
     });
     if (requireNonEmpty && !tiers.length) throw new BadRequestException({ error: 'tiers_required' });
     // I7: a sellable event is single-currency.
