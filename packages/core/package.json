@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "db:test:xbridge": "node --test test/xbridge.test.mjs"
+    "db:test:xbridge": "node --test test/xbridge.test.mjs",
+    "db:test:split": "node --test test/split.test.mjs"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",

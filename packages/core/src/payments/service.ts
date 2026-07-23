@@ -19,6 +19,10 @@ import {
 import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
+import { alertOps } from '../ops';
+import {
+  onShareSuccessful, onShareShort, onShareFailed, notifyShareReceived, notifySplitCompleteByOrder,
+} from '../split';
 
 type Sql = any; // postgres.js Sql | tx handle
 
@@ -298,6 +302,15 @@ export async function applyOutcome(
     const [ord] = await t`select type, status from "order" where id = ${txr.order_id}`;
     const isTable = ord?.type === 'table';
 
+    // ── BS2 table_share branch: a bill-split seat is its own order. Delegate to
+    //    the split aggregation layer (the txn-terminal guard above already deduped).
+    //    Returns BEFORE the GA/VIP + table logic below, which stays untouched.
+    if (ord?.type === 'table_share') {
+      if (outcome === 'successful') return onShareSuccessful(t, txr.order_id, transactionId, collected);
+      if (outcome === 'short')      return onShareShort(t, txr.order_id, transactionId, collected);
+      return onShareFailed(t, txr.order_id, transactionId);
+    }
+
     if (outcome === 'successful') {
       // GUARD 2 (order-level): a successful on an already-paid order = duplicate
       // COLLECTION by a different txn. Mark this txn paid + record what it took,
@@ -364,6 +377,8 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
       : null;
   const orderStatus = await applyOutcome(sql, transactionId, outcome, collected);
   if (orderStatus === 'paid') await notifyOrderPaid(sql, txr.order_id);
+  else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
+  else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
   return outcome;
 }
 
@@ -422,14 +437,9 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
   } catch (e) { console.error('confirm email failed', e); }
 }
 
-/** Idempotent ops-alert sink: one row per (kind, orderId, detail) in webhook_event
-    under provider='ops-alert'. ON CONFLICT DO NOTHING dedups repeat alerts. */
-export async function alertOps(sql: Sql, kind: string, orderId: string, detail?: string): Promise<void> {
-  await sql`
-    insert into webhook_event (provider, dedup_key, transaction_id, applied)
-    values ('ops-alert', ${`${kind}:${orderId}:${detail ?? ''}`}, null, true)
-    on conflict (provider, dedup_key) do nothing`;
-}
+// alertOps moved to ../ops (shared with the split domain to avoid a circular
+// import); re-exported here so the existing index.ts export path is unchanged.
+export { alertOps } from '../ops';
 
 /** Resolve a raw webhook body to our transaction_id. Selcom forwards `transid`
     (= our id); ClickPesa forwards only `orderReference`/`reference` (H3) — resolve
