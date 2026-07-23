@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Module, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { db, createTableSplit, claimShare, createShareOrder, normalizeMsisdn } from '@zora/core';
+import { db, createTableSplit, claimShare, createShareOrder, normalizeMsisdn, verifyShareToken } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { DEFAULT_SETTINGS } from '../common/defaults';
 import { signSession } from '../common/session-cookie';
@@ -73,6 +73,31 @@ export class SplitsController {
         index: s.share_index, isHost: s.is_host, state: s.state, amount: Number(s.amount),
         payerName: maskName(s.payer_name), paidAt: s.paid_at,
       })),
+    });
+  }
+
+  // ── GET /api/splits/by-token/:token — read-only preview for the cold invitee
+  //    landing (who invited me, which table, my share, how many paid). No mutation
+  //    (claiming happens on pay), so a stranger can decide before entering a phone.
+  @Get('splits/by-token/:token')
+  async byToken(@Param('token') token: string, @Res() res: Response) {
+    const decoded = verifyShareToken(token);
+    if (!decoded) return res.status(404).json({ error: 'bad_token' });
+    const [row] = await db()`
+      select ts.id as split_id, ts.status, ts.capacity_n, e.name as event_name, e.venue, e.date_label,
+             s.share_index, s.amount, s.state as share_state, hc.name as host_name,
+             (select count(*) from split_share where split_id = ts.id and state = 'paid') as paid_count
+        from split_share s
+        join table_split ts on ts.id = s.split_id
+        join event e on e.id = ts.event_id
+        left join customer hc on hc.id = ts.host_customer_id
+       where s.split_id = ${decoded.splitId} and s.share_index = ${decoded.shareIndex}`;
+    if (!row) return res.status(404).json({ error: 'not_found' });
+    return res.status(200).json({
+      splitId: row.split_id, shareIndex: row.share_index, amount: Number(row.amount),
+      splitStatus: row.status, capacityN: row.capacity_n, paidCount: Number(row.paid_count),
+      alreadyPaid: row.share_state === 'paid',
+      hostName: maskName(row.host_name), eventName: row.event_name, venue: row.venue, dateLabel: row.date_label,
     });
   }
 
