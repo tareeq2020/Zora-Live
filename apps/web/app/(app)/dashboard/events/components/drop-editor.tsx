@@ -228,7 +228,7 @@ export default function DropEditor(props: DropEditorProps) {
   const set = <K extends keyof DropForm>(key: K, value: DropForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const setTier = (i: number, key: keyof DropForm['tiers'][number], value: string) =>
+  const setTier = (i: number, key: keyof DropForm['tiers'][number], value: string | boolean) =>
     setForm((f) => ({ ...f, tiers: f.tiers.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)) }));
 
   const addTier = () => setForm((f) => ({ ...f, tiers: [...f.tiers, emptyTier()] }));
@@ -476,6 +476,22 @@ export default function DropEditor(props: DropEditorProps) {
                       aria-label="Remove tier"
                     >
                       ×
+                    </button>
+                  </div>
+                  <div className="togglebar" style={{ marginTop: 10 }}>
+                    <div className="tg-body">
+                      <p className="tg-t">Let guests split this table</p>
+                      <p className="tg-d">Buyers invite their crew; each pays a share; the table holds until it fills. Use on table tiers.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={'switch' + (t.splitEnabled ? ' on' : '')}
+                      onClick={() => setTier(i, 'splitEnabled', !t.splitEnabled)}
+                      role="switch"
+                      aria-checked={!!t.splitEnabled}
+                      aria-label="Let guests split this table"
+                    >
+                      <span className="knob" />
                     </button>
                   </div>
                   {rowErr ? <p className="field-err">{rowErr}</p> : null}
