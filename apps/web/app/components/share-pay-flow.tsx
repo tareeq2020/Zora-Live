@@ -32,6 +32,7 @@ export type SharePayFlowProps = {
 export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid }: SharePayFlowProps) {
   const [step, setStep] = useState<'method' | 'poll' | 'result'>('method');
   const [network, setNetwork] = useState('VODACOM');
+  const [payPhone, setPayPhone] = useState(phone || '');   // the mobile-money number (may differ from login/contact)
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [statusVal, setStatusVal] = useState<string | null>(null);
@@ -66,12 +67,13 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
   }
 
   async function submitPay() {
+    if (payPhone.replace(/\D/g, '').length < 9) { setNotice("Enter the number you'll pay with."); return; }
     setNotice(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/checkout/${encodeURIComponent(orderId)}/pay`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: 'mobile', payerPhone: phone, mno: network }),
+        body: JSON.stringify({ method: 'mobile', payerPhone: payPhone.trim(), mno: network }),
       });
       if (res.status !== 200) {
         const d = await res.json().catch(() => ({}));
@@ -93,7 +95,11 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
       {step === 'method' ? (
         <>
           <div className="spf-amt"><span className="k">YOUR SHARE</span><span className="v">{fmt(amount)} <small>TZS</small></span></div>
-          <p className="spf-lead">Pay with mobile money. We send a prompt to <b>{phone}</b> — approve it with your PIN. Your money goes straight to the table.</p>
+          <p className="spf-lead">Pay with mobile money — we text a prompt to the number below; approve it with your PIN. Your money goes straight to the table.</p>
+          <label className="spf-lab">MOBILE-MONEY NUMBER</label>
+          <div className="spf-field"><span className="pfx">+255</span>
+            <input inputMode="tel" autoFocus placeholder="712 345 678" value={payPhone} onChange={(e) => setPayPhone(e.target.value)} /></div>
+          <label className="spf-lab" style={{ marginTop: 14 }}>NETWORK</label>
           <div className="spf-pm">
             {NETWORKS.map((n) => (
               <button key={n.id} className={'spf-m' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>{n.label}</button>
@@ -107,7 +113,7 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
         <div className="spf-wait">
           <div className="spf-spin" />
           <h3>Check your phone</h3>
-          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b>{phone}</b> with your PIN.</p>
+          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b>+255 {payPhone}</b> with your PIN.</p>
           <p className="spf-muted">Waiting for confirmation… this can take a minute. Keep this open.</p>
           <button className="spf-ghost" onClick={() => { stopPolling(); setStep('method'); }}>Didn't get it? Try again</button>
         </div>
@@ -151,6 +157,11 @@ const CSS = `
 .spf-amt .v{font-family:var(--disp);font-weight:700;font-size:26px}
 .spf-amt .v small{font-size:14px;color:var(--c-text2);font-weight:500}
 .spf-lead{color:var(--c-text2);font-size:13px;line-height:1.6;margin:14px 0}
+.spf-lab{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--c-text3);margin:0 0 8px}
+.spf-field{background:var(--c-surface2);border:1px solid var(--c-line);border-radius:12px;padding:14px 15px;display:flex;align-items:center;gap:10px}
+.spf-field:focus-within{border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(76,111,255,.16)}
+.spf-field .pfx{font-family:var(--mono);color:var(--c-text2);font-size:15px}
+.spf-field input{background:none;border:none;outline:none;color:var(--c-text);font-family:var(--mono);font-size:16px;width:100%}
 .spf-pm{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .spf-m{flex:1;min-width:calc(50% - 4px);background:var(--c-surface2);border:1px solid var(--c-line);border-radius:11px;padding:12px;font-family:var(--mono);font-size:11.5px;color:var(--c-text2);cursor:pointer}
 .spf-m.on{border-color:var(--c-blue);color:var(--c-ice);background:rgba(76,111,255,.1)}

@@ -42,7 +42,10 @@ export default function TrackClient({ id }: { id: string }) {
     <div className="tk">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="tk-card">
-        <div className="wm">Z<span className="o" />RA</div>
+        <div className="tk-nav">
+          <a className="wm" href="/discover" aria-label="Zora — discover">Z<span className="o" />RA</a>
+          <a className="tk-exit" href="/discover">Discover →</a>
+        </div>
         {err ? (
           <div className="tk-mid"><h3>Table not found</h3><p>This tracker link may be wrong. <a href="/discover">Back to discovery</a></p></div>
         ) : !split ? (
@@ -97,7 +100,9 @@ const CSS = `
   --sans:'Inter',system-ui,sans-serif;--disp:'Space Grotesk',var(--sans);--mono:'IBM Plex Mono',monospace;
   background:var(--c-bg);color:var(--c-text);font-family:var(--sans);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:32px 18px}
 .tk-card{width:100%;max-width:400px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:20px;padding:24px 22px}
-.wm{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:18px;display:inline-flex;align-items:center;color:var(--c-text2);margin-bottom:8px}
+.tk-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tk-exit{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--c-ice);text-decoration:none}
+.wm{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:18px;display:inline-flex;align-items:center;color:var(--c-text2);text-decoration:none}
 .wm .o{width:.62em;height:.62em;margin:0 .05em;border-radius:50%;background:var(--c-aura);display:inline-block;box-shadow:0 0 10px rgba(255,90,120,.4)}
 .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--c-text3);text-transform:uppercase}
 .t{font-family:var(--disp);font-weight:600;font-size:24px;letter-spacing:-.01em;margin:8px 0 4px}
