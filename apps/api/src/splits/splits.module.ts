@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Module, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { db, createTableSplit, claimShare, createShareOrder, normalizeMsisdn, verifyShareToken } from '@zora/core';
+import { db, createTableSplit, claimShare, createShareOrder, verifyShareToken } from '@zora/core';
+import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import { EntityStore } from '../storage/entity-store';
 import { DEFAULT_SETTINGS } from '../common/defaults';
 import { signSession } from '../common/session-cookie';
@@ -105,9 +106,9 @@ export class SplitsController {
   @Post('splits/claim')
   async claim(@Body() body: any, @Res() res: Response) {
     const token = String(body?.token ?? '');
-    const phone = normalizeMsisdn(String(body?.phone ?? ''));
+    const phone = normalizeTzPhone(String(body?.phone ?? ''));
     if (!token) return res.status(400).json({ error: 'token_required' });
-    if (!phone || phone.length < 11) return res.status(400).json({ error: 'phone_required' });
+    if (!isValidTzMsisdn(phone)) return res.status(400).json({ error: 'phone_required' });
     const name = body?.name ? String(body.name) : null;
 
     const claimed = await claimShare(db(), token, phone, null, name);
