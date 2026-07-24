@@ -8,13 +8,14 @@
    cannot acquire it, another worker already owns the loops — we log and exit. */
 
 try { require('dotenv').config(); } catch { /* dotenv optional */ }
-import { makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending } from '@zora/core';
+import { makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending, splitAwareExpirySweep } from '@zora/core';
 
 // Constant key shared by every worker instance (distinct from the migrate lock).
 const WORKER_LOCK_KEY = 990926;
 
 const HOLD_SWEEP_MS = 60_000; // release expired GA/VIP holds every minute
 const RESERVATION_SWEEP_MS = 60_000; // release expired booking soft-reservations every minute
+const SPLIT_SWEEP_MS = 60_000; // BS3: bill-split window expiry (release unpaid, flag paid for refund)
 const RECONCILE_MS = 30_000; // reconcile pending payments every 30s
 
 const sql = makeSql();
@@ -31,8 +32,14 @@ async function tick(label: string, fn: (sql: any) => Promise<number>): Promise<v
 function startWorkers(): void {
   setInterval(() => void tick('hold-sweep', sweepExpiredHolds), HOLD_SWEEP_MS);
   setInterval(() => void tick('reservation-sweep', sweepExpiredReservations), RESERVATION_SWEEP_MS);
+  // BS3: split-aware expiry — releases unpaid split tables, flags paid-but-unfilled
+  // ones as refund_pending (inventory kept locked). Returns released+flagged count.
+  setInterval(() => void tick('split-sweep', async (s) => {
+    const { released, flagged } = await splitAwareExpirySweep(s);
+    return released + flagged;
+  }), SPLIT_SWEEP_MS);
   setInterval(() => void tick('reconcile', reconcilePending), RECONCILE_MS);
-  console.log('[worker] started: hold-sweep + reservation-sweep + payment reconciliation (singleton)');
+  console.log('[worker] started: hold-sweep + reservation-sweep + split-sweep + payment reconciliation (singleton)');
 }
 
 async function main(): Promise<void> {

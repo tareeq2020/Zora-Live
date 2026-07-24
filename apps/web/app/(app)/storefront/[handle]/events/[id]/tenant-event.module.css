@@ -186,3 +186,21 @@
   text-align: center;
   color: var(--mut);
 }
+
+/* BS8 — "Split a table" CTA (host flow entry). Aura gradient, full-width, below
+   the buy row. Only rendered when a table tier is split-enabled. */
+.splitCta {
+  display: block;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: .01em;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(130deg, #D53AD8 0%, #FF4D7D 48%, #FF9145 100%);
+  box-shadow: 0 8px 26px rgba(255, 77, 125, .28);
+}
+.splitCta:hover { filter: brightness(1.05); }

@@ -40,6 +40,20 @@ export type {
 } from './payments/xbridge';
 export { buildTicketsPdf } from './credentials/ticket-pdf';
 export type { TicketForPdf } from './credentials/ticket-pdf';
+// BS2: bill-split (split-a-table) domain + consumer OTP.
+export {
+  computeShareAmounts, signShareToken, verifyShareToken, createTableSplit, claimShare, createShareOrder,
+  onShareSuccessful, onShareShort, onShareFailed, issueTableCredentials, splitAwareExpirySweep,
+  notifyShareReceived, notifySplitComplete, notifySplitCompleteByOrder, SplitSoldOut,
+} from './split';
+export type {
+  CreateTableSplitInput, CreateTableSplitResult, ClaimShareResult, CreateShareOrderResult, ShareStatus,
+} from './split';
+export {
+  requestOtp, verifyOtp, generateOtpCode, hashOtp,
+  OTP_TTL_SEC, OTP_MAX_ATTEMPTS, OTP_MAX_PER_WINDOW, OTP_THROTTLE_WINDOW_SEC,
+} from './otp';
+export type { RequestOtpResult, VerifyOtpResult } from './otp';
 export { sendSms } from './sms';
 export type { SmsDriver, SmsResult } from './sms';
 export { sendEmail, sendCredentialEmail, escapeHtml } from './email';

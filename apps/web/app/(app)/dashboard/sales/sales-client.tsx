@@ -26,6 +26,7 @@
    /dashboard. Styles are scoped under `.zora-sales` so nothing leaks. */
 
 import { useCallback, useEffect, useState } from 'react';
+import SplitsWorklist from './splits-worklist';
 import Link from 'next/link';
 
 // ── Response types (local, from the API contract — do NOT invent backend) ──
@@ -170,6 +171,9 @@ export default function SalesClient() {
             Every order and the passes it issued, from your side of the counter. Revenue counts
             paid orders only — the same honest number your buyers see.
           </p>
+
+          {/* BS12 — splits in progress + the manual-refund worklist (renders when present) */}
+          <SplitsWorklist />
 
           {/* ── Revenue / sold / orders header (from /api/org/summary) ── */}
           {summaryLoading ? (

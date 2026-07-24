@@ -49,7 +49,7 @@ export type OrgEvent = {
 
 // Tier as the create/edit form submits it — the provisioning service (MT2)
 // drives product_tier/price_version/inventory_pool off this, NOT the display blob.
-export type DropTierInput = { name: string; price: number; capacity: number };
+export type DropTierInput = { name: string; price: number; capacity: number; splitEnabled?: boolean };
 
 export type DropInput = {
   name: string;
@@ -70,7 +70,7 @@ export type DropInput = {
 
 // ── editor form state (strings, so inputs stay controlled + empty-friendly) ──
 
-export type TierRow = { name: string; price: string; capacity: string };
+export type TierRow = { name: string; price: string; capacity: string; splitEnabled?: boolean };
 
 export type DropForm = {
   name: string;
@@ -84,7 +84,7 @@ export type DropForm = {
   tiers: TierRow[];
 };
 
-export const emptyTier = (): TierRow => ({ name: '', price: '', capacity: '' });
+export const emptyTier = (): TierRow => ({ name: '', price: '', capacity: '', splitEnabled: false });
 
 export const emptyForm = (): DropForm => ({
   name: '',
@@ -104,6 +104,7 @@ export function formFromEvent(ev: OrgEvent): DropForm {
     name: t.name || '',
     price: t.unitPrice != null ? String(t.unitPrice) : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
+    splitEnabled: !!(t as { split?: boolean }).split,
   }));
   return {
     name: ev.name || '',
@@ -163,7 +164,7 @@ export const hasErrors = (e: FieldErrors): boolean =>
 export function usableTiers(form: DropForm): DropTierInput[] {
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
-    .map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0 }));
+    .map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0, splitEnabled: !!t.splitEnabled }));
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {
