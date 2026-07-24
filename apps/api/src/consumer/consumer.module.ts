@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Module, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { db, requestOtp, verifyOtp, normalizeMsisdn, sendSms, qrPayload } from '@zora/core';
+import { db, requestOtp, verifyOtp, sendSms, qrPayload } from '@zora/core';
 import { ConsumerGuard, mintConsumerCookie, type ConsumerIdentity } from '../common/consumer';
+import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 
 /* BS4: consumer identity over SMS-OTP (D6/A3). Request → hashed challenge + SMS;
    verify → consumer session cookie. /me/tickets returns the signed-in buyer's
@@ -11,8 +12,8 @@ export class ConsumerController {
   // ── POST /api/otp/request { phone } ───────────────────────────────────────
   @Post('otp/request')
   async otpRequest(@Body() body: any, @Res() res: Response) {
-    const phone = normalizeMsisdn(String(body?.phone ?? ''));
-    if (!phone || phone.length < 11) return res.status(400).json({ error: 'phone_required' });
+    const phone = normalizeTzPhone(String(body?.phone ?? ''));
+    if (!isValidTzMsisdn(phone)) return res.status(400).json({ error: 'phone_required' });
     const r = await requestOtp(db(), phone);
     if (!r.ok) { res.setHeader('Retry-After', String(r.retryAfterSec)); return res.status(429).json({ error: 'throttled', retryAfterSec: r.retryAfterSec }); }
     try { await sendSms(phone, `Your Zora code is ${r.code}. Expires in 5 min. Never share it.`); }
@@ -24,7 +25,7 @@ export class ConsumerController {
   // ── POST /api/otp/verify { phone, code } → consumer session ───────────────
   @Post('otp/verify')
   async otpVerify(@Body() body: any, @Res() res: Response) {
-    const phone = normalizeMsisdn(String(body?.phone ?? ''));
+    const phone = normalizeTzPhone(String(body?.phone ?? ''));
     const code = String(body?.code ?? '');
     const r = await verifyOtp(db(), phone, code);
     if (!r.ok) return res.status(401).json({ error: r.reason, ...(r.attemptsLeft != null ? { attemptsLeft: r.attemptsLeft } : {}) });
