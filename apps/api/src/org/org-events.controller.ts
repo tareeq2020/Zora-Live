@@ -165,7 +165,7 @@ export class OrgEventsController {
       const wasSellable = this.isSellable(ev);
 
       // Scalar fields — only overwrite what the body actually carries.
-      for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time'] as const) {
+      for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
         if (body?.[k] !== undefined) ev[k] = String(body[k]);
       }
       if (body?.priceFrom !== undefined) ev.priceFrom = Number(body.priceFrom);
@@ -366,7 +366,8 @@ export class OrgEventsController {
     if (!Number.isFinite(priceFrom) || priceFrom < 0) throw new BadRequestException({ error: 'priceFrom_invalid' });
     if (typeof body?.seated !== 'boolean') throw new BadRequestException({ error: 'seated_required' });
     const time = typeof body?.time === 'string' ? body.time.trim() : undefined;
-    return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time };
+    const cover = typeof body?.cover === 'string' ? body.cover.trim() : undefined; // per-event hero image URL
+    return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time, cover };
   }
 
   // A draft only requires a name. Every other field is optional and stored as
@@ -376,7 +377,7 @@ export class OrgEventsController {
     const name = body?.name;
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException({ error: 'name_required' });
     const out: Record<string, unknown> = { name: name.trim() };
-    for (const k of ['dateLabel', 'city', 'venue', 'category', 'time'] as const) {
+    for (const k of ['dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
       if (typeof body?.[k] === 'string' && body[k].trim()) out[k] = body[k].trim();
     }
     const priceFrom = Number(body?.priceFrom);

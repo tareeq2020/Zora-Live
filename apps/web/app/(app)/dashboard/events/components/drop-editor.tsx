@@ -69,6 +69,12 @@ const STYLE = `
 .zora-dropedit .block-h .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;font-size:10px}
 .zora-dropedit label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-bottom:8px}
 .zora-dropedit .in{width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:13px 15px;outline:none;transition:border-color .2s;color:var(--ink)}
+.zora-dropedit .coverdz{position:relative;width:100%;height:150px;border:1px dashed var(--hair);border-radius:12px;background:#fff center/cover no-repeat;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:border-color .2s;overflow:hidden}
+.zora-dropedit .coverdz:hover{border-color:var(--blue)}
+.zora-dropedit .coverdz.filled{border-style:solid}
+.zora-dropedit .coverdz-txt{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mut);padding:0 24px;line-height:1.7}
+.zora-dropedit .coverdz-rm{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:8px;border:none;background:rgba(10,10,11,.7);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+.zora-dropedit .hint{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--mut);margin-top:8px;line-height:1.6}
 .zora-dropedit .in:focus{border-color:var(--blue)}
 .zora-dropedit .in.err{border-color:var(--red)}
 .zora-dropedit .in.big{font-size:19px;font-weight:500;padding:15px}
@@ -227,6 +233,28 @@ export default function DropEditor(props: DropEditorProps) {
   // ── field setters ──
   const set = <K extends keyof DropForm>(key: K, value: DropForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // Per-event cover image → base64 → POST /api/upload (same CDN path the studio
+  // uses) → store the returned URL on form.cover.
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  async function uploadCover(file: File) {
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) { setServerError('Cover must be a PNG, JPEG, or WebP image.'); return; }
+    if (file.size > 8 * 1024 * 1024) { setServerError('Cover image must be under 8MB.'); return; }
+    setCoverBusy(true); setServerError('');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file);
+      });
+      const resp = await fetch('/api/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: file.name, dataUrl }),
+      });
+      const d = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(d.error || 'Upload failed');
+      set('cover', d.url);
+    } catch (e: any) { setServerError(String(e?.message || e)); }
+    finally { setCoverBusy(false); }
+  }
 
   const setTier = (i: number, key: keyof DropForm['tiers'][number], value: string | boolean) =>
     setForm((f) => ({ ...f, tiers: f.tiers.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)) }));
@@ -424,6 +452,37 @@ export default function DropEditor(props: DropEditorProps) {
                 onChange={(e) => set('venue', e.target.value)}
                 placeholder="The Secret Garden, Oysterbay"
               />
+            </div>
+            <div className="field">
+              <label>EVENT COVER IMAGE</label>
+              <div
+                className={'coverdz' + (form.cover ? ' filled' : '')}
+                onClick={() => coverInputRef.current?.click()}
+                style={form.cover ? { backgroundImage: `url(${form.cover})` } : undefined}
+                role="button"
+                tabIndex={0}
+              >
+                {!form.cover ? (
+                  <span className="coverdz-txt">{coverBusy ? 'Uploading to CDN…' : 'Drop a hero image or browse · PNG/JPEG · 1600×900 · under 8MB'}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="coverdz-rm"
+                    onClick={(e) => { e.stopPropagation(); set('cover', ''); }}
+                    aria-label="Remove cover"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(e) => e.target.files?.[0] && uploadCover(e.target.files[0])}
+              />
+              <p className="hint">Shows as the hero on your public event page. A wide 16:9 image looks best.</p>
             </div>
           </div>
 
