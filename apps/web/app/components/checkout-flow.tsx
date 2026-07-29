@@ -43,6 +43,9 @@ export type CheckoutFlowProps = {
   eventName: string;
   when?: string; // "SAT 08 AUG · 12:00 · THE VENUE"
   tiers: CheckoutTier[];
+  /** Brand accent (organizer theme). Overrides the default electric blue on all
+      CTA / focus / selected states. Defaults to #3D5AFE for non-branded contexts. */
+  accent?: string;
 };
 
 type Step = 'cart' | 'buyer' | 'pay' | 'poll' | 'done';
@@ -66,7 +69,7 @@ const TERMINAL = new Set(['paid', 'payment_short', 'paid_unseatable', 'failed', 
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: CheckoutFlowProps) {
+export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
   const [step, setStep] = useState<Step>('cart');
@@ -304,7 +307,8 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
   return (
     <div className="zco" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
-      <div className="zco-card" role="dialog" aria-modal="true" aria-label="Checkout">
+      <div className="zco-card" role="dialog" aria-modal="true" aria-label="Checkout"
+        style={accent ? ({ ['--z-blue']: accent } as React.CSSProperties) : undefined}>
         <div className="zco-head">
           <span className="zco-secure">
             SECURE CHECKOUT · <b>ZORA</b>
