@@ -1,238 +1,93 @@
-/* Branded white-label single-event page (the /@handle/events/:id leaf). Ported
-   from the retired public/tenant.html into a real React route so the GET TICKET
-   CTA opens the same CheckoutFlow the storefront + canonical event page use. */
+/* Branded white-label single-event page (/@handle/events/:id). Zora consumer DARK
+   canvas + Space Grotesk/Inter (fixed — the system every consumer screen uses).
+   Only --accent (+ --secondary) is injected from the organizer's theme. One hero
+   (cover/banner image, else accent gradient) with the logo brand-mark. */
 .page {
-  /* Tokens are injected inline from the published storefront theme
-     (paper/card/ink/mut/hair/accent/display/body/font-mono). These are only
-     fallbacks so the page still renders if the theme fetch fails. */
-  --paper: #f7f1e7;
-  --card: #fffdf8;
-  --ink: #191510;
-  --mut: #7a7365;
-  --hair: rgba(25, 21, 16, 0.14);
-  --accent: #c46a28;
-  --display: 'Fraunces', serif;
-  --body: 'Archivo', system-ui, sans-serif;
-  background: var(--paper);
+  --bg: #0a0b10;
+  --surface: #11131e;
+  --surface2: #171a28;
+  --ink: #edeff7;
+  --mut: #9ba3c4;
+  --mut2: #5c6488;
+  --hair: rgba(255, 255, 255, 0.12);
+  --hair2: rgba(255, 255, 255, 0.2);
+  --accent: #4c6fff; /* overridden inline from theme.accent */
+  --disp: 'Space Grotesk', system-ui, sans-serif;
+  --body: 'Inter', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--body);
   min-height: 100vh;
 }
-.aura {
-  background: linear-gradient(90deg, #d53ad8, #ff4d7d, #ff9145);
-}
-.wrap {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 22px 22px 60px;
-}
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0 26px;
-}
-.store {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
+.wrap { max-width: 720px; margin: 0 auto; padding: 22px 22px 60px; }
+
+/* header */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 22px; }
+.store { display: flex; align-items: center; gap: 11px; }
 .badge {
-  width: 42px;
-  height: 42px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 18px;
-  background: var(--card);
-  border: 1px solid var(--hair);
+  width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--disp); font-weight: 700; font-size: 18px; background: var(--surface); border: 1px solid var(--hair);
 }
 .logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 11px;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  border: 1px solid var(--hair);
+  width: 42px; height: 42px; border-radius: 11px;
+  background-position: center; background-size: cover; background-repeat: no-repeat; border: 1px solid var(--hair);
 }
-.banner {
-  height: 200px;
-  border-radius: 18px;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  border: 1px solid var(--hair);
-  margin-bottom: 26px;
-}
-.sn {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 1.1;
-}
-.su {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 11px;
-  color: var(--mut);
-  letter-spacing: 0.04em;
-  margin-top: 2px;
-}
+.sn { font-family: var(--disp); font-weight: 700; font-size: 16px; line-height: 1.1; }
+.su { font-family: var(--mono); font-size: 11px; color: var(--mut2); letter-spacing: 0.04em; margin-top: 2px; }
 .whitelabel {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--mut);
-  border: 1px solid var(--hair);
-  border-radius: 99px;
-  padding: 6px 11px;
-}
-.auraLine {
-  height: 4px;
-  border-radius: 2px;
-  margin-bottom: 30px;
-}
-.eyebrow {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  color: var(--mut);
-  margin-bottom: 14px;
-}
-.title {
-  font-family: var(--display);
-  font-size: clamp(34px, 7vw, 58px);
-  line-height: 1.02;
-  letter-spacing: -0.01em;
-  font-weight: 600;
-}
-.tagline {
-  color: var(--mut);
-  font-size: 17px;
-  margin-top: 14px;
-  line-height: 1.5;
-}
-.cover {
-  margin: 28px 0;
-  height: 250px;
-  border-radius: 20px;
-  position: relative;
-  overflow: hidden;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  border: 1px solid var(--hair);
-}
-.coverFallback {
-  background: linear-gradient(140deg, var(--accent), var(--card));
-}
-.coverFallback::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(70% 80% at 80% 10%, rgba(255, 255, 255, 0.22), transparent 60%);
-}
-.meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin: 26px 0;
-}
-.metaKey {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--mut);
-}
-.metaVal {
-  font-size: 19px;
-  font-weight: 500;
-  margin-top: 5px;
-}
-.buy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: var(--card);
-  border: 1px solid var(--hair);
-  border-radius: 18px;
-  padding: 20px 22px;
-  margin-top: 8px;
-}
-.priceLabel {
-  display: block;
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  color: var(--mut);
-}
-.priceVal {
-  font-size: 28px;
-  font-weight: 700;
-}
-.seatsCta {
-  border: none;
-  cursor: pointer;
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.02em;
-  padding: 15px 26px;
-  border-radius: 12px;
-  text-decoration: none;
-  background: var(--accent);
-}
-.nofee {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 11px;
-  color: var(--mut);
-  letter-spacing: 0.03em;
-  margin-top: 16px;
-  text-align: center;
-}
-.foot {
-  margin-top: 44px;
-  padding-top: 22px;
-  border-top: 1px solid var(--hair);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--mut);
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-}
-.foot a {
-  color: var(--ink);
-  text-decoration: none;
-}
-.notFound {
-  padding: 60px 0;
-  text-align: center;
-  color: var(--mut);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; color: var(--mut2);
+  border: 1px solid var(--hair); border-radius: 99px; padding: 6px 11px;
 }
 
-/* BS8 — "Split a table" CTA (host flow entry). Aura gradient, full-width, below
-   the buy row. Only rendered when a table tier is split-enabled. */
-.splitCta {
-  display: block;
-  margin-top: 12px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  text-align: center;
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: .01em;
-  color: #fff;
-  text-decoration: none;
-  background: linear-gradient(130deg, #D53AD8 0%, #FF4D7D 48%, #FF9145 100%);
-  box-shadow: 0 8px 26px rgba(255, 77, 125, .28);
+/* single hero */
+.hero {
+  height: 240px; border-radius: 20px; position: relative; overflow: hidden;
+  background-position: center; background-size: cover; background-repeat: no-repeat; border: 1px solid var(--hair);
 }
-.splitCta:hover { filter: brightness(1.05); }
+.heroFallback { background: linear-gradient(135deg, var(--accent), #0a0b10); }
+.heroFallback::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(75% 85% at 80% 12%, rgba(255, 255, 255, 0.18), transparent 60%); pointer-events: none;
+}
+.brandmark {
+  position: absolute; left: 14px; bottom: 14px; width: 54px; height: 54px; border-radius: 14px;
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+  background-color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); z-index: 2;
+}
+
+/* content */
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em; color: var(--mut2); margin: 24px 0 12px; }
+.title { font-family: var(--disp); font-size: clamp(34px, 7vw, 56px); line-height: 1.03; letter-spacing: -0.01em; font-weight: 600; }
+.tagline { color: var(--mut); font-size: 16px; margin-top: 12px; line-height: 1.5; }
+.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 24px 0; }
+.metaKey { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; color: var(--mut2); }
+.metaVal { font-size: 17px; font-weight: 500; margin-top: 5px; }
+
+/* buy */
+.buy {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--hair); border-radius: 18px; padding: 18px 20px; margin-top: 8px;
+}
+.priceLabel { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; color: var(--mut2); }
+.priceVal { font-family: var(--disp); font-weight: 600; font-size: 26px; }
+.seatsCta {
+  border: none; cursor: pointer; color: #fff; font-family: var(--body); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.02em; padding: 14px 24px; border-radius: 12px; text-decoration: none; background: var(--accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+/* "Split a table" entry — accent-outlined (the aura is reserved for the split flow). */
+.splitCta {
+  display: block; margin-top: 12px; padding: 13px 16px; border-radius: 12px; text-align: center;
+  font-weight: 600; font-size: 13.5px; color: var(--accent); text-decoration: none;
+  border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.splitCta:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.nofee { font-family: var(--mono); font-size: 11px; color: var(--mut2); letter-spacing: 0.03em; margin-top: 16px; text-align: center; }
+
+.foot {
+  margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--hair); display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 10px; color: var(--mut2); font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+}
+.foot a { color: var(--ink); text-decoration: none; }
+.notFound { padding: 60px 0; text-align: center; color: var(--mut); }

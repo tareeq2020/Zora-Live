@@ -14,10 +14,14 @@ export function GetTicketButton({
   eventName,
   when,
   tiers,
+  accent,
 }: {
   eventName: string;
   when?: string;
   tiers?: CheckoutTier[];
+  /** Organizer brand accent — the CTA + checkout wear it on a branded storefront.
+      Falls back to the Zora aura gradient in non-branded contexts. */
+  accent?: string;
 }) {
   const webTiers = (tiers || []).filter((t) => t.tierId);
   const webSellable = webTiers.length > 0;
@@ -45,7 +49,7 @@ export function GetTicketButton({
           letterSpacing: '.02em',
           padding: '15px 26px',
           borderRadius: 12,
-          background: 'linear-gradient(90deg,#D53AD8,#FF4D7D,#FF9145)',
+          background: accent || 'linear-gradient(90deg,#D53AD8,#FF4D7D,#FF9145)',
         }}
       >
         GET TICKET
@@ -58,6 +62,7 @@ export function GetTicketButton({
           eventName={eventName}
           when={when}
           tiers={webTiers}
+          accent={accent}
         />
       ) : (
         <div
