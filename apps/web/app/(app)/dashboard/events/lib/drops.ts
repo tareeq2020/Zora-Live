@@ -61,6 +61,7 @@ export type DropInput = {
   city: string;
   venue: string;
   category: string;
+  cover?: string;
   priceFrom: number;
   seated: boolean;
   sellable: boolean;
@@ -79,6 +80,7 @@ export type DropForm = {
   city: string;
   venue: string;
   category: string;
+  cover: string; // per-event hero image URL (CDN)
   seated: boolean;
   sellable: boolean;
   tiers: TierRow[];
@@ -93,6 +95,7 @@ export const emptyForm = (): DropForm => ({
   city: '',
   venue: '',
   category: '',
+  cover: '',
   seated: false,
   sellable: false,
   tiers: [emptyTier()],
@@ -113,6 +116,7 @@ export function formFromEvent(ev: OrgEvent): DropForm {
     city: ev.city || '',
     venue: ev.venue || '',
     category: ev.category || '',
+    cover: (ev as { cover?: string }).cover || '',
     seated: !!ev.seated,
     sellable: !!ev.sellable,
     tiers: tiers.length ? tiers : [emptyTier()],
@@ -194,6 +198,7 @@ export function buildBody(form: DropForm, idempotencyKey: string): DropInput {
     venue: form.venue.trim(),
     category: form.category.trim(),
     priceFrom: priceFromOf(tiers),
+    cover: form.cover?.trim() ?? '',
     seated: form.seated,
     sellable: form.sellable,
     tiers,
