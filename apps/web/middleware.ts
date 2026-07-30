@@ -177,8 +177,36 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // Bare-handle alias (NO '@'): /handle and /handle/events/:id resolve to the
+  // storefront exactly like /@handle, so organizer links work without the '@'
+  // even when wildcard-subdomain DNS isn't set up (e.g. a *.vercel.app preview).
+  // Runs LAST so it never shadows a real route; RESERVED_TOP is the guard and the
+  // [^/.@]+ pattern skips files (dots) and the '@' form. An unknown handle simply
+  // renders the storefront's not-found. Add any new top-level route here.
+  if (!tenant) {
+    const bareRoot = pathname.match(/^\/([^/.@]+)$/);
+    if (bareRoot && !RESERVED_TOP.has(bareRoot[1])) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/storefront/${bareRoot[1]}`;
+      return NextResponse.rewrite(url);
+    }
+    const bareLeaf = pathname.match(/^\/([^/.@]+)\/events\/([^/]+)$/);
+    if (bareLeaf && !RESERVED_TOP.has(bareLeaf[1])) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/storefront/${bareLeaf[1]}/events/${bareLeaf[2]}`;
+      return NextResponse.rewrite(url);
+    }
+  }
+
   return NextResponse.next();
 }
+
+// Top-level paths that are real routes/assets — never treated as a bare handle.
+const RESERVED_TOP = new Set([
+  'about', 'admin', 'brand', 'commission', 'dashboard', 'discover', 'events', 'help',
+  'join', 'split', 'storefront', 't', 'login', 'signup', 'studio', 'seatmap',
+  'create-event', 'api', '_next', 'assets', 'tickets', 'account', 'favicon',
+]);
 
 // Run on everything except Next internals and the /api proxy. A narrow matcher
 // (e.g. '/@:path*') silently misses multi-segment tenant paths like
