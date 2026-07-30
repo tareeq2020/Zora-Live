@@ -256,6 +256,10 @@ export default function DashboardClient() {
               <span className="dot" />
               Sales
             </Link>
+            <Link className="nav-item" href="/dashboard/storefront/studio">
+              <span className="dot" />
+              Storefront
+            </Link>
             <Link className="nav-item" href="/dashboard/events/new" style={{ color: 'var(--blue)', fontWeight: 500 }}>
               <span className="dot" />+ New drop
             </Link>
