@@ -346,7 +346,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
               {!paid ? (
                 <div className="co-body">
-                  <div className="co-welcome">The price is the price — nothing is added on the next screen.</div>
+                  <div className="co-welcome">The price is the price — a real Zora pass, issued on payment.</div>
                   <p className="co-event">{active.name}</p>
                   <p className="co-when">
                     {active.dateLabel || 'TBA'}
@@ -387,7 +387,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                     </div>
                   </div>
                   <p className="nofees">
-                    The price is the price. <b>Nothing is added on the next screen.</b>
+                    The price is the price. <b>Your mobile-money provider may add a small fee.</b>
                   </p>
 
                   <div className="crew-toggle" onClick={() => setCrew((c) => !c)}>
