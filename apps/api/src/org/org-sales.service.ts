@@ -66,7 +66,7 @@ export interface OrgOrderRow {
   amount: number;
   currency: string;
   status: string;
-  buyerMasked: { phone: string | null; email: string | null };
+  buyer: { phone: string | null; email: string | null };
   credentials: string[];
   createdAt: string;
 }
@@ -341,7 +341,10 @@ export class OrgSalesService {
         amount,
         currency,
         status: o.status,
-        buyerMasked: { phone: maskPii(o.phone), email: maskPii(o.email) },
+        // Full buyer contacts — an organizer owns their attendee list (scoped to
+      // their own paid orders). Was masked (I4); organizers now see the real
+      // phone/email so they can reach their guests.
+      buyer: { phone: o.phone, email: o.email },
         credentials: credsByOrder.get(o.order_id) ?? [],
         createdAt: o.created_at instanceof Date ? o.created_at.toISOString() : String(o.created_at),
       };
