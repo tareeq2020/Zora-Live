@@ -7,7 +7,7 @@
 #      does NOT count as sold.
 #   3. Cross-org isolation — org A never sees org B's events/orders and vice versa.
 #   4. ?eventId= foreign to the acting org → empty (no leak); own eventId scopes.
-#   5. Buyer PII masked (last 3 chars); credentials expose public_ref, NOT code.
+#   5. Buyer contacts shown in FULL to the owning organizer; credentials expose public_ref, NOT code.
 # Reuses the checkout→pay→paid HTTP contract (mirrors checkout-http.e2e.sh) to
 # seed real paid orders + issued credentials. Self-contained. bash 3.2.
 set -euo pipefail
@@ -165,12 +165,10 @@ t("org A ?eventId=brunch-vol-09 → only brunch orders", ordAOwn.length > 0 && o
 const paid = ordA.find(o => o.status === "paid");
 t("org A orders include the paid order", !!paid);
 t("paid order amount == 100000, qty == 2", paid && paid.amount === 100000 && paid.qty === 2);
-t("buyer phone masked (last 3 '670' visible, rest hidden)",
-  paid && paid.buyerMasked.phone && paid.buyerMasked.phone.endsWith("670") &&
-  paid.buyerMasked.phone !== "0712345670" && paid.buyerMasked.phone.startsWith("*"));
-t("buyer email masked (last 3 'com' visible, not the full address)",
-  paid && paid.buyerMasked.email && paid.buyerMasked.email.endsWith("com") &&
-  paid.buyerMasked.email !== "alice@example.com" && paid.buyerMasked.email.includes("*"));
+t("buyer phone shown in FULL to the organizer (not masked)",
+  paid && paid.buyer.phone && !paid.buyer.phone.includes("*") && paid.buyer.phone.endsWith("670"));
+t("buyer email shown in FULL to the organizer",
+  paid && paid.buyer.email === "alice@example.com");
 t("credentials expose public_ref (2 refs), NOT the raw code",
   paid && Array.isArray(paid.credentials) && paid.credentials.length === 2 &&
   paid.credentials.includes(rawRef) && !paid.credentials.includes(rawCode));
@@ -185,4 +183,4 @@ echo "$RESULT" | grep -q '✗' && fail=1
 
 [ "$fail" = "0" ] || { echo ""; echo "ORG SALES E2E: FAIL"; cat "$SNAP/api.log" | tail -25; exit 1; }
 echo ""
-echo "ORG SALES E2E: PASS (paid-only revenue · sold_count not holds · cross-org isolation · eventId scope · PII masked · public_ref creds)"
+echo "ORG SALES E2E: PASS (paid-only revenue · sold_count not holds · cross-org isolation · eventId scope · full buyer contacts · public_ref creds)"

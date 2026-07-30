@@ -445,7 +445,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                     {fmt(order.total)} {currency}
                   </span>
                 </div>
-                <p className="zco-fineprint">This is the price. Nothing is added after this screen.</p>
+                <p className="zco-fineprint">This is your Zora total — we add nothing. Your mobile-money provider may charge its own small fee.</p>
               </div>
 
               <label className="zco-field">

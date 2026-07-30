@@ -12,7 +12,7 @@
         -> { totals:{revenue,sold,orders,currency}, events:[…] }
      GET /api/org/orders?eventId=&limit=
         -> [{ orderId,eventId,eventName,tier,qty,amount,currency,status,
-               buyerMasked:{phone,email}, credentials:[publicRef], createdAt }]
+               buyer:{phone,email}, credentials:[publicRef], createdAt }]
 
    The summary drives the revenue/sold/orders header + the per-event revenue
    summary + the filter options. Selecting an event drives the ?eventId= query
@@ -51,7 +51,7 @@ type OrderRow = {
   amount: number;
   currency: string;
   status: string;
-  buyerMasked: { phone?: string; email?: string };
+  buyer: { phone?: string; email?: string };
   credentials: string[];
   createdAt: string;
 };
@@ -318,9 +318,9 @@ export default function SalesClient() {
                             <span className={'seg ' + tone}>{(o.status || '—').toUpperCase()}</span>
                           </td>
                           <td className="mono buyer">
-                            {o.buyerMasked?.phone ? <span>{o.buyerMasked.phone}</span> : null}
-                            {o.buyerMasked?.email ? <span>{o.buyerMasked.email}</span> : null}
-                            {!o.buyerMasked?.phone && !o.buyerMasked?.email ? <span>—</span> : null}
+                            {o.buyer?.phone ? <span>{o.buyer.phone}</span> : null}
+                            {o.buyer?.email ? <span>{o.buyer.email}</span> : null}
+                            {!o.buyer?.phone && !o.buyer?.email ? <span>—</span> : null}
                           </td>
                           <td className="mono">
                             {o.credentials && o.credentials.length > 0 ? (
