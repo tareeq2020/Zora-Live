@@ -183,7 +183,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
   // PR-11: a web-sellable event carries real product tiers → the live payments
   // flow replaces the old app-claim sheet. Everything else keeps the app-claim path.
-  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId) || [];
+  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
   const webSellable = webTiers.length > 0;
   const activeWhen = active
     ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()

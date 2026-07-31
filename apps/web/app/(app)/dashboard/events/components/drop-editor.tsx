@@ -28,6 +28,7 @@ import {
   buildBody,
   createDrop,
   deleteDrop,
+  deleteTier,
   emptyForm,
   emptyTier,
   fetchEvents,
@@ -84,6 +85,9 @@ const STYLE = `
 .zora-dropedit .field-err{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--red);margin-top:7px}
 .zora-dropedit .tier{background:#fff;border:1px solid var(--hair);border-radius:12px;padding:14px;margin-bottom:12px}
 .zora-dropedit .tier.err{border-color:var(--red)}
+.zora-dropedit .tier.off{background:var(--card);border-style:dashed}
+.zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
+.zora-dropedit .tier-note{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
 .zora-dropedit .tier-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}
 @media(max-width:620px){.zora-dropedit .tier-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .zora-dropedit .tier label{margin-bottom:6px}
@@ -224,6 +228,9 @@ export default function DropEditor(props: DropEditorProps) {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // BS23: which tier row is pending a delete-confirm, and whether that call is in flight.
+  const [tierDelIdx, setTierDelIdx] = useState<number | null>(null);
+  const [tierDeleting, setTierDeleting] = useState(false);
   const [serverError, setServerError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
 
@@ -262,6 +269,31 @@ export default function DropEditor(props: DropEditorProps) {
   const addTier = () => setForm((f) => ({ ...f, tiers: [...f.tiers, emptyTier()] }));
   const removeTier = (i: number) =>
     setForm((f) => ({ ...f, tiers: f.tiers.length > 1 ? f.tiers.filter((_, idx) => idx !== i) : f.tiers }));
+
+  // BS23: a NEW (unsaved) row is dropped locally; an EXISTING tier (has tierId) is
+  // deleted server-side behind a confirm, since it may already have sales.
+  const requestRemoveTier = (i: number) => {
+    setServerError('');
+    if (form.tiers[i]?.tierId) setTierDelIdx(i);
+    else removeTier(i);
+  };
+  async function handleDeleteTier() {
+    if (tierDeleting || tierDelIdx == null) return;
+    const row = form.tiers[tierDelIdx];
+    if (!row?.tierId) { removeTier(tierDelIdx); setTierDelIdx(null); return; }
+    setServerError('');
+    setTierDeleting(true);
+    try {
+      await deleteTier((props as { eventId: string }).eventId, row.tierId);
+      removeTier(tierDelIdx);
+      setTierDelIdx(null);
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'delete'));
+      setTierDelIdx(null);
+    } finally {
+      setTierDeleting(false);
+    }
+  }
 
   const toggleSellable = () => {
     if (!kycApproved) return; // locked — publishing a paid drop needs verification
@@ -493,8 +525,10 @@ export default function DropEditor(props: DropEditorProps) {
             </p>
             {form.tiers.map((t, i) => {
               const rowErr = showValidation ? errors.tierRows?.[i] : undefined;
+              const hasSales = (t.sold ?? 0) > 0;
               return (
-                <div className={'tier' + (rowErr ? ' err' : '')} key={i}>
+                <div className={'tier' + (rowErr ? ' err' : '') + (t.disabled ? ' off' : '')} key={i}>
+                  {t.disabled ? <span className="tier-badge">HIDDEN — NOT ON SALE</span> : null}
                   <div className="tier-grid">
                     <div>
                       <label>TIER NAME</label>
@@ -529,12 +563,35 @@ export default function DropEditor(props: DropEditorProps) {
                     </div>
                     <button
                       className="del"
-                      title="Remove tier"
-                      onClick={() => removeTier(i)}
-                      disabled={form.tiers.length <= 1}
+                      title={hasSales ? 'This tier has sales — disable it instead of deleting' : 'Remove tier'}
+                      onClick={() => requestRemoveTier(i)}
+                      disabled={form.tiers.length <= 1 || hasSales}
                       aria-label="Remove tier"
                     >
                       ×
+                    </button>
+                  </div>
+                  {/* BS23 — on-sale toggle: hide a tier from the storefront (and block
+                      new purchases) without deleting it. The one lever that works even
+                      after a tier has sold. */}
+                  <div className="togglebar" style={{ marginTop: 10 }}>
+                    <div className="tg-body">
+                      <p className="tg-t">On sale</p>
+                      <p className="tg-d">
+                        {t.disabled
+                          ? 'Hidden from your storefront and not purchasable. Turn on to sell it again.'
+                          : 'Shown on your storefront and open for sale. Turn off to stop new sales (existing tickets stay valid).'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={'switch' + (!t.disabled ? ' on' : '')}
+                      onClick={() => setTier(i, 'disabled', !t.disabled)}
+                      role="switch"
+                      aria-checked={!t.disabled}
+                      aria-label="Tier on sale"
+                    >
+                      <span className="knob" />
                     </button>
                   </div>
                   <div className="togglebar" style={{ marginTop: 10 }}>
@@ -553,6 +610,9 @@ export default function DropEditor(props: DropEditorProps) {
                       <span className="knob" />
                     </button>
                   </div>
+                  {hasSales ? (
+                    <p className="tier-note">This tier has sales — it can’t be deleted. Turn off “On sale” to stop new sales.</p>
+                  ) : null}
                   {rowErr ? <p className="field-err">{rowErr}</p> : null}
                 </div>
               );
@@ -695,6 +755,28 @@ export default function DropEditor(props: DropEditorProps) {
               </button>
               <button className="confirm-del" onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'DELETING…' : 'DELETE DROP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* BS23 — delete-tier confirm (existing tiers only; new rows drop instantly) */}
+      {tierDelIdx != null ? (
+        <div className="overlay" onClick={(e) => e.target === e.currentTarget && !tierDeleting && setTierDelIdx(null)}>
+          <div className="modal" role="dialog" aria-modal="true">
+            <h2>Delete this tier?</h2>
+            <p>
+              {form.tiers[tierDelIdx]?.name.trim() ? `“${form.tiers[tierDelIdx].name.trim()}” ` : 'This tier '}
+              will be removed from your drop. This can&apos;t be undone. A tier that already has sales or held seats
+              can&apos;t be deleted — turn off “On sale” to stop new sales instead.
+            </p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setTierDelIdx(null)} disabled={tierDeleting}>
+                CANCEL
+              </button>
+              <button className="confirm-del" onClick={handleDeleteTier} disabled={tierDeleting}>
+                {tierDeleting ? 'DELETING…' : 'DELETE TIER'}
               </button>
             </div>
           </div>
