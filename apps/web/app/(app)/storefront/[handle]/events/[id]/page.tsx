@@ -71,10 +71,12 @@ export default async function TenantEventPage({ params }: { params: { handle: st
   // ONE hero: per-event cover overrides the store banner; else an accent gradient.
   const heroImg = ev.cover || theme.bannerUrl || '';
 
-  const splitTier = ev.webCheckout?.tiers?.find((t) => t.split);
-  const splitHref = splitTier
-    ? `/split/new?tier=${encodeURIComponent(splitTier.tierId)}&event=${encodeURIComponent(ev.name)}&price=${splitTier.unitPrice}&cap=${splitTier.seats || 8}`
-    : null;
+  // BS22: every published package is shown on the leaf (not just the FROM price),
+  // splittable ones flagged with a badge + a direct entry into the split flow.
+  const tiers = (ev.webCheckout?.tiers || []).filter((t) => t.tierId);
+  const fmtN = (n: number) => n.toLocaleString('en-US');
+  const splitHrefFor = (t: CheckoutTier) =>
+    `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(ev.name)}&price=${t.unitPrice}&cap=${t.seats || 8}`;
 
   return (
     <main className={styles.page} style={themeVars}>
@@ -112,16 +114,39 @@ export default async function TenantEventPage({ params }: { params: { handle: st
           <div><div className={styles.metaKey}>VENUE</div><div className={styles.metaVal}>{ev.venue || 'TBA'}</div></div>
         </div>
 
-        <div className={styles.buy}>
-          <span><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{cur} {price}</b></span>
+        {tiers.length > 0 ? (
+          <div className={styles.packages}>
+            <p className={styles.pkgHead}>{tiers.length} PACKAGE{tiers.length === 1 ? '' : 'S'}</p>
+            {tiers.map((t) => (
+              <div className={`${styles.pkg}${t.split ? ' ' + styles.pkgSplit : ''}`} key={t.tierId}>
+                <div className={styles.pkgTop}>
+                  <span className={styles.pkgName}>
+                    {t.name}
+                    {t.split ? <span className={styles.pkgBadge}>SPLITTABLE</span> : null}
+                  </span>
+                  <span className={styles.pkgPrice}>{t.currency || cur} {fmtN(t.unitPrice)}</span>
+                </div>
+                {t.split ? (
+                  <div className={styles.pkgSplitRow}>
+                    <span className={styles.pkgSplitNote}>Seats {t.seats || 8} · everyone pays their own share</span>
+                    <Link href={splitHrefFor(t)} className={styles.pkgSplitCta}>Split this table →</Link>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className={`${styles.buy}${tiers.length > 0 ? ' ' + styles.buyFull : ''}`}>
+          {tiers.length > 0 ? null : (
+            <span><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{cur} {price}</b></span>
+          )}
           {ev.seated ? (
             <Link href={`/events/${encodeURIComponent(ev.id)}/seats`} className={styles.seatsCta}>CHOOSE YOUR SEATS →</Link>
           ) : (
             <GetTicketButton eventName={ev.name} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
           )}
         </div>
-
-        {splitHref ? <Link href={splitHref} className={styles.splitCta}>Split a table with your crew — everyone pays their share →</Link> : null}
 
         <p className={styles.nofee}>The price is the price. No fees at checkout.</p>
 
