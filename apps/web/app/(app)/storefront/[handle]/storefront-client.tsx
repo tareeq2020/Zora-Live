@@ -255,6 +255,14 @@ export default function StorefrontClient(props: StorefrontProps) {
             ) : (
               events.map((ev) => {
                 const evCur = CUR[ev.city || ''] || 'TZS';
+                // BS26: the headline "FROM" must reflect what's actually on sale — the
+                // cheapest ENABLED tier — not the stale priceFrom scalar (which still
+                // points at a switched-off tier). Falls back to priceFrom for app-claim
+                // events (no web catalog).
+                const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
+                const fromPrice = onSaleTiers.length
+                  ? Math.min(...onSaleTiers.map((t) => t.unitPrice))
+                  : ev.priceFrom || 0;
                 return (
                   <div className="event" key={ev.id}>
                     <div className="event-top">
@@ -276,7 +284,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       <div className="right">
                         <p className="from">FROM</p>
                         <p className="price">
-                          {fmt(ev.priceFrom || 0)}
+                          {fmt(fromPrice)}
                           <span style={{ fontSize: 15 }}> {evCur}</span>
                         </p>
                       </div>
