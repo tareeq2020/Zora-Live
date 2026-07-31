@@ -391,7 +391,7 @@ export default function ComingSoon() {
           Zora<span style={{ color: BRAND.pink }}>Pass</span>
         </span>
         <nav className="zcs-nav">
-          <Link href="/discover">Explore events</Link>
+          <Link href="/thebrunchcity">Explore events</Link>
           <Link href="/dashboard">Organizer sign in</Link>
         </nav>
       </header>
