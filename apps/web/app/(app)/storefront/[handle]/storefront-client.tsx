@@ -328,6 +328,7 @@ export default function StorefrontClient(props: StorefrontProps) {
             eventName={active?.name || ''}
             when={activeWhen}
             tiers={webTiers}
+            accent={accent}
           />
         )}
 
