@@ -284,6 +284,24 @@ export async function deleteTier(eventId: string, tierId: string): Promise<{ ok:
   return res.json();
 }
 
+// BS24: reversibly archive a drop (allowed even with paid orders) / restore it.
+export async function archiveDrop(id: string): Promise<OrgEvent> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(id)}/archive`, {
+    method: 'POST',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+export async function unarchiveDrop(id: string): Promise<OrgEvent> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(id)}/unarchive`, {
+    method: 'POST',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+
 // Human-friendly copy for the server error codes in the contract.
 export function messageForError(err: ApiError, context: 'save' | 'delete'): string {
   if (err.error === 'kyc_required')

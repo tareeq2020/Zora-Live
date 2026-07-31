@@ -225,6 +225,53 @@ export class OrgEventsController {
     return { ok: true };
   }
 
+  // ── POST /api/org/events/:id/archive ─────────────────────────────────────────
+  // BS24: reversibly take a drop OFF the public storefront. Unlike DELETE this is
+  // ALLOWED with paid orders — it's the intended way to retire a drop that already
+  // sold (the delete copy has always said "archive it instead"). Sets status
+  // 'archived' (public reads already filter archived out); restore with /unarchive.
+  @Post('events/:id/archive')
+  async archive(@Req() req: Request, @Param('id') id: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    const updated = await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t);
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      rows[idx] = { ...rows[idx], status: 'archived', updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+      return rows[idx];
+    });
+
+    await this.writeAudit(req, 'org_event_archive', id);
+    return this.shapeFresh(updated);
+  }
+
+  // ── POST /api/org/events/:id/unarchive ───────────────────────────────────────
+  // BS24: restore an archived drop. A drop with live tiers goes back to 'published'
+  // (visible + on sale); one with no sellable catalog returns to 'draft'.
+  @Post('events/:id/unarchive')
+  async unarchive(@Req() req: Request, @Param('id') id: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    const updated = await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t);
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      const ev = rows[idx];
+      rows[idx] = { ...ev, status: this.isSellable(ev) ? 'published' : 'draft', updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+      return rows[idx];
+    });
+
+    await this.writeAudit(req, 'org_event_unarchive', id);
+    return this.shapeFresh(updated);
+  }
+
   // ── DELETE /api/org/events/:id/tiers/:tierId ─────────────────────────────────
   // BS23: hard-delete a single ticket tier, allowed ONLY when it has never been
   // sold or held. product_tier is referenced WITHOUT on-delete-cascade by

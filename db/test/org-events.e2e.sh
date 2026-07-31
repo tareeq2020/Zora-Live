@@ -282,5 +282,28 @@ echo "$DELSOLO" | grep -q 'last_tier' && [ "$DELSOLO_C" = "409" ] \
   && echo "  ✓ delete the only tier → 409 last_tier" || { echo "  ✗ last-tier guard: $DELSOLO ($DELSOLO_C)"; fail=1; }
 
 echo ""
+echo "== 9. ARCHIVE + RESTORE (BS24) =="
+statusOf() { curl -s -b "$SNAP/offshore" "$BASE/api/org/events" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8"));const e=d.find(x=>x.id===process.argv[1]);process.stdout.write(String(e?.status))' "$1"; }
+# Archive is allowed even WITH sales (unlike delete, which 409s). T8ID has orders.
+ARCH_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/$T8ID/archive")
+ARCH_STATUS=$(statusOf "$T8ID")
+PUBA=$(curl -s "$BASE/api/events")
+[ "$ARCH_C" = "200" ] && [ "$ARCH_STATUS" = "archived" ] && ! echo "$PUBA" | grep -q "$T8ID" \
+  && echo "  ✓ archive a drop WITH sales → 200, status=archived, absent from /api/events" \
+  || { echo "  ✗ archive: code=$ARCH_C status=$ARCH_STATUS"; fail=1; }
+
+# Restore → back to published + visible on the public list.
+UN_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/$T8ID/unarchive")
+UN_STATUS=$(statusOf "$T8ID")
+PUBU=$(curl -s "$BASE/api/events")
+[ "$UN_C" = "200" ] && [ "$UN_STATUS" = "published" ] && echo "$PUBU" | grep -q "$T8ID" \
+  && echo "  ✓ restore → 200, status=published, back in /api/events" \
+  || { echo "  ✗ restore: code=$UN_C status=$UN_STATUS"; fail=1; }
+
+# Ownership: offshore can't archive basement's event → 404.
+OWN_ARCH=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/basement-001/archive")
+[ "$OWN_ARCH" = "404" ] && echo "  ✓ cross-org archive → 404" || { echo "  ✗ cross-org archive → $OWN_ARCH (want 404)"; fail=1; }
+
+echo ""
 [ "$fail" = "0" ] || { echo "ORG EVENTS E2E: FAIL"; echo "---- api.log tail ----"; tail -25 "$SNAP/api.log"; exit 1; }
-echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + ownership + KYC)"
+echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + archive/restore + ownership + KYC)"
