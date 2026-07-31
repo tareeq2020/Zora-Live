@@ -26,10 +26,12 @@ import {
   type FieldErrors,
   type OrgEvent,
   buildBody,
+  archiveDrop,
   createDrop,
   deleteDrop,
   deleteTier,
   emptyForm,
+  unarchiveDrop,
   emptyTier,
   fetchEvents,
   fetchMe,
@@ -138,6 +140,7 @@ const STYLE = `
 .zora-dropedit .danger-zone{border:1px solid var(--hair);border-radius:12px;padding:18px 20px;margin-top:20px}
 .zora-dropedit .danger-zone .dz-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--red);margin-bottom:6px}
 .zora-dropedit .danger-zone .dz-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;line-height:1.6;margin-bottom:14px}
+.zora-dropedit .danger-zone .dz-actions{display:flex;gap:10px;flex-wrap:wrap}
 .zora-dropedit .del-btn{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--red);padding:11px 18px;cursor:pointer;transition:background .2s,border-color .2s}
 .zora-dropedit .del-btn:hover:not(:disabled){background:var(--red);border-color:var(--red);color:#fff}
 .zora-dropedit .overlay{position:fixed;inset:0;background:rgba(244,241,234,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px}
@@ -180,6 +183,7 @@ export default function DropEditor(props: DropEditorProps) {
   // ── async boot: /api/org/me (+ the event on edit) ──
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadErrMsg, setLoadErrMsg] = useState('');
+  const [status, setStatus] = useState<string>(''); // BS24: loaded drop status (drives Archive vs Restore)
   const [kycStatus, setKycStatus] = useState<string>('unverified');
   const [form, setForm] = useState<DropForm>(emptyForm);
 
@@ -202,6 +206,7 @@ export default function DropEditor(props: DropEditorProps) {
             return;
           }
           setForm(formFromEvent(ev));
+          setStatus(ev.status || '');
           setLoadState('ready');
         } else {
           const me = await mePromise;
@@ -231,6 +236,7 @@ export default function DropEditor(props: DropEditorProps) {
   // BS23: which tier row is pending a delete-confirm, and whether that call is in flight.
   const [tierDelIdx, setTierDelIdx] = useState<number | null>(null);
   const [tierDeleting, setTierDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false); // BS24: archive/restore in flight
   const [serverError, setServerError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
 
@@ -344,6 +350,32 @@ export default function DropEditor(props: DropEditorProps) {
       setServerError(messageForError(err, 'delete'));
       setConfirmOpen(false);
       setDeleting(false);
+    }
+  }
+
+  // BS24: archive/restore from the editor. Both return to the dashboard on success.
+  async function handleArchive() {
+    if (archiving) return;
+    setServerError('');
+    setArchiving(true);
+    try {
+      await archiveDrop((props as { eventId: string }).eventId);
+      router.push('/dashboard');
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'save'));
+      setArchiving(false);
+    }
+  }
+  async function handleRestore() {
+    if (archiving) return;
+    setServerError('');
+    setArchiving(true);
+    try {
+      await unarchiveDrop((props as { eventId: string }).eventId);
+      router.push('/dashboard');
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'save'));
+      setArchiving(false);
     }
   }
 
@@ -688,16 +720,34 @@ export default function DropEditor(props: DropEditorProps) {
             </div>
           </div>
 
-          {/* danger zone — edit only */}
+          {/* BS24 — manage drop: archive (reversible, works even with sales) or, for
+              a clean drop, delete. Archived drops show Restore. */}
           {isEdit ? (
             <div className="danger-zone">
-              <p className="dz-h">DANGER ZONE</p>
-              <p className="dz-d">
-                Archives this drop and hides it from your storefront. Drops with paid orders can&apos;t be deleted.
-              </p>
-              <button className="del-btn" onClick={() => setConfirmOpen(true)} disabled={deleting}>
-                DELETE DROP
-              </button>
+              <p className="dz-h">MANAGE DROP</p>
+              {status === 'archived' ? (
+                <>
+                  <p className="dz-d">This drop is archived — hidden from your storefront. Restore it to sell again.</p>
+                  <button className="publish" onClick={handleRestore} disabled={archiving}>
+                    {archiving ? 'RESTORING…' : 'RESTORE DROP'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="dz-d">
+                    Archive takes this drop off your storefront and stops new sales — reversible anytime, and works even
+                    after it has sold. Delete removes a drop that has no sales.
+                  </p>
+                  <div className="dz-actions">
+                    <button className="ghost" onClick={handleArchive} disabled={archiving}>
+                      {archiving ? 'ARCHIVING…' : 'ARCHIVE DROP'}
+                    </button>
+                    <button className="del-btn" onClick={() => setConfirmOpen(true)} disabled={deleting}>
+                      DELETE DROP
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
         </div>

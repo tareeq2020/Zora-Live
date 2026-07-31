@@ -74,6 +74,21 @@ export default async function TenantEventPage({ params }: { params: { handle: st
   // BS22: every published package is shown on the leaf (not just the FROM price),
   // splittable ones flagged with a badge + a direct entry into the split flow.
   const tiers = (ev.webCheckout?.tiers || []).filter((t) => t.tierId && !t.disabled);
+
+  // BS24: a web-sellable event with every tier disabled has nothing on sale — don't
+  // advertise a stale FROM price + dead GET TICKET. Show a "not on sale" state (the
+  // storefront index already drops it from the listing). App-claim events unaffected.
+  const hasWebCatalog = (ev.webCheckout?.tiers || []).some((t) => t.tierId);
+  if (hasWebCatalog && tiers.length === 0) {
+    return (
+      <main className={styles.page} style={{ ['--accent']: accent } as React.CSSProperties}>
+        <div className={styles.wrap}>
+          <div className={styles.notFound}>Tickets for “{ev.name}” aren’t on sale right now. Check back soon.</div>
+        </div>
+      </main>
+    );
+  }
+
   const fmtN = (n: number) => n.toLocaleString('en-US');
   const splitHrefFor = (t: CheckoutTier) =>
     `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(ev.name)}&price=${t.unitPrice}&cap=${t.seats || 8}`;

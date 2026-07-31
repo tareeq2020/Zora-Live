@@ -110,6 +110,7 @@ export default function DashboardClient() {
 
   // per-row delete state + a page-level action message (delete outcomes).
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [acting, setActing] = useState<string | null>(null); // BS24: archive/restore in flight
   const [actionMsg, setActionMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const loadMe = useCallback(async () => {
@@ -194,6 +195,46 @@ export default function DashboardClient() {
       }
     },
     [deleting, loadEvents, loadSummary],
+  );
+
+  // BS24: archive (reversible, allowed with sales) + restore. Archive confirms
+  // because it pulls the drop off the storefront; restore is non-destructive.
+  const onArchive = useCallback(
+    async (ev: OrgEvent) => {
+      if (acting) return;
+      if (!window.confirm(`Archive "${ev.name}"? It comes off your public storefront. You can restore it anytime.`)) return;
+      setActing(ev.id);
+      setActionMsg(null);
+      try {
+        const res = await fetch(`/api/org/events/${encodeURIComponent(ev.id)}/archive`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setActionMsg({ kind: 'ok', text: `"${ev.name}" was archived.` });
+        await Promise.all([loadEvents(), loadSummary()]);
+      } catch (e) {
+        setActionMsg({ kind: 'err', text: `Couldn't archive "${ev.name}" — ${(e as Error).message}. Please try again.` });
+      } finally {
+        setActing(null);
+      }
+    },
+    [acting, loadEvents, loadSummary],
+  );
+  const onRestore = useCallback(
+    async (ev: OrgEvent) => {
+      if (acting) return;
+      setActing(ev.id);
+      setActionMsg(null);
+      try {
+        const res = await fetch(`/api/org/events/${encodeURIComponent(ev.id)}/unarchive`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setActionMsg({ kind: 'ok', text: `"${ev.name}" was restored.` });
+        await Promise.all([loadEvents(), loadSummary()]);
+      } catch (e) {
+        setActionMsg({ kind: 'err', text: `Couldn't restore "${ev.name}" — ${(e as Error).message}. Please try again.` });
+      } finally {
+        setActing(null);
+      }
+    },
+    [acting, loadEvents, loadSummary],
   );
 
   // ── derived identity + gates ──
@@ -474,6 +515,15 @@ export default function DashboardClient() {
                         <Link className="btn ghost" href={`/dashboard/events/${encodeURIComponent(ev.id)}/edit`}>
                           EDIT
                         </Link>
+                        {ev.status === 'archived' ? (
+                          <button className="btn ghost" onClick={() => onRestore(ev)} disabled={acting === ev.id}>
+                            {acting === ev.id ? 'RESTORING…' : 'RESTORE'}
+                          </button>
+                        ) : (
+                          <button className="btn ghost" onClick={() => onArchive(ev)} disabled={acting === ev.id}>
+                            {acting === ev.id ? 'ARCHIVING…' : 'ARCHIVE'}
+                          </button>
+                        )}
                         <button
                           className="btn ghost danger"
                           onClick={() => onDelete(ev)}
