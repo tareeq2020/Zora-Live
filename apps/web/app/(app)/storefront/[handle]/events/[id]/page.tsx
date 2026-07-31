@@ -73,7 +73,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
 
   // BS22: every published package is shown on the leaf (not just the FROM price),
   // splittable ones flagged with a badge + a direct entry into the split flow.
-  const tiers = (ev.webCheckout?.tiers || []).filter((t) => t.tierId);
+  const tiers = (ev.webCheckout?.tiers || []).filter((t) => t.tierId && !t.disabled);
   const fmtN = (n: number) => n.toLocaleString('en-US');
   const splitHrefFor = (t: CheckoutTier) =>
     `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(ev.name)}&price=${t.unitPrice}&cap=${t.seats || 8}`;

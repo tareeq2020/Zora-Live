@@ -26,6 +26,8 @@ export interface ProvisionTierInput {
   /** BS10: opt this (table) tier into bill-split + its hold window. */
   splitEnabled?: boolean;
   splitWindowSecs?: number;
+  /** BS23: born hidden from the storefront / not purchasable. */
+  disabled?: boolean;
 }
 
 export interface ProvisionedTier {
@@ -34,6 +36,7 @@ export interface ProvisionedTier {
   unitPrice: number;
   currency: string;
   split?: boolean;
+  disabled?: boolean;
 }
 
 function slugPart(name: string, index: number): string {
@@ -71,9 +74,9 @@ export class EventProvisioningService {
       const capacity = Number(tier.capacity);
       const price = Number(tier.price);
 
-      await t`insert into product_tier (id, event_id, name, capacity, kind, split_enabled, split_window_secs)
+      await t`insert into product_tier (id, event_id, name, capacity, kind, split_enabled, split_window_secs, disabled)
               values (${tierId}, ${eventId}, ${tier.name}, ${capacity},
-                      ${tier.splitEnabled ? 'table' : 'shore'}, ${!!tier.splitEnabled}, ${tier.splitWindowSecs ?? 2700})
+                      ${tier.splitEnabled ? 'table' : 'shore'}, ${!!tier.splitEnabled}, ${tier.splitWindowSecs ?? 2700}, ${!!tier.disabled})
               on conflict (id) do nothing`;
       // Only add a price_version if this tier has none (no natural conflict key).
       await t`insert into price_version (tier_id, price, currency)
@@ -83,7 +86,7 @@ export class EventProvisioningService {
               values (${tierId}, ${capacity}, ${capacity})
               on conflict (product_tier_id) do nothing`;
 
-      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled });
+      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled, disabled: !!tier.disabled });
       i++;
     }
     return provisioned;
@@ -146,6 +149,7 @@ export class EventProvisioningService {
       unitPrice: p.unitPrice,
       currency: p.currency,
       ...(p.split ? { split: true } : {}),
+      ...(p.disabled ? { disabled: true } : {}),
     }));
     const row = { ...event, webCheckout: { tiers: webTiers }, updated_at: new Date().toISOString() };
     const idx = rows.findIndex((e) => e && e.id === row.id);

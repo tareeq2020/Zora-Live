@@ -28,6 +28,8 @@ export type OrgTier = {
   sold?: number;
   available?: number;
   currency?: string;
+  split?: boolean; // splittable (bill-split) tier
+  disabled?: boolean; // BS23: hidden from the storefront / not on sale
 };
 
 export type OrgEvent = {
@@ -49,7 +51,7 @@ export type OrgEvent = {
 
 // Tier as the create/edit form submits it — the provisioning service (MT2)
 // drives product_tier/price_version/inventory_pool off this, NOT the display blob.
-export type DropTierInput = { name: string; price: number; capacity: number; splitEnabled?: boolean };
+export type DropTierInput = { tierId?: string; name: string; price: number; capacity: number; splitEnabled?: boolean; disabled?: boolean };
 
 export type DropInput = {
   name: string;
@@ -71,7 +73,9 @@ export type DropInput = {
 
 // ── editor form state (strings, so inputs stay controlled + empty-friendly) ──
 
-export type TierRow = { name: string; price: string; capacity: string; splitEnabled?: boolean };
+// `tierId`/`sold` are present only for EXISTING (already-saved) tiers; a freshly
+// added row has neither. `disabled` = BS23 on-sale toggle.
+export type TierRow = { tierId?: string; name: string; price: string; capacity: string; splitEnabled?: boolean; disabled?: boolean; sold?: number };
 
 export type DropForm = {
   name: string;
@@ -104,10 +108,13 @@ export const emptyForm = (): DropForm => ({
 // Hydrate the editable form from a server event (edit route prefill).
 export function formFromEvent(ev: OrgEvent): DropForm {
   const tiers = (ev.tiers || []).map((t) => ({
+    tierId: t.tierId, // preserved so edits match by id (not name) and delete/disable can target it
     name: t.name || '',
     price: t.unitPrice != null ? String(t.unitPrice) : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
-    splitEnabled: !!(t as { split?: boolean }).split,
+    splitEnabled: !!t.split,
+    disabled: !!t.disabled,
+    sold: t.sold,
   }));
   return {
     name: ev.name || '',
@@ -168,7 +175,7 @@ export const hasErrors = (e: FieldErrors): boolean =>
 export function usableTiers(form: DropForm): DropTierInput[] {
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
-    .map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0, splitEnabled: !!t.splitEnabled }));
+    .map((t) => ({ tierId: t.tierId, name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0, splitEnabled: !!t.splitEnabled, disabled: !!t.disabled }));
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {
@@ -266,6 +273,17 @@ export async function deleteDrop(id: string): Promise<{ ok: true }> {
   return res.json();
 }
 
+// BS23: hard-delete one ticket tier (server refuses with 409 tier_has_sales if it
+// has any orders/holds/splits/credentials, or 409 last_tier for the only tier).
+export async function deleteTier(eventId: string, tierId: string): Promise<{ ok: true }> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(eventId)}/tiers/${encodeURIComponent(tierId)}`, {
+    method: 'DELETE',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+
 // Human-friendly copy for the server error codes in the contract.
 export function messageForError(err: ApiError, context: 'save' | 'delete'): string {
   if (err.error === 'kyc_required')
@@ -290,6 +308,8 @@ export function messageForError(err: ApiError, context: 'save' | 'delete'): stri
   if (err.error === 'seated_required') return 'Choose whether this is a seated event.';
   if (err.error === 'tiers_required') return 'A public drop needs at least one ticket tier.';
   if (err.error === 'capacity_below_committed') return "You can't drop capacity below tickets already sold or held.";
+  if (err.error === 'tier_has_sales') return "This tier has orders or held seats — it can't be deleted. Disable it instead to stop new sales.";
+  if (err.error === 'last_tier') return "You can't delete the only ticket tier. Add another tier first, or delete the whole drop.";
   if (err.error === 'suspended') return 'Your account is suspended. Contact ZORA support.';
   if (err.message) return err.message;
   if (err.error) return err.error;
