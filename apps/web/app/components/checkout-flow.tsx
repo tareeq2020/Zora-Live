@@ -72,6 +72,12 @@ const fmt = (n: number) => n.toLocaleString('en-US');
 export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
+  // BS22: splittable tiers link into the dedicated split flow (the aura-branded
+  // /split/new). Same query contract the event leaf builds, so the two entry
+  // points stay in lockstep.
+  const splitHref = (t: CheckoutTier) =>
+    `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(eventName)}&price=${t.unitPrice}&cap=${t.seats || 8}`;
+
   const [step, setStep] = useState<Step>('cart');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [avail, setAvail] = useState<Record<string, number> | null>(null);
@@ -335,11 +341,15 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                   const soldOut = a <= 0;
                   const q = qty[t.tierId] || 0;
                   return (
-                    <div className={'zco-tier' + (soldOut ? ' out' : '')} key={t.tierId}>
+                    <div className={'zco-tier' + (soldOut ? ' out' : '') + (t.split ? ' zco-tier-split' : '')} key={t.tierId}>
                       <div className="zco-tier-info">
-                        <p className="zco-tier-name">{t.name}</p>
+                        <p className="zco-tier-name">
+                          {t.name}
+                          {t.split ? <span className="zco-badge">SPLITTABLE</span> : null}
+                        </p>
                         <p className="zco-tier-price">
                           {soldOut ? 'SOLD OUT' : `${fmt(t.unitPrice)} ${t.currency || currency}`}
+                          {t.split ? <span className="zco-seatnote"> · seats {t.seats || 8}</span> : null}
                           {!soldOut && avail && a <= 5 ? <span className="zco-low"> · {a} left</span> : null}
                         </p>
                       </div>
@@ -352,6 +362,11 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                           +
                         </button>
                       </div>
+                      {t.split ? (
+                        <a className="zco-split-cta" href={splitHref(t)}>
+                          Split this table — everyone pays their own share →
+                        </a>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -683,9 +698,15 @@ const STYLE = `
 .zco-tiers{margin-top:22px;display:flex;flex-direction:column;gap:12px}
 .zco-tier{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--z-hair);border-radius:12px;padding:16px 18px}
 .zco-tier.out{opacity:.5}
-.zco-tier-name{font-size:14px;font-weight:500}
+.zco-tier-split{flex-wrap:wrap;row-gap:14px;border-color:color-mix(in srgb,var(--z-blue) 50%,var(--z-hair))}
+.zco-tier-split .zco-tier-info{flex:1 1 auto}
+.zco-tier-name{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.zco-badge{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--z-blue);border:1px solid var(--z-blue);border-radius:99px;padding:2px 8px}
 .zco-tier-price{font-family:var(--mono);font-size:12px;color:var(--z-mut);letter-spacing:.04em;margin-top:4px}
+.zco-seatnote{color:var(--z-mut)}
 .zco-low{color:var(--z-blue)}
+.zco-split-cta{flex:1 0 100%;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--z-blue);text-decoration:none;border:1px solid var(--z-blue);border-radius:10px;padding:11px 12px;background:color-mix(in srgb,var(--z-blue) 10%,transparent);transition:background .2s}
+.zco-split-cta:hover{background:color-mix(in srgb,var(--z-blue) 18%,transparent)}
 .zco-ctrl{display:flex;align-items:center;gap:14px;flex-shrink:0}
 .zco-ctrl button{width:34px;height:34px;border-radius:50%;border:1px solid var(--z-hair);background:none;color:var(--z-bone);font-size:19px;cursor:pointer;line-height:1}
 .zco-ctrl button:hover:not(:disabled){border-color:var(--z-bone)}
