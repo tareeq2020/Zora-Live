@@ -82,10 +82,13 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       let subtotal = 0;
       let passedSubtotal = 0; // only lines whose price passes the fee to the buyer
       for (const line of cart) {
+        // BS23: a DISABLED tier is unpurchasable — the join drops it so the buyer
+        // sees the same sold-out path (never a 500), and inventory is never touched.
         const pvRows = await t`
-          select id, price, fee_treatment from price_version
-           where tier_id = ${line.tier} and effective_to is null
-           order by effective_from desc limit 1`;
+          select pv.id, pv.price, pv.fee_treatment from price_version pv
+            join product_tier pt on pt.id = pv.tier_id
+           where pv.tier_id = ${line.tier} and pv.effective_to is null and pt.disabled = false
+           order by pv.effective_from desc limit 1`;
         if (!pvRows.length) throw new SoldOut(line.tier);
         const pv = pvRows[0];
 

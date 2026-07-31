@@ -49,6 +49,7 @@ interface TierInput {
   currency?: string;
   splitEnabled?: boolean;
   splitWindowSecs?: number;
+  disabled?: boolean; // BS23: hidden from the storefront / not purchasable
 }
 
 const PAID_STATES = ['paid', 'paid_unseatable', 'payment_short'];
@@ -127,6 +128,7 @@ export class OrgEventsController {
           currency: t2.currency,
           splitEnabled: t2.splitEnabled,
           splitWindowSecs: t2.splitWindowSecs,
+          disabled: t2.disabled,
         }));
         const { event } = await this.prov.provisionSellableDrop(
           t,
@@ -178,10 +180,10 @@ export class OrgEventsController {
         const provisioned = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs })),
+          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, disabled: x.disabled })),
           ev.name,
         );
-        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}) })) };
+        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.disabled ? { disabled: true } : {}) })) };
         ev.status = 'published';
         delete ev.tiers; // sellable events carry tiers via webCheckout + the pool
       } else if (wasSellable && incomingTiers) {
@@ -223,6 +225,58 @@ export class OrgEventsController {
     return { ok: true };
   }
 
+  // ── DELETE /api/org/events/:id/tiers/:tierId ─────────────────────────────────
+  // BS23: hard-delete a single ticket tier, allowed ONLY when it has never been
+  // sold or held. product_tier is referenced WITHOUT on-delete-cascade by
+  // order_item, table_split, and credential, so a referenced tier both "has sales"
+  // AND would FK-violate on delete — we fail closed on all three (plus any committed
+  // pool units) with 409 tier_has_sales, and steer the organizer to DISABLE instead.
+  // The catalog delete cascades to price_version + inventory_pool; the blob tier is
+  // spliced out in the same tx. The last remaining tier can't be deleted (a sellable
+  // event needs ≥1) — 409 last_tier.
+  @Delete('events/:id/tiers/:tierId')
+  async removeTier(@Req() req: Request, @Param('id') id: string, @Param('tierId') tierId: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t); // C4 lock (blob)
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      const ev = { ...rows[idx] };
+      const web: any[] = Array.isArray(ev.webCheckout?.tiers) ? ev.webCheckout.tiers : [];
+      const tierIdx = web.findIndex((w) => w.tierId === tierId);
+      if (tierIdx < 0) throw new NotFoundException({ error: 'tier_not_found' });
+      if (web.length <= 1) throw new ConflictException({ error: 'last_tier' });
+
+      // Lock the pool row, then fail closed on ANY reference or committed unit.
+      const pool = await t<{ sold_count: number; blocked_count: number; reserved_count: number }[]>`
+        select sold_count, blocked_count, reserved_count from inventory_pool
+          where product_tier_id = ${tierId} for update`;
+      const committed = pool.length
+        ? Number(pool[0].sold_count) + Number(pool[0].blocked_count) + Number(pool[0].reserved_count)
+        : 0;
+      const [refs] = await t<{ has_orders: boolean; has_splits: boolean; has_creds: boolean }[]>`
+        select exists(select 1 from order_item  where product_tier_id = ${tierId}) as has_orders,
+               exists(select 1 from table_split  where product_tier_id = ${tierId}) as has_splits,
+               exists(select 1 from credential   where tier_id        = ${tierId}) as has_creds`;
+      if (committed > 0 || refs.has_orders || refs.has_splits || refs.has_creds) {
+        throw new ConflictException({ error: 'tier_has_sales' });
+      }
+
+      // Hard delete: cascades price_version + inventory_pool; drop it from the blob.
+      await t`delete from product_tier where id = ${tierId}`;
+      web.splice(tierIdx, 1);
+      ev.webCheckout = { tiers: web };
+      rows[idx] = { ...ev, updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+    });
+
+    await this.writeAudit(req, 'org_tier_delete', `${id}/${tierId}`);
+    return { ok: true };
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────────────
 
   /** C6 + C7: re-price via versioning, capacity via delta, add new tiers. On `t`. */
@@ -236,11 +290,18 @@ export class OrgEventsController {
         const [p] = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs }],
+          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, disabled: tier.disabled }],
           ev.name,
         );
-        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}) });
+        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.disabled ? { disabled: true } : {}) });
         continue;
+      }
+
+      // BS23 — disable/enable an EXISTING sellable tier: persist the flag and mirror
+      // it onto the blob (the storefront filters disabled tiers; checkout rejects them).
+      if (tier.disabled !== undefined) {
+        await t`update product_tier set disabled = ${!!tier.disabled} where id = ${match.tierId}`;
+        if (tier.disabled) match.disabled = true; else delete match.disabled;
       }
 
       // BS10 — split toggle on an EXISTING sellable tier: persist the flag + window
@@ -303,7 +364,7 @@ export class OrgEventsController {
   private shape(e: any, snapById: Map<string, PoolSnapshot>) {
     const sellable = this.isSellable(e);
     const source: any[] = sellable
-      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency }))
+      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency, split: !!w.split, disabled: !!w.disabled }))
       : Array.isArray(e.tiers)
         ? e.tiers
         : [];
@@ -318,6 +379,9 @@ export class OrgEventsController {
         sold: snap ? snap.sold : 0, // C2: sold_count, never capacity−available
         available: snap ? snap.available : capacity,
         currency: t.currency || 'TZS',
+        // BS23/BS10: reflect saved flags so the editor's toggles hydrate correctly.
+        split: !!(t.split ?? t.splitEnabled),
+        disabled: !!t.disabled,
       };
     });
     return {
@@ -403,6 +467,7 @@ export class OrgEventsController {
         currency: (t?.currency || 'TZS') as string,
         splitEnabled: !!t?.splitEnabled,
         splitWindowSecs: Number.isInteger(t?.splitWindowSecs) ? Number(t.splitWindowSecs) : undefined,
+        disabled: t?.disabled === undefined ? undefined : !!t.disabled,
       };
     });
     if (requireNonEmpty && !tiers.length) throw new BadRequestException({ error: 'tiers_required' });

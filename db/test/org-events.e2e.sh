@@ -219,5 +219,68 @@ echo "$KYC" | grep -q 'kyc_required' && [ "$KYC_C" = "403" ] \
   || { echo "  ✗ kyc gate: $KYC ($KYC_C)"; fail=1; }
 
 echo ""
+echo "== 8. TIER DISABLE + DELETE (BS23) =="
+# Fresh 3-tier sellable drop (GA + VIP + EARLY), no sales yet.
+T8=$(curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Tier Ops","dateLabel":"SUN 15 FEB 2026","city":"dar","venue":"The Deck","category":"party",
+  "priceFrom":30000,"seated":false,"sellable":true,"idempotencyKey":"idem-tierops-1",
+  "tiers":[{"name":"General Admission","price":30000,"capacity":10},{"name":"VIP","price":90000,"capacity":5},{"name":"Early Bird","price":20000,"capacity":8}]}')
+T8ID=$(echo "$T8" | jq_get id)
+GAID=$(echo "$T8" | jq_get tiers.0.tierId)
+VIPID=$(echo "$T8" | jq_get tiers.1.tierId)
+EARLYID=$(echo "$T8" | jq_get tiers.2.tierId)
+[ -n "$T8ID" ] && [ -n "$GAID" ] && [ -n "$VIPID" ] && [ -n "$EARLYID" ] \
+  && echo "  ✓ created $T8ID (GA=$GAID VIP=$VIPID EARLY=$EARLYID)" || { echo "  ✗ tier-ops create: $T8"; fail=1; }
+
+# 8a. A tier that's been ordered can't be deleted → 409 tier_has_sales. A single
+# PENDING order is enough: it writes an order_item + hold that reference the tier.
+curl -s -c "$SNAP/b8" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000001\",\"email\":\"b8@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$GAID\",\"quantity\":1}],\"method\":\"mobile\"}" >/dev/null
+DELGA=$(curl -s -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$GAID")
+DELGA_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$GAID")
+echo "$DELGA" | grep -q 'tier_has_sales' && [ "$DELGA_C" = "409" ] \
+  && echo "  ✓ delete tier with an order → 409 tier_has_sales (fail-closed, no FK orphan)" \
+  || { echo "  ✗ delete-with-sales: $DELGA ($DELGA_C)"; fail=1; }
+
+# 8b. DISABLE the VIP tier → the flag persists AND checkout on it is rejected.
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$T8ID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$VIPID\",\"name\":\"VIP\",\"price\":90000,\"capacity\":5,\"disabled\":true}]}" >/dev/null
+VIP_DIS=$(psql_q "select disabled from product_tier where id='$VIPID';")
+DISCO_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000002\",\"email\":\"b9@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$VIPID\",\"quantity\":1}],\"method\":\"mobile\"}")
+[ "$VIP_DIS" = "t" ] && [ "$DISCO_C" = "409" ] \
+  && echo "  ✓ disabled VIP → product_tier.disabled=t + checkout rejected (409 sold_out)" \
+  || { echo "  ✗ disable VIP: flag=$VIP_DIS checkout=$DISCO_C"; fail=1; }
+
+# 8c. DELETE a clean tier (EARLY, never ordered) → 200: catalog row gone (cascades
+# price_version + inventory_pool) and dropped from the blob webCheckout.tiers.
+DELEAR_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$EARLYID")
+n_ear=$(psql_q "select count(*) from product_tier where id='$EARLYID';")
+n_earpool=$(psql_q "select count(*) from inventory_pool where product_tier_id='$EARLYID';")
+n_earblob=$(psql_q "select count(*) from collection_store where name='events' and data like '%$EARLYID%';")
+[ "$DELEAR_C" = "200" ] && [ "$n_ear" = "0" ] && [ "$n_earpool" = "0" ] && [ "$n_earblob" = "0" ] \
+  && echo "  ✓ clean tier delete → 200, product_tier + inventory_pool gone, absent from blob" \
+  || { echo "  ✗ clean delete: code=$DELEAR_C tier=$n_ear pool=$n_earpool blob=$n_earblob"; fail=1; }
+
+# 8d. RE-ENABLE VIP → checkout succeeds again (disable is reversible).
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$T8ID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$VIPID\",\"name\":\"VIP\",\"price\":90000,\"capacity\":5,\"disabled\":false}]}" >/dev/null
+ENORDER=$(curl -s -c "$SNAP/b10" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000003\",\"email\":\"b10@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$VIPID\",\"quantity\":1}],\"method\":\"mobile\"}" | jq_get orderId)
+[ -n "$ENORDER" ] && echo "  ✓ re-enabled VIP → checkout succeeds again (reversible)" || { echo "  ✗ re-enable VIP failed to sell"; fail=1; }
+
+# 8e. Can't delete the ONLY tier of a drop → 409 last_tier (isolated 1-tier drop).
+SOLO=$(curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Solo Tier","dateLabel":"SUN 22 FEB 2026","city":"dar","venue":"X","category":"party",
+  "priceFrom":15000,"seated":false,"sellable":true,"idempotencyKey":"idem-solo-1",
+  "tiers":[{"name":"GA","price":15000,"capacity":5}]}')
+SOLOID=$(echo "$SOLO" | jq_get id)
+SOLOTIER=$(echo "$SOLO" | jq_get tiers.0.tierId)
+DELSOLO=$(curl -s -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$SOLOID/tiers/$SOLOTIER")
+DELSOLO_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$SOLOID/tiers/$SOLOTIER")
+echo "$DELSOLO" | grep -q 'last_tier' && [ "$DELSOLO_C" = "409" ] \
+  && echo "  ✓ delete the only tier → 409 last_tier" || { echo "  ✗ last-tier guard: $DELSOLO ($DELSOLO_C)"; fail=1; }
+
+echo ""
 [ "$fail" = "0" ] || { echo "ORG EVENTS E2E: FAIL"; echo "---- api.log tail ----"; tail -25 "$SNAP/api.log"; exit 1; }
-echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + ownership + KYC)"
+echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + ownership + KYC)"

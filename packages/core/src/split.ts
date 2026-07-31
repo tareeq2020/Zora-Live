@@ -82,9 +82,10 @@ export async function createTableSplit(sql: Sql, input: CreateTableSplitInput): 
   try {
     return await tx(async (t: Sql): Promise<CreateTableSplitResult> => {
       const [tier] = await t`
-        select id, event_id, split_enabled, split_window_secs, capacity
+        select id, event_id, split_enabled, split_window_secs, capacity, disabled
           from product_tier where id = ${tierId}`;
-      if (!tier || !tier.split_enabled) return { ok: false, reason: 'not_split_enabled' };
+      // BS23: a disabled tier can't seed a new split (same guard as split-off).
+      if (!tier || tier.disabled || !tier.split_enabled) return { ok: false, reason: 'not_split_enabled' };
       const windowSecs = input.holdWindowSecs ?? Number(tier.split_window_secs) ?? 2700;
 
       const [pv] = await t`

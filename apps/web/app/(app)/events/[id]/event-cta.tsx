@@ -23,7 +23,7 @@ export function GetTicketButton({
       Falls back to the Zora aura gradient in non-branded contexts. */
   accent?: string;
 }) {
-  const webTiers = (tiers || []).filter((t) => t.tierId);
+  const webTiers = (tiers || []).filter((t) => t.tierId && !t.disabled);
   const webSellable = webTiers.length > 0;
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(false);
