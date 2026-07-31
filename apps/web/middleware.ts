@@ -68,14 +68,13 @@ export async function middleware(req: NextRequest) {
     url.pathname = `/storefront/${tenant}`;
     return NextResponse.rewrite(url);
   }
-  // D1 (bill-split launch): the apex landing is the DISCOVERY marketplace, not the
-  // OFFSHORE manifesto home. Rewrite '/' (non-tenant) → /discover so the URL stays
-  // clean and the change is reversible. Runs before next.config's '/' handling;
-  // tenant '/' is handled above. Uses the broad matcher (a narrow one would miss
-  // multi-segment paths — see the matcher note at the bottom).
+  // BS24: the apex landing is a deliberate PLACEHOLDER while the marketplace home is
+  // still being built (was → /discover). Discovery stays reachable directly at
+  // /discover, so restoring it as home is a one-line revert here. Rewrite keeps the
+  // URL clean; runs before next.config's '/' handling; tenant '/' is handled above.
   if (!tenant && pathname === '/') {
     const url = req.nextUrl.clone();
-    url.pathname = '/discover';
+    url.pathname = '/placeholder';
     return NextResponse.rewrite(url);
   }
   const storefrontRoot = pathname.match(/^\/@([^/]+)$/);
@@ -205,7 +204,7 @@ export async function middleware(req: NextRequest) {
 const RESERVED_TOP = new Set([
   'about', 'admin', 'brand', 'commission', 'dashboard', 'discover', 'events', 'help',
   'join', 'split', 'storefront', 't', 'login', 'signup', 'studio', 'seatmap',
-  'create-event', 'api', '_next', 'assets', 'tickets', 'account', 'favicon',
+  'create-event', 'api', '_next', 'assets', 'tickets', 'account', 'favicon', 'placeholder',
 ]);
 
 // Run on everything except Next internals and the /api proxy. A narrow matcher

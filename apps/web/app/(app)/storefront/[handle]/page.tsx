@@ -35,12 +35,21 @@ async function fetchTenant(handle: string): Promise<Organizer | null> {
   }
 }
 
+// BS24: a web-sellable drop whose tiers are ALL disabled has nothing on sale — it's
+// hidden from the storefront entirely (no card, no leaf). App-claim drops (no web
+// catalog) are untouched. This mirrors the leaf's not-available guard.
+function hasSomethingOnSale(ev: StorefrontEvent): boolean {
+  const tiers = ev.webCheckout?.tiers;
+  if (!tiers || tiers.length === 0) return true; // app-claim / no web catalog
+  return tiers.some((t) => t.tierId && !t.disabled);
+}
+
 async function fetchEvents(handle: string): Promise<StorefrontEvent[]> {
   try {
     const res = await fetch(`${API_URL}/api/events`, { cache: 'no-store' });
     if (!res.ok) return [];
     const all = (await res.json()) as Array<StorefrontEvent & { organizerHandle?: string }>;
-    return all.filter((ev) => ev.organizerHandle === handle);
+    return all.filter((ev) => ev.organizerHandle === handle).filter(hasSomethingOnSale);
   } catch {
     return [];
   }
