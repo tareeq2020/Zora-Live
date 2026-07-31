@@ -51,6 +51,7 @@ type OrgEventTier = {
   sold: number;
   available: number;
   currency: string;
+  disabled?: boolean; // BS23: tier switched off (not on sale)
 };
 
 type OrgEvent = {
@@ -490,6 +491,12 @@ export default function DashboardClient() {
                 events.data.map((ev) => {
                   const totalCap = ev.tiers?.reduce((a, t) => a + (t.capacity || 0), 0) ?? 0;
                   const totalSold = ev.tiers?.reduce((a, t) => a + (t.sold || 0), 0) ?? 0;
+                  // BS25: a LIVE drop with every tier switched off is hidden from the
+                  // storefront (the storefront drops events with zero on-sale tiers).
+                  // Surface it here so "live but invisible" never reads as a bug.
+                  const tierCount = ev.tiers?.length ?? 0;
+                  const onSaleCount = ev.tiers?.filter((t) => !t.disabled).length ?? 0;
+                  const hiddenNoSale = ev.status === 'published' && tierCount > 0 && onSaleCount === 0;
                   const meta = [
                     ev.dateLabel,
                     ev.city,
@@ -507,6 +514,11 @@ export default function DashboardClient() {
                           {meta || 'DRAFT'}
                           {totalCap > 0 ? ` · ${fmt(totalSold)}/${fmt(totalCap)} SOLD` : ''}
                         </p>
+                        {hiddenNoSale ? (
+                          <p className="dr-warn">
+                            ⚠ No tickets on sale — hidden from your storefront. Turn a tier back on to sell it.
+                          </p>
+                        ) : null}
                       </div>
                       <div className="dr-actions">
                         <span className={statusClass(ev.status)}>
@@ -599,6 +611,7 @@ const STYLE = `
 .zora-dash .drop-row .dn{font-weight:600;font-size:17px}
 .zora-dash .drop-row .dn.dim{color:var(--mut)}
 .zora-dash .drop-row .dm{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.06em;margin-top:4px}
+.zora-dash .drop-row .dr-warn{font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:#9a5b1e;margin-top:8px;line-height:1.5}
 .zora-dash .dr-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .zora-dash .tag{font-family:var(--mono);font-size:10px;letter-spacing:.2em;padding:5px 12px;border-radius:99px;border:1px solid;white-space:nowrap}
 .zora-dash .tag.live{color:var(--blue);border-color:var(--blue)}

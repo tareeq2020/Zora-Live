@@ -90,6 +90,7 @@ const STYLE = `
 .zora-dropedit .tier.off{background:var(--card);border-style:dashed}
 .zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
 .zora-dropedit .tier-note{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
+.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:11.5px;color:#9a5b1e;background:#fbf1e6;border:1px solid #e2b483;border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
 .zora-dropedit .tier-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}
 @media(max-width:620px){.zora-dropedit .tier-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .zora-dropedit .tier label{margin-bottom:6px}
@@ -310,6 +311,10 @@ export default function DropEditor(props: DropEditorProps) {
   const tiersForBody = usableTiers(form);
   const priceFrom = priceFromOf(tiersForBody);
   const totalCap = tiersForBody.reduce((sum, t) => sum + (Number.isFinite(t.capacity) ? t.capacity : 0), 0);
+  // BS25: a sellable drop with real tiers but none on sale is hidden from the
+  // storefront — warn here (matches the dashboard flag) so it's never a surprise.
+  const realTierRows = form.tiers.filter((t) => t.tierId || t.name.trim());
+  const noneOnSale = form.sellable && realTierRows.length > 0 && realTierRows.every((t) => t.disabled);
   const whenLabel = [form.dateLabel, form.time].filter(Boolean).join(' · ').toUpperCase();
   const locLabel = [form.venue, form.city].filter(Boolean).join(' — ').toUpperCase();
 
@@ -555,6 +560,12 @@ export default function DropEditor(props: DropEditorProps) {
             <p className="block-h">
               <span className="n">2</span>TICKETS &amp; PRICING
             </p>
+            {noneOnSale ? (
+              <p className="tiers-hidden-note">
+                ⚠ Every tier is off, so this drop is hidden from your storefront. Turn at least one “On sale” back on to
+                sell it.
+              </p>
+            ) : null}
             {form.tiers.map((t, i) => {
               const rowErr = showValidation ? errors.tierRows?.[i] : undefined;
               const hasSales = (t.sold ?? 0) > 0;
