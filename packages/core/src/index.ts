@@ -23,7 +23,7 @@ export type {
   PaymentOutcome, InitiatePaymentInput, InitiatePaymentResult,
 } from './payments/service';
 export {
-  resolveFsp, feeRateForFsp, DEFAULT_FSP_ROUTE_MAP, DEFAULT_FEE_RATE,
+  resolveFsp, feeRateForFsp, DEFAULT_FSP_ROUTE_MAP, DEFAULT_FEE_RATE, FSP_IDS, PAYMENT_METHODS,
 } from './payments/fsp';
 export type { FspId, PaymentMethod, FspRouteMap } from './payments/fsp';
 export {
