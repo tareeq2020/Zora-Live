@@ -8,6 +8,12 @@
 export type FspId = 'CLICKPESA' | 'SELCOM' | 'GODIGITAL';
 export type PaymentMethod = 'mobile' | 'billpay' | 'card';
 
+/** Runtime lists (the type unions above as data) — used by the admin routing UI
+    + its validated save endpoint so both share one source of truth. GODIGITAL is
+    mobile-only (see resolveFsp's capability failover). */
+export const FSP_IDS: readonly FspId[] = ['CLICKPESA', 'SELCOM', 'GODIGITAL'];
+export const PAYMENT_METHODS: readonly PaymentMethod[] = ['mobile', 'billpay', 'card'];
+
 /** Per-method routing: an optional MNO-keyed override plus a required-ish default.
     e.g. { mobile: { VODACOM: 'SELCOM', default: 'CLICKPESA' } }. */
 export type FspRouteMap = Partial<Record<PaymentMethod, { default?: FspId } & Record<string, FspId | undefined>>>;

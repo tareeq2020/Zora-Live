@@ -191,6 +191,7 @@ const MARKUP = `
     <button class="tab" data-panel="placements">SITE MEDIA</button>
     <button class="tab" data-panel="organizers">ORGANIZERS</button>
     <button class="tab" data-panel="kyc">KYC REVIEW</button>
+    <button class="tab" data-panel="payments">PAYMENTS</button>
     <button class="tab" data-panel="access">ACCESS</button>
   </div></div>
 </header>
@@ -379,6 +380,41 @@ const MARKUP = `
   </div>
 
   <!-- ═══ ACCESS ═══ -->
+  <!-- ═══ PAYMENTS ═══ -->
+  <div class="panel" id="panel-payments">
+    <h2>Payment routing</h2>
+    <p class="hint">Which financial-service-provider the x-bridge gateway uses per method. Mobile money can be overridden per network (blank = use the mobile default). Card &amp; bill-pay support CLICKPESA / SELCOM. GODIGITAL is mobile-only.</p>
+    <form id="fsp-form">
+      <div class="grid3">
+        <div class="field"><label>MOBILE MONEY — DEFAULT</label>
+          <select id="fsp-mobile-default"><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option><option value="GODIGITAL">GODIGITAL</option></select>
+        </div>
+        <div class="field"><label>BILL PAY — DEFAULT</label>
+          <select id="fsp-billpay-default"><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option></select>
+        </div>
+        <div class="field"><label>CARD — DEFAULT</label>
+          <select id="fsp-card-default"><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option></select>
+        </div>
+      </div>
+      <p class="hint" style="margin:2px 0 16px">Per-network mobile overrides (optional)</p>
+      <div class="grid2">
+        <div class="field"><label>M-PESA (VODACOM)</label>
+          <select id="fsp-mno-VODACOM"><option value="">Use mobile default</option><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option><option value="GODIGITAL">GODIGITAL</option></select>
+        </div>
+        <div class="field"><label>MIXX BY YAS (TIGO)</label>
+          <select id="fsp-mno-TIGO"><option value="">Use mobile default</option><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option><option value="GODIGITAL">GODIGITAL</option></select>
+        </div>
+        <div class="field"><label>AIRTEL MONEY (AIRTEL)</label>
+          <select id="fsp-mno-AIRTEL"><option value="">Use mobile default</option><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option><option value="GODIGITAL">GODIGITAL</option></select>
+        </div>
+        <div class="field"><label>HALOPESA (HALOTEL)</label>
+          <select id="fsp-mno-HALOTEL"><option value="">Use mobile default</option><option value="CLICKPESA">CLICKPESA</option><option value="SELCOM">SELCOM</option><option value="GODIGITAL">GODIGITAL</option></select>
+        </div>
+      </div>
+      <button class="btn" type="submit">SAVE ROUTING</button>
+    </form>
+  </div>
+
   <div class="panel" id="panel-access">
     <h2>Access</h2>
     <p class="hint">Change the control room password. Minimum 8 characters.</p>
@@ -751,6 +787,29 @@ const SCRIPT = String.raw`
     catch (ex) { toast(ex.message, true); }
   });
 
+  /* ── payments routing ── */
+  const FSP_MNOS = ['VODACOM','TIGO','AIRTEL','HALOTEL'];
+  async function loadFspRouting(){
+    const s = await api('/api/settings');
+    const m = (s && s.fspRouteMap) || {};
+    $('fsp-mobile-default').value  = (m.mobile && m.mobile.default) || 'CLICKPESA';
+    $('fsp-billpay-default').value = (m.billpay && m.billpay.default) || 'CLICKPESA';
+    $('fsp-card-default').value    = (m.card && m.card.default) || 'SELCOM';
+    FSP_MNOS.forEach(n => { const el = $('fsp-mno-' + n); if (el) el.value = (m.mobile && m.mobile[n]) || ''; });
+  }
+  $('fsp-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const mobile = { default: $('fsp-mobile-default').value };
+    FSP_MNOS.forEach(n => { const v = $('fsp-mno-' + n).value; if (v) mobile[n] = v; });
+    const fspRouteMap = {
+      mobile,
+      billpay: { default: $('fsp-billpay-default').value },
+      card:    { default: $('fsp-card-default').value },
+    };
+    try { await api('/api/settings/fsp-routing', { method: 'PUT', body: JSON.stringify({ fspRouteMap }) }); toast('Payment routing saved'); }
+    catch (ex) { toast(ex.message, true); }
+  });
+
   /* ── boot ── */
   loadKyc().catch(ex => toast(ex.message, true));
   loadDrop().catch(ex => toast(ex.message, true));
@@ -760,6 +819,7 @@ const SCRIPT = String.raw`
   loadAgents().catch(ex => toast(ex.message, true));
   loadPlacements().catch(ex => toast(ex.message, true));
   loadOrganizers().catch(ex => toast(ex.message, true));
+  loadFspRouting().catch(ex => toast(ex.message, true));
 `;
 
 export default function AdminDashboardPage() {
