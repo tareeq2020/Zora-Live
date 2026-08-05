@@ -26,6 +26,8 @@ export interface ProvisionTierInput {
   /** BS10: opt this (table) tier into bill-split + its hold window. */
   splitEnabled?: boolean;
   splitWindowSecs?: number;
+  /** BS30: max people per table (splitters) for a split tier — blob-only. */
+  seats?: number;
   /** BS23: born hidden from the storefront / not purchasable. */
   disabled?: boolean;
 }
@@ -36,6 +38,7 @@ export interface ProvisionedTier {
   unitPrice: number;
   currency: string;
   split?: boolean;
+  seats?: number;
   disabled?: boolean;
 }
 
@@ -86,7 +89,7 @@ export class EventProvisioningService {
               values (${tierId}, ${capacity}, ${capacity})
               on conflict (product_tier_id) do nothing`;
 
-      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled, disabled: !!tier.disabled });
+      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled, seats: tier.seats, disabled: !!tier.disabled });
       i++;
     }
     return provisioned;
@@ -149,6 +152,7 @@ export class EventProvisioningService {
       unitPrice: p.unitPrice,
       currency: p.currency,
       ...(p.split ? { split: true } : {}),
+      ...(p.split && p.seats ? { seats: p.seats } : {}),
       ...(p.disabled ? { disabled: true } : {}),
     }));
     const row = { ...event, webCheckout: { tiers: webTiers }, updated_at: new Date().toISOString() };

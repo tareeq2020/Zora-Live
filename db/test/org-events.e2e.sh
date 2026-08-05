@@ -305,5 +305,29 @@ OWN_ARCH=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/basement-001/a
 [ "$OWN_ARCH" = "404" ] && echo "  ✓ cross-org archive → 404" || { echo "  ✗ cross-org archive → $OWN_ARCH (want 404)"; fail=1; }
 
 echo ""
+echo "== 10. SPLIT SEATS — organizer sets people-per-table (BS30) =="
+SEATC=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Seats Drop","dateLabel":"SAT 20 SEP","city":"dar","venue":"Terrace","category":"brunch",
+  "priceFrom":120000,"seated":false,"sellable":true,"idempotencyKey":"idem-seats-1",
+  "tiers":[{"name":"Table of Six","price":120000,"capacity":10,"splitEnabled":true,"seats":6}]}' >/dev/null; \
+  curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Seats Drop","dateLabel":"SAT 20 SEP","city":"dar","venue":"Terrace","category":"brunch",
+  "priceFrom":120000,"seated":false,"sellable":true,"idempotencyKey":"idem-seats-1",
+  "tiers":[{"name":"Table of Six","price":120000,"capacity":10,"splitEnabled":true,"seats":6}]}')
+SEATID=$(echo "$SEATC" | jq_get id)
+SEAT_TIER=$(echo "$SEATC" | jq_get tiers.0.tierId)
+GOT_SEATS=$(echo "$SEATC" | jq_get tiers.0.seats)
+BLOB_SEATS=$(psql_q "select count(*) from collection_store where name='events' and data like '%\"seats\":6%';")
+[ "$GOT_SEATS" = "6" ] && [ "$BLOB_SEATS" -ge 1 ] \
+  && echo "  ✓ split tier created with seats=6 (API + blob)" \
+  || { echo "  ✗ create seats: got=$GOT_SEATS blob=$BLOB_SEATS"; fail=1; }
+
+# Edit seats to 10 (match by tierId); assert it round-trips.
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$SEATID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$SEAT_TIER\",\"name\":\"Table of Six\",\"price\":120000,\"capacity\":10,\"splitEnabled\":true,\"seats\":10}]}" >/dev/null
+NEW_SEATS=$(curl -s -b "$SNAP/offshore" "$BASE/api/org/events" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8"));const e=d.find(x=>x.id===process.argv[1]);process.stdout.write(String(e?.tiers?.[0]?.seats))' "$SEATID")
+[ "$NEW_SEATS" = "10" ] && echo "  ✓ seats edit round-trips (6 → 10)" || { echo "  ✗ seats edit: got=$NEW_SEATS"; fail=1; }
+
+echo ""
 [ "$fail" = "0" ] || { echo "ORG EVENTS E2E: FAIL"; echo "---- api.log tail ----"; tail -25 "$SNAP/api.log"; exit 1; }
-echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + archive/restore + ownership + KYC)"
+echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + archive/restore + split seats + ownership + KYC)"

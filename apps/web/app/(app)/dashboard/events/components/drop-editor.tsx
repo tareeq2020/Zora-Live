@@ -653,6 +653,23 @@ export default function DropEditor(props: DropEditorProps) {
                       <span className="knob" />
                     </button>
                   </div>
+                  {t.splitEnabled ? (
+                    <div className="field" style={{ marginTop: 10, maxWidth: 240 }}>
+                      <label>MAX PEOPLE PER TABLE</label>
+                      <input
+                        className="in"
+                        type="number"
+                        min={2}
+                        step={1}
+                        value={t.seats ?? ''}
+                        onChange={(e) => setTier(i, 'seats', e.target.value)}
+                        placeholder="8"
+                      />
+                      <p className="tier-note" style={{ marginTop: 6 }}>
+                        The biggest crew that can split this table. Buyers choose any size up to this (default 8).
+                      </p>
+                    </div>
+                  ) : null}
                   {hasSales ? (
                     <p className="tier-note">This tier has sales — it can’t be deleted. Turn off “On sale” to stop new sales.</p>
                   ) : null}
