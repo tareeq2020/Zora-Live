@@ -35,11 +35,14 @@ type SummaryEvent = {
   sold: number;
   capacity: number;
   revenue: number;
+  netRevenue?: number; // BS31: revenue net of the org's commission
   currency: string;
 };
 
 type OrgSummary = {
-  totals: { revenue: number; sold: number; orders: number; currency: string };
+  // BS31: revenue is GROSS face value; netRevenue is what the org keeps after the
+  // platform commission (commissionRate); buyer price is unaffected.
+  totals: { revenue: number; netRevenue?: number; commissionRate?: number; sold: number; orders: number; currency: string };
   events: SummaryEvent[];
 };
 
@@ -387,12 +390,17 @@ export default function DashboardClient() {
               ) : summary.data ? (
                 <div className="cards">
                   <div className="card">
-                    <p className="k">NET REVENUE</p>
+                    <p className="k">NET EARNINGS</p>
                     <p className="v">
-                      {fmt(summary.data.totals.revenue)}{' '}
+                      {fmt(summary.data.totals.netRevenue ?? summary.data.totals.revenue)}{' '}
                       <small>{summary.data.totals.currency}</small>
                     </p>
-                    <p className="d">Paid orders only — what&apos;s yours</p>
+                    <p className="d">
+                      Paid orders, net of {(((summary.data.totals.commissionRate ?? 0) * 100).toFixed(1)).replace(/\.0$/, '')}% Zora commission
+                      {summary.data.totals.netRevenue != null && summary.data.totals.netRevenue !== summary.data.totals.revenue
+                        ? ` · ${money(summary.data.totals.revenue, summary.data.totals.currency)} gross`
+                        : ''}
+                    </p>
                   </div>
                   <div className="card">
                     <p className="k">TICKETS SOLD</p>
@@ -426,7 +434,7 @@ export default function DashboardClient() {
                             ) : null}
                           </span>
                           <span className="mono">
-                            {fmt(ev.sold)} / {fmt(ev.capacity)} · {money(ev.revenue, ev.currency)}
+                            {fmt(ev.sold)} / {fmt(ev.capacity)} · {money(ev.netRevenue ?? ev.revenue, ev.currency)} net
                           </span>
                         </div>
                         <div className="bar">

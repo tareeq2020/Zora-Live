@@ -186,6 +186,7 @@ export default function DropEditor(props: DropEditorProps) {
   const [loadErrMsg, setLoadErrMsg] = useState('');
   const [status, setStatus] = useState<string>(''); // BS24: loaded drop status (drives Archive vs Restore)
   const [kycStatus, setKycStatus] = useState<string>('unverified');
+  const [commissionRate, setCommissionRate] = useState<number>(0.05); // BS31: netted from payout
   const [form, setForm] = useState<DropForm>(emptyForm);
 
   // Stable idempotency key for the lifetime of this form instance (create).
@@ -201,6 +202,7 @@ export default function DropEditor(props: DropEditorProps) {
           const [me, events] = await Promise.all([mePromise, fetchEvents()]);
           if (!alive) return;
           setKycStatus(me.kycStatus);
+          setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           const ev: OrgEvent | undefined = events.find((e) => String(e.id) === String((props as { eventId: string }).eventId));
           if (!ev) {
             setLoadState('not_found');
@@ -213,6 +215,7 @@ export default function DropEditor(props: DropEditorProps) {
           const me = await mePromise;
           if (!alive) return;
           setKycStatus(me.kycStatus);
+          setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           setLoadState('ready');
         }
       } catch (e) {
@@ -559,6 +562,10 @@ export default function DropEditor(props: DropEditorProps) {
           <div className="block">
             <p className="block-h">
               <span className="n">2</span>TICKETS &amp; PRICING
+            </p>
+            <p className="tier-note" style={{ marginTop: -8, marginBottom: 14 }}>
+              Buyers pay these prices in full — Zora adds no booking fee. Your payout is each price net of your{' '}
+              {(commissionRate * 100).toFixed(1).replace(/\.0$/, '')}% Zora commission.
             </p>
             {noneOnSale ? (
               <p className="tiers-hidden-note">
