@@ -144,6 +144,11 @@ t("brunch revenue == 100000 (paid only)", brunch && brunch.revenue === 100000);
 t("brunch sold == sold_count ("+brunchSold+") — HOLD not counted as sold", brunch && brunch.sold === brunchSold && brunch.sold === 2);
 t("brunch capacity == 20", brunch && brunch.capacity === 20);
 
+// ---- 1b. BS31 commission: net = revenue × (1 − rate); default 5% ----
+t("org A totals.commissionRate == 0.05 (default)", sumA.totals.commissionRate === 0.05);
+t("org A totals.netRevenue == 95000 (100000 net of 5%)", sumA.totals.netRevenue === 95000);
+t("brunch netRevenue == 95000 (event-level net of 5%)", brunch && brunch.netRevenue === 95000);
+
 // ---- 2. currency grouping (I7) never mixes ----
 t("org A revenueByCurrency single TZS bucket = 100000",
   Array.isArray(sumA.totals.revenueByCurrency) && sumA.totals.revenueByCurrency.length === 1 &&

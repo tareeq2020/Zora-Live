@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { EntityStore } from '../storage/entity-store';
 import { OrgScopeService } from './org-scope.service';
-import { DEFAULT_ORGANIZERS } from '../common/defaults';
+import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
 
 /* /api/org/* — the organizer surface (OrganizerGuard: real organizer OR admin
    impersonating). MT2/MT3 add their controllers to the org module alongside this
@@ -30,6 +30,9 @@ export class OrgController {
       // KYC status lives on the organizer record when present; the enforcement
       // gate (I6) lands in MT2. Falls back to the session claim, else null.
       kycStatus: (org && org.kycStatus) ?? req.session.kycStatus ?? null,
+      // BS31: the platform commission netted from this org's payout (default 5%).
+      // Buyer price is unaffected — this drives the "you earn net of X%" copy.
+      commissionRate: (org && typeof org.commissionRate === 'number') ? org.commissionRate : DEFAULT_COMMISSION_RATE,
     };
   }
 }
