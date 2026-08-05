@@ -354,7 +354,7 @@ const MARKUP = `
     <p class="hint">Every registered organizer account. Suspend or unlock access, or act on their behalf for support. Every admin action is logged.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>ORGANIZER</th><th>SUBDOMAIN</th><th>EVENTS</th><th>REVENUE</th><th>STATUS</th><th></th></tr></thead>
+        <thead><tr><th>ORGANIZER</th><th>SUBDOMAIN</th><th>EVENTS</th><th>REVENUE</th><th>COMMISSION</th><th>STATUS</th><th></th></tr></thead>
         <tbody id="orgs-body"></tbody>
       </table>
     </div>
@@ -684,6 +684,7 @@ const SCRIPT = String.raw`
         '<td class="mono">'+esc(o.handle)+'.zora.com</td>'+
         '<td class="mono">'+o.events+'</td>'+
         '<td class="mono">'+nfMoney(o.revenue)+'</td>'+
+        '<td class="mono" style="white-space:nowrap"><input class="comm-in" data-comm-id="'+o.id+'" type="number" min="0" max="50" step="0.5" value="'+((Number(o.commissionRate)||0)*100).toFixed(1)+'" style="width:56px;display:inline-block;padding:6px 8px"> % <button class="btn small ghost" data-comm="'+o.id+'">SAVE</button></td>'+
         '<td><span class="pill '+o.status+'">'+o.status.toUpperCase()+'</span></td>'+
         '<td><div class="row-actions">'+
           (o.status==='active'
@@ -701,6 +702,15 @@ const SCRIPT = String.raw`
   }
   $('orgs-body').addEventListener('click', async e=>{
     const imp=e.target.getAttribute('data-imp'), sid=e.target.getAttribute('data-status'), to=e.target.getAttribute('data-to');
+    const comm=e.target.getAttribute('data-comm');
+    if(comm){
+      const inp=document.querySelector('.comm-in[data-comm-id="'+comm+'"]');
+      const pct=Number(inp && inp.value);
+      if(!Number.isFinite(pct)||pct<0||pct>50) return toast('Commission must be 0–50%', true);
+      try{ await api('/api/organizers/'+comm+'/commission',{method:'PUT',body:JSON.stringify({commissionRate: pct/100})}); toast('Commission saved: '+pct.toFixed(1)+'%'); }
+      catch(ex){ toast(ex.message,true); }
+      return;
+    }
     if(imp){
       if(!confirm('Act on behalf of this organizer? This is logged, and you will view their dashboard until you exit.')) return;
       try{ const r=await api('/api/organizers/'+imp+'/impersonate',{method:'POST'}); toast('Acting as '+r.impersonating.name); location.href='/dashboard'; }

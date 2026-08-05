@@ -36,11 +36,16 @@ export const RESERVED_HANDLES = [
   'dashboard', 'events', 'discover', 'drops', 't',
 ];
 
+// BS31: the platform's commission taken from an organizer's payout (does NOT change
+// the ticket price the buyer pays). Per-organizer, admin-configurable; this is the
+// fallback when a record has none.
+export const DEFAULT_COMMISSION_RATE = 0.05;
+
 export const DEFAULT_ORGANIZERS = [
-  { id:'o1', name:'The Brunch City', handle:'thebrunchcity', email:'hello@thebrunchcity.co', status:'active',    events:9, revenue:167713000, joined:'2024-03-11' },
-  { id:'o2', name:'Offshore Ltd',    handle:'offshore',      email:'board@offshore.app',     status:'active',    events:1, revenue:84200000,  joined:'2026-05-02' },
-  { id:'o3', name:'Basement',        handle:'basement',      email:'crew@basement.co',       status:'active',    events:4, revenue:22400000,  joined:'2025-11-20' },
-  { id:'o4', name:'Palmwine Co',     handle:'palmwine',      email:'team@palmwine.ng',       status:'suspended', events:2, revenue:11800000,  joined:'2025-08-14' },
+  { id:'o1', name:'The Brunch City', handle:'thebrunchcity', email:'hello@thebrunchcity.co', status:'active',    events:9, revenue:167713000, joined:'2024-03-11', commissionRate: DEFAULT_COMMISSION_RATE },
+  { id:'o2', name:'Offshore Ltd',    handle:'offshore',      email:'board@offshore.app',     status:'active',    events:1, revenue:84200000,  joined:'2026-05-02', commissionRate: DEFAULT_COMMISSION_RATE },
+  { id:'o3', name:'Basement',        handle:'basement',      email:'crew@basement.co',       status:'active',    events:4, revenue:22400000,  joined:'2025-11-20', commissionRate: DEFAULT_COMMISSION_RATE },
+  { id:'o4', name:'Palmwine Co',     handle:'palmwine',      email:'team@palmwine.ng',       status:'suspended', events:2, revenue:11800000,  joined:'2025-08-14', commissionRate: DEFAULT_COMMISSION_RATE },
 ];
 
 export const SLOTS = [
