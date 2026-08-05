@@ -29,6 +29,7 @@ export type OrgTier = {
   available?: number;
   currency?: string;
   split?: boolean; // splittable (bill-split) tier
+  seats?: number; // BS30: max people per table (splitters), split tiers only
   disabled?: boolean; // BS23: hidden from the storefront / not on sale
 };
 
@@ -51,7 +52,7 @@ export type OrgEvent = {
 
 // Tier as the create/edit form submits it — the provisioning service (MT2)
 // drives product_tier/price_version/inventory_pool off this, NOT the display blob.
-export type DropTierInput = { tierId?: string; name: string; price: number; capacity: number; splitEnabled?: boolean; disabled?: boolean };
+export type DropTierInput = { tierId?: string; name: string; price: number; capacity: number; splitEnabled?: boolean; seats?: number; disabled?: boolean };
 
 export type DropInput = {
   name: string;
@@ -75,7 +76,7 @@ export type DropInput = {
 
 // `tierId`/`sold` are present only for EXISTING (already-saved) tiers; a freshly
 // added row has neither. `disabled` = BS23 on-sale toggle.
-export type TierRow = { tierId?: string; name: string; price: string; capacity: string; splitEnabled?: boolean; disabled?: boolean; sold?: number };
+export type TierRow = { tierId?: string; name: string; price: string; capacity: string; splitEnabled?: boolean; seats?: string; disabled?: boolean; sold?: number };
 
 export type DropForm = {
   name: string;
@@ -113,6 +114,7 @@ export function formFromEvent(ev: OrgEvent): DropForm {
     price: t.unitPrice != null ? String(t.unitPrice) : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
     splitEnabled: !!t.split,
+    seats: t.seats != null ? String(t.seats) : '',
     disabled: !!t.disabled,
     sold: t.sold,
   }));
@@ -175,7 +177,16 @@ export const hasErrors = (e: FieldErrors): boolean =>
 export function usableTiers(form: DropForm): DropTierInput[] {
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
-    .map((t) => ({ tierId: t.tierId, name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0, splitEnabled: !!t.splitEnabled, disabled: !!t.disabled }));
+    .map((t) => ({
+      tierId: t.tierId,
+      name: t.name.trim(),
+      price: Number(t.price) || 0,
+      capacity: Number(t.capacity) || 0,
+      splitEnabled: !!t.splitEnabled,
+      // BS30: people-per-table only rides along for split tiers (>=2); server defaults to 8.
+      ...(t.splitEnabled && Number(t.seats) >= 2 ? { seats: Math.floor(Number(t.seats)) } : {}),
+      disabled: !!t.disabled,
+    }));
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {

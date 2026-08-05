@@ -49,6 +49,7 @@ interface TierInput {
   currency?: string;
   splitEnabled?: boolean;
   splitWindowSecs?: number;
+  seats?: number; // BS30: max people per table (splitters), for split-enabled tiers
   disabled?: boolean; // BS23: hidden from the storefront / not purchasable
 }
 
@@ -128,6 +129,7 @@ export class OrgEventsController {
           currency: t2.currency,
           splitEnabled: t2.splitEnabled,
           splitWindowSecs: t2.splitWindowSecs,
+          seats: t2.seats,
           disabled: t2.disabled,
         }));
         const { event } = await this.prov.provisionSellableDrop(
@@ -180,10 +182,10 @@ export class OrgEventsController {
         const provisioned = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, disabled: x.disabled })),
+          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, seats: x.seats, disabled: x.disabled })),
           ev.name,
         );
-        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.disabled ? { disabled: true } : {}) })) };
+        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) })) };
         ev.status = 'published';
         delete ev.tiers; // sellable events carry tiers via webCheckout + the pool
       } else if (wasSellable && incomingTiers) {
@@ -337,10 +339,10 @@ export class OrgEventsController {
         const [p] = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, disabled: tier.disabled }],
+          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, seats: tier.seats, disabled: tier.disabled }],
           ev.name,
         );
-        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.disabled ? { disabled: true } : {}) });
+        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) });
         continue;
       }
 
@@ -361,6 +363,10 @@ export class OrgEventsController {
                  where id = ${match.tierId}`;
         if (tier.splitEnabled) match.split = true; else delete match.split;
       }
+      // BS30 — max people per table (splitters). Only meaningful for a split tier;
+      // stored on the blob (the split flow's cap reads it). Cleared when not split.
+      if (match.split && tier.seats && tier.seats >= 2) match.seats = tier.seats;
+      else if (!match.split) delete match.seats;
 
       // C6 — re-price: close the open version, open a new one, update the blob price.
       if (Number.isFinite(tier.price) && Number(tier.price) !== Number(match.unitPrice)) {
@@ -411,7 +417,7 @@ export class OrgEventsController {
   private shape(e: any, snapById: Map<string, PoolSnapshot>) {
     const sellable = this.isSellable(e);
     const source: any[] = sellable
-      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency, split: !!w.split, disabled: !!w.disabled }))
+      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency, split: !!w.split, seats: w.seats, disabled: !!w.disabled }))
       : Array.isArray(e.tiers)
         ? e.tiers
         : [];
@@ -428,6 +434,7 @@ export class OrgEventsController {
         currency: t.currency || 'TZS',
         // BS23/BS10: reflect saved flags so the editor's toggles hydrate correctly.
         split: !!(t.split ?? t.splitEnabled),
+        seats: t.seats ?? undefined, // BS30: people-per-table for split tiers
         disabled: !!t.disabled,
       };
     });
@@ -514,6 +521,7 @@ export class OrgEventsController {
         currency: (t?.currency || 'TZS') as string,
         splitEnabled: !!t?.splitEnabled,
         splitWindowSecs: Number.isInteger(t?.splitWindowSecs) ? Number(t.splitWindowSecs) : undefined,
+        seats: Number.isInteger(t?.seats) && Number(t.seats) >= 2 ? Number(t.seats) : undefined,
         disabled: t?.disabled === undefined ? undefined : !!t.disabled,
       };
     });
