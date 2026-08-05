@@ -164,8 +164,8 @@ export function HomeApp() {
 
       <div className="marquee" aria-hidden="true">
         <span className="marquee-track" id="marquee">
-          ZERO FEES AT CHECKOUT &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
-          ZERO FEES AT CHECKOUT &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
+          NO BOOKING FEES &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
+          NO BOOKING FEES &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
         </span>
       </div>
 
@@ -221,7 +221,7 @@ export function HomeApp() {
             <div className="pillar">
               <p className="num mono">01</p>
               <h3>one honest number</h3>
-              <p>The price you see is the price you pay. No service fee, no processing fee, no facility charge. The checkout has one line.</p>
+              <p>Zora adds no booking, service, or facility fee — our cut is a commission from the organizer, not you. Your mobile-money or card provider may charge its own fee at payment.</p>
             </div>
             <div className="pillar">
               <p className="num mono">02</p>

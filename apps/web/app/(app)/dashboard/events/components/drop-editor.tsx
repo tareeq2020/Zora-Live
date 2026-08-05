@@ -809,9 +809,9 @@ export default function DropEditor(props: DropEditorProps) {
               </div>
             </div>
             <p className="side-note">
-              No fees are ever added at checkout.
+              Buyers pay the price you set — Zora adds no booking fee.
               <br />
-              The price you set is the price they pay.
+              Your payout is that price net of your Zora commission.
             </p>
           </div>
         </div>

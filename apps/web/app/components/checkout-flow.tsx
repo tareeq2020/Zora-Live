@@ -331,7 +331,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
           {/* ── (a) CART ── */}
           {step === 'cart' ? (
             <>
-              <div className="zco-welcome">The price is the price — this is a real Zora pass, issued on payment.</div>
+              <div className="zco-welcome">A real Zora pass, issued on payment — Zora adds no booking fee.</div>
               <p className="zco-event">{eventName}</p>
               {when ? <p className="zco-when">{when}</p> : null}
               {invError ? <p className="zco-muted">Live availability is unavailable right now — you can still try.</p> : null}
@@ -391,7 +391,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                       {fmt(estSubtotal)} {currency}
                     </span>
                   </div>
-                  <p className="zco-fineprint">Your final total is confirmed on the next step.</p>
+                  <p className="zco-fineprint">Your mobile-money or card provider may add a small fee at payment. Your final total is confirmed on the next step.</p>
                 </div>
               ) : null}
 

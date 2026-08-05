@@ -320,7 +320,7 @@ export default function StorefrontClient(props: StorefrontProps) {
               <span className="zmark">
                 z<span className="o">o</span>ra
               </span>{' '}
-              — NO FEES AT CHECKOUT, EVER
+              — NO BOOKING FEES, EVER
             </div>
             <p className="legal">
               © {new Date().getFullYear()} {brandName} · {subdomain}
@@ -355,7 +355,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
               {!paid ? (
                 <div className="co-body">
-                  <div className="co-welcome">The price is the price — a real Zora pass, issued on payment.</div>
+                  <div className="co-welcome">A real Zora pass, issued on payment.</div>
                   <p className="co-event">{active.name}</p>
                   <p className="co-when">
                     {active.dateLabel || 'TBA'}
@@ -385,7 +385,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       </span>
                     </div>
                     <div className="line fees">
-                      <span className="lbl">Service fees</span>
+                      <span className="lbl">Zora booking fee</span>
                       <span className="val">0 {cur}</span>
                     </div>
                     <div className="total">
@@ -396,7 +396,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                     </div>
                   </div>
                   <p className="nofees">
-                    The price is the price. <b>Your mobile-money provider may add a small fee.</b>
+                    Zora adds no booking fee. <b>Your mobile-money or card provider may add a small fee at payment.</b>
                   </p>
 
                   <div className="crew-toggle" onClick={() => setCrew((c) => !c)}>
