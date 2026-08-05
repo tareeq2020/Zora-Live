@@ -84,7 +84,7 @@ export async function generateMetadata({ params }: { params: { handle: string } 
   const org = await fetchTenant(params.handle);
   if (!org) return { title: 'Storefront — ZORA' };
   const title = `${org.name} — ZORA`;
-  const description = `Live events from ${org.name}. Passes run on Zora — no fees at checkout, ever.`;
+  const description = `Live events from ${org.name}. Passes run on Zora — one honest price, no booking fees.`;
   return { title, description, openGraph: { title, description, type: 'website' } };
 }
 
@@ -104,12 +104,12 @@ export default async function StorefrontPage({ params }: { params: { handle: str
   const cityLabel = (CITY_LABEL[cityCode] || cityCode).toUpperCase();
   const eyebrow = cityLabel ? `${cityLabel} · STOREFRONT` : 'STOREFRONT';
   const lede =
-    `Live events from ${brandName}. What you see is what you pay — passes run on Zora, ` +
-    `with no fees appearing at the last second, and your table is your table.`;
+    `Live events from ${brandName}. One honest price — passes run on Zora with no booking fee, ` +
+    `and your table is your table.`;
   const aboutHeading = `Every ${brandName} event, in one place.`;
   const aboutBody =
     `This is the ${brandName} storefront — the full index of upcoming events. Tickets are issued ` +
-    `and honored by Zora: honest pricing, no surprise fees, and a pass that lives in your pocket.`;
+    `and honored by Zora: one honest price, no Zora booking fee, and a pass that lives in your pocket.`;
 
   return (
     <StorefrontClient
