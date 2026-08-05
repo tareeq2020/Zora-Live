@@ -14,7 +14,7 @@ import { HomeApp } from './home-app';
 export const metadata: Metadata = {
   title: 'ZORA — The ticket is the product',
   description:
-    'Global ticketing infrastructure. Zero fees at checkout, drops not listings, native crew split, resale capped at face value. Built in Africa, engineered for the world.',
+    'Global ticketing infrastructure. No booking fees, drops not listings, native crew split, resale capped at face value. Built in Africa, engineered for the world.',
 };
 
 const CSS = `

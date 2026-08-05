@@ -213,8 +213,8 @@ export default function CommissionPage() {
           <div className="promise">
             <div className="pi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></div>
             <div>
-              <h3>Zero fees at checkout — the buyer promise.</h3>
-              <p>The 5% comes out of your side, not theirs. Buyers see one honest number and pay exactly that. No service fee, no facility fee, no surprise on the last screen. It&apos;s the reason they trust the checkout.</p>
+              <h3>No booking fee — the buyer promise.</h3>
+              <p>Your commission comes out of your side, not theirs. Zora adds no booking or service fee for buyers — their mobile-money or card provider may charge its own fee at payment. No Zora surprise on the last screen.</p>
             </div>
           </div>
         </div>
