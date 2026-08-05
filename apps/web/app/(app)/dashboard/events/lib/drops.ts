@@ -17,6 +17,7 @@ export type OrgMe = {
   role: string;
   impersonating?: { handle: string; name: string } | null;
   kycStatus: KycStatus;
+  commissionRate?: number; // BS31: platform commission netted from payout (default 0.05)
 };
 
 // A tier as returned by GET /api/org/events (richer than the write shape).

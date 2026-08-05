@@ -30,7 +30,9 @@ import SplitsWorklist from './splits-worklist';
 import Link from 'next/link';
 
 // ── Response types (local, from the API contract — do NOT invent backend) ──
-type Totals = { revenue: number; sold: number; orders: number; currency: string };
+// BS31: revenue is GROSS face value; netRevenue is what the org keeps after the
+// platform commission. Buyer price is unaffected.
+type Totals = { revenue: number; netRevenue?: number; commissionRate?: number; sold: number; orders: number; currency: string };
 type SummaryEvent = {
   id: string;
   name: string;
@@ -38,6 +40,7 @@ type SummaryEvent = {
   sold: number;
   capacity: number;
   revenue: number;
+  netRevenue?: number;
   currency: string;
 };
 type Summary = { totals: Totals; events: SummaryEvent[] };
@@ -195,11 +198,18 @@ export default function SalesClient() {
           ) : totals ? (
             <div className="cards">
               <div className="card">
-                <p className="k">{selectedEvent ? 'EVENT REVENUE' : 'NET REVENUE'}</p>
+                <p className="k">{selectedEvent ? 'EVENT NET EARNINGS' : 'NET EARNINGS'}</p>
                 <p className="v blue">
-                  {money(selectedEvent ? selectedEvent.revenue : totals.revenue, selectedEvent ? selectedEvent.currency : totals.currency)}
+                  {money(
+                    selectedEvent
+                      ? (selectedEvent.netRevenue ?? selectedEvent.revenue)
+                      : (totals.netRevenue ?? totals.revenue),
+                    selectedEvent ? selectedEvent.currency : totals.currency,
+                  )}
                 </p>
-                <p className="d">Paid orders only</p>
+                <p className="d">
+                  Paid orders, net of {(((totals.commissionRate ?? 0) * 100).toFixed(1)).replace(/\.0$/, '')}% Zora commission
+                </p>
               </div>
               <div className="card">
                 <p className="k">PASSES SOLD</p>
@@ -220,7 +230,7 @@ export default function SalesClient() {
           {/* ── Per-event revenue summary (from /api/org/summary) ── */}
           {!summaryLoading && !summaryError && events.length > 0 ? (
             <div className="box" style={{ marginBottom: 22 }}>
-              <p className="bh">REVENUE BY EVENT</p>
+              <p className="bh">NET EARNINGS BY EVENT</p>
               <div className="table-scroll">
                 <table className="ledger">
                   <tbody>
@@ -232,7 +242,7 @@ export default function SalesClient() {
                             {e.status?.toUpperCase()} · {fmt(e.sold)}/{fmt(e.capacity)} sold
                           </span>
                         </td>
-                        <td>{money(e.revenue, e.currency)}</td>
+                        <td>{money(e.netRevenue ?? e.revenue, e.currency)} net</td>
                       </tr>
                     ))}
                   </tbody>
