@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { db, poolSnapshots } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
+import { EntityStore } from '../storage/entity-store';
+import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
 
 /* OrgSalesService (MT3) — read-only org sales / reporting. Every read is scoped
    to the acting org through OrgScopeService.ownedEventIds (C3): event ownership
@@ -30,6 +32,10 @@ const DEFAULT_CURRENCY = 'TZS';
 export interface OrgSummary {
   totals: {
     revenue: number;
+    // BS31: the platform commission fraction + the organizer's NET take (revenue
+    // after commission). Buyer price is unaffected — this is payout math.
+    commissionRate: number;
+    netRevenue: number;
     sold: number;
     orders: number;
     currency: string | null;
@@ -52,6 +58,7 @@ export interface OrgSummaryEvent {
   sold: number;
   capacity: number;
   revenue: number;
+  netRevenue: number; // BS31: revenue after the org's commission
   currency: string;
   flaggedRevenue: number;
   flaggedOrders: number;
@@ -73,7 +80,14 @@ export interface OrgOrderRow {
 
 @Injectable()
 export class OrgSalesService {
-  constructor(private readonly scope: OrgScopeService) {}
+  constructor(private readonly scope: OrgScopeService, private readonly entities: EntityStore) {}
+
+  /** BS31: the platform commission fraction for an organizer (default 5%). */
+  private async commissionRateFor(handle: string): Promise<number> {
+    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
+    const o = orgs.find((x) => x && x.handle === handle);
+    return o && typeof o.commissionRate === 'number' ? o.commissionRate : DEFAULT_COMMISSION_RATE;
+  }
 
   /** GET /api/org/splits — bill-split status for the org's events: tables still
       forming, and the REFUND WORKLIST (refund_pending splits that took money but
@@ -108,10 +122,12 @@ export class OrgSalesService {
     const events = await this.scope.readEvents();
     const owned = events.filter((e) => e && e.organizerHandle === actingHandle);
     const ownedIds = owned.map((e) => e.id);
+    const commissionRate = await this.commissionRateFor(actingHandle);
+    const net = (gross: number) => Math.round(gross * (1 - commissionRate)); // BS31 payout math
 
     const empty: OrgSummary = {
       totals: {
-        revenue: 0, sold: 0, orders: 0, currency: null,
+        revenue: 0, commissionRate, netRevenue: 0, sold: 0, orders: 0, currency: null,
         revenueByCurrency: [], flaggedRevenue: 0, flaggedOrders: 0,
       },
       events: [],
@@ -201,6 +217,7 @@ export class OrgSalesService {
         sold: soldByEvent.get(e.id) ?? 0,
         capacity: capByEvent.get(e.id) ?? 0,
         revenue: paid?.revenue ?? 0,
+        netRevenue: net(paid?.revenue ?? 0),
         currency: paid?.currency ?? fallbackCurrency.get(e.id) ?? DEFAULT_CURRENCY,
         flaggedRevenue: flagged?.revenue ?? 0,
         flaggedOrders: flagged?.orders ?? 0,
@@ -233,6 +250,8 @@ export class OrgSalesService {
         // Scalar revenue is well-defined only when uniform; when mixed we report
         // the largest currency bucket as the headline and expose the full split.
         revenue: headline?.revenue ?? 0,
+        commissionRate, // BS31
+        netRevenue: net(headline?.revenue ?? 0),
         sold: totalSold,
         orders: totalOrders,
         currency: uniform

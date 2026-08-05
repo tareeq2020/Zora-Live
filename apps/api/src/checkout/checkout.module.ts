@@ -74,7 +74,10 @@ export class CheckoutController {
 
       // 4) Resolve config, then create the order. Config is read HERE (outside the
       // tx) and passed by value into createGaVipOrder — never queried inside the tx.
-      const feeRate = typeof settings?.feeRate === 'number' ? settings.feeRate : 0.05;
+      // BS31 (model A): the buyer pays FACE — no platform markup at checkout. The
+      // platform's cut is the per-organizer commission (netted from payout), not a
+      // buyer fee. feeRate defaults to 0; an admin can still set a pass-through.
+      const feeRate = typeof settings?.feeRate === 'number' ? settings.feeRate : 0;
       const holdTtl = Number.isInteger(settings?.hold_ttl_seconds) ? settings.hold_ttl_seconds : 900;
       const normPhone = normalizeTzPhone(phone);
 

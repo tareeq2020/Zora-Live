@@ -5,7 +5,7 @@ import { EntityStore } from '../storage/entity-store';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_ORGANIZERS } from '../common/defaults';
+import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
 
 @Controller()
 export class OrganizersController {
@@ -21,7 +21,26 @@ export class OrganizersController {
     // Never leak the bcrypt passwordHash added in PR-F-AUTH. Records without one
     // (e.g. the seed data) round-trip byte-identically.
     const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    return orgs.map(({ passwordHash, ...rest }) => rest);
+    // BS31: always surface a commissionRate so the admin UI can show/edit it, even
+    // for records that predate the field (fall back to the platform default).
+    return orgs.map(({ passwordHash, ...rest }) => ({ ...rest, commissionRate: rest.commissionRate ?? DEFAULT_COMMISSION_RATE }));
+  }
+
+  // BS31: set the platform commission taken from this organizer's payout. Does NOT
+  // change the ticket price a buyer pays — it nets the organizer's earnings. Stored
+  // as a fraction (0.05 = 5%); capped at 50% as a guardrail.
+  @UseGuards(SessionGuard)
+  @Put('organizers/:id/commission')
+  async setCommission(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
+    const o = orgs.find((x) => x.id === id);
+    if (!o) throw new NotFoundException({ error: 'Not found' });
+    const rate = Number(body?.commissionRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 0.5) throw new BadRequestException({ error: 'commission_out_of_range' });
+    o.commissionRate = rate;
+    await this.entities.write('organizers', orgs);
+    await this.audit.record('set_organizer_commission', `${o.name} (${o.handle}) → ${(rate * 100).toFixed(1)}%`, req.ip);
+    return { ok: true, commissionRate: rate };
   }
 
   // PR-F-AUTH: admin-only way to (re)set an organizer's login password. Mirrors the
