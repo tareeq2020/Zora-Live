@@ -17,7 +17,10 @@ for i in $(seq 1 40); do pg_isready -h 127.0.0.1 -p "$PG_PORT" >/dev/null 2>&1 &
 createdb -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" zora_seed
 URL="postgres://$USER_NAME@127.0.0.1:$PG_PORT/zora_seed"
 DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
-psql -q "$URL" -v ON_ERROR_STOP=1 -c "insert into organizer (handle, name, status) values ('thebrunchcity','The Brunch City','active') on conflict do nothing;" >/dev/null
+# BS35: organizer.id is now the slug the whole API is keyed on ('o1'), not a
+# generated uuid, so it must be supplied. Migration 0009 already seeds this row on
+# a fresh database; the insert stays as a belt-and-braces no-op.
+psql -q "$URL" -v ON_ERROR_STOP=1 -c "insert into organizer (id, handle, name, status) values ('o1','thebrunchcity','The Brunch City','active') on conflict do nothing;" >/dev/null
 
 echo "== run seed (twice — must be idempotent) =="
 DATABASE_URL="$URL" node "$ROOT/db/seed-apricot-crush.mjs" >/dev/null

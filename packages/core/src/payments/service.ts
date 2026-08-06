@@ -20,6 +20,7 @@ import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
 import { alertOps } from '../ops';
+import { isCommissionRate } from '../commission';
 import {
   onShareSuccessful, onShareShort, onShareFailed, notifyShareReceived, notifySplitCompleteByOrder,
 } from '../split';
@@ -45,6 +46,12 @@ export interface CreateGaVipOrderInput {
   cart: CartLine[];
   feeRate: number; // e.g. 0.05 — read from config BEFORE the tx
   holdTtl: number; // hold lifetime in seconds — read from config BEFORE the tx
+  /** BS35 (#6): the platform commission in force for THIS purchase, resolved by
+      the caller (event override → org rate → default) BEFORE the tx, like every
+      other config here. Stamped on the order so a later rate change can never
+      rewrite this order's earnings. Null/omitted leaves the stamp empty and the
+      order reads as the platform default. */
+  commissionRate?: number | null;
 }
 
 export type CreateGaVipOrderResult =
@@ -59,6 +66,8 @@ export type CreateGaVipOrderResult =
  */
 export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): Promise<CreateGaVipOrderResult> {
   const { phone, email, cart, feeRate, holdTtl } = input;
+  // Only a valid fraction is stamped; a junk value is stored as NULL (= default).
+  const commissionRate = isCommissionRate(input.commissionRate) ? input.commissionRate : null;
   try {
     return await tx(async (t: Sql) => {
       // (a) upsert customer by phone (the stable identity); refresh email.
@@ -73,8 +82,8 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       if (!evRows.length) throw new SoldOut(cart[0].tier);
       const eventId = evRows[0].event_id;
       const ordRows = await t`
-        insert into "order" (customer_id, event_id, type, status)
-        values (${customerId}, ${eventId}, 'ga_vip', 'pending')
+        insert into "order" (customer_id, event_id, type, status, commission_rate)
+        values (${customerId}, ${eventId}, 'ga_vip', 'pending', ${commissionRate})
         returning id`;
       const orderId: string = ordRows[0].id;
 

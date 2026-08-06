@@ -2,15 +2,19 @@ import { BadRequestException, Body, Controller, Get, Module, Post, Req, Res, Una
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo } from '../storage/organizer-repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
-import { DEFAULT_ORGANIZERS } from '../common/defaults';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
 
 @Controller()
 export class AuthController {
-  constructor(private readonly entities: EntityStore, private readonly sessions: SessionService) {}
+  constructor(
+    private readonly entities: EntityStore,
+    private readonly organizers: OrganizerRepo,
+    private readonly sessions: SessionService,
+  ) {}
 
   @Post('login')
   async login(@Body() body: any, @Res({ passthrough: true }) res: Response) {
@@ -35,16 +39,15 @@ export class AuthController {
   @Post('org/login')
   async orgLogin(@Body() body: any, @Res({ passthrough: true }) res: Response) {
     const { handle, password } = body || {};
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const h = String(handle || '').toLowerCase();
-    const org = orgs.find((o) => o.handle === h);
+    // BS35: one indexed row read instead of parsing the whole organizers blob.
+    const org = await this.organizers.byHandle(String(handle || ''));
     if (
       org &&
       org.status !== 'suspended' &&
       org.passwordHash &&
       bcrypt.compareSync(password || '', org.passwordHash)
     ) {
-      this.sessions.set(res, { organizerHandle: org.handle, role: 'organizer', kycStatus: org.kycStatus });
+      this.sessions.set(res, { organizerHandle: org.handle, role: 'organizer', kycStatus: org.kycStatus ?? undefined });
       return { ok: true };
     }
     throw new UnauthorizedException({ error: 'Wrong handle or password' });

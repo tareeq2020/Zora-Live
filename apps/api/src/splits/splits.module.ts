@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { db, createTableSplit, claimShare, createShareOrder, verifyShareToken } from '@zora/core';
 import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import { EntityStore } from '../storage/entity-store';
+import { CommissionService } from '../common/commission.module';
 import { DEFAULT_SETTINGS } from '../common/defaults';
 import { signSession } from '../common/session-cookie';
 import { resolveSessionSecret } from '../common/secret';
@@ -30,7 +31,10 @@ function maskName(name: string | null): string | null {
 
 @Controller()
 export class SplitsController {
-  constructor(private readonly entities: EntityStore) {}
+  constructor(
+    private readonly entities: EntityStore,
+    private readonly commission: CommissionService,
+  ) {}
 
   // ── POST /api/splits — host creates a split (must be signed in) ────────────
   @UseGuards(ConsumerGuard)
@@ -120,7 +124,11 @@ export class SplitsController {
     if (claimed.alreadyPaid) {
       return res.status(200).json({ alreadyPaid: true, splitId: claimed.splitId, shareIndex: claimed.shareIndex, amount: claimed.amount });
     }
-    const order = await createShareOrder(db(), claimed.shareId, phone, null, name);
+    // BS35 (D1): stamp the resolved commission on the share order — a split's
+    // money lives ONLY here, so without this the whole split flow would keep
+    // following whatever the org's rate happens to be at payout time.
+    const shareRate = await this.commission.forSplitShare(claimed.shareId);
+    const order = await createShareOrder(db(), claimed.shareId, phone, null, name, shareRate);
     if (!order.ok) return res.status(409).json({ error: order.reason });
     mintCheckoutCookie(res, order.orderId, phone); // F2
     return res.status(200).json({ orderId: order.orderId, amount: order.amount, splitId: claimed.splitId, shareIndex: claimed.shareIndex });
@@ -135,7 +143,8 @@ export class SplitsController {
       select id from split_share where split_id = ${id} and customer_id = ${me.customerId} and state <> 'paid'
        order by is_host desc limit 1`;
     if (!share) return res.status(404).json({ error: 'no_unpaid_share' });
-    const order = await createShareOrder(db(), share.id, me.phone);
+    const shareRate = await this.commission.forSplitShare(share.id); // BS35 (D1)
+    const order = await createShareOrder(db(), share.id, me.phone, null, null, shareRate);
     if (!order.ok) return res.status(409).json({ error: order.reason });
     mintCheckoutCookie(res, order.orderId, me.phone);
     return res.status(200).json({ orderId: order.orderId, amount: order.amount });
