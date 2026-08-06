@@ -30,10 +30,29 @@ export const DEFAULT_TIERS = [
 /* Reserved handles that can never be claimed as an organizer handle — they
    collide with reserved subdomains or top-level app routes. Canonical backend
    copy of the front-end signup TAKEN set (apps/web/public/signup.html). PR-F-AUTH
-   extends it with the path-prefix app routes: dashboard, events, discover, drops, t. */
+   extends it with the path-prefix app routes: dashboard, events, discover, drops, t.
+
+   BS41 (#4): now that organizers can claim their own handle at self-signup, this
+   list is the SERVER-SIDE authority and had to become a true superset of
+   apps/web/middleware.ts's RESERVED_TOP. Middleware rewrites a bare `/<handle>`
+   to that organizer's storefront ONLY when the first segment is not in
+   RESERVED_TOP — so any handle in RESERVED_TOP but missing here could be
+   registered and would then be permanently unreachable at its own front door.
+   The entries below the blank line are exactly that reconciliation; keep the two
+   lists in step when a new top-level route lands. */
 export const RESERVED_HANDLES = [
   'zora', 'admin', 'www', 'app', 'port', 'api', 'help', 'offshore',
   'dashboard', 'events', 'discover', 'drops', 't',
+
+  // ← mirrors apps/web/middleware.ts RESERVED_TOP (BS41)
+  'about', 'brand', 'commission', 'join', 'split', 'storefront', 'login', 'signup',
+  'studio', 'seatmap', 'create-event', '_next', 'assets', 'tickets', 'account',
+  'favicon', 'placeholder',
+  // Front doors we have not built yet but must not hand away: mail/DNS-sensitive
+  // labels and the obvious impersonation risks.
+  'mail', 'smtp', 'ftp', 'ns', 'cdn', 'static', 'support', 'billing', 'security',
+  'status', 'blog', 'docs', 'legal', 'privacy', 'terms', 'pay', 'checkout', 'scan',
+  'scanner', 'me', 'my', 'new', 'settings', 'signin', 'signout', 'logout', 'register',
 ];
 
 // BS31: the platform's commission taken from an organizer's payout (does NOT change
