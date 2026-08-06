@@ -290,7 +290,7 @@ export default function PayoutsClient() {
                       className="mono"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      placeholder={String(Math.min(selected.available, Math.max(selected.minimum, selected.available)))}
+                      placeholder={String(selected.available)}
                       disabled={!canRequest || submitting}
                       aria-describedby="po-amount-help"
                     />
