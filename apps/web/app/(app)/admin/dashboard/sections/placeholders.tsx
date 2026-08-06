@@ -29,25 +29,7 @@ export function OrdersSection() {
   );
 }
 
-export function PayoutsSection() {
-  return (
-    <>
-      <div className="sec-h">
-        <h2>Payouts</h2>
-        <p className="hint">
-          The withdrawal queue: organizer, amount, currency and requested-at — confirm with a reference (and an FX rate
-          for a non-settlement currency) or reject with a reason.
-        </p>
-      </div>
-      <AdminCard title="PAYOUT QUEUE">
-        <ComingSoon
-          line="The payout queue is being built."
-          sub="Organizer balances are net of the Zora commission and settle per currency; payouts are confirmed out-of-band by an admin, never automatically."
-        />
-      </AdminCard>
-    </>
-  );
-}
+/* PAYOUTS graduated out of this file in BS38 — see ./payouts-section.tsx. */
 
 export function BroadcastsSection() {
   return (

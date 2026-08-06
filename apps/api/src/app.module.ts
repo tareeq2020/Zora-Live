@@ -20,6 +20,7 @@ import { EventsModule } from './events/events.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OrgModule } from './org/org.module';
+import { PayoutsModule } from './payouts/payouts.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { SplitsModule } from './splits/splits.module';
 
@@ -48,6 +49,7 @@ import { SplitsModule } from './splits/splits.module';
     CheckoutModule,
     PaymentsModule,
     OrgModule,
+    PayoutsModule,
     ConsumerModule,
     SplitsModule,
   ],
