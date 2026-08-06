@@ -4,14 +4,16 @@ Distilled from `apps/web/public/zora-tokens.css` and the shipped surfaces during
 `/plan-design-review` (2026-07-23). This is the calibration reference for all
 design work: reuse it, don't redesign it.
 
-## Two modes
-Zora runs two intentional visual planes. Pick by audience, never mix on one screen.
+## Surfaces (three planes)
+Zora runs three intentional visual planes. Pick by audience, never mix on one screen.
 
-| | **Consumer** (fan-facing) | **Organizer / creator** (seller control-room) |
-|---|---|---|
-| Where | discovery, storefront, event, checkout, split, tickets | `/dashboard/*`, drop editor, sales, admin |
-| Base | dark-native, obsidian | light-native, warm "paper" |
-| Feel | premium nightlife, aura-lit | terminal / control-room, precise |
+| | **Consumer** (fan-facing) | **Control-room** (organizer + admin) | **Door** (scanner) |
+|---|---|---|---|
+| Where | discovery, storefront, event, checkout, split, tickets | `/dashboard/*`, drop editor, sales, `/admin/*` | the gate-scanner PWA |
+| Base | dark obsidian `#0A0B10` | dark control-room `#0A0A0B` | dark utility `#0A0B10` |
+| Feel | premium nightlife, aura-lit | terminal, precise | glanceable traffic-light: brand chrome, utility core |
+
+**Unify note (2026-08-05):** the control-room used to be split — organizer light "paper", admin dark. It unifies onto ONE **dark** control-room during the #9 admin port; the organizer dashboard migrates light→dark. The light "paper" palette below is kept for reference during the migration, then retired.
 
 ## Consumer palette (dark, default)
 - bg `#0A0B10` · bg2 `#0D0F17` · surface `#11131E` · surface2 `#171A28`
@@ -25,6 +27,20 @@ Zora runs two intentional visual planes. Pick by audience, never mix on one scre
 - paper `#F4F1EA` · card `#FBF9F4` · ink `#0A0A0B` · hair `#DDD8CB` · mut `#8A877E`
 - blue `#3D5AFE` + bluewash `#E8EBFE` · green `#1D9E75` · red `#D85A30` · amber `#EF9F27`
 - white input fields on paper; sticky blurred top bar
+
+## Door / scanner (dark utility — "brand chrome, utility core")
+The gate-scanner PWA. Zora's dark shell + type, but the cinematic layer (shimmer,
+particles, aura-gradient text, ambient motion) is DROPPED at the result — legibility,
+battery, and 0.5s read beat polish at a door. Serves DESIGN.md rules 3 + 4b.
+- Canvas `#0A0B10` · Space Grotesk for the giant result word · IBM Plex Mono for pass
+  details (name · tier · ref) · Inter body · the aura-`O` wordmark tiny in the top strip.
+- **Result = full-screen solid-color takeover** (glanceable across a crowd), auto-dismiss ~2s / tap:
+  - VALID → **solid green** (a true go-green, NOT brand magenta), huge ✓ + name/tier, haptic + blip.
+  - ALREADY USED / INVALID / WRONG EVENT → **solid red**, big ✕ + plain reason + who/when ("SCANNED 21:14 · AGENT 4").
+  - NEEDS SUPERVISOR → **the aura gradient** (the one place brand color earns its keep = "escalate").
+- Chrome: thin top strip only — event · agent role/scope · an **offline dot** (agent HMAC-verify is offline-capable; amber when the confirm step can't reach the server).
+- Motion near-zero: a fast confident slam-in on the result; respect reduced-motion; no ambient animation.
+- Supervisor screen = a calm dark queue of scanned-pending credentials → big CONFIRM → "wristband issued".
 
 ## Type
 - **Space Grotesk** (400–700) — geometric headings, consumer wordmark, big numbers.
@@ -55,5 +71,6 @@ Zora runs two intentional visual planes. Pick by audience, never mix on one scre
 
 ## Voice
 Confident, plain, a little swagger; trust-forward on money. Canon lines:
-"The price is the price. No fees at checkout." · "Nobody plays banker." · "Your number is your ticket." · "The table's yours."
+"No booking fees — our cut comes from organizers, not you." · "Nobody plays banker." · "Your number is your ticket." · "The table's yours."
+(Superseded 2026-08-05 — BS32: dropped the false "no fees at checkout" claim; the payment provider may add its own fee, so we only promise no ZORA booking fee.)
 Avoid corporate/hype. See `.context/bill-split-copy-deck.md` for the full string set.
