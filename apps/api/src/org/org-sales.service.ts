@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { db, poolSnapshots } from '@zora/core';
+import { db, poolSnapshots, resolveCommissionRate, readOrderMoney } from '@zora/core';
+import type { OrderMoney } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
-import { EntityStore } from '../storage/entity-store';
-import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
+import { OrganizerRepo } from '../storage/organizer-repo';
 
 /* OrgSalesService (MT3) — read-only org sales / reporting. Every read is scoped
    to the acting org through OrgScopeService.ownedEventIds (C3): event ownership
@@ -11,11 +11,24 @@ import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults'
    from the blob and scope relational reads with `event_id = ANY(ownedIds)`.
 
    Correctness invariants:
-   - Revenue (paid-only): SUM(order_item.unit_price*quantity) for order.status='paid'
-     ONLY. This is organizer revenue and excludes the platform fee (which lives in
-     order.target_value, never summed here). Money collected under the flagged
-     statuses paid_unseatable / payment_short is surfaced SEPARATELY (flaggedRevenue)
-     and never folded into the paid number.
+   - Revenue (paid-only) is the UNION of two sources, because a table split has no
+     order_item at all (0006: shares are payment-only) and used to be counted as
+     ZERO — organizers were shown less money than they had actually taken:
+       a) line-item orders: SUM(order_item.unit_price*quantity)
+       b) split seats:      split_share.amount for settled shares
+     Both exclude the platform fee (order.target_value, never summed here). Money
+     under the flagged statuses paid_unseatable / payment_short is surfaced
+     SEPARATELY (flaggedRevenue) and never folded into the paid number.
+     BS38: that union now lives in @zora/core (`readOrderMoney`) because the
+     PAYOUT balance has to be computed from exactly the same rows — an organizer
+     must never be shown one number here and allowed to withdraw another.
+   - Commission (BS35 / #6) is POINT-IN-TIME: net comes from the rate STAMPED on
+     each order at pay time (`order.commission_rate`), never from the org's live
+     rate. Editing an organizer's commission today must not rewrite what they
+     earned last month. Rounding happens once per order, via @zora/core netOf.
+   - Refunds (BS35 / OV1) are a DEBIT: `order.refunded_amount` comes off the gross
+     before netting, and a fully refunded order (status='refunded') stops counting
+     as a paid order. Refunded money is not withdrawable money.
    - Sold (C2): from inventory_pool.sold_count via core poolSnapshots — NEVER
      capacity−available (that would count holds/reserved as sold).
    - Currency (I7): revenue is grouped/labelled by currency (from price_version);
@@ -28,6 +41,32 @@ import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults'
 const PAID = 'paid';
 const FLAGGED = ['paid_unseatable', 'payment_short'];
 const DEFAULT_CURRENCY = 'TZS';
+
+/** Revenue + net + counts for one (event, currency) bucket. */
+interface Bucket {
+  revenue: number;
+  netRevenue: number;
+  refunded: number;
+  orders: number;
+  weighted: number; // Σ(gross × rate) — for the blended display rate
+  rates: Set<number>;
+}
+
+function emptyBucket(): Bucket {
+  return { revenue: 0, netRevenue: 0, refunded: 0, orders: 0, weighted: 0, rates: new Set() };
+}
+
+/** The commission rate to DISPLAY for a bucket. When every order in it carries
+    the same stamped rate (the normal case) that exact rate is shown; when rates
+    differ (a rate change mid-life, or a per-event override) it is the
+    revenue-weighted blend, rounded to the column's numeric(6,5) precision. An
+    empty bucket falls back to the org's current rate — nothing has been stamped
+    yet, so that is what the next sale will use. */
+function displayRate(b: Bucket, fallback: number): number {
+  if (b.revenue <= 0 || b.rates.size === 0) return fallback;
+  if (b.rates.size === 1) return [...b.rates][0];
+  return Math.round((b.weighted / b.revenue) * 1e5) / 1e5;
+}
 
 export interface OrgSummary {
   totals: {
@@ -47,6 +86,9 @@ export interface OrgSummary {
     // kept out of `revenue` on purpose.
     flaggedRevenue: number;
     flaggedOrders: number;
+    // BS35 (OV1): money already given back to buyers. Already subtracted from
+    // revenue/netRevenue above — surfaced so "why did my balance drop" is answerable.
+    refundedRevenue: number;
   };
   events: OrgSummaryEvent[];
 }
@@ -58,10 +100,12 @@ export interface OrgSummaryEvent {
   sold: number;
   capacity: number;
   revenue: number;
-  netRevenue: number; // BS31: revenue after the org's commission
+  netRevenue: number;    // BS31: revenue after commission (BS35: the STAMPED rate)
+  commissionRate: number; // BS35: this event's effective (stamped) rate
   currency: string;
   flaggedRevenue: number;
   flaggedOrders: number;
+  refundedRevenue: number; // BS35 (OV1)
 }
 
 export interface OrgOrderRow {
@@ -80,13 +124,13 @@ export interface OrgOrderRow {
 
 @Injectable()
 export class OrgSalesService {
-  constructor(private readonly scope: OrgScopeService, private readonly entities: EntityStore) {}
+  constructor(private readonly scope: OrgScopeService, private readonly organizers: OrganizerRepo) {}
 
-  /** BS31: the platform commission fraction for an organizer (default 5%). */
-  private async commissionRateFor(handle: string): Promise<number> {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const o = orgs.find((x) => x && x.handle === handle);
-    return o && typeof o.commissionRate === 'number' ? o.commissionRate : DEFAULT_COMMISSION_RATE;
+  /** BS31/BS35: the org's CURRENT commission — used only as the display fallback
+      for an org with no stamped revenue yet (i.e. what the next sale will use).
+      Earnings themselves never read this; they read the per-order stamp. */
+  private async liveCommissionRateFor(handle: string): Promise<number> {
+    return resolveCommissionRate(null, await this.organizers.byHandle(handle));
   }
 
   /** GET /api/org/splits — bill-split status for the org's events: tables still
@@ -122,13 +166,14 @@ export class OrgSalesService {
     const events = await this.scope.readEvents();
     const owned = events.filter((e) => e && e.organizerHandle === actingHandle);
     const ownedIds = owned.map((e) => e.id);
-    const commissionRate = await this.commissionRateFor(actingHandle);
-    const net = (gross: number) => Math.round(gross * (1 - commissionRate)); // BS31 payout math
+    // The org's LIVE rate — only a display fallback for events with no stamped
+    // revenue yet. Earnings below come from each order's own stamp (BS35).
+    const liveRate = await this.liveCommissionRateFor(actingHandle);
 
     const empty: OrgSummary = {
       totals: {
-        revenue: 0, commissionRate, netRevenue: 0, sold: 0, orders: 0, currency: null,
-        revenueByCurrency: [], flaggedRevenue: 0, flaggedOrders: 0,
+        revenue: 0, commissionRate: liveRate, netRevenue: 0, sold: 0, orders: 0, currency: null,
+        revenueByCurrency: [], flaggedRevenue: 0, flaggedOrders: 0, refundedRevenue: 0,
       },
       events: [],
     };
@@ -136,21 +181,11 @@ export class OrgSalesService {
 
     const sql = db();
 
-    // Revenue per (event, currency), paid-only. Fee is in order.target_value and
-    // is deliberately never summed here.
-    const paidRows = await sql<
-      { event_id: string; currency: string; revenue: number; orders: number }[]
-    >`
-      select o.event_id                        as event_id,
-             pv.currency                       as currency,
-             sum(oi.unit_price * oi.quantity)::bigint as revenue,
-             count(distinct o.id)::int         as orders
-        from "order" o
-        join order_item   oi on oi.order_id = o.id
-        join price_version pv on pv.id = oi.price_version_id
-       where o.event_id = any(${ownedIds})
-         and o.status = ${PAID}
-       group by o.event_id, pv.currency`;
+    // Every money-bearing order (line items UNION split seats), each already
+    // netted at its OWN stamped rate and with its refund subtracted. BS38: this
+    // read lives in @zora/core and is the SAME one the payout balance uses — the
+    // number on this screen and the number an organizer can withdraw cannot drift.
+    const money: OrderMoney[] = await readOrderMoney(sql, ownedIds, liveRate);
 
     // Flagged money (collected but not organizer revenue), per event.
     const flaggedRows = await sql<
@@ -190,16 +225,35 @@ export class OrgSalesService {
       capByEvent.set(ev, (capByEvent.get(ev) ?? 0) + (s.capacity ?? 0));
     }
 
-    // Paid revenue/currency per event. Single-currency per event expected; if an
-    // event somehow has multiple, keep the largest bucket for its scalar and never
-    // sum across (I7).
-    const paidByEvent = new Map<string, { revenue: number; currency: string; orders: number }>();
-    for (const r of paidRows) {
-      const cur = paidByEvent.get(r.event_id);
-      if (!cur || r.revenue > cur.revenue) {
-        paidByEvent.set(r.event_id, { revenue: r.revenue, currency: r.currency, orders: r.orders });
-      }
+    // Fold the per-order money into (event → currency → bucket). Net is summed
+    // from the per-order values — never recomputed from an event total, so a rate
+    // change or a refund on ONE order can never smear across the others.
+    const byEvent = new Map<string, Map<string, Bucket>>();
+    for (const m of money) {
+      let byCurrency = byEvent.get(m.eventId);
+      if (!byCurrency) { byCurrency = new Map(); byEvent.set(m.eventId, byCurrency); }
+      let b = byCurrency.get(m.currency);
+      if (!b) { b = emptyBucket(); byCurrency.set(m.currency, b); }
+      b.revenue += m.gross;
+      b.netRevenue += m.net;
+      b.refunded += m.refunded;
+      b.weighted += m.gross * m.rate;
+      if (m.gross > 0) b.rates.add(m.rate);
+      // A fully refunded order is no longer a paid order (its gross is 0 too).
+      if (m.status === PAID) b.orders += 1;
     }
+
+    // Single-currency per event expected; if an event somehow has multiple, keep
+    // the largest bucket for its scalar and never sum across (I7).
+    const paidByEvent = new Map<string, { currency: string; bucket: Bucket }>();
+    for (const [eventId, byCurrency] of byEvent) {
+      let best: { currency: string; bucket: Bucket } | null = null;
+      for (const [currency, bucket] of byCurrency) {
+        if (!best || bucket.revenue > best.bucket.revenue) best = { currency, bucket };
+      }
+      if (best) paidByEvent.set(eventId, best);
+    }
+
     const flaggedByEvent = new Map<string, { revenue: number; orders: number }>();
     for (const r of flaggedRows) flaggedByEvent.set(r.event_id, { revenue: r.revenue, orders: r.orders });
 
@@ -209,6 +263,7 @@ export class OrgSalesService {
     const eventsOut: OrgSummaryEvent[] = owned.map((e) => {
       const paid = paidByEvent.get(e.id);
       const flagged = flaggedByEvent.get(e.id);
+      const bucket = paid?.bucket;
       return {
         id: e.id,
         name: e.name ?? null,
@@ -216,30 +271,37 @@ export class OrgSalesService {
         status: e.status ?? 'published',
         sold: soldByEvent.get(e.id) ?? 0,
         capacity: capByEvent.get(e.id) ?? 0,
-        revenue: paid?.revenue ?? 0,
-        netRevenue: net(paid?.revenue ?? 0),
+        revenue: bucket?.revenue ?? 0,
+        netRevenue: bucket?.netRevenue ?? 0,
+        commissionRate: displayRate(bucket ?? emptyBucket(), liveRate),
         currency: paid?.currency ?? fallbackCurrency.get(e.id) ?? DEFAULT_CURRENCY,
         flaggedRevenue: flagged?.revenue ?? 0,
         flaggedOrders: flagged?.orders ?? 0,
+        refundedRevenue: bucket?.refunded ?? 0,
       };
     });
 
     // Org totals. Sold/orders are currency-agnostic counts; revenue is grouped by
     // currency and NEVER summed across currencies.
-    const revenueByCurrencyMap = new Map<string, number>();
-    let totalOrders = 0;
-    for (const r of paidRows) {
-      revenueByCurrencyMap.set(r.currency, (revenueByCurrencyMap.get(r.currency) ?? 0) + r.revenue);
+    const orgByCurrency = new Map<string, Bucket>();
+    for (const m of money) {
+      let b = orgByCurrency.get(m.currency);
+      if (!b) { b = emptyBucket(); orgByCurrency.set(m.currency, b); }
+      b.revenue += m.gross;
+      b.netRevenue += m.net;
+      b.refunded += m.refunded;
+      b.weighted += m.gross * m.rate;
+      if (m.gross > 0) b.rates.add(m.rate);
+      if (m.status === PAID) b.orders += 1;
     }
-    // Distinct paid orders across the org (an order belongs to one event/currency).
-    for (const [, v] of paidByEvent) totalOrders += v.orders;
 
-    const revenueByCurrency = [...revenueByCurrencyMap.entries()]
-      .map(([currency, revenue]) => ({ currency, revenue }))
+    const revenueByCurrency = [...orgByCurrency.entries()]
+      .map(([currency, b]) => ({ currency, revenue: b.revenue }))
       .sort((a, b) => b.revenue - a.revenue);
 
     const uniform = revenueByCurrency.length <= 1;
     const headline = revenueByCurrency[0] ?? null;
+    const headlineBucket = headline ? (orgByCurrency.get(headline.currency) ?? emptyBucket()) : emptyBucket();
 
     const totalSold = [...soldByEvent.values()].reduce((a, b) => a + b, 0);
     const flaggedRevenue = flaggedRows.reduce((a, r) => a + r.revenue, 0);
@@ -250,16 +312,19 @@ export class OrgSalesService {
         // Scalar revenue is well-defined only when uniform; when mixed we report
         // the largest currency bucket as the headline and expose the full split.
         revenue: headline?.revenue ?? 0,
-        commissionRate, // BS31
-        netRevenue: net(headline?.revenue ?? 0),
+        // BS31/BS35: the effective (stamped) rate behind netRevenue — the exact
+        // rate when uniform, the revenue-weighted blend when it isn't.
+        commissionRate: displayRate(headlineBucket, liveRate),
+        netRevenue: headlineBucket.netRevenue,
         sold: totalSold,
-        orders: totalOrders,
+        orders: headlineBucket.orders,
         currency: uniform
           ? (headline?.currency ?? this.orgUniformCurrency(fallbackCurrency))
           : (headline?.currency ?? null),
         revenueByCurrency,
         flaggedRevenue,
         flaggedOrders,
+        refundedRevenue: headlineBucket.refunded,
       },
       events: eventsOut,
     };

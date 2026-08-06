@@ -301,6 +301,13 @@ export default function DashboardClient() {
               <span className="dot" />
               Sales
             </Link>
+            {/* BS38 (#7) — withdrawals. Sits next to Sales because it is the
+                other half of the same question: what did I earn, and how do I
+                get it? */}
+            <Link className="nav-item" href="/dashboard/payouts">
+              <span className="dot" />
+              Withdrawals
+            </Link>
             <Link className="nav-item" href="/dashboard/storefront/studio">
               <span className="dot" />
               Storefront

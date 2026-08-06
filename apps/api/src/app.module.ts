@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { StorageModule } from './storage/storage.module';
 import { SessionModule } from './common/session.module';
+import { CommissionModule } from './common/commission.module';
 import { AuditModule } from './audit/audit.module';
 import { TenantModule } from './tenant/tenant.module';
 import { AuthModule } from './auth/auth.module';
@@ -19,6 +20,7 @@ import { EventsModule } from './events/events.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OrgModule } from './org/org.module';
+import { PayoutsModule } from './payouts/payouts.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { SplitsModule } from './splits/splits.module';
 
@@ -28,6 +30,7 @@ import { SplitsModule } from './splits/splits.module';
   imports: [
     StorageModule,
     SessionModule,
+    CommissionModule,
     AuditModule,
     TenantModule,
     AuthModule,
@@ -46,6 +49,7 @@ import { SplitsModule } from './splits/splits.module';
     CheckoutModule,
     PaymentsModule,
     OrgModule,
+    PayoutsModule,
     ConsumerModule,
     SplitsModule,
   ],

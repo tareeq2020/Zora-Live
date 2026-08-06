@@ -40,19 +40,23 @@ URL="postgres://$USER_NAME@127.0.0.1:$PG_PORT/zora_mt2"
 DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
 DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" $ENTITIES >/dev/null
 
+echo "== BS35: organizers are ROWS (migration 0009), not the collection_store blob =="
+N_ORG=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -c "select count(*) from organizer;")
+N_HANDLE=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -c "select count(*) from organizer where handle in ('offshore','basement');")
+[ "$N_ORG" -ge 4 ] && [ "$N_HANDLE" = "2" ] \
+  && echo "  ✓ organizer table backfilled ($N_ORG rows; offshore + basement present)" \
+  || { echo "  ✗ organizer table not backfilled: rows=$N_ORG handles=$N_HANDLE"; fail=1; }
+# The UNIQUE handle is now enforced by Postgres, not by hoping the blob is sane.
+DUP=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 \
+  -c "insert into organizer (id,name,handle) values ('dup','Dup','offshore');" 2>&1 || true)
+echo "$DUP" | grep -qi 'duplicate key' \
+  && echo "  ✓ duplicate handle rejected by the database (unique constraint)" \
+  || { echo "  ✗ duplicate handle was ACCEPTED: $DUP"; fail=1; }
+
 echo "== approve KYC for offshore (o2); leave basement (o3) unapproved =="
-cat > "$SNAP/seed-kyc.js" <<'JS'
-const { EntityStore } = require(process.env.API_DIR + '/dist/storage/entity-store.js');
-(async () => {
-  const es = new EntityStore();
-  const orgs = await es.read('organizers', []);
-  const o2 = orgs.find((o) => o.handle === 'offshore');
-  if (o2) o2.kycStatus = 'approved';
-  await es.write('organizers', orgs);
-  process.exit(0);
-})().catch((e) => { console.error(e); process.exit(1); });
-JS
-API_DIR="$API_DIR" DATABASE_URL="$URL" node "$SNAP/seed-kyc.js"
+# BS35: kyc_status is a column now — a single-row UPDATE, not a whole-blob rewrite.
+psql -q -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -v ON_ERROR_STOP=1 \
+  -c "update organizer set kyc_status='approved' where handle='offshore';" >/dev/null
 
 echo "== boot API (XBRIDGE_MOCK) =="
 lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.3

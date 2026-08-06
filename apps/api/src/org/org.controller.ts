@@ -1,9 +1,9 @@
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
+import { resolveCommissionRate } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
-import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo } from '../storage/organizer-repo';
 import { OrgScopeService } from './org-scope.service';
-import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
 
 /* /api/org/* — the organizer surface (OrganizerGuard: real organizer OR admin
    impersonating). MT2/MT3 add their controllers to the org module alongside this
@@ -12,7 +12,7 @@ import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults'
 export class OrgController {
   constructor(
     private readonly scope: OrgScopeService,
-    private readonly entities: EntityStore,
+    private readonly organizers: OrganizerRepo,
   ) {}
 
   @UseGuards(OrganizerGuard)
@@ -20,8 +20,7 @@ export class OrgController {
   async me(@Req() req: Request) {
     // req.actingHandle is stamped by OrganizerGuard (guaranteed non-null here).
     const handle = req.actingHandle as string;
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const org = orgs.find((o) => o.handle === handle);
+    const org = await this.organizers.byHandle(handle); // BS35: relational row
     return {
       actingHandle: handle,
       name: org ? org.name : null,
@@ -32,7 +31,8 @@ export class OrgController {
       kycStatus: (org && org.kycStatus) ?? req.session.kycStatus ?? null,
       // BS31: the platform commission netted from this org's payout (default 5%).
       // Buyer price is unaffected — this drives the "you earn net of X%" copy.
-      commissionRate: (org && typeof org.commissionRate === 'number') ? org.commissionRate : DEFAULT_COMMISSION_RATE,
+      // BS35: resolved by @zora/core, the one place the fallback chain lives.
+      commissionRate: resolveCommissionRate(null, org),
     };
   }
 }

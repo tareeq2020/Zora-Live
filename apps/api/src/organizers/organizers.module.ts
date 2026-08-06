@@ -1,16 +1,21 @@
 import { BadRequestException, Body, Controller, Get, Module, NotFoundException, Param, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
-import { EntityStore } from '../storage/entity-store';
+import { resolveCommissionRate } from '@zora/core';
+import { OrganizerRepo, publicOrganizer } from '../storage/organizer-repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_ORGANIZERS, DEFAULT_COMMISSION_RATE } from '../common/defaults';
 
+/* BS35: reads and writes go through OrganizerRepo (the relational `organizer`
+   table), not the collection_store blob. Every mutation below is a single-row,
+   single-column UPDATE, so two admins editing two organizers no longer clobber
+   each other — the blob upsert rewrote the whole list on every save. The response
+   bodies are byte-compatible with the blob era (see publicOrganizer). */
 @Controller()
 export class OrganizersController {
   constructor(
-    private readonly entities: EntityStore,
+    private readonly organizers: OrganizerRepo,
     private readonly audit: AuditService,
     private readonly sessions: SessionService,
   ) {}
@@ -18,12 +23,12 @@ export class OrganizersController {
   @UseGuards(SessionGuard)
   @Get('organizers')
   async list() {
-    // Never leak the bcrypt passwordHash added in PR-F-AUTH. Records without one
-    // (e.g. the seed data) round-trip byte-identically.
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
+    // Never leak the bcrypt passwordHash added in PR-F-AUTH — publicOrganizer is
+    // the only way a record becomes a response body.
     // BS31: always surface a commissionRate so the admin UI can show/edit it, even
-    // for records that predate the field (fall back to the platform default).
-    return orgs.map(({ passwordHash, ...rest }) => ({ ...rest, commissionRate: rest.commissionRate ?? DEFAULT_COMMISSION_RATE }));
+    // for records that predate the field (falls back to the platform default).
+    const orgs = await this.organizers.list();
+    return orgs.map((o) => publicOrganizer(o, resolveCommissionRate(null, o)));
   }
 
   // BS31: set the platform commission taken from this organizer's payout. Does NOT
@@ -32,13 +37,13 @@ export class OrganizersController {
   @UseGuards(SessionGuard)
   @Put('organizers/:id/commission')
   async setCommission(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const o = orgs.find((x) => x.id === id);
-    if (!o) throw new NotFoundException({ error: 'Not found' });
+    if (!(await this.organizers.byId(id))) throw new NotFoundException({ error: 'Not found' });
     const rate = Number(body?.commissionRate);
     if (!Number.isFinite(rate) || rate < 0 || rate > 0.5) throw new BadRequestException({ error: 'commission_out_of_range' });
-    o.commissionRate = rate;
-    await this.entities.write('organizers', orgs);
+    // BS35: changing this rate only affects FUTURE orders — every existing order
+    // carries the rate that was stamped on it at pay time (migration 0010).
+    const o = await this.organizers.setCommissionRate(id, rate);
+    if (!o) throw new NotFoundException({ error: 'Not found' });
     await this.audit.record('set_organizer_commission', `${o.name} (${o.handle}) → ${(rate * 100).toFixed(1)}%`, req.ip);
     return { ok: true, commissionRate: rate };
   }
@@ -50,13 +55,11 @@ export class OrganizersController {
   @UseGuards(SessionGuard)
   @Put('organizers/:id/password')
   async setPassword(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const o = orgs.find((x) => x.id === id);
-    if (!o) throw new NotFoundException({ error: 'Not found' });
+    if (!(await this.organizers.byId(id))) throw new NotFoundException({ error: 'Not found' });
     const next = body && body.password;
     if (!next || next.length < 8) throw new BadRequestException({ error: 'Password must be at least 8 characters' });
-    o.passwordHash = bcrypt.hashSync(next, 10);
-    await this.entities.write('organizers', orgs);
+    const o = await this.organizers.setPasswordHash(id, bcrypt.hashSync(next, 10));
+    if (!o) throw new NotFoundException({ error: 'Not found' });
     await this.audit.record('set_organizer_password', o.name + ' (' + o.handle + ')', req.ip);
     return { ok: true };
   }
@@ -64,15 +67,14 @@ export class OrganizersController {
   @UseGuards(SessionGuard)
   @Put('organizers/:id/status')
   async setStatus(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const o = orgs.find((x) => x.id === id);
-    if (!o) throw new NotFoundException({ error: 'Not found' });
+    if (!(await this.organizers.byId(id))) throw new NotFoundException({ error: 'Not found' });
     const status = body && body.status;
     if (!['active', 'suspended'].includes(status)) throw new BadRequestException({ error: 'Bad status' });
-    o.status = status;
-    await this.entities.write('organizers', orgs);
+    const o = await this.organizers.setStatus(id, status);
+    if (!o) throw new NotFoundException({ error: 'Not found' });
     await this.audit.record(status === 'suspended' ? 'suspend_organizer' : 'unlock_organizer', o.name + ' (' + o.handle + ')', req.ip);
-    return o;
+    // publicOrganizer (not the raw record) — the blob version echoed passwordHash back.
+    return publicOrganizer(o, resolveCommissionRate(null, o));
   }
 
   // Admin session temporarily "acts on behalf" of an organizer (impersonation
@@ -84,8 +86,7 @@ export class OrganizersController {
   @UseGuards(SessionGuard)
   @Post('organizers/:id/impersonate')
   async impersonate(@Param('id') id: string, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    const o = orgs.find((x) => x.id === id);
+    const o = await this.organizers.byId(id);
     if (!o) throw new NotFoundException({ error: 'Not found' });
     if (o.status === 'suspended') throw new BadRequestException({ error: 'Cannot act on behalf of a suspended account' });
     const impersonating = { id: o.id, name: o.name, handle: o.handle, startedAt: new Date().toISOString() };

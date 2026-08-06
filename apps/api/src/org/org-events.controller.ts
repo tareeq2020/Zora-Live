@@ -17,8 +17,8 @@ import type { Request } from 'express';
 import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_ORGANIZERS } from '../common/defaults';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService, type ProvisionTierInput } from './event-provisioning.service';
 
@@ -72,6 +72,7 @@ export class OrgEventsController {
     private readonly scope: OrgScopeService,
     private readonly prov: EventProvisioningService,
     private readonly entities: EntityStore,
+    private readonly organizers: OrganizerRepo,
     private readonly audit: AuditService,
   ) {}
 
@@ -534,10 +535,9 @@ export class OrgEventsController {
     return tiers;
   }
 
-  /** Read the organizer record fresh from the store. */
-  private async readOrg(handle: string): Promise<any | null> {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    return orgs.find((o) => o && o.handle === handle) || null;
+  /** Read the organizer record fresh from the store (BS35: a row, not the blob). */
+  private async readOrg(handle: string): Promise<OrganizerRecord | null> {
+    return this.organizers.byHandle(handle);
   }
 
   /** I2: reject a suspended or missing principal on every write. */
