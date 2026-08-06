@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { db, poolSnapshots, netOf, resolveCommissionRate } from '@zora/core';
+import { db, poolSnapshots, resolveCommissionRate, readOrderMoney } from '@zora/core';
+import type { OrderMoney } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -18,6 +19,9 @@ import { OrganizerRepo } from '../storage/organizer-repo';
      Both exclude the platform fee (order.target_value, never summed here). Money
      under the flagged statuses paid_unseatable / payment_short is surfaced
      SEPARATELY (flaggedRevenue) and never folded into the paid number.
+     BS38: that union now lives in @zora/core (`readOrderMoney`) because the
+     PAYOUT balance has to be computed from exactly the same rows — an organizer
+     must never be shown one number here and allowed to withdraw another.
    - Commission (BS35 / #6) is POINT-IN-TIME: net comes from the rate STAMPED on
      each order at pay time (`order.commission_rate`), never from the org's live
      rate. Editing an organizer's commission today must not rewrite what they
@@ -34,29 +38,9 @@ import { OrganizerRepo } from '../storage/organizer-repo';
    - Event name/status come from the events blob (a blob, not a table), joined in
      memory by id. */
 
-// Statuses that still hold organizer money. 'refunded' is included so a refund
-// can be SUBTRACTED (its refunded_amount cancels its gross); leaving it out would
-// silently drop the debit instead of applying it.
-const EARNING_STATUSES = ['paid', 'refunded'];
 const PAID = 'paid';
 const FLAGGED = ['paid_unseatable', 'payment_short'];
-// A settled seat, and a seat whose money has been refunded (still read so the
-// refund is applied, then netted to zero by refunded_amount).
-const SETTLED_SHARE_STATES = ['paid', 'refunded'];
 const DEFAULT_CURRENCY = 'TZS';
-
-/** One order's money in one currency — the unit the whole summary is built from.
-    `rate` is the STAMPED commission; net is rounded once, here, per order. */
-interface OrderMoney {
-  orderId: string;
-  eventId: string;
-  status: string;
-  currency: string;
-  gross: number;    // face value collected, net of refunds
-  refunded: number; // how much of it was given back
-  rate: number;     // the point-in-time commission rate
-  net: number;      // gross after commission
-}
 
 /** Revenue + net + counts for one (event, currency) bucket. */
 interface Bucket {
@@ -149,77 +133,6 @@ export class OrgSalesService {
     return resolveCommissionRate(null, await this.organizers.byHandle(handle));
   }
 
-  /** Every order that holds this org's money, as one row per (order, currency).
-      This is the UNION at the heart of BS35-T4:
-        a) line-item orders (GA/VIP) — gross from order_item
-        b) split seats — gross from split_share.amount, because a `table_share`
-           order has NO order_item and so was invisible to the old query: split
-           revenue read as ZERO no matter how many tables sold.
-      There is no double count: (a) inner-joins order_item, which share orders do
-      not have, and the parent table_split is not an order. */
-  private async readOrderMoney(ownedIds: string[], liveRate: number): Promise<OrderMoney[]> {
-    const sql = db();
-    type Row = {
-      order_id: string; event_id: string; status: string;
-      commission_rate: string | null; currency: string;
-      gross: string | number; refunded: string | number;
-    };
-
-    const [itemRows, shareRows] = await Promise.all([
-      sql<Row[]>`
-        select o.id                                as order_id,
-               o.event_id                          as event_id,
-               o.status                            as status,
-               o.commission_rate                   as commission_rate,
-               pv.currency                         as currency,
-               sum(oi.unit_price * oi.quantity)::bigint as gross,
-               max(coalesce(o.refunded_amount, 0))::bigint as refunded
-          from "order" o
-          join order_item    oi on oi.order_id = o.id
-          join price_version pv on pv.id = oi.price_version_id
-         where o.event_id = any(${ownedIds})
-           and o.status = any(${EARNING_STATUSES})
-         group by o.id, o.event_id, o.status, o.commission_rate, pv.currency`,
-      sql<Row[]>`
-        select o.id                                as order_id,
-               o.event_id                          as event_id,
-               o.status                            as status,
-               o.commission_rate                   as commission_rate,
-               pv.currency                         as currency,
-               ss.amount::bigint                   as gross,
-               coalesce(o.refunded_amount, 0)::bigint as refunded
-          from split_share  ss
-          join "order"      o  on o.id  = ss.order_id
-          join table_split  ts on ts.id = ss.split_id
-          join price_version pv on pv.id = ts.price_version_id
-         where o.event_id = any(${ownedIds})
-           and ss.state = any(${SETTLED_SHARE_STATES})
-           and o.status = any(${EARNING_STATUSES})`,
-    ]);
-
-    // A refund is booked once per ORDER; if an order somehow spans two currency
-    // rows we must not subtract it twice.
-    const refundApplied = new Set<string>();
-    const toMoney = (r: Row): OrderMoney => {
-      const grossRaw = Number(r.gross ?? 0);
-      const refunded = refundApplied.has(r.order_id) ? 0 : Number(r.refunded ?? 0);
-      refundApplied.add(r.order_id);
-      const gross = Math.max(0, grossRaw - refunded);
-      // The STAMP wins. An un-stamped (pre-BS35) order falls back to the org's
-      // current rate, then the platform default — the legacy behaviour, applied
-      // only to rows migration 0010 could not reach.
-      const stamped = r.commission_rate == null ? null : Number(r.commission_rate);
-      const rate = resolveCommissionRate({ commissionRate: stamped }, { commissionRate: liveRate });
-      return {
-        orderId: r.order_id, eventId: r.event_id, status: r.status,
-        currency: r.currency, gross, refunded, rate,
-        net: netOf(gross, rate), // single rounding rule, once per order
-      };
-    };
-
-    return [...itemRows.map(toMoney), ...shareRows.map(toMoney)];
-  }
-
   /** GET /api/org/splits — bill-split status for the org's events: tables still
       forming, and the REFUND WORKLIST (refund_pending splits that took money but
       didn't fill; A5/OV3/D8). Ops refunds each within 24h, then releases. */
@@ -269,8 +182,10 @@ export class OrgSalesService {
     const sql = db();
 
     // Every money-bearing order (line items UNION split seats), each already
-    // netted at its OWN stamped rate and with its refund subtracted.
-    const money = await this.readOrderMoney(ownedIds, liveRate);
+    // netted at its OWN stamped rate and with its refund subtracted. BS38: this
+    // read lives in @zora/core and is the SAME one the payout balance uses — the
+    // number on this screen and the number an organizer can withdraw cannot drift.
+    const money: OrderMoney[] = await readOrderMoney(sql, ownedIds, liveRate);
 
     // Flagged money (collected but not organizer revenue), per event.
     const flaggedRows = await sql<

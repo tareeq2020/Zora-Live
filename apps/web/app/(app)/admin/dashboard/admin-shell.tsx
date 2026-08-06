@@ -31,7 +31,8 @@ import { ScannerUsersSection } from './sections/scanner-users-section';
 import { PaymentsSection } from './sections/payments-section';
 import { MediaSection } from './sections/media-section';
 import { AccessSection } from './sections/access-section';
-import { BroadcastsSection, OrdersSection, PayoutsSection } from './sections/placeholders';
+import { PayoutsSection } from './sections/payouts-section';
+import { BroadcastsSection, OrdersSection } from './sections/placeholders';
 
 type SectionKey =
   | 'overview'
@@ -52,7 +53,7 @@ const SECTIONS: { key: SectionKey; label: string; soon?: boolean }[] = [
   { key: 'verification', label: 'VERIFICATION' },
   { key: 'events', label: 'EVENTS' },
   { key: 'orders', label: 'ORDERS & CARTS', soon: true },
-  { key: 'payouts', label: 'PAYOUTS', soon: true },
+  { key: 'payouts', label: 'PAYOUTS' },
   { key: 'scanner', label: 'SCANNER USERS' },
   { key: 'broadcasts', label: 'BROADCASTS', soon: true },
   { key: 'payments', label: 'PAYMENTS ROUTING' },
