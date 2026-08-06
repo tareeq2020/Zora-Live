@@ -275,6 +275,7 @@ export function DiscoverApp() {
   // browser happens to be filtered to — we do not convert, so labelling a Dar
   // price "NGN" would be a lie (DESIGN.md rule 5).
   const money = (e: Ev) => (CITIES.find((c) => c.id === e.city)?.cur || curCity().cur) + ' ' + fmt(e.price);
+  const cityLabel = (e: Ev) => CITIES.find((c) => c.id === e.city)?.city || curCity().city;
 
   const toast = useCallback((m: string) => {
     setToastMsg(m);
@@ -767,7 +768,7 @@ export function DiscoverApp() {
           <div className="zd-tk-body">
             <p className="zd-tk-meta" id="tk-meta">
               {sheetEv ? (
-                <>{sheetEv.art ? <>{sheetEv.art}<br /></> : null}{sheetEv.date}{sheetEv.time ? ` · ${sheetEv.time}` : ''}<br />{sheetEv.venue} · {curCity().city}</>
+                <>{sheetEv.art ? <>{sheetEv.art}<br /></> : null}{sheetEv.date}{sheetEv.time ? ` · ${sheetEv.time}` : ''}<br />{sheetEv.venue} · {cityLabel(sheetEv)}</>
               ) : null}
             </p>
             {sheetEv?.splittable ? <p className="zd-tk-split">SPLITTABLE TABLE — SHARE THE BILL WITH YOUR CREW</p> : null}
