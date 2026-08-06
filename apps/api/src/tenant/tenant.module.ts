@@ -1,17 +1,18 @@
 import { Controller, Get, Global, Injectable, Module, NotFoundException, Param } from '@nestjs/common';
 import type { Request } from 'express';
-import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo } from '../storage/organizer-repo';
 import { ROOT_DOMAIN } from '../common/defaults';
 
 /* White-label routing helpers — every marketplace event belongs to an organizer
    that owns <handle>.zora.com. Shared so EventsController can enrich events with
-   their tenant URL. Organizers live in the 'organizers' Postgres collection. */
+   their tenant URL. BS35: organizers are rows in the `organizer` table (this used
+   to parse the whole 'organizers' blob on every public event render). */
 @Injectable()
 export class TenantService {
-  constructor(private readonly entities: EntityStore) {}
+  constructor(private readonly organizers: OrganizerRepo) {}
 
   async organizerByHandle(handle: string) {
-    return (await this.entities.read<any[]>('organizers', [])).find((o) => o.handle === String(handle || '').toLowerCase());
+    return (await this.organizers.byHandle(handle)) ?? undefined;
   }
 
   // Canonical event URL. Real subdomain in prod; path alias on localhost (no wildcard DNS).

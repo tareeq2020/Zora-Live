@@ -21,6 +21,7 @@ import { generateCode, generatePublicRef, signCredential, ticketSigningKeys, qrP
 import { alertOps } from './ops';
 import { sendSms } from './sms';
 import { sendCredentialEmail } from './email';
+import { isCommissionRate } from './commission';
 
 type Sql = any;
 
@@ -168,7 +169,14 @@ export type CreateShareOrderResult =
   | { ok: true; orderId: string; amount: number }
   | { ok: false; reason: 'not_found' | 'split_closed' | 'already_paid' };
 
-export async function createShareOrder(sql: Sql, shareId: string, payerPhone: string, payerEmail?: string | null, payerName?: string | null): Promise<CreateShareOrderResult> {
+/**
+ * @param commissionRate BS35 (D1): the platform commission in force for this
+ * table, resolved by the caller (event override → org rate → default) BEFORE the
+ * call. A split's money lives ONLY on these `table_share` orders, so the stamp
+ * has to land here or split earnings would silently follow the live org rate.
+ */
+export async function createShareOrder(sql: Sql, shareId: string, payerPhone: string, payerEmail?: string | null, payerName?: string | null, commissionRate?: number | null): Promise<CreateShareOrderResult> {
+  const rate = isCommissionRate(commissionRate) ? commissionRate : null;
   return tx(async (t: Sql): Promise<CreateShareOrderResult> => {
     const [share] = await t`
       select s.id, s.order_id, s.amount, s.state, ts.event_id, ts.status as split_status
@@ -183,8 +191,8 @@ export async function createShareOrder(sql: Sql, shareId: string, payerPhone: st
       insert into customer (phone, email, name) values (${payerPhone}, ${payerEmail ?? null}, ${payerName ?? null})
       on conflict (phone) do update set email = coalesce(excluded.email, customer.email) returning id`;
     const [ord] = await t`
-      insert into "order" (customer_id, event_id, type, status, target_value)
-      values (${cust.id}, ${share.event_id}, 'table_share', 'pending', ${share.amount}) returning id`;
+      insert into "order" (customer_id, event_id, type, status, target_value, commission_rate)
+      values (${cust.id}, ${share.event_id}, 'table_share', 'pending', ${share.amount}, ${rate}) returning id`;
     await t`update split_share set order_id = ${ord.id}, customer_id = ${cust.id},
               state = case when state = 'unclaimed' then 'claimed' else state end where id = ${shareId}`;
     return { ok: true, orderId: ord.id, amount: Number(share.amount) };

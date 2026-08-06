@@ -54,6 +54,15 @@ export {
   OTP_TTL_SEC, OTP_MAX_ATTEMPTS, OTP_MAX_PER_WINDOW, OTP_THROTTLE_WINDOW_SEC,
 } from './otp';
 export type { RequestOtpResult, VerifyOtpResult } from './otp';
+// BS35: point-in-time commission — the ONLY place the rate is resolved and the
+// only place the net-of-commission rounding rule lives (eng review CQ1).
+export {
+  resolveCommissionRate, netOf, isCommissionRate, DEFAULT_COMMISSION_RATE,
+} from './commission';
+export type { CommissionEventLike, CommissionOrgLike } from './commission';
+// BS35: the debit side — refunded money leaves the organizer's earnings (OV1).
+export { refundOrder, REFUNDABLE_ORDER_STATUSES } from './refunds';
+export type { RefundOrderResult } from './refunds';
 export { sendSms } from './sms';
 export type { SmsDriver, SmsResult } from './sms';
 export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
