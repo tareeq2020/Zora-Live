@@ -93,6 +93,37 @@ async function syncScannerUserTable() {
   console.log(`✓ scanner_user table synced (${res.count} new row${res.count === 1 ? '' : 's'})`);
 }
 
+/* BS47: same story for the storefront theme — the collection_store singleton
+   (name='theme') becomes a row in the `theme` table (migration 0018), which
+   backfills from the blob. On a FRESH database the migration runs BEFORE this
+   script, so the blob it wanted did not exist yet; repeat the idempotent copy
+   here so either order lands a real customization (e.g. thebrunchcity's) as a
+   row. ON CONFLICT DO NOTHING never overwrites a theme an organizer already
+   saved through the new per-organizer PUT. */
+async function syncThemeTable() {
+  const [{ present }] = await sql`select to_regclass('public.theme') is not null as present`;
+  if (!present) return; // migrations not applied yet — 0018 will do the copy
+  const res = await sql`
+    insert into theme (organizer_id, brand_name, accent, secondary, bg, card, typography, logo_url, favicon_url, banner_url, updated_at)
+    select o.id,
+           cs.data::jsonb ->> 'brandName',
+           cs.data::jsonb ->> 'accent',
+           cs.data::jsonb ->> 'secondary',
+           cs.data::jsonb ->> 'bg',
+           cs.data::jsonb ->> 'card',
+           cs.data::jsonb ->> 'typography',
+           cs.data::jsonb ->> 'logoUrl',
+           cs.data::jsonb ->> 'faviconUrl',
+           cs.data::jsonb ->> 'bannerUrl',
+           now()
+      from collection_store cs
+      join organizer o on lower(o.handle) = lower(cs.data::jsonb ->> 'handle')
+     where cs.name = 'theme'
+       and jsonb_typeof(cs.data::jsonb) = 'object'
+    on conflict (organizer_id) do nothing`;
+  console.log(`✓ theme table synced (${res.count} new row${res.count === 1 ? '' : 's'})`);
+}
+
 try {
   for (const e of entities) {
     let text;
@@ -104,6 +135,7 @@ try {
     console.log(`✓ backfill ${e}`);
     if (e === 'organizers') await syncOrganizerTable();
     if (e === 'agents') await syncScannerUserTable();
+    if (e === 'theme') await syncThemeTable();
   }
 } finally {
   await sql.end({ timeout: 5 });

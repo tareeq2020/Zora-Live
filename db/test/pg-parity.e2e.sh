@@ -13,10 +13,13 @@ API_PORT="${TEST_API_PORT:-4109}"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/zora-pg-XXXXXX")"
 SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-snap-XXXXXX")"
 USER_NAME="$(whoami)"
-ENTITIES="settings tiers placements theme agents floorplan tickets organizers audit admin kyc media media_manifest registrations events"
+ENTITIES="settings tiers placements agents floorplan tickets organizers theme audit admin kyc media media_manifest registrations events"
 
 # parallel arrays: public endpoint -> fixture file
-PUB_PATHS=(/api/settings /api/tiers /api/placements /api/storefront-theme /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
+# BS47: storefront-theme now needs ?handle=, and its sync depends on 'organizers'
+# already being backfilled (theme rows join on organizer.handle) — organizers
+# comes before theme in ENTITIES above.
+PUB_PATHS=(/api/settings /api/tiers /api/placements "/api/storefront-theme?handle=thebrunchcity" /api/floorplan "/api/tickets/ZORA-OFF1-4471-88AK.svg")
 PUB_FIX=(settings.json tiers.json placements.json storefront-theme.json floorplan.json ticket.svg)
 # authed endpoint -> fixture (login exercises the migrated 'admin' collection)
 AUTH_PATHS=(/api/agents /api/organizers /api/audit /api/kyc /api/registrations)

@@ -53,6 +53,17 @@ export class PaymentsController {
     // Route map + per-FSP fee overrides are policy (settings); default to the
     // built-in map. callbackUrl is where x-bridge posts finality.
     const settings = await this.entities.read<any>('settings', DEFAULT_SETTINGS);
+
+    // BS47: admin can pull a method off the storefront (e.g. bill-pay isn't
+    // ready yet) without touching its FSP routing. Fail-open: an absent map,
+    // or an absent key within it, means enabled — an untouched platform is
+    // unaffected by this check.
+    const methodsEnabled =
+      settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
+    if (methodsEnabled[method] === false) {
+      return res.status(403).json({ error: 'method_disabled' });
+    }
+
     const routeMap: FspRouteMap =
       settings?.fspRouteMap && typeof settings.fspRouteMap === 'object' ? settings.fspRouteMap : DEFAULT_FSP_ROUTE_MAP;
     const feeRateByFsp: Record<string, number> =

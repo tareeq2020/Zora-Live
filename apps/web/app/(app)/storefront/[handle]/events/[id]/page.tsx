@@ -37,22 +37,24 @@ async function fetchTenant(handle: string): Promise<Organizer | null> {
     return res.ok ? ((await res.json()) as Organizer) : null;
   } catch { return null; }
 }
-async function fetchTheme(): Promise<StorefrontTheme> {
+// BS47: scoped to this organizer's own row — used to be one global theme shared
+// (and silently mismatched) across every organizer's event page.
+async function fetchTheme(handle: string): Promise<StorefrontTheme> {
   try {
-    const res = await fetch(`${API_URL}/api/storefront-theme`, { cache: 'no-store' });
+    const res = await fetch(`${API_URL}/api/storefront-theme?handle=${encodeURIComponent(handle)}`, { cache: 'no-store' });
     return res.ok ? ((await res.json()) as StorefrontTheme) : {};
   } catch { return {}; }
 }
 
 export async function generateMetadata({ params }: { params: { handle: string; id: string } }): Promise<Metadata> {
-  const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme()]);
+  const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme(params.handle)]);
   if (!ev) return { title: 'Event — Zora white-label store' };
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
   return { title: `${ev.name} — ${orgName}`, description: ev.tagline || `${ev.name} on ${orgName}.` };
 }
 
 export default async function TenantEventPage({ params }: { params: { handle: string; id: string } }) {
-  const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme()]);
+  const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme(params.handle)]);
 
   if (!ev) {
     return <main className={styles.page}><div className={styles.wrap}><div className={styles.notFound}>This event could not be found.</div></div></main>;

@@ -55,14 +55,13 @@ async function fetchEvents(handle: string): Promise<StorefrontEvent[]> {
   }
 }
 
-// Published storefront theme. The endpoint is a single published theme; only apply
-// it when it belongs to THIS handle (otherwise fall back to the default palette).
+// Published storefront theme, scoped to this organizer's own row (BS47 — the
+// endpoint used to serve a single global theme; every organizer now gets theirs).
 async function fetchTheme(handle: string): Promise<StorefrontTheme & { brandName?: string }> {
   try {
-    const res = await fetch(`${API_URL}/api/storefront-theme`, { cache: 'no-store' });
+    const res = await fetch(`${API_URL}/api/storefront-theme?handle=${encodeURIComponent(handle)}`, { cache: 'no-store' });
     if (!res.ok) return {};
-    const t = (await res.json()) as StorefrontTheme & { handle?: string; brandName?: string };
-    return t && t.handle === handle ? t : {};
+    return (await res.json()) as StorefrontTheme & { handle?: string; brandName?: string };
   } catch {
     return {};
   }
