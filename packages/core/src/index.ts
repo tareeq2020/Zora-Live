@@ -88,3 +88,26 @@ export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
+// BS42 (#1): the door. The two-step scan lifecycle rides the EXISTING
+// credential.state (OV4); the agent scan is the gate and the supervisor confirm
+// is selective (OV6). Row-locked, so a replayed QR can never win twice.
+export {
+  scanCredential, confirmCredential, pendingConfirmations, getPass, scanTotals,
+  parseQrPayload, requiresSupervisor, scanErrorMessage, confirmErrorMessage,
+  CREDENTIAL_STATES, TERMINAL_CREDENTIAL_STATES,
+} from './scan';
+export type {
+  CredentialState, ScanErrorCode, ConfirmErrorCode, ScanPass, ScanActor, ScanOutcome,
+  ScanCredentialInput, ScanCredentialResult, ConfirmCredentialInput, ConfirmCredentialResult,
+  PendingFilter, ParsedQr,
+} from './scan';
+// BS42 (#1): the code→session exchange, rate-limited with lockout (ARCH-3/OV4).
+export {
+  authenticateScannerCode, scanLockoutState, generateScannerCode, hashScanCode,
+  toScannerUser, scanAuthMessage,
+  SCAN_LOCKOUT_WINDOW_SEC, SCAN_CODE_MAX_FAILURES, SCAN_IP_MAX_FAILURES, SCAN_SESSION_TTL_SEC,
+  SCANNER_USER_COLUMNS,
+} from './scan-auth';
+export type {
+  ScannerRole, ScannerUser, ScannerUserRow, ScanAuthInput, ScanAuthResult, ScanAuthErrorCode,
+} from './scan-auth';

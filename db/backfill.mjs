@@ -61,6 +61,38 @@ async function syncOrganizerTable() {
   console.log(`✓ organizer table synced (${res.count} new row${res.count === 1 ? '' : 's'})`);
 }
 
+/* BS42: same story for scanner users — the `agents` blob became the
+   `scanner_user` table in migration 0014, which backfills from the blob. On a
+   FRESH database 0013 runs BEFORE this script, so the blob it wanted did not
+   exist yet; repeat the idempotent copy here so either order lands the seed door
+   staff as rows. ON CONFLICT DO NOTHING never overwrites a rotated code. */
+async function syncScannerUserTable() {
+  const [{ present }] = await sql`select to_regclass('public.scanner_user') is not null as present`;
+  if (!present) return; // migrations not applied yet — 0013 will do the copy
+  const res = await sql`
+    insert into scanner_user (id, name, contact, via, role, event_scope, code, status, created_at, expires_at)
+    select a->>'id',
+           coalesce(a->>'name', 'Scanner'),
+           a->>'contact',
+           a->>'via',
+           case when a->>'role' = 'supervisor' then 'supervisor' else 'agent' end,
+           (select e.id from event e where e.id = a->>'event'),
+           a->>'code',
+           case when a->>'status' = 'revoked' then 'revoked' else 'active' end,
+           coalesce((a->>'createdAt')::timestamptz, now()),
+           (a->>'expiresAt')::timestamptz
+      from collection_store cs,
+           lateral jsonb_array_elements(cs.data::jsonb) as a
+     where cs.name = 'agents'
+       and jsonb_typeof(cs.data::jsonb) = 'array'
+       and coalesce(a->>'id', '') <> ''
+       and coalesce(a->>'code', '') <> ''
+       and not exists (select 1 from scanner_user x where x.id = a->>'id')
+       and not exists (select 1 from scanner_user x where x.code = a->>'code' and x.status = 'active')
+    on conflict (id) do nothing`;
+  console.log(`✓ scanner_user table synced (${res.count} new row${res.count === 1 ? '' : 's'})`);
+}
+
 try {
   for (const e of entities) {
     let text;
@@ -71,6 +103,7 @@ try {
       on conflict (name) do update set data = excluded.data, updated_at = now()`;
     console.log(`✓ backfill ${e}`);
     if (e === 'organizers') await syncOrganizerTable();
+    if (e === 'agents') await syncScannerUserTable();
   }
 } finally {
   await sql.end({ timeout: 5 });
