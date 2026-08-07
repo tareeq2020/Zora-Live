@@ -24,13 +24,21 @@ DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs"
 
 echo "== assert schema =="
 MIGS=$(psql "$URL" -tAc "select count(*) from schema_migrations" | tr -d '[:space:]')
+EXPECTED_MIGS=$(ls "$ROOT"/db/migrations/*.sql | wc -l | tr -d '[:space:]')
 TABLES=$(psql "$URL" -tAc "select count(*) from information_schema.tables where table_schema='public'" | tr -d '[:space:]')
-for t in app_user organizer customer event product_tier price_version registration kyc_verification kyc_document setting theme placement floorplan media_asset agent audit_log credential; do
+for t in app_user organizer customer event product_tier price_version registration kyc_verification kyc_document setting theme placement floorplan media_asset agent audit_log credential \
+         table_split split_share otp_challenge; do
   ok=$(psql "$URL" -tAc "select to_regclass('public.$t') is not null" | tr -d '[:space:]')
   [ "$ok" = "t" ] || { echo "FAIL: table $t missing"; exit 1; }
 done
-echo "  migrations=$MIGS public_tables=$TABLES (all 17 domain tables present)"
-[ "$MIGS" = "1" ] || { echo "FAIL: expected 1 applied migration, got $MIGS"; exit 1; }
+# bill-split columns (0006): tier opt-in + per-payer credential linkage
+for col in "product_tier.split_enabled" "product_tier.split_window_secs" "credential.split_share_id" "split_share.claim_token"; do
+  tbl="${col%.*}"; c="${col#*.}"
+  ok=$(psql "$URL" -tAc "select exists(select 1 from information_schema.columns where table_name='$tbl' and column_name='$c')" | tr -d '[:space:]')
+  [ "$ok" = "t" ] || { echo "FAIL: column $col missing"; exit 1; }
+done
+echo "  migrations=$MIGS public_tables=$TABLES (all domain tables + bill-split present)"
+[ "$MIGS" = "$EXPECTED_MIGS" ] || { echo "FAIL: expected $EXPECTED_MIGS applied migrations, got $MIGS"; exit 1; }
 
 echo "== migrate (idempotent re-run) =="
 OUT=$(DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs")

@@ -40,10 +40,12 @@ async function run() {
     else bad(`page ${p}`, `web ${w.status} ${w.body.length}b vs oracle ${o.status} ${o.body.length}b`);
   }
 
-  // 2. '/' serves the homepage
-  const [rootW, rootO] = await Promise.all([get(WEB, '/'), get(ORACLE, '/')]);
-  if (rootW.status === 200 && rootW.body === rootO.body) ok("'/' serves homepage");
-  else bad("'/' serves homepage", `web ${rootW.status} ${rootW.body.length}b vs oracle ${rootO.status} ${rootO.body.length}b`);
+  // 2. '/' (apex) now LANDS ON THE DISCOVERY marketplace (D1 — bill-split launch),
+  // not the old OFFSHORE manifesto home. The apex rewrites to /discover, so the
+  // apex body equals the /discover route body (URL stays '/').
+  const [rootW, discoverW] = await Promise.all([get(WEB, '/'), get(WEB, '/discover')]);
+  if (rootW.status === 200 && rootW.body === discoverW.body) ok("'/' lands on /discover (D1)");
+  else bad("'/' lands on /discover (D1)", `apex ${rootW.status} ${rootW.body.length}b vs /discover ${discoverW.status} ${discoverW.body.length}b`);
 
   // 3. /api proxy matches oracle
   for (const api of ['/api/settings', '/api/tiers', '/api/events', '/api/placements']) {

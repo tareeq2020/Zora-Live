@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
   tagline:       'Culture, exported.',
   zoraTagline:   'The ticket is the product.',
   appNote:       'The app is the only door.',
-  contactEmail:  'board@zora.app',
+  contactEmail:  'support@zorapass.com',
   instagram:     '',
 };
 
@@ -30,18 +30,43 @@ export const DEFAULT_TIERS = [
 /* Reserved handles that can never be claimed as an organizer handle — they
    collide with reserved subdomains or top-level app routes. Canonical backend
    copy of the front-end signup TAKEN set (apps/web/public/signup.html). PR-F-AUTH
-   extends it with the path-prefix app routes: dashboard, events, discover, drops, t. */
+   extends it with the path-prefix app routes: dashboard, events, discover, drops, t.
+
+   BS41 (#4): now that organizers can claim their own handle at self-signup, this
+   list is the SERVER-SIDE authority and had to become a true superset of
+   apps/web/middleware.ts's RESERVED_TOP. Middleware rewrites a bare `/<handle>`
+   to that organizer's storefront ONLY when the first segment is not in
+   RESERVED_TOP — so any handle in RESERVED_TOP but missing here could be
+   registered and would then be permanently unreachable at its own front door.
+   The entries below the blank line are exactly that reconciliation; keep the two
+   lists in step when a new top-level route lands. */
 export const RESERVED_HANDLES = [
   'zora', 'admin', 'www', 'app', 'port', 'api', 'help', 'offshore',
   'dashboard', 'events', 'discover', 'drops', 't',
+
+  // ← mirrors apps/web/middleware.ts RESERVED_TOP (BS41)
+  'about', 'brand', 'commission', 'join', 'split', 'storefront', 'login', 'signup',
+  'studio', 'seatmap', 'create-event', '_next', 'assets', 'tickets', 'account',
+  'favicon', 'placeholder',
+  // Front doors we have not built yet but must not hand away: mail/DNS-sensitive
+  // labels and the obvious impersonation risks.
+  'mail', 'smtp', 'ftp', 'ns', 'cdn', 'static', 'support', 'billing', 'security',
+  'status', 'blog', 'docs', 'legal', 'privacy', 'terms', 'pay', 'checkout', 'scan',
+  'scanner', 'me', 'my', 'new', 'settings', 'signin', 'signout', 'logout', 'register',
 ];
 
-export const DEFAULT_ORGANIZERS = [
-  { id:'o1', name:'The Brunch City', handle:'thebrunchcity', email:'hello@thebrunchcity.co', status:'active',    events:9, revenue:167713000, joined:'2024-03-11' },
-  { id:'o2', name:'Offshore Ltd',    handle:'offshore',      email:'board@offshore.app',     status:'active',    events:1, revenue:84200000,  joined:'2026-05-02' },
-  { id:'o3', name:'Basement',        handle:'basement',      email:'crew@basement.co',       status:'active',    events:4, revenue:22400000,  joined:'2025-11-20' },
-  { id:'o4', name:'Palmwine Co',     handle:'palmwine',      email:'team@palmwine.ng',       status:'suspended', events:2, revenue:11800000,  joined:'2025-08-14' },
-];
+// BS31: the platform's commission taken from an organizer's payout (does NOT change
+// the ticket price the buyer pays). Per-organizer, admin-configurable; this is the
+// fallback when a record has none.
+// BS35: the value + the resolution/rounding rules now live in @zora/core
+// (commission.ts) so there is exactly ONE definition of the money math; this is a
+// re-export for the API's existing importers.
+export { DEFAULT_COMMISSION_RATE } from '@zora/core';
+
+// BS35: organizers moved from the collection_store blob to the relational
+// `organizer` table (migration 0009, which also carries the fresh-install seed).
+// Nothing reads a DEFAULT_ORGANIZERS fallback any more — OrganizerRepo is the
+// single source.
 
 export const SLOTS = [
   { key: 'home-hero',         label: 'Homepage hero background',    def: '/assets/event-01.jpg' },
@@ -68,9 +93,28 @@ export const KYC_REASONS = [
   { code: 'incomplete_upload',    label: 'Incomplete — a side is missing', user: 'We need every side of the document. Please add the missing image and resubmit.' },
   { code: 'document_unclear',     label: 'Document type unclear',          user: 'We could not clearly read the document. Retake it with all four corners visible.' },
   { code: 'unsupported_document', label: 'Unsupported document',           user: "We could not accept this document. Please use a passport, driver's license, or national ID." },
-  { code: 'suspected_fraud',      label: 'Suspected fraud',                user: 'We could not verify this submission. Please contact support@zora.app.' },
+  { code: 'suspected_fraud',      label: 'Suspected fraud',                user: 'We could not verify this submission. Please contact support@zorapass.com.' },
 ];
 
 export const TICKET_FIELDS = ['event','dateLabel','venue','tableName','tableNo','seats','guest','ticketId','tier','qr'];
 
-export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
+export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
+
+// BS46: the published support contacts. One source of truth — surfaces (help,
+// receipts, KYC rejection copy, ticket emails) read these rather than inlining.
+export const SUPPORT_EMAIL = 'support@zorapass.com';
+export const SUPPORT_PHONE = '+255 741 099 989';
+
+// BS47: canonical event-city list. Event.city must be one of these ids — before
+// this, the field was freetext and discover's city filter matched on a fixed id
+// set, so a value like "Dar Es Salaam" (freetext) silently never matched "dar"
+// and hid the event from its own city page. Mirrors
+// apps/web/app/lib/cities.ts; keep both in step when a city is added.
+export const EVENT_CITIES = [
+  { id: 'dar', label: 'Dar es Salaam', country: 'Tanzania' },
+  { id: 'zanzibar', label: 'Zanzibar', country: 'Tanzania' },
+  { id: 'nairobi', label: 'Nairobi', country: 'Kenya' },
+  { id: 'accra', label: 'Accra', country: 'Ghana' },
+  { id: 'lagos', label: 'Lagos', country: 'Nigeria' },
+] as const;
+export const EVENT_CITY_IDS = EVENT_CITIES.map((c) => c.id) as string[];

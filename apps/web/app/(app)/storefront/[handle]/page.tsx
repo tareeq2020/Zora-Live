@@ -35,25 +35,33 @@ async function fetchTenant(handle: string): Promise<Organizer | null> {
   }
 }
 
+// BS24: a web-sellable drop whose tiers are ALL disabled has nothing on sale — it's
+// hidden from the storefront entirely (no card, no leaf). App-claim drops (no web
+// catalog) are untouched. This mirrors the leaf's not-available guard.
+function hasSomethingOnSale(ev: StorefrontEvent): boolean {
+  const tiers = ev.webCheckout?.tiers;
+  if (!tiers || tiers.length === 0) return true; // app-claim / no web catalog
+  return tiers.some((t) => t.tierId && !t.disabled);
+}
+
 async function fetchEvents(handle: string): Promise<StorefrontEvent[]> {
   try {
     const res = await fetch(`${API_URL}/api/events`, { cache: 'no-store' });
     if (!res.ok) return [];
     const all = (await res.json()) as Array<StorefrontEvent & { organizerHandle?: string }>;
-    return all.filter((ev) => ev.organizerHandle === handle);
+    return all.filter((ev) => ev.organizerHandle === handle).filter(hasSomethingOnSale);
   } catch {
     return [];
   }
 }
 
-// Published storefront theme. The endpoint is a single published theme; only apply
-// it when it belongs to THIS handle (otherwise fall back to the default palette).
+// Published storefront theme, scoped to this organizer's own row (BS47 — the
+// endpoint used to serve a single global theme; every organizer now gets theirs).
 async function fetchTheme(handle: string): Promise<StorefrontTheme & { brandName?: string }> {
   try {
-    const res = await fetch(`${API_URL}/api/storefront-theme`, { cache: 'no-store' });
+    const res = await fetch(`${API_URL}/api/storefront-theme?handle=${encodeURIComponent(handle)}`, { cache: 'no-store' });
     if (!res.ok) return {};
-    const t = (await res.json()) as StorefrontTheme & { handle?: string; brandName?: string };
-    return t && t.handle === handle ? t : {};
+    return (await res.json()) as StorefrontTheme & { handle?: string; brandName?: string };
   } catch {
     return {};
   }
@@ -75,7 +83,7 @@ export async function generateMetadata({ params }: { params: { handle: string } 
   const org = await fetchTenant(params.handle);
   if (!org) return { title: 'Storefront — ZORA' };
   const title = `${org.name} — ZORA`;
-  const description = `Live events from ${org.name}. Passes run on Zora — no fees at checkout, ever.`;
+  const description = `Live events from ${org.name}. Passes run on Zora — one honest price, no booking fees.`;
   return { title, description, openGraph: { title, description, type: 'website' } };
 }
 
@@ -95,12 +103,12 @@ export default async function StorefrontPage({ params }: { params: { handle: str
   const cityLabel = (CITY_LABEL[cityCode] || cityCode).toUpperCase();
   const eyebrow = cityLabel ? `${cityLabel} · STOREFRONT` : 'STOREFRONT';
   const lede =
-    `Live events from ${brandName}. What you see is what you pay — passes run on Zora, ` +
-    `with no fees appearing at the last second, and your table is your table.`;
+    `Live events from ${brandName}. One honest price — passes run on Zora with no booking fee, ` +
+    `and your table is your table.`;
   const aboutHeading = `Every ${brandName} event, in one place.`;
   const aboutBody =
     `This is the ${brandName} storefront — the full index of upcoming events. Tickets are issued ` +
-    `and honored by Zora: honest pricing, no surprise fees, and a pass that lives in your pocket.`;
+    `and honored by Zora: one honest price, no Zora booking fee, and a pass that lives in your pocket.`;
 
   return (
     <StorefrontClient

@@ -94,6 +94,7 @@ async function authed(cfg: XbridgeConfig, path: string, init: { method: string; 
 export function normalizeMsisdn(phone: string): string {
   let digits = String(phone).replace(/\D/g, '');
   if (digits.startsWith('0')) digits = '255' + digits.slice(1);
+  else if (digits.length === 9) digits = '255' + digits; // bare local number (the +255-prefixed UI submits this)
   return '+' + digits;
 }
 

@@ -20,15 +20,19 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CITIES } from '../../../../lib/cities';
 import {
   type ApiError,
   type DropForm,
   type FieldErrors,
   type OrgEvent,
   buildBody,
+  archiveDrop,
   createDrop,
   deleteDrop,
+  deleteTier,
   emptyForm,
+  unarchiveDrop,
   emptyTier,
   fetchEvents,
   fetchMe,
@@ -69,6 +73,12 @@ const STYLE = `
 .zora-dropedit .block-h .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;font-size:10px}
 .zora-dropedit label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-bottom:8px}
 .zora-dropedit .in{width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:13px 15px;outline:none;transition:border-color .2s;color:var(--ink)}
+.zora-dropedit .coverdz{position:relative;width:100%;height:150px;border:1px dashed var(--hair);border-radius:12px;background:#fff center/cover no-repeat;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:border-color .2s;overflow:hidden}
+.zora-dropedit .coverdz:hover{border-color:var(--blue)}
+.zora-dropedit .coverdz.filled{border-style:solid}
+.zora-dropedit .coverdz-txt{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mut);padding:0 24px;line-height:1.7}
+.zora-dropedit .coverdz-rm{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:8px;border:none;background:rgba(10,10,11,.7);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+.zora-dropedit .hint{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--mut);margin-top:8px;line-height:1.6}
 .zora-dropedit .in:focus{border-color:var(--blue)}
 .zora-dropedit .in.err{border-color:var(--red)}
 .zora-dropedit .in.big{font-size:19px;font-weight:500;padding:15px}
@@ -78,6 +88,10 @@ const STYLE = `
 .zora-dropedit .field-err{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--red);margin-top:7px}
 .zora-dropedit .tier{background:#fff;border:1px solid var(--hair);border-radius:12px;padding:14px;margin-bottom:12px}
 .zora-dropedit .tier.err{border-color:var(--red)}
+.zora-dropedit .tier.off{background:var(--card);border-style:dashed}
+.zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
+.zora-dropedit .tier-note{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
+.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:11.5px;color:#9a5b1e;background:#fbf1e6;border:1px solid #e2b483;border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
 .zora-dropedit .tier-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}
 @media(max-width:620px){.zora-dropedit .tier-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .zora-dropedit .tier label{margin-bottom:6px}
@@ -128,6 +142,7 @@ const STYLE = `
 .zora-dropedit .danger-zone{border:1px solid var(--hair);border-radius:12px;padding:18px 20px;margin-top:20px}
 .zora-dropedit .danger-zone .dz-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--red);margin-bottom:6px}
 .zora-dropedit .danger-zone .dz-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;line-height:1.6;margin-bottom:14px}
+.zora-dropedit .danger-zone .dz-actions{display:flex;gap:10px;flex-wrap:wrap}
 .zora-dropedit .del-btn{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--red);padding:11px 18px;cursor:pointer;transition:background .2s,border-color .2s}
 .zora-dropedit .del-btn:hover:not(:disabled){background:var(--red);border-color:var(--red);color:#fff}
 .zora-dropedit .overlay{position:fixed;inset:0;background:rgba(244,241,234,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px}
@@ -170,7 +185,9 @@ export default function DropEditor(props: DropEditorProps) {
   // ── async boot: /api/org/me (+ the event on edit) ──
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadErrMsg, setLoadErrMsg] = useState('');
+  const [status, setStatus] = useState<string>(''); // BS24: loaded drop status (drives Archive vs Restore)
   const [kycStatus, setKycStatus] = useState<string>('unverified');
+  const [commissionRate, setCommissionRate] = useState<number>(0.05); // BS31: netted from payout
   const [form, setForm] = useState<DropForm>(emptyForm);
 
   // Stable idempotency key for the lifetime of this form instance (create).
@@ -186,17 +203,20 @@ export default function DropEditor(props: DropEditorProps) {
           const [me, events] = await Promise.all([mePromise, fetchEvents()]);
           if (!alive) return;
           setKycStatus(me.kycStatus);
+          setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           const ev: OrgEvent | undefined = events.find((e) => String(e.id) === String((props as { eventId: string }).eventId));
           if (!ev) {
             setLoadState('not_found');
             return;
           }
           setForm(formFromEvent(ev));
+          setStatus(ev.status || '');
           setLoadState('ready');
         } else {
           const me = await mePromise;
           if (!alive) return;
           setKycStatus(me.kycStatus);
+          setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           setLoadState('ready');
         }
       } catch (e) {
@@ -218,6 +238,10 @@ export default function DropEditor(props: DropEditorProps) {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // BS23: which tier row is pending a delete-confirm, and whether that call is in flight.
+  const [tierDelIdx, setTierDelIdx] = useState<number | null>(null);
+  const [tierDeleting, setTierDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false); // BS24: archive/restore in flight
   const [serverError, setServerError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
 
@@ -228,12 +252,59 @@ export default function DropEditor(props: DropEditorProps) {
   const set = <K extends keyof DropForm>(key: K, value: DropForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const setTier = (i: number, key: keyof DropForm['tiers'][number], value: string) =>
+  // Per-event cover image → base64 → POST /api/upload (same CDN path the studio
+  // uses) → store the returned URL on form.cover.
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  async function uploadCover(file: File) {
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) { setServerError('Cover must be a PNG, JPEG, or WebP image.'); return; }
+    if (file.size > 8 * 1024 * 1024) { setServerError('Cover image must be under 8MB.'); return; }
+    setCoverBusy(true); setServerError('');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file);
+      });
+      const resp = await fetch('/api/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: file.name, dataUrl }),
+      });
+      const d = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(d.error || 'Upload failed');
+      set('cover', d.url);
+    } catch (e: any) { setServerError(String(e?.message || e)); }
+    finally { setCoverBusy(false); }
+  }
+
+  const setTier = (i: number, key: keyof DropForm['tiers'][number], value: string | boolean) =>
     setForm((f) => ({ ...f, tiers: f.tiers.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)) }));
 
   const addTier = () => setForm((f) => ({ ...f, tiers: [...f.tiers, emptyTier()] }));
   const removeTier = (i: number) =>
     setForm((f) => ({ ...f, tiers: f.tiers.length > 1 ? f.tiers.filter((_, idx) => idx !== i) : f.tiers }));
+
+  // BS23: a NEW (unsaved) row is dropped locally; an EXISTING tier (has tierId) is
+  // deleted server-side behind a confirm, since it may already have sales.
+  const requestRemoveTier = (i: number) => {
+    setServerError('');
+    if (form.tiers[i]?.tierId) setTierDelIdx(i);
+    else removeTier(i);
+  };
+  async function handleDeleteTier() {
+    if (tierDeleting || tierDelIdx == null) return;
+    const row = form.tiers[tierDelIdx];
+    if (!row?.tierId) { removeTier(tierDelIdx); setTierDelIdx(null); return; }
+    setServerError('');
+    setTierDeleting(true);
+    try {
+      await deleteTier((props as { eventId: string }).eventId, row.tierId);
+      removeTier(tierDelIdx);
+      setTierDelIdx(null);
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'delete'));
+      setTierDelIdx(null);
+    } finally {
+      setTierDeleting(false);
+    }
+  }
 
   const toggleSellable = () => {
     if (!kycApproved) return; // locked — publishing a paid drop needs verification
@@ -244,6 +315,10 @@ export default function DropEditor(props: DropEditorProps) {
   const tiersForBody = usableTiers(form);
   const priceFrom = priceFromOf(tiersForBody);
   const totalCap = tiersForBody.reduce((sum, t) => sum + (Number.isFinite(t.capacity) ? t.capacity : 0), 0);
+  // BS25: a sellable drop with real tiers but none on sale is hidden from the
+  // storefront — warn here (matches the dashboard flag) so it's never a surprise.
+  const realTierRows = form.tiers.filter((t) => t.tierId || t.name.trim());
+  const noneOnSale = form.sellable && realTierRows.length > 0 && realTierRows.every((t) => t.disabled);
   const whenLabel = [form.dateLabel, form.time].filter(Boolean).join(' · ').toUpperCase();
   const locLabel = [form.venue, form.city].filter(Boolean).join(' — ').toUpperCase();
 
@@ -284,6 +359,32 @@ export default function DropEditor(props: DropEditorProps) {
       setServerError(messageForError(err, 'delete'));
       setConfirmOpen(false);
       setDeleting(false);
+    }
+  }
+
+  // BS24: archive/restore from the editor. Both return to the dashboard on success.
+  async function handleArchive() {
+    if (archiving) return;
+    setServerError('');
+    setArchiving(true);
+    try {
+      await archiveDrop((props as { eventId: string }).eventId);
+      router.push('/dashboard');
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'save'));
+      setArchiving(false);
+    }
+  }
+  async function handleRestore() {
+    if (archiving) return;
+    setServerError('');
+    setArchiving(true);
+    try {
+      await unarchiveDrop((props as { eventId: string }).eventId);
+      router.push('/dashboard');
+    } catch (e) {
+      setServerError(messageForError(e as ApiError, 'save'));
+      setArchiving(false);
     }
   }
 
@@ -399,12 +500,20 @@ export default function DropEditor(props: DropEditorProps) {
             <div className="row2">
               <div className="field">
                 <label>CITY</label>
-                <input
+                <select
                   className="in"
                   value={form.city}
                   onChange={(e) => set('city', e.target.value)}
-                  placeholder="Dar es Salaam"
-                />
+                >
+                  <option value="" disabled>
+                    Select a city
+                  </option>
+                  {CITIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.city}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>CATEGORY</label>
@@ -425,6 +534,37 @@ export default function DropEditor(props: DropEditorProps) {
                 placeholder="The Secret Garden, Oysterbay"
               />
             </div>
+            <div className="field">
+              <label>EVENT COVER IMAGE</label>
+              <div
+                className={'coverdz' + (form.cover ? ' filled' : '')}
+                onClick={() => coverInputRef.current?.click()}
+                style={form.cover ? { backgroundImage: `url(${form.cover})` } : undefined}
+                role="button"
+                tabIndex={0}
+              >
+                {!form.cover ? (
+                  <span className="coverdz-txt">{coverBusy ? 'Uploading to CDN…' : 'Drop a hero image or browse · PNG/JPEG · 1600×900 · under 8MB'}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="coverdz-rm"
+                    onClick={(e) => { e.stopPropagation(); set('cover', ''); }}
+                    aria-label="Remove cover"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(e) => e.target.files?.[0] && uploadCover(e.target.files[0])}
+              />
+              <p className="hint">Shows as the hero on your public event page. A wide 16:9 image looks best.</p>
+            </div>
           </div>
 
           {/* 2 · tiers */}
@@ -432,10 +572,22 @@ export default function DropEditor(props: DropEditorProps) {
             <p className="block-h">
               <span className="n">2</span>TICKETS &amp; PRICING
             </p>
+            <p className="tier-note" style={{ marginTop: -8, marginBottom: 14 }}>
+              Buyers pay these prices in full — Zora adds no booking fee. Your payout is each price net of your{' '}
+              {(commissionRate * 100).toFixed(1).replace(/\.0$/, '')}% Zora commission.
+            </p>
+            {noneOnSale ? (
+              <p className="tiers-hidden-note">
+                ⚠ Every tier is off, so this drop is hidden from your storefront. Turn at least one “On sale” back on to
+                sell it.
+              </p>
+            ) : null}
             {form.tiers.map((t, i) => {
               const rowErr = showValidation ? errors.tierRows?.[i] : undefined;
+              const hasSales = (t.sold ?? 0) > 0;
               return (
-                <div className={'tier' + (rowErr ? ' err' : '')} key={i}>
+                <div className={'tier' + (rowErr ? ' err' : '') + (t.disabled ? ' off' : '')} key={i}>
+                  {t.disabled ? <span className="tier-badge">HIDDEN — NOT ON SALE</span> : null}
                   <div className="tier-grid">
                     <div>
                       <label>TIER NAME</label>
@@ -470,14 +622,73 @@ export default function DropEditor(props: DropEditorProps) {
                     </div>
                     <button
                       className="del"
-                      title="Remove tier"
-                      onClick={() => removeTier(i)}
-                      disabled={form.tiers.length <= 1}
+                      title={hasSales ? 'This tier has sales — disable it instead of deleting' : 'Remove tier'}
+                      onClick={() => requestRemoveTier(i)}
+                      disabled={form.tiers.length <= 1 || hasSales}
                       aria-label="Remove tier"
                     >
                       ×
                     </button>
                   </div>
+                  {/* BS23 — on-sale toggle: hide a tier from the storefront (and block
+                      new purchases) without deleting it. The one lever that works even
+                      after a tier has sold. */}
+                  <div className="togglebar" style={{ marginTop: 10 }}>
+                    <div className="tg-body">
+                      <p className="tg-t">On sale</p>
+                      <p className="tg-d">
+                        {t.disabled
+                          ? 'Hidden from your storefront and not purchasable. Turn on to sell it again.'
+                          : 'Shown on your storefront and open for sale. Turn off to stop new sales (existing tickets stay valid).'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={'switch' + (!t.disabled ? ' on' : '')}
+                      onClick={() => setTier(i, 'disabled', !t.disabled)}
+                      role="switch"
+                      aria-checked={!t.disabled}
+                      aria-label="Tier on sale"
+                    >
+                      <span className="knob" />
+                    </button>
+                  </div>
+                  <div className="togglebar" style={{ marginTop: 10 }}>
+                    <div className="tg-body">
+                      <p className="tg-t">Let guests split this table</p>
+                      <p className="tg-d">Buyers invite their crew; each pays a share; the table holds until it fills. Use on table tiers.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={'switch' + (t.splitEnabled ? ' on' : '')}
+                      onClick={() => setTier(i, 'splitEnabled', !t.splitEnabled)}
+                      role="switch"
+                      aria-checked={!!t.splitEnabled}
+                      aria-label="Let guests split this table"
+                    >
+                      <span className="knob" />
+                    </button>
+                  </div>
+                  {t.splitEnabled ? (
+                    <div className="field" style={{ marginTop: 10, maxWidth: 240 }}>
+                      <label>MAX PEOPLE PER TABLE</label>
+                      <input
+                        className="in"
+                        type="number"
+                        min={2}
+                        step={1}
+                        value={t.seats ?? ''}
+                        onChange={(e) => setTier(i, 'seats', e.target.value)}
+                        placeholder="8"
+                      />
+                      <p className="tier-note" style={{ marginTop: 6 }}>
+                        The biggest crew that can split this table. Buyers choose any size up to this (default 8).
+                      </p>
+                    </div>
+                  ) : null}
+                  {hasSales ? (
+                    <p className="tier-note">This tier has sales — it can’t be deleted. Turn off “On sale” to stop new sales.</p>
+                  ) : null}
                   {rowErr ? <p className="field-err">{rowErr}</p> : null}
                 </div>
               );
@@ -553,16 +764,34 @@ export default function DropEditor(props: DropEditorProps) {
             </div>
           </div>
 
-          {/* danger zone — edit only */}
+          {/* BS24 — manage drop: archive (reversible, works even with sales) or, for
+              a clean drop, delete. Archived drops show Restore. */}
           {isEdit ? (
             <div className="danger-zone">
-              <p className="dz-h">DANGER ZONE</p>
-              <p className="dz-d">
-                Archives this drop and hides it from your storefront. Drops with paid orders can&apos;t be deleted.
-              </p>
-              <button className="del-btn" onClick={() => setConfirmOpen(true)} disabled={deleting}>
-                DELETE DROP
-              </button>
+              <p className="dz-h">MANAGE DROP</p>
+              {status === 'archived' ? (
+                <>
+                  <p className="dz-d">This drop is archived — hidden from your storefront. Restore it to sell again.</p>
+                  <button className="publish" onClick={handleRestore} disabled={archiving}>
+                    {archiving ? 'RESTORING…' : 'RESTORE DROP'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="dz-d">
+                    Archive takes this drop off your storefront and stops new sales — reversible anytime, and works even
+                    after it has sold. Delete removes a drop that has no sales.
+                  </p>
+                  <div className="dz-actions">
+                    <button className="ghost" onClick={handleArchive} disabled={archiving}>
+                      {archiving ? 'ARCHIVING…' : 'ARCHIVE DROP'}
+                    </button>
+                    <button className="del-btn" onClick={() => setConfirmOpen(true)} disabled={deleting}>
+                      DELETE DROP
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
         </div>
@@ -572,7 +801,7 @@ export default function DropEditor(props: DropEditorProps) {
           <div className="side">
             <p className="side-h">LIVE PREVIEW — HOW YOUR CROWD SEES IT</p>
             <div className="pv">
-              <p className="pv-url">yourname.zora.com</p>
+              <p className="pv-url">yourname.zorapass.com</p>
               <div className="pv-banner">
                 <span className="ph">YOUR BANNER APPEARS HERE</span>
               </div>
@@ -596,9 +825,9 @@ export default function DropEditor(props: DropEditorProps) {
               </div>
             </div>
             <p className="side-note">
-              No fees are ever added at checkout.
+              Buyers pay the price you set — Zora adds no booking fee.
               <br />
-              The price you set is the price they pay.
+              Your payout is that price net of your Zora commission.
             </p>
           </div>
         </div>
@@ -620,6 +849,28 @@ export default function DropEditor(props: DropEditorProps) {
               </button>
               <button className="confirm-del" onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'DELETING…' : 'DELETE DROP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* BS23 — delete-tier confirm (existing tiers only; new rows drop instantly) */}
+      {tierDelIdx != null ? (
+        <div className="overlay" onClick={(e) => e.target === e.currentTarget && !tierDeleting && setTierDelIdx(null)}>
+          <div className="modal" role="dialog" aria-modal="true">
+            <h2>Delete this tier?</h2>
+            <p>
+              {form.tiers[tierDelIdx]?.name.trim() ? `“${form.tiers[tierDelIdx].name.trim()}” ` : 'This tier '}
+              will be removed from your drop. This can&apos;t be undone. A tier that already has sales or held seats
+              can&apos;t be deleted — turn off “On sale” to stop new sales instead.
+            </p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setTierDelIdx(null)} disabled={tierDeleting}>
+                CANCEL
+              </button>
+              <button className="confirm-del" onClick={handleDeleteTier} disabled={tierDeleting}>
+                {tierDeleting ? 'DELETING…' : 'DELETE TIER'}
               </button>
             </div>
           </div>

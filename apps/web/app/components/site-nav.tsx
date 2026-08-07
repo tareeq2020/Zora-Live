@@ -17,8 +17,6 @@ export function SiteNav() {
         <div className="nav-links">
           <a href="/discover">events</a>
           <a href="/events/offshore">drops</a>
-          <a href="/about">about</a>
-          <a href="/commission">pricing</a>
           <a href="/help">help</a>
           <a href="/dashboard/login">organizers</a>
           <a href="/discover" className="kbtn">FIND EVENTS</a>

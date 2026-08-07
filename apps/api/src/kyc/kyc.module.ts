@@ -5,6 +5,7 @@ import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 import { AuditService } from '../audit/audit.module';
 import { KycService } from './kyc.service';
+import { OrgVerificationController } from './org-verification.controller';
 import { ID_TYPES, KYC_REASONS } from '../common/defaults';
 
 /* KYC records live in the 'kyc' Postgres collection; the encrypted document blobs
@@ -147,5 +148,11 @@ export class KycController {
   }
 }
 
-@Module({ controllers: [KycController], providers: [KycService] })
+/* BS41 (#5): OrgVerificationController joins this module — self-signup approval
+   is the SAME queue as identity KYC (one gate: kyc_status === 'approved'), just a
+   different subject (an organizer row, not a document submission). Registered
+   AFTER KycController so the narrower literal path /api/kyc/organizers/... is
+   matched by its own controller and the existing /api/kyc/:id/... routes are
+   untouched. */
+@Module({ controllers: [KycController, OrgVerificationController], providers: [KycService] })
 export class KycModule {}

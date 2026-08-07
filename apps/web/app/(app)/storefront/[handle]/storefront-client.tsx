@@ -56,11 +56,9 @@ export type StorefrontProps = {
 };
 
 const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
-const FONTS: Record<string, { display: string; body: string }> = {
-  editorial: { display: "'Fraunces',serif", body: "'Archivo',system-ui,sans-serif" },
-  grotesque: { display: "'Archivo',system-ui,sans-serif", body: "'Archivo',system-ui,sans-serif" },
-  monoforward: { display: "'IBM Plex Mono',monospace", body: "'Archivo',system-ui,sans-serif" },
-};
+// Type is FIXED to the Zora consumer system (Space Grotesk / Inter); organizers
+// customise accent + assets, not fonts (STOREFRONT-BRAND-SPEC.md D2). The old
+// per-organizer FONTS map is retired.
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -151,7 +149,6 @@ export default function StorefrontClient(props: StorefrontProps) {
 
   const accent = theme.accent || '#C46A28';
   const accentDeep = shade(accent, -0.3);
-  const font = (theme.typography && FONTS[theme.typography]) || FONTS.editorial;
 
   // ── checkout sheet state (faithful to the original) ──
   const [open, setOpen] = useState(false);
@@ -186,7 +183,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
   // PR-11: a web-sellable event carries real product tiers → the live payments
   // flow replaces the old app-claim sheet. Everything else keeps the app-claim path.
-  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId) || [];
+  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
   const webSellable = webTiers.length > 0;
   const activeWhen = active
     ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()
@@ -196,16 +193,18 @@ export default function StorefrontClient(props: StorefrontProps) {
     ['--accent' as string]: accent,
     ['--accent-deep' as string]: accentDeep,
     ['--secondary' as string]: theme.secondary || '#1D6E56',
-    ['--paper' as string]: theme.bg || '#F7F1E7',
-    ['--card' as string]: theme.card || '#FFFDF8',
-    ['--display' as string]: font.display,
-    ['--body' as string]: font.body,
+    // Fixed Zora consumer DARK canvas + type system — only the accent is the
+    // organizer's (STOREFRONT-BRAND-SPEC.md D1/D2). No cream, no editorial fonts.
+    ['--paper' as string]: '#0A0B10',
+    ['--card' as string]: '#11131E',
+    ['--display' as string]: "'Space Grotesk',system-ui,sans-serif",
+    ['--body' as string]: "'Inter',system-ui,sans-serif",
   } as React.CSSProperties;
 
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
@@ -256,6 +255,14 @@ export default function StorefrontClient(props: StorefrontProps) {
             ) : (
               events.map((ev) => {
                 const evCur = CUR[ev.city || ''] || 'TZS';
+                // BS26: the headline "FROM" must reflect what's actually on sale — the
+                // cheapest ENABLED tier — not the stale priceFrom scalar (which still
+                // points at a switched-off tier). Falls back to priceFrom for app-claim
+                // events (no web catalog).
+                const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
+                const fromPrice = onSaleTiers.length
+                  ? Math.min(...onSaleTiers.map((t) => t.unitPrice))
+                  : ev.priceFrom || 0;
                 return (
                   <div className="event" key={ev.id}>
                     <div className="event-top">
@@ -277,7 +284,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       <div className="right">
                         <p className="from">FROM</p>
                         <p className="price">
-                          {fmt(ev.priceFrom || 0)}
+                          {fmt(fromPrice)}
                           <span style={{ fontSize: 15 }}> {evCur}</span>
                         </p>
                       </div>
@@ -313,7 +320,7 @@ export default function StorefrontClient(props: StorefrontProps) {
               <span className="zmark">
                 z<span className="o">o</span>ra
               </span>{' '}
-              — NO FEES AT CHECKOUT, EVER
+              — NO BOOKING FEES, EVER
             </div>
             <p className="legal">
               © {new Date().getFullYear()} {brandName} · {subdomain}
@@ -329,6 +336,7 @@ export default function StorefrontClient(props: StorefrontProps) {
             eventName={active?.name || ''}
             when={activeWhen}
             tiers={webTiers}
+            accent={accent}
           />
         )}
 
@@ -347,7 +355,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
               {!paid ? (
                 <div className="co-body">
-                  <div className="co-welcome">The price is the price — nothing is added on the next screen.</div>
+                  <div className="co-welcome">A real Zora pass, issued on payment.</div>
                   <p className="co-event">{active.name}</p>
                   <p className="co-when">
                     {active.dateLabel || 'TBA'}
@@ -377,7 +385,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       </span>
                     </div>
                     <div className="line fees">
-                      <span className="lbl">Service fees</span>
+                      <span className="lbl">Zora booking fee</span>
                       <span className="val">0 {cur}</span>
                     </div>
                     <div className="total">
@@ -388,7 +396,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                     </div>
                   </div>
                   <p className="nofees">
-                    The price is the price. <b>Nothing is added on the next screen.</b>
+                    Zora adds no booking fee. <b>Your mobile-money or card provider may add a small fee at payment.</b>
                   </p>
 
                   <div className="crew-toggle" onClick={() => setCrew((c) => !c)}>
@@ -454,13 +462,13 @@ export default function StorefrontClient(props: StorefrontProps) {
 }
 
 const STYLE = `
-.zora-sf{--z-black:#0A0A0B;--z-bone:#F4F1EA;--z-blue:#3D5AFE;--z-hair:#222226;--z-mut:#8A877E;--ink:#241C14;--mut:#8B8175;--hair:#E7DECE;--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-sf{--z-black:#0A0A0B;--z-bone:#F4F1EA;--z-blue:var(--accent);--z-hair:#222226;--z-mut:#8A877E;--ink:#EDEFF7;--mut:#9BA3C4;--hair:rgba(255,255,255,.12);--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sf *{margin:0;padding:0;box-sizing:border-box}
 .zora-sf a{color:inherit;text-decoration:none}
 .zora-sf ::selection{background-color:var(--accent);color:#fff}
 .zora-sf .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
 
-.zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:rgba(247,241,231,.9);backdrop-filter:blur(10px);z-index:40}
+.zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:rgba(10,11,16,.85);backdrop-filter:blur(10px);z-index:40}
 .zora-sf .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
 .zora-sf .logo{display:flex;align-items:center;gap:11px;font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:-.01em}
 .zora-sf .logo .mark{width:26px;height:26px;border-radius:50%;background-color:var(--accent);flex-shrink:0}

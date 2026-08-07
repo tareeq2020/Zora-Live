@@ -64,7 +64,7 @@ const FLOWS: Record<string, Flow> = {
   human: {
     label: 'Talk to a human',
     reply:
-      "On it. Our support team replies within a couple of hours (Mon–Sun). Drop your question in the Help Centre and we'll email you back — or reach us at hello@zora.app.",
+      "On it. Our support team replies within a couple of hours (Mon–Sun). Drop your question in the Help Centre and we'll email you back — or reach us at support@zorapass.com.",
     next: ['help'],
   },
   help: {

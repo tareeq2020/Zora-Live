@@ -40,19 +40,23 @@ URL="postgres://$USER_NAME@127.0.0.1:$PG_PORT/zora_mt2"
 DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
 DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" $ENTITIES >/dev/null
 
+echo "== BS35: organizers are ROWS (migration 0009), not the collection_store blob =="
+N_ORG=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -c "select count(*) from organizer;")
+N_HANDLE=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -c "select count(*) from organizer where handle in ('offshore','basement');")
+[ "$N_ORG" -ge 4 ] && [ "$N_HANDLE" = "2" ] \
+  && echo "  ✓ organizer table backfilled ($N_ORG rows; offshore + basement present)" \
+  || { echo "  ✗ organizer table not backfilled: rows=$N_ORG handles=$N_HANDLE"; fail=1; }
+# The UNIQUE handle is now enforced by Postgres, not by hoping the blob is sane.
+DUP=$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 \
+  -c "insert into organizer (id,name,handle) values ('dup','Dup','offshore');" 2>&1 || true)
+echo "$DUP" | grep -qi 'duplicate key' \
+  && echo "  ✓ duplicate handle rejected by the database (unique constraint)" \
+  || { echo "  ✗ duplicate handle was ACCEPTED: $DUP"; fail=1; }
+
 echo "== approve KYC for offshore (o2); leave basement (o3) unapproved =="
-cat > "$SNAP/seed-kyc.js" <<'JS'
-const { EntityStore } = require(process.env.API_DIR + '/dist/storage/entity-store.js');
-(async () => {
-  const es = new EntityStore();
-  const orgs = await es.read('organizers', []);
-  const o2 = orgs.find((o) => o.handle === 'offshore');
-  if (o2) o2.kycStatus = 'approved';
-  await es.write('organizers', orgs);
-  process.exit(0);
-})().catch((e) => { console.error(e); process.exit(1); });
-JS
-API_DIR="$API_DIR" DATABASE_URL="$URL" node "$SNAP/seed-kyc.js"
+# BS35: kyc_status is a column now — a single-row UPDATE, not a whole-blob rewrite.
+psql -q -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_mt2 -v ON_ERROR_STOP=1 \
+  -c "update organizer set kyc_status='approved' where handle='offshore';" >/dev/null
 
 echo "== boot API (XBRIDGE_MOCK) =="
 lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.3
@@ -219,5 +223,115 @@ echo "$KYC" | grep -q 'kyc_required' && [ "$KYC_C" = "403" ] \
   || { echo "  ✗ kyc gate: $KYC ($KYC_C)"; fail=1; }
 
 echo ""
+echo "== 8. TIER DISABLE + DELETE (BS23) =="
+# Fresh 3-tier sellable drop (GA + VIP + EARLY), no sales yet.
+T8=$(curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Tier Ops","dateLabel":"SUN 15 FEB 2026","city":"dar","venue":"The Deck","category":"party",
+  "priceFrom":30000,"seated":false,"sellable":true,"idempotencyKey":"idem-tierops-1",
+  "tiers":[{"name":"General Admission","price":30000,"capacity":10},{"name":"VIP","price":90000,"capacity":5},{"name":"Early Bird","price":20000,"capacity":8}]}')
+T8ID=$(echo "$T8" | jq_get id)
+GAID=$(echo "$T8" | jq_get tiers.0.tierId)
+VIPID=$(echo "$T8" | jq_get tiers.1.tierId)
+EARLYID=$(echo "$T8" | jq_get tiers.2.tierId)
+[ -n "$T8ID" ] && [ -n "$GAID" ] && [ -n "$VIPID" ] && [ -n "$EARLYID" ] \
+  && echo "  ✓ created $T8ID (GA=$GAID VIP=$VIPID EARLY=$EARLYID)" || { echo "  ✗ tier-ops create: $T8"; fail=1; }
+
+# 8a. A tier that's been ordered can't be deleted → 409 tier_has_sales. A single
+# PENDING order is enough: it writes an order_item + hold that reference the tier.
+curl -s -c "$SNAP/b8" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000001\",\"email\":\"b8@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$GAID\",\"quantity\":1}],\"method\":\"mobile\"}" >/dev/null
+DELGA=$(curl -s -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$GAID")
+DELGA_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$GAID")
+echo "$DELGA" | grep -q 'tier_has_sales' && [ "$DELGA_C" = "409" ] \
+  && echo "  ✓ delete tier with an order → 409 tier_has_sales (fail-closed, no FK orphan)" \
+  || { echo "  ✗ delete-with-sales: $DELGA ($DELGA_C)"; fail=1; }
+
+# 8b. DISABLE the VIP tier → the flag persists AND checkout on it is rejected.
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$T8ID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$VIPID\",\"name\":\"VIP\",\"price\":90000,\"capacity\":5,\"disabled\":true}]}" >/dev/null
+VIP_DIS=$(psql_q "select disabled from product_tier where id='$VIPID';")
+DISCO_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000002\",\"email\":\"b9@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$VIPID\",\"quantity\":1}],\"method\":\"mobile\"}")
+[ "$VIP_DIS" = "t" ] && [ "$DISCO_C" = "409" ] \
+  && echo "  ✓ disabled VIP → product_tier.disabled=t + checkout rejected (409 sold_out)" \
+  || { echo "  ✗ disable VIP: flag=$VIP_DIS checkout=$DISCO_C"; fail=1; }
+
+# 8c. DELETE a clean tier (EARLY, never ordered) → 200: catalog row gone (cascades
+# price_version + inventory_pool) and dropped from the blob webCheckout.tiers.
+DELEAR_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$T8ID/tiers/$EARLYID")
+n_ear=$(psql_q "select count(*) from product_tier where id='$EARLYID';")
+n_earpool=$(psql_q "select count(*) from inventory_pool where product_tier_id='$EARLYID';")
+n_earblob=$(psql_q "select count(*) from collection_store where name='events' and data like '%$EARLYID%';")
+[ "$DELEAR_C" = "200" ] && [ "$n_ear" = "0" ] && [ "$n_earpool" = "0" ] && [ "$n_earblob" = "0" ] \
+  && echo "  ✓ clean tier delete → 200, product_tier + inventory_pool gone, absent from blob" \
+  || { echo "  ✗ clean delete: code=$DELEAR_C tier=$n_ear pool=$n_earpool blob=$n_earblob"; fail=1; }
+
+# 8d. RE-ENABLE VIP → checkout succeeds again (disable is reversible).
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$T8ID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$VIPID\",\"name\":\"VIP\",\"price\":90000,\"capacity\":5,\"disabled\":false}]}" >/dev/null
+ENORDER=$(curl -s -c "$SNAP/b10" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+  -d "{\"phone\":\"0713000003\",\"email\":\"b10@x.co\",\"ageAttested\":true,\"cart\":[{\"tier\":\"$VIPID\",\"quantity\":1}],\"method\":\"mobile\"}" | jq_get orderId)
+[ -n "$ENORDER" ] && echo "  ✓ re-enabled VIP → checkout succeeds again (reversible)" || { echo "  ✗ re-enable VIP failed to sell"; fail=1; }
+
+# 8e. Can't delete the ONLY tier of a drop → 409 last_tier (isolated 1-tier drop).
+SOLO=$(curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Solo Tier","dateLabel":"SUN 22 FEB 2026","city":"dar","venue":"X","category":"party",
+  "priceFrom":15000,"seated":false,"sellable":true,"idempotencyKey":"idem-solo-1",
+  "tiers":[{"name":"GA","price":15000,"capacity":5}]}')
+SOLOID=$(echo "$SOLO" | jq_get id)
+SOLOTIER=$(echo "$SOLO" | jq_get tiers.0.tierId)
+DELSOLO=$(curl -s -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$SOLOID/tiers/$SOLOTIER")
+DELSOLO_C=$(code -b "$SNAP/offshore" -X DELETE "$BASE/api/org/events/$SOLOID/tiers/$SOLOTIER")
+echo "$DELSOLO" | grep -q 'last_tier' && [ "$DELSOLO_C" = "409" ] \
+  && echo "  ✓ delete the only tier → 409 last_tier" || { echo "  ✗ last-tier guard: $DELSOLO ($DELSOLO_C)"; fail=1; }
+
+echo ""
+echo "== 9. ARCHIVE + RESTORE (BS24) =="
+statusOf() { curl -s -b "$SNAP/offshore" "$BASE/api/org/events" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8"));const e=d.find(x=>x.id===process.argv[1]);process.stdout.write(String(e?.status))' "$1"; }
+# Archive is allowed even WITH sales (unlike delete, which 409s). T8ID has orders.
+ARCH_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/$T8ID/archive")
+ARCH_STATUS=$(statusOf "$T8ID")
+PUBA=$(curl -s "$BASE/api/events")
+[ "$ARCH_C" = "200" ] && [ "$ARCH_STATUS" = "archived" ] && ! echo "$PUBA" | grep -q "$T8ID" \
+  && echo "  ✓ archive a drop WITH sales → 200, status=archived, absent from /api/events" \
+  || { echo "  ✗ archive: code=$ARCH_C status=$ARCH_STATUS"; fail=1; }
+
+# Restore → back to published + visible on the public list.
+UN_C=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/$T8ID/unarchive")
+UN_STATUS=$(statusOf "$T8ID")
+PUBU=$(curl -s "$BASE/api/events")
+[ "$UN_C" = "200" ] && [ "$UN_STATUS" = "published" ] && echo "$PUBU" | grep -q "$T8ID" \
+  && echo "  ✓ restore → 200, status=published, back in /api/events" \
+  || { echo "  ✗ restore: code=$UN_C status=$UN_STATUS"; fail=1; }
+
+# Ownership: offshore can't archive basement's event → 404.
+OWN_ARCH=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events/basement-001/archive")
+[ "$OWN_ARCH" = "404" ] && echo "  ✓ cross-org archive → 404" || { echo "  ✗ cross-org archive → $OWN_ARCH (want 404)"; fail=1; }
+
+echo ""
+echo "== 10. SPLIT SEATS — organizer sets people-per-table (BS30) =="
+SEATC=$(code -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Seats Drop","dateLabel":"SAT 20 SEP","city":"dar","venue":"Terrace","category":"brunch",
+  "priceFrom":120000,"seated":false,"sellable":true,"idempotencyKey":"idem-seats-1",
+  "tiers":[{"name":"Table of Six","price":120000,"capacity":10,"splitEnabled":true,"seats":6}]}' >/dev/null; \
+  curl -s -b "$SNAP/offshore" -X POST "$BASE/api/org/events" -H 'content-type: application/json' -d '{
+  "name":"Seats Drop","dateLabel":"SAT 20 SEP","city":"dar","venue":"Terrace","category":"brunch",
+  "priceFrom":120000,"seated":false,"sellable":true,"idempotencyKey":"idem-seats-1",
+  "tiers":[{"name":"Table of Six","price":120000,"capacity":10,"splitEnabled":true,"seats":6}]}')
+SEATID=$(echo "$SEATC" | jq_get id)
+SEAT_TIER=$(echo "$SEATC" | jq_get tiers.0.tierId)
+GOT_SEATS=$(echo "$SEATC" | jq_get tiers.0.seats)
+BLOB_SEATS=$(psql_q "select count(*) from collection_store where name='events' and data like '%\"seats\":6%';")
+[ "$GOT_SEATS" = "6" ] && [ "$BLOB_SEATS" -ge 1 ] \
+  && echo "  ✓ split tier created with seats=6 (API + blob)" \
+  || { echo "  ✗ create seats: got=$GOT_SEATS blob=$BLOB_SEATS"; fail=1; }
+
+# Edit seats to 10 (match by tierId); assert it round-trips.
+curl -s -b "$SNAP/offshore" -X PUT "$BASE/api/org/events/$SEATID" -H 'content-type: application/json' -d "{
+  \"sellable\":true,\"tiers\":[{\"tierId\":\"$SEAT_TIER\",\"name\":\"Table of Six\",\"price\":120000,\"capacity\":10,\"splitEnabled\":true,\"seats\":10}]}" >/dev/null
+NEW_SEATS=$(curl -s -b "$SNAP/offshore" "$BASE/api/org/events" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8"));const e=d.find(x=>x.id===process.argv[1]);process.stdout.write(String(e?.tiers?.[0]?.seats))' "$SEATID")
+[ "$NEW_SEATS" = "10" ] && echo "  ✓ seats edit round-trips (6 → 10)" || { echo "  ✗ seats edit: got=$NEW_SEATS"; fail=1; }
+
+echo ""
 [ "$fail" = "0" ] || { echo "ORG EVENTS E2E: FAIL"; echo "---- api.log tail ----"; tail -25 "$SNAP/api.log"; exit 1; }
-echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + ownership + KYC)"
+echo "ORG EVENTS E2E: PASS (sellable provisioning + buyer checkout + draft + rollback + re-price + capacity + delete guards + tier disable/delete + archive/restore + split seats + ownership + KYC)"

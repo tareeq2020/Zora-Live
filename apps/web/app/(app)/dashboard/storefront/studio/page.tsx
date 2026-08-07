@@ -6,8 +6,10 @@
    markup via dangerouslySetInnerHTML, original script (live postMessage preview,
    drag-drop CDN uploads, PUT /api/storefront-theme) run once on mount. Styles
    scoped under `.zora-studio`; the DASHBOARD breadcrumb points to /dashboard and
-   the preview iframe to the React storefront index at /@thebrunchcity (PR-F5;
-   it listens for the same `zora-theme` postMessage for live preview). */
+   the preview iframe to the React storefront index at /@<the acting organizer's
+   own handle> (BS47 — resolved from /api/org/me on mount, previously hardcoded
+   to /@thebrunchcity for every organizer; PR-F5's storefront still listens for
+   the same `zora-theme` postMessage for live preview). */
 
 import { useEffect } from 'react';
 
@@ -93,7 +95,7 @@ const MARKUP = `
   <div class="top">
     <a class="back" href="/dashboard">&larr; DASHBOARD</a>
     <span class="brand">z<span class="o">o</span>ra<small>STOREFRONT STUDIO</small></span>
-    <span class="url" id="live-url">thebrunchcity.zora.com</span>
+    <span class="url" id="live-url">thebrunchcity.zorapass.com</span>
     <span class="save-state" id="save-state">All changes staged</span>
     <button class="publish" id="publish">PUBLISH TO WEB</button>
   </div>
@@ -107,7 +109,7 @@ const MARKUP = `
         <div class="acc-body">
           <div class="field">
             <label>SUBDOMAIN PREFIX</label>
-            <div class="handle-wrap"><input id="f-handle" autocomplete="off" spellcheck="false" placeholder="thebrunchcity"><span class="suf">.zora.com</span></div>
+            <div class="handle-wrap"><input id="f-handle" autocomplete="off" spellcheck="false" readonly placeholder="organizer"><span class="suf">.zorapass.com</span></div>
           </div>
           <div class="field">
             <label>BRAND NAME</label>
@@ -189,12 +191,12 @@ const MARKUP = `
           <button class="on" data-vp="desktop"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Desktop</button>
           <button data-vp="mobile"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Mobile</button>
         </div>
-        <span class="pv-url" id="pv-url">thebrunchcity.zora.com</span>
+        <span class="pv-url" id="pv-url">thebrunchcity.zorapass.com</span>
         <button class="pv-reload" id="pv-reload">RELOAD</button>
       </div>
       <div class="pv-stage">
         <div class="device" id="device">
-          <iframe id="preview-frame" src="/@thebrunchcity?preview=1" title="Storefront preview"></iframe>
+          <iframe id="preview-frame" src="about:blank" title="Storefront preview"></iframe>
         </div>
       </div>
     </main>
@@ -208,14 +210,22 @@ const SCRIPT = String.raw`
   const $ = id => document.getElementById(id);
   function toast(m, err){ const t=$('toast'); t.textContent=m; t.className='toast show'+(err?' err':''); clearTimeout(t._h); t._h=setTimeout(()=>t.className='toast'+(err?' err':''),2600); }
 
+  /* BS47: the acting organizer's real handle, set by the component before this
+     script runs (fetched from /api/org/me) — no more hardcoded thebrunchcity. */
+  const ORG_HANDLE = (window.__ZORA_STUDIO_HANDLE__ || '');
+
   /* ── theme state (the single source of truth) ── */
   const theme = {
-    handle:'thebrunchcity', brandName:'The Brunch City',
+    handle: ORG_HANDLE, brandName:'',
     accent:'#C46A28', secondary:'#1D6E56', bg:'#F7F1E7', card:'#FFFDF8',
     typography:'editorial', logoUrl:'', faviconUrl:'', bannerUrl:''
   };
 
   const frame = $('preview-frame');
+  frame.src = '/@' + ORG_HANDLE + '?preview=1';
+  $('f-handle').value = ORG_HANDLE;
+  $('live-url').innerHTML = '<b>'+ORG_HANDLE+'</b>.zorapass.com';
+  $('pv-url').textContent = ORG_HANDLE+'.zorapass.com';
   let frameReady = false;
   function pushToPreview(){
     if (!frameReady) return;
@@ -227,11 +237,9 @@ const SCRIPT = String.raw`
   let dirty=false;
   function markStaged(){ dirty=true; $('save-state').textContent='Unpublished changes'; }
 
-  /* ── identity ── */
-  $('f-handle').addEventListener('input', e=>{
-    const h=e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,30); e.target.value=h;
-    theme.handle=h||'yourname'; $('live-url').innerHTML='<b>'+theme.handle+'</b>.zora.com'; $('pv-url').textContent=theme.handle+'.zora.com'; markStaged();
-  });
+  /* ── identity ──
+     f-handle is read-only: it's the real, immutable signup handle (BS47 — this
+     field used to write into the theme blob and do nothing to actual routing). */
   $('f-brand').addEventListener('input', e=> setField('brandName', e.target.value));
 
   /* ── styling engine: hex <-> native color, live CSS vars ── */
@@ -300,16 +308,16 @@ const SCRIPT = String.raw`
       const r=await fetch('/api/storefront-theme',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(theme)});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
       dirty=false; $('save-state').textContent='Published just now';
-      toast('Published to '+theme.handle+'.zora.com');
+      toast('Published to '+theme.handle+'.zorapass.com');
     }catch(ex){ toast(String(ex.message||ex), true); }
     finally{ btn.disabled=false; btn.textContent=old; }
   });
 
   /* ── boot: load the current theme into the controls ── */
-  fetch('/api/storefront-theme').then(r=>r.ok?r.json():null).then(t=>{
+  fetch('/api/storefront-theme?handle='+encodeURIComponent(ORG_HANDLE)).then(r=>r.ok?r.json():null).then(t=>{
     if(!t) return; Object.assign(theme, t);
     $('f-handle').value=theme.handle; $('f-brand').value=theme.brandName;
-    $('live-url').innerHTML='<b>'+theme.handle+'</b>.zora.com'; $('pv-url').textContent=theme.handle+'.zora.com';
+    $('live-url').innerHTML='<b>'+theme.handle+'</b>.zorapass.com'; $('pv-url').textContent=theme.handle+'.zorapass.com';
     COLORS.forEach(([k])=>{ if(theme[k]){ $('hex-'+k).value=theme[k].toUpperCase(); $('sw-'+k).value=theme[k]; } });
     $('f-type').value=theme.typography;
     [['logoUrl','thumb-logo','dz-logo'],['faviconUrl','thumb-favicon','dz-favicon'],['bannerUrl','thumb-banner','dz-banner']].forEach(([f,th,dz])=>{
@@ -321,12 +329,30 @@ const SCRIPT = String.raw`
 
 export default function StorefrontStudioPage() {
   useEffect(() => {
-    try {
-      // eslint-disable-next-line no-new-func
-      new Function(SCRIPT)();
-    } catch (e) {
-      console.error('[storefront-studio] script error', e);
-    }
+    let cancelled = false;
+    (async () => {
+      // BS47: resolve the acting organizer's own handle before the script runs
+      // — it used to assume thebrunchcity for every organizer.
+      let handle = '';
+      try {
+        const r = await fetch('/api/org/me');
+        const me = r.ok ? await r.json() : null;
+        handle = me?.actingHandle || '';
+      } catch {
+        // fall through with an empty handle; the script degrades gracefully
+      }
+      if (cancelled) return;
+      (window as unknown as { __ZORA_STUDIO_HANDLE__?: string }).__ZORA_STUDIO_HANDLE__ = handle;
+      try {
+        // eslint-disable-next-line no-new-func
+        new Function(SCRIPT)();
+      } catch (e) {
+        console.error('[storefront-studio] script error', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Wordmark } from '../../components/wordmark';
 import { ZBot } from '../../components/zbot';
 import { Calc } from './calc';
@@ -134,6 +135,9 @@ const CSS = `
 `;
 
 export default function CommissionPage() {
+  // BS47: hidden for now — redirect rather than delete so it's a one-line
+  // revert when this page is ready to come back.
+  redirect('/');
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -205,7 +209,7 @@ export default function CommissionPage() {
           <h2 className="sec">Everything, actually.</h2>
           <div className="incl">
             <div className="inc"><div className="ic">&#9679;</div><h3>Payments &amp; payouts</h3><p>Card and mobile money in, fast settlement out. No separate processor bill.</p></div>
-            <div className="inc"><div className="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zora.com, live in minutes.</p></div>
+            <div className="inc"><div className="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zorapass.com, live in minutes.</p></div>
             <div className="inc"><div className="ic">&#9650;</div><h3>Dashboard &amp; CRM</h3><p>Real-time sales, entry scans, and a customer database that&apos;s yours.</p></div>
             <div className="inc"><div className="ic">&#9993;</div><h3>Built-in marketing</h3><p>Native email to your audience. No Mailchimp, no add-on.</p></div>
           </div>
@@ -213,8 +217,8 @@ export default function CommissionPage() {
           <div className="promise">
             <div className="pi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></div>
             <div>
-              <h3>Zero fees at checkout — the buyer promise.</h3>
-              <p>The 5% comes out of your side, not theirs. Buyers see one honest number and pay exactly that. No service fee, no facility fee, no surprise on the last screen. It&apos;s the reason they trust the checkout.</p>
+              <h3>No booking fee — the buyer promise.</h3>
+              <p>Your commission comes out of your side, not theirs. Zora adds no booking or service fee for buyers — their mobile-money or card provider may charge its own fee at payment. No Zora surprise on the last screen.</p>
             </div>
           </div>
         </div>

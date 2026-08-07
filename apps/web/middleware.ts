@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
    Everything else (static pages, assets, /api proxy) is handled outside middleware. */
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
-const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
+const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
 
 // Runtime diagnostics. Middleware fetches the API on the edge (tenant redirect,
 // /dashboard + /admin gates); when API_URL is wrong those fetches throw and the
@@ -68,6 +68,15 @@ export async function middleware(req: NextRequest) {
     url.pathname = `/storefront/${tenant}`;
     return NextResponse.rewrite(url);
   }
+  // BS24: the apex landing is a deliberate PLACEHOLDER while the marketplace home is
+  // still being built (was → /discover). Discovery stays reachable directly at
+  // /discover, so restoring it as home is a one-line revert here. Rewrite keeps the
+  // URL clean; runs before next.config's '/' handling; tenant '/' is handled above.
+  if (!tenant && pathname === '/') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/placeholder';
+    return NextResponse.rewrite(url);
+  }
   const storefrontRoot = pathname.match(/^\/@([^/]+)$/);
   if (storefrontRoot) {
     const url = req.nextUrl.clone();
@@ -124,12 +133,15 @@ export async function middleware(req: NextRequest) {
   // /dashboard/* -> organizer-gated seller app (PR-F6/F7). Prefix match so every
   // seller route is covered, but EXEMPT /dashboard/login (the sign-in page must
   // render to anon so an organizer can obtain a session — gating it would loop).
+  // BS41 (#4) adds /dashboard/signup to that exemption for the same reason: it is
+  // the page that CREATES the session, so requiring one would make becoming an
+  // organizer impossible.
   // Fail-closed: any /api/me error leaves us unauthorized and we rewrite to the
   // login page. Allow a real organizer, or an admin actively impersonating one.
   // (F3 adds its own event branches separately; this only ADDS the /dashboard
   // branch — the orchestrator reconciles.)
   if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
-    if (pathname === '/dashboard/login') return NextResponse.next();
+    if (pathname === '/dashboard/login' || pathname === '/dashboard/signup') return NextResponse.next();
     let allowed = false;
     try {
       const res = await fetch(`${API_URL}/api/me`, {
@@ -167,8 +179,36 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // Bare-handle alias (NO '@'): /handle and /handle/events/:id resolve to the
+  // storefront exactly like /@handle, so organizer links work without the '@'
+  // even when wildcard-subdomain DNS isn't set up (e.g. a *.vercel.app preview).
+  // Runs LAST so it never shadows a real route; RESERVED_TOP is the guard and the
+  // [^/.@]+ pattern skips files (dots) and the '@' form. An unknown handle simply
+  // renders the storefront's not-found. Add any new top-level route here.
+  if (!tenant) {
+    const bareRoot = pathname.match(/^\/([^/.@]+)$/);
+    if (bareRoot && !RESERVED_TOP.has(bareRoot[1])) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/storefront/${bareRoot[1]}`;
+      return NextResponse.rewrite(url);
+    }
+    const bareLeaf = pathname.match(/^\/([^/.@]+)\/events\/([^/]+)$/);
+    if (bareLeaf && !RESERVED_TOP.has(bareLeaf[1])) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/storefront/${bareLeaf[1]}/events/${bareLeaf[2]}`;
+      return NextResponse.rewrite(url);
+    }
+  }
+
   return NextResponse.next();
 }
+
+// Top-level paths that are real routes/assets — never treated as a bare handle.
+const RESERVED_TOP = new Set([
+  'about', 'admin', 'brand', 'commission', 'dashboard', 'discover', 'events', 'help',
+  'join', 'split', 'storefront', 't', 'login', 'signup', 'studio', 'seatmap',
+  'create-event', 'api', '_next', 'assets', 'tickets', 'account', 'favicon', 'placeholder',
+]);
 
 // Run on everything except Next internals and the /api proxy. A narrow matcher
 // (e.g. '/@:path*') silently misses multi-segment tenant paths like

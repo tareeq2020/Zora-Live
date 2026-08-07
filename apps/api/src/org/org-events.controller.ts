@@ -17,8 +17,9 @@ import type { Request } from 'express';
 import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
+import { EVENT_CITY_IDS } from '../common/defaults';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_ORGANIZERS } from '../common/defaults';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService, type ProvisionTierInput } from './event-provisioning.service';
 
@@ -47,6 +48,10 @@ interface TierInput {
   price: number;
   capacity: number;
   currency?: string;
+  splitEnabled?: boolean;
+  splitWindowSecs?: number;
+  seats?: number; // BS30: max people per table (splitters), for split-enabled tiers
+  disabled?: boolean; // BS23: hidden from the storefront / not purchasable
 }
 
 const PAID_STATES = ['paid', 'paid_unseatable', 'payment_short'];
@@ -68,6 +73,7 @@ export class OrgEventsController {
     private readonly scope: OrgScopeService,
     private readonly prov: EventProvisioningService,
     private readonly entities: EntityStore,
+    private readonly organizers: OrganizerRepo,
     private readonly audit: AuditService,
   ) {}
 
@@ -123,6 +129,10 @@ export class OrgEventsController {
           price: t2.price,
           capacity: t2.capacity,
           currency: t2.currency,
+          splitEnabled: t2.splitEnabled,
+          splitWindowSecs: t2.splitWindowSecs,
+          seats: t2.seats,
+          disabled: t2.disabled,
         }));
         const { event } = await this.prov.provisionSellableDrop(
           t,
@@ -161,7 +171,7 @@ export class OrgEventsController {
       const wasSellable = this.isSellable(ev);
 
       // Scalar fields — only overwrite what the body actually carries.
-      for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time'] as const) {
+      for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
         if (body?.[k] !== undefined) ev[k] = String(body[k]);
       }
       if (body?.priceFrom !== undefined) ev.priceFrom = Number(body.priceFrom);
@@ -174,10 +184,10 @@ export class OrgEventsController {
         const provisioned = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency })),
+          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, seats: x.seats, disabled: x.disabled })),
           ev.name,
         );
-        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency })) };
+        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) })) };
         ev.status = 'published';
         delete ev.tiers; // sellable events carry tiers via webCheckout + the pool
       } else if (wasSellable && incomingTiers) {
@@ -219,6 +229,105 @@ export class OrgEventsController {
     return { ok: true };
   }
 
+  // ── POST /api/org/events/:id/archive ─────────────────────────────────────────
+  // BS24: reversibly take a drop OFF the public storefront. Unlike DELETE this is
+  // ALLOWED with paid orders — it's the intended way to retire a drop that already
+  // sold (the delete copy has always said "archive it instead"). Sets status
+  // 'archived' (public reads already filter archived out); restore with /unarchive.
+  @Post('events/:id/archive')
+  async archive(@Req() req: Request, @Param('id') id: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    const updated = await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t);
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      rows[idx] = { ...rows[idx], status: 'archived', updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+      return rows[idx];
+    });
+
+    await this.writeAudit(req, 'org_event_archive', id);
+    return this.shapeFresh(updated);
+  }
+
+  // ── POST /api/org/events/:id/unarchive ───────────────────────────────────────
+  // BS24: restore an archived drop. A drop with live tiers goes back to 'published'
+  // (visible + on sale); one with no sellable catalog returns to 'draft'.
+  @Post('events/:id/unarchive')
+  async unarchive(@Req() req: Request, @Param('id') id: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    const updated = await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t);
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      const ev = rows[idx];
+      rows[idx] = { ...ev, status: this.isSellable(ev) ? 'published' : 'draft', updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+      return rows[idx];
+    });
+
+    await this.writeAudit(req, 'org_event_unarchive', id);
+    return this.shapeFresh(updated);
+  }
+
+  // ── DELETE /api/org/events/:id/tiers/:tierId ─────────────────────────────────
+  // BS23: hard-delete a single ticket tier, allowed ONLY when it has never been
+  // sold or held. product_tier is referenced WITHOUT on-delete-cascade by
+  // order_item, table_split, and credential, so a referenced tier both "has sales"
+  // AND would FK-violate on delete — we fail closed on all three (plus any committed
+  // pool units) with 409 tier_has_sales, and steer the organizer to DISABLE instead.
+  // The catalog delete cascades to price_version + inventory_pool; the blob tier is
+  // spliced out in the same tx. The last remaining tier can't be deleted (a sellable
+  // event needs ≥1) — 409 last_tier.
+  @Delete('events/:id/tiers/:tierId')
+  async removeTier(@Req() req: Request, @Param('id') id: string, @Param('tierId') tierId: string) {
+    const handle = req.actingHandle as string;
+    await this.assertActiveOrganizer(handle); // I2
+    await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+
+    await tx(async (t) => {
+      const rows = await this.prov.readEventsForUpdate(t); // C4 lock (blob)
+      const idx = rows.findIndex((e) => e && e.id === id && e.organizerHandle === handle);
+      if (idx < 0) throw new NotFoundException({ error: 'Not found' });
+      const ev = { ...rows[idx] };
+      const web: any[] = Array.isArray(ev.webCheckout?.tiers) ? ev.webCheckout.tiers : [];
+      const tierIdx = web.findIndex((w) => w.tierId === tierId);
+      if (tierIdx < 0) throw new NotFoundException({ error: 'tier_not_found' });
+      if (web.length <= 1) throw new ConflictException({ error: 'last_tier' });
+
+      // Lock the pool row, then fail closed on ANY reference or committed unit.
+      const pool = await t<{ sold_count: number; blocked_count: number; reserved_count: number }[]>`
+        select sold_count, blocked_count, reserved_count from inventory_pool
+          where product_tier_id = ${tierId} for update`;
+      const committed = pool.length
+        ? Number(pool[0].sold_count) + Number(pool[0].blocked_count) + Number(pool[0].reserved_count)
+        : 0;
+      const [refs] = await t<{ has_orders: boolean; has_splits: boolean; has_creds: boolean }[]>`
+        select exists(select 1 from order_item  where product_tier_id = ${tierId}) as has_orders,
+               exists(select 1 from table_split  where product_tier_id = ${tierId}) as has_splits,
+               exists(select 1 from credential   where tier_id        = ${tierId}) as has_creds`;
+      if (committed > 0 || refs.has_orders || refs.has_splits || refs.has_creds) {
+        throw new ConflictException({ error: 'tier_has_sales' });
+      }
+
+      // Hard delete: cascades price_version + inventory_pool; drop it from the blob.
+      await t`delete from product_tier where id = ${tierId}`;
+      web.splice(tierIdx, 1);
+      ev.webCheckout = { tiers: web };
+      rows[idx] = { ...ev, updated_at: new Date().toISOString() };
+      await this.prov.writeEventsOnTx(t, rows);
+    });
+
+    await this.writeAudit(req, 'org_tier_delete', `${id}/${tierId}`);
+    return { ok: true };
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────────────
 
   /** C6 + C7: re-price via versioning, capacity via delta, add new tiers. On `t`. */
@@ -232,12 +341,34 @@ export class OrgEventsController {
         const [p] = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency }],
+          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, seats: tier.seats, disabled: tier.disabled }],
           ev.name,
         );
-        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency });
+        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) });
         continue;
       }
+
+      // BS23 — disable/enable an EXISTING sellable tier: persist the flag and mirror
+      // it onto the blob (the storefront filters disabled tiers; checkout rejects them).
+      if (tier.disabled !== undefined) {
+        await t`update product_tier set disabled = ${!!tier.disabled} where id = ${match.tierId}`;
+        if (tier.disabled) match.disabled = true; else delete match.disabled;
+      }
+
+      // BS10 — split toggle on an EXISTING sellable tier: persist the flag + window
+      // and mirror it onto the blob webCheckout tier (drives the storefront CTA).
+      if (tier.splitEnabled !== undefined) {
+        await t`update product_tier
+                   set split_enabled = ${!!tier.splitEnabled},
+                       split_window_secs = ${tier.splitWindowSecs ?? 2700},
+                       kind = ${tier.splitEnabled ? 'table' : 'shore'}
+                 where id = ${match.tierId}`;
+        if (tier.splitEnabled) match.split = true; else delete match.split;
+      }
+      // BS30 — max people per table (splitters). Only meaningful for a split tier;
+      // stored on the blob (the split flow's cap reads it). Cleared when not split.
+      if (match.split && tier.seats && tier.seats >= 2) match.seats = tier.seats;
+      else if (!match.split) delete match.seats;
 
       // C6 — re-price: close the open version, open a new one, update the blob price.
       if (Number.isFinite(tier.price) && Number(tier.price) !== Number(match.unitPrice)) {
@@ -288,7 +419,7 @@ export class OrgEventsController {
   private shape(e: any, snapById: Map<string, PoolSnapshot>) {
     const sellable = this.isSellable(e);
     const source: any[] = sellable
-      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency }))
+      ? e.webCheckout.tiers.map((w: any) => ({ tierId: w.tierId, name: w.name, unitPrice: w.unitPrice, currency: w.currency, split: !!w.split, seats: w.seats, disabled: !!w.disabled }))
       : Array.isArray(e.tiers)
         ? e.tiers
         : [];
@@ -303,6 +434,10 @@ export class OrgEventsController {
         sold: snap ? snap.sold : 0, // C2: sold_count, never capacity−available
         available: snap ? snap.available : capacity,
         currency: t.currency || 'TZS',
+        // BS23/BS10: reflect saved flags so the editor's toggles hydrate correctly.
+        split: !!(t.split ?? t.splitEnabled),
+        seats: t.seats ?? undefined, // BS30: people-per-table for split tiers
+        disabled: !!t.disabled,
       };
     });
     return {
@@ -345,13 +480,15 @@ export class OrgEventsController {
     const name = req('name');
     const dateLabel = req('dateLabel');
     const city = req('city');
+    if (!EVENT_CITY_IDS.includes(city)) throw new BadRequestException({ error: 'city_invalid' });
     const venue = req('venue');
     const category = req('category');
     const priceFrom = Number(body?.priceFrom);
     if (!Number.isFinite(priceFrom) || priceFrom < 0) throw new BadRequestException({ error: 'priceFrom_invalid' });
     if (typeof body?.seated !== 'boolean') throw new BadRequestException({ error: 'seated_required' });
     const time = typeof body?.time === 'string' ? body.time.trim() : undefined;
-    return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time };
+    const cover = typeof body?.cover === 'string' ? body.cover.trim() : undefined; // per-event hero image URL
+    return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time, cover };
   }
 
   // A draft only requires a name. Every other field is optional and stored as
@@ -361,7 +498,7 @@ export class OrgEventsController {
     const name = body?.name;
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException({ error: 'name_required' });
     const out: Record<string, unknown> = { name: name.trim() };
-    for (const k of ['dateLabel', 'city', 'venue', 'category', 'time'] as const) {
+    for (const k of ['dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
       if (typeof body?.[k] === 'string' && body[k].trim()) out[k] = body[k].trim();
     }
     const priceFrom = Number(body?.priceFrom);
@@ -382,7 +519,14 @@ export class OrgEventsController {
       if (!Number.isFinite(price) || price < 0) throw new BadRequestException({ error: `tier_${i}_price_invalid` });
       const capacity = Number(t?.capacity);
       if (!Number.isInteger(capacity) || capacity <= 0) throw new BadRequestException({ error: `tier_${i}_capacity_invalid` });
-      return { tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity, currency: (t?.currency || 'TZS') as string };
+      return {
+        tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity,
+        currency: (t?.currency || 'TZS') as string,
+        splitEnabled: !!t?.splitEnabled,
+        splitWindowSecs: Number.isInteger(t?.splitWindowSecs) ? Number(t.splitWindowSecs) : undefined,
+        seats: Number.isInteger(t?.seats) && Number(t.seats) >= 2 ? Number(t.seats) : undefined,
+        disabled: t?.disabled === undefined ? undefined : !!t.disabled,
+      };
     });
     if (requireNonEmpty && !tiers.length) throw new BadRequestException({ error: 'tiers_required' });
     // I7: a sellable event is single-currency.
@@ -393,10 +537,9 @@ export class OrgEventsController {
     return tiers;
   }
 
-  /** Read the organizer record fresh from the store. */
-  private async readOrg(handle: string): Promise<any | null> {
-    const orgs = await this.entities.read<any[]>('organizers', DEFAULT_ORGANIZERS);
-    return orgs.find((o) => o && o.handle === handle) || null;
+  /** Read the organizer record fresh from the store (BS35: a row, not the blob). */
+  private async readOrg(handle: string): Promise<OrganizerRecord | null> {
+    return this.organizers.byHandle(handle);
   }
 
   /** I2: reject a suspended or missing principal on every write. */

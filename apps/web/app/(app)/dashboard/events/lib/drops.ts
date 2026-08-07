@@ -17,6 +17,7 @@ export type OrgMe = {
   role: string;
   impersonating?: { handle: string; name: string } | null;
   kycStatus: KycStatus;
+  commissionRate?: number; // BS31: platform commission netted from payout (default 0.05)
 };
 
 // A tier as returned by GET /api/org/events (richer than the write shape).
@@ -28,6 +29,9 @@ export type OrgTier = {
   sold?: number;
   available?: number;
   currency?: string;
+  split?: boolean; // splittable (bill-split) tier
+  seats?: number; // BS30: max people per table (splitters), split tiers only
+  disabled?: boolean; // BS23: hidden from the storefront / not on sale
 };
 
 export type OrgEvent = {
@@ -49,7 +53,7 @@ export type OrgEvent = {
 
 // Tier as the create/edit form submits it — the provisioning service (MT2)
 // drives product_tier/price_version/inventory_pool off this, NOT the display blob.
-export type DropTierInput = { name: string; price: number; capacity: number };
+export type DropTierInput = { tierId?: string; name: string; price: number; capacity: number; splitEnabled?: boolean; seats?: number; disabled?: boolean };
 
 export type DropInput = {
   name: string;
@@ -61,6 +65,7 @@ export type DropInput = {
   city: string;
   venue: string;
   category: string;
+  cover?: string;
   priceFrom: number;
   seated: boolean;
   sellable: boolean;
@@ -70,7 +75,9 @@ export type DropInput = {
 
 // ── editor form state (strings, so inputs stay controlled + empty-friendly) ──
 
-export type TierRow = { name: string; price: string; capacity: string };
+// `tierId`/`sold` are present only for EXISTING (already-saved) tiers; a freshly
+// added row has neither. `disabled` = BS23 on-sale toggle.
+export type TierRow = { tierId?: string; name: string; price: string; capacity: string; splitEnabled?: boolean; seats?: string; disabled?: boolean; sold?: number };
 
 export type DropForm = {
   name: string;
@@ -79,12 +86,13 @@ export type DropForm = {
   city: string;
   venue: string;
   category: string;
+  cover: string; // per-event hero image URL (CDN)
   seated: boolean;
   sellable: boolean;
   tiers: TierRow[];
 };
 
-export const emptyTier = (): TierRow => ({ name: '', price: '', capacity: '' });
+export const emptyTier = (): TierRow => ({ name: '', price: '', capacity: '', splitEnabled: false });
 
 export const emptyForm = (): DropForm => ({
   name: '',
@@ -93,6 +101,7 @@ export const emptyForm = (): DropForm => ({
   city: '',
   venue: '',
   category: '',
+  cover: '',
   seated: false,
   sellable: false,
   tiers: [emptyTier()],
@@ -101,9 +110,14 @@ export const emptyForm = (): DropForm => ({
 // Hydrate the editable form from a server event (edit route prefill).
 export function formFromEvent(ev: OrgEvent): DropForm {
   const tiers = (ev.tiers || []).map((t) => ({
+    tierId: t.tierId, // preserved so edits match by id (not name) and delete/disable can target it
     name: t.name || '',
     price: t.unitPrice != null ? String(t.unitPrice) : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
+    splitEnabled: !!t.split,
+    seats: t.seats != null ? String(t.seats) : '',
+    disabled: !!t.disabled,
+    sold: t.sold,
   }));
   return {
     name: ev.name || '',
@@ -112,6 +126,7 @@ export function formFromEvent(ev: OrgEvent): DropForm {
     city: ev.city || '',
     venue: ev.venue || '',
     category: ev.category || '',
+    cover: (ev as { cover?: string }).cover || '',
     seated: !!ev.seated,
     sellable: !!ev.sellable,
     tiers: tiers.length ? tiers : [emptyTier()],
@@ -163,7 +178,16 @@ export const hasErrors = (e: FieldErrors): boolean =>
 export function usableTiers(form: DropForm): DropTierInput[] {
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
-    .map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0 }));
+    .map((t) => ({
+      tierId: t.tierId,
+      name: t.name.trim(),
+      price: Number(t.price) || 0,
+      capacity: Number(t.capacity) || 0,
+      splitEnabled: !!t.splitEnabled,
+      // BS30: people-per-table only rides along for split tiers (>=2); server defaults to 8.
+      ...(t.splitEnabled && Number(t.seats) >= 2 ? { seats: Math.floor(Number(t.seats)) } : {}),
+      disabled: !!t.disabled,
+    }));
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {
@@ -193,6 +217,7 @@ export function buildBody(form: DropForm, idempotencyKey: string): DropInput {
     venue: form.venue.trim(),
     category: form.category.trim(),
     priceFrom: priceFromOf(tiers),
+    cover: form.cover?.trim() ?? '',
     seated: form.seated,
     sellable: form.sellable,
     tiers,
@@ -260,6 +285,35 @@ export async function deleteDrop(id: string): Promise<{ ok: true }> {
   return res.json();
 }
 
+// BS23: hard-delete one ticket tier (server refuses with 409 tier_has_sales if it
+// has any orders/holds/splits/credentials, or 409 last_tier for the only tier).
+export async function deleteTier(eventId: string, tierId: string): Promise<{ ok: true }> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(eventId)}/tiers/${encodeURIComponent(tierId)}`, {
+    method: 'DELETE',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+
+// BS24: reversibly archive a drop (allowed even with paid orders) / restore it.
+export async function archiveDrop(id: string): Promise<OrgEvent> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(id)}/archive`, {
+    method: 'POST',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+export async function unarchiveDrop(id: string): Promise<OrgEvent> {
+  const res = await fetch(`/api/org/events/${encodeURIComponent(id)}/unarchive`, {
+    method: 'POST',
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+
 // Human-friendly copy for the server error codes in the contract.
 export function messageForError(err: ApiError, context: 'save' | 'delete'): string {
   if (err.error === 'kyc_required')
@@ -280,10 +334,13 @@ export function messageForError(err: ApiError, context: 'save' | 'delete'): stri
   };
   if (err.error && REQUIRED_LABELS[err.error])
     return `Add a ${REQUIRED_LABELS[err.error]} to publish this drop (drafts can skip it).`;
+  if (err.error === 'city_invalid') return 'Choose a city from the list to publish this drop.';
   if (err.error === 'priceFrom_invalid') return 'Set a valid starting price to publish.';
   if (err.error === 'seated_required') return 'Choose whether this is a seated event.';
   if (err.error === 'tiers_required') return 'A public drop needs at least one ticket tier.';
   if (err.error === 'capacity_below_committed') return "You can't drop capacity below tickets already sold or held.";
+  if (err.error === 'tier_has_sales') return "This tier has orders or held seats — it can't be deleted. Disable it instead to stop new sales.";
+  if (err.error === 'last_tier') return "You can't delete the only ticket tier. Add another tier first, or delete the whole drop.";
   if (err.error === 'suspended') return 'Your account is suspended. Contact ZORA support.';
   if (err.message) return err.message;
   if (err.error) return err.error;

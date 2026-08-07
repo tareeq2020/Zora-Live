@@ -19,6 +19,11 @@ import {
 import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
+import { alertOps } from '../ops';
+import { isCommissionRate } from '../commission';
+import {
+  onShareSuccessful, onShareShort, onShareFailed, notifyShareReceived, notifySplitCompleteByOrder,
+} from '../split';
 
 type Sql = any; // postgres.js Sql | tx handle
 
@@ -41,6 +46,12 @@ export interface CreateGaVipOrderInput {
   cart: CartLine[];
   feeRate: number; // e.g. 0.05 — read from config BEFORE the tx
   holdTtl: number; // hold lifetime in seconds — read from config BEFORE the tx
+  /** BS35 (#6): the platform commission in force for THIS purchase, resolved by
+      the caller (event override → org rate → default) BEFORE the tx, like every
+      other config here. Stamped on the order so a later rate change can never
+      rewrite this order's earnings. Null/omitted leaves the stamp empty and the
+      order reads as the platform default. */
+  commissionRate?: number | null;
 }
 
 export type CreateGaVipOrderResult =
@@ -55,6 +66,8 @@ export type CreateGaVipOrderResult =
  */
 export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): Promise<CreateGaVipOrderResult> {
   const { phone, email, cart, feeRate, holdTtl } = input;
+  // Only a valid fraction is stamped; a junk value is stored as NULL (= default).
+  const commissionRate = isCommissionRate(input.commissionRate) ? input.commissionRate : null;
   try {
     return await tx(async (t: Sql) => {
       // (a) upsert customer by phone (the stable identity); refresh email.
@@ -69,8 +82,8 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       if (!evRows.length) throw new SoldOut(cart[0].tier);
       const eventId = evRows[0].event_id;
       const ordRows = await t`
-        insert into "order" (customer_id, event_id, type, status)
-        values (${customerId}, ${eventId}, 'ga_vip', 'pending')
+        insert into "order" (customer_id, event_id, type, status, commission_rate)
+        values (${customerId}, ${eventId}, 'ga_vip', 'pending', ${commissionRate})
         returning id`;
       const orderId: string = ordRows[0].id;
 
@@ -78,10 +91,13 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       let subtotal = 0;
       let passedSubtotal = 0; // only lines whose price passes the fee to the buyer
       for (const line of cart) {
+        // BS23: a DISABLED tier is unpurchasable — the join drops it so the buyer
+        // sees the same sold-out path (never a 500), and inventory is never touched.
         const pvRows = await t`
-          select id, price, fee_treatment from price_version
-           where tier_id = ${line.tier} and effective_to is null
-           order by effective_from desc limit 1`;
+          select pv.id, pv.price, pv.fee_treatment from price_version pv
+            join product_tier pt on pt.id = pv.tier_id
+           where pv.tier_id = ${line.tier} and pv.effective_to is null and pt.disabled = false
+           order by pv.effective_from desc limit 1`;
         if (!pvRows.length) throw new SoldOut(line.tier);
         const pv = pvRows[0];
 
@@ -298,6 +314,15 @@ export async function applyOutcome(
     const [ord] = await t`select type, status from "order" where id = ${txr.order_id}`;
     const isTable = ord?.type === 'table';
 
+    // ── BS2 table_share branch: a bill-split seat is its own order. Delegate to
+    //    the split aggregation layer (the txn-terminal guard above already deduped).
+    //    Returns BEFORE the GA/VIP + table logic below, which stays untouched.
+    if (ord?.type === 'table_share') {
+      if (outcome === 'successful') return onShareSuccessful(t, txr.order_id, transactionId, collected);
+      if (outcome === 'short')      return onShareShort(t, txr.order_id, transactionId, collected);
+      return onShareFailed(t, txr.order_id, transactionId);
+    }
+
     if (outcome === 'successful') {
       // GUARD 2 (order-level): a successful on an already-paid order = duplicate
       // COLLECTION by a different txn. Mark this txn paid + record what it took,
@@ -364,6 +389,8 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
       : null;
   const orderStatus = await applyOutcome(sql, transactionId, outcome, collected);
   if (orderStatus === 'paid') await notifyOrderPaid(sql, txr.order_id);
+  else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
+  else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
   return outcome;
 }
 
@@ -422,14 +449,9 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
   } catch (e) { console.error('confirm email failed', e); }
 }
 
-/** Idempotent ops-alert sink: one row per (kind, orderId, detail) in webhook_event
-    under provider='ops-alert'. ON CONFLICT DO NOTHING dedups repeat alerts. */
-export async function alertOps(sql: Sql, kind: string, orderId: string, detail?: string): Promise<void> {
-  await sql`
-    insert into webhook_event (provider, dedup_key, transaction_id, applied)
-    values ('ops-alert', ${`${kind}:${orderId}:${detail ?? ''}`}, null, true)
-    on conflict (provider, dedup_key) do nothing`;
-}
+// alertOps moved to ../ops (shared with the split domain to avoid a circular
+// import); re-exported here so the existing index.ts export path is unchanged.
+export { alertOps } from '../ops';
 
 /** Resolve a raw webhook body to our transaction_id. Selcom forwards `transid`
     (= our id); ClickPesa forwards only `orderReference`/`reference` (H3) — resolve

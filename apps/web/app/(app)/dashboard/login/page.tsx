@@ -31,8 +31,10 @@ const STYLES = `
 .org-login button:hover{background:var(--blue);color:var(--bone)}
 .org-login .err{font-family:var(--mono);font-size:12px;color:var(--orange);letter-spacing:.05em;margin-top:16px;
   border:1px dashed var(--orange);padding:12px 14px}
+.org-login .alt{text-align:center;font-size:12.5px;color:var(--mut);margin-top:24px;line-height:1.6}
+.org-login .alt a{color:var(--bone);text-decoration:underline;text-underline-offset:3px}
 .org-login .back{display:block;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.15em;
-  color:var(--mut);margin-top:26px;text-decoration:none}
+  color:var(--mut);margin-top:18px;text-decoration:none}
 .org-login .back:hover{color:var(--bone)}
 `;
 
@@ -101,6 +103,11 @@ export default function OrganizerLoginPage() {
             </button>
             {error && <p className="err">{error}</p>}
           </form>
+          {/* BS41 (#4): sign-in and sign-up are one surface. Without this link the
+              self-registration route exists but has no front door. */}
+          <p className="alt">
+            Don’t have an account? <a href="/dashboard/signup">Start selling on Zora</a>
+          </p>
           <a className="back" href="/">
             &larr; BACK TO THE SITE
           </a>

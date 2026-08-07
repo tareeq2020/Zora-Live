@@ -33,6 +33,9 @@ export type CheckoutTier = {
   name: string;
   unitPrice: number;
   currency?: string;
+  split?: boolean;   // BS8: a splittable table tier — surfaces the "Split a table" CTA
+  seats?: number;    // BS8: seats per table (max splitters); defaults to 8
+  disabled?: boolean; // BS23: hidden from the storefront / not purchasable
 };
 
 export type CheckoutFlowProps = {
@@ -41,6 +44,9 @@ export type CheckoutFlowProps = {
   eventName: string;
   when?: string; // "SAT 08 AUG · 12:00 · THE VENUE"
   tiers: CheckoutTier[];
+  /** Brand accent (organizer theme). Overrides the default electric blue on all
+      CTA / focus / selected states. Defaults to #3D5AFE for non-branded contexts. */
+  accent?: string;
 };
 
 type Step = 'cart' | 'buyer' | 'pay' | 'poll' | 'done';
@@ -64,8 +70,14 @@ const TERMINAL = new Set(['paid', 'payment_short', 'paid_unseatable', 'failed', 
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: CheckoutFlowProps) {
+export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
+
+  // BS22: splittable tiers link into the dedicated split flow (the aura-branded
+  // /split/new). Same query contract the event leaf builds, so the two entry
+  // points stay in lockstep.
+  const splitHref = (t: CheckoutTier) =>
+    `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(eventName)}&price=${t.unitPrice}&cap=${t.seats || 8}`;
 
   const [step, setStep] = useState<Step>('cart');
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -78,6 +90,11 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
   const [ageAttested, setAgeAttested] = useState(false);
   const [method, setMethod] = useState<Method>('mobile');
   const [network, setNetwork] = useState('VODACOM');
+  // BS47: which methods the admin has switched on (settings.methodsEnabled).
+  // Fail-open — an absent map, or an absent key within it, means enabled — so
+  // this mirrors the checkout API's own guard and never hides a method just
+  // because /api/settings was slow or unreachable.
+  const [methodsEnabled, setMethodsEnabled] = useState<Record<Method, boolean>>({ mobile: true, billpay: true, card: true });
 
   // checkout / pay
   const [order, setOrder] = useState<Order | null>(null);
@@ -124,6 +141,13 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
         setAvail(map);
       })
       .catch(() => setInvError(true));
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { methodsEnabled?: Partial<Record<Method, boolean>> } | null) => {
+        const m = d?.methodsEnabled || {};
+        setMethodsEnabled({ mobile: m.mobile !== false, billpay: m.billpay !== false, card: m.card !== false });
+      })
+      .catch(() => {}); // leave the fail-open default in place
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -135,6 +159,16 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
     };
   }, [open]);
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  // BS47: if the admin has switched the currently-selected method off, land on
+  // the first method that's still on rather than showing a payment option that
+  // will 403 at submit. (all_methods_disabled is refused server-side, so this
+  // list is never empty in practice — falls back to 'mobile' defensively.)
+  const availableMethods = (['mobile', 'billpay', 'card'] as Method[]).filter((m) => methodsEnabled[m]);
+  useEffect(() => {
+    if (availableMethods.length && !availableMethods.includes(method)) setMethod(availableMethods[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [methodsEnabled]);
 
   const availOf = (tierId: string) => (avail == null ? Infinity : avail[tierId] ?? 0);
   const cartLines = useMemo(
@@ -302,7 +336,8 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
   return (
     <div className="zco" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
-      <div className="zco-card" role="dialog" aria-modal="true" aria-label="Checkout">
+      <div className="zco-card" role="dialog" aria-modal="true" aria-label="Checkout"
+        style={accent ? ({ ['--z-blue']: accent } as React.CSSProperties) : undefined}>
         <div className="zco-head">
           <span className="zco-secure">
             SECURE CHECKOUT · <b>ZORA</b>
@@ -318,7 +353,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
           {/* ── (a) CART ── */}
           {step === 'cart' ? (
             <>
-              <div className="zco-welcome">The price is the price — this is a real Zora pass, issued on payment.</div>
+              <div className="zco-welcome">A real Zora pass, issued on payment — Zora adds no booking fee.</div>
               <p className="zco-event">{eventName}</p>
               {when ? <p className="zco-when">{when}</p> : null}
               {invError ? <p className="zco-muted">Live availability is unavailable right now — you can still try.</p> : null}
@@ -329,11 +364,15 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
                   const soldOut = a <= 0;
                   const q = qty[t.tierId] || 0;
                   return (
-                    <div className={'zco-tier' + (soldOut ? ' out' : '')} key={t.tierId}>
+                    <div className={'zco-tier' + (soldOut ? ' out' : '') + (t.split ? ' zco-tier-split' : '')} key={t.tierId}>
                       <div className="zco-tier-info">
-                        <p className="zco-tier-name">{t.name}</p>
+                        <p className="zco-tier-name">
+                          {t.name}
+                          {t.split ? <span className="zco-badge">SPLITTABLE</span> : null}
+                        </p>
                         <p className="zco-tier-price">
                           {soldOut ? 'SOLD OUT' : `${fmt(t.unitPrice)} ${t.currency || currency}`}
+                          {t.split ? <span className="zco-seatnote"> · seats {t.seats || 8}</span> : null}
                           {!soldOut && avail && a <= 5 ? <span className="zco-low"> · {a} left</span> : null}
                         </p>
                       </div>
@@ -346,6 +385,11 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
                           +
                         </button>
                       </div>
+                      {t.split ? (
+                        <a className="zco-split-cta" href={splitHref(t)}>
+                          Split this table — everyone pays their own share →
+                        </a>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -369,7 +413,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
                       {fmt(estSubtotal)} {currency}
                     </span>
                   </div>
-                  <p className="zco-fineprint">Your final total is confirmed on the next step.</p>
+                  <p className="zco-fineprint">Your mobile-money or card provider may add a small fee at payment. Your final total is confirmed on the next step.</p>
                 </div>
               ) : null}
 
@@ -400,7 +444,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
               <div className="zco-method">
                 <span className="zco-method-lab">Pay with</span>
                 <div className="zco-seg">
-                  {(['mobile', 'billpay', 'card'] as Method[]).map((m) => (
+                  {(availableMethods.length ? availableMethods : (['mobile', 'billpay', 'card'] as Method[])).map((m) => (
                     <button key={m} className={'zco-seg-btn' + (method === m ? ' on' : '')} onClick={() => setMethod(m)}>
                       {m === 'mobile' ? 'Mobile money' : m === 'billpay' ? 'Bill pay' : 'Card'}
                     </button>
@@ -439,7 +483,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers }: 
                     {fmt(order.total)} {currency}
                   </span>
                 </div>
-                <p className="zco-fineprint">This is the price. Nothing is added after this screen.</p>
+                <p className="zco-fineprint">This is your Zora total — we add nothing. Your mobile-money provider may charge its own small fee.</p>
               </div>
 
               <label className="zco-field">
@@ -677,9 +721,15 @@ const STYLE = `
 .zco-tiers{margin-top:22px;display:flex;flex-direction:column;gap:12px}
 .zco-tier{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--z-hair);border-radius:12px;padding:16px 18px}
 .zco-tier.out{opacity:.5}
-.zco-tier-name{font-size:14px;font-weight:500}
+.zco-tier-split{flex-wrap:wrap;row-gap:14px;border-color:color-mix(in srgb,var(--z-blue) 50%,var(--z-hair))}
+.zco-tier-split .zco-tier-info{flex:1 1 auto}
+.zco-tier-name{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.zco-badge{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--z-blue);border:1px solid var(--z-blue);border-radius:99px;padding:2px 8px}
 .zco-tier-price{font-family:var(--mono);font-size:12px;color:var(--z-mut);letter-spacing:.04em;margin-top:4px}
+.zco-seatnote{color:var(--z-mut)}
 .zco-low{color:var(--z-blue)}
+.zco-split-cta{flex:1 0 100%;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--z-blue);text-decoration:none;border:1px solid var(--z-blue);border-radius:10px;padding:11px 12px;background:color-mix(in srgb,var(--z-blue) 10%,transparent);transition:background .2s}
+.zco-split-cta:hover{background:color-mix(in srgb,var(--z-blue) 18%,transparent)}
 .zco-ctrl{display:flex;align-items:center;gap:14px;flex-shrink:0}
 .zco-ctrl button{width:34px;height:34px;border-radius:50%;border:1px solid var(--z-hair);background:none;color:var(--z-bone);font-size:19px;cursor:pointer;line-height:1}
 .zco-ctrl button:hover:not(:disabled){border-color:var(--z-bone)}

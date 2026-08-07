@@ -15,15 +15,15 @@ const FAQS: Faq[] = [
   { cat: 'Tickets & entry', q: "My ticket won't download or show up", a: 'Pull to refresh in the app, or sign out and back in once to reissue passes to your device. Still missing? Open the chat and we can push it manually in minutes.' },
   { cat: 'Tickets & entry', q: 'How do I get into the event?', a: 'Show the live pass in the app at the gate — the animation confirms it is real. Screenshots do not scan. Arrive with the app installed and signed in.' },
   { cat: 'Payments', q: 'My payment timed out — was I charged?', a: 'No double charge. Pending mobile-money holds reverse automatically within a few minutes. If you got a confirmation SMS, your tickets are already in the app. No confirmation after 10 minutes? Just try again.' },
-  { cat: 'Payments', q: 'Which payment methods work?', a: 'Mobile money (M-Pesa, Tigo Pesa, Airtel Money and more by region) plus Visa and Mastercard. You always pay the exact price shown — no fees added at checkout.' },
-  { cat: 'Payments', q: 'Are there any booking or service fees?', a: 'None for buyers. The price you see is the price you pay. Zora takes a flat commission from the organizer instead — see the pricing page.' },
+  { cat: 'Payments', q: 'Which payment methods work?', a: 'Mobile money (M-Pesa, Tigo Pesa, Airtel Money and more by region) plus Visa and Mastercard. Zora adds no booking fee — your mobile-money or card provider may charge its own fee at payment.' },
+  { cat: 'Payments', q: 'Are there any booking or service fees?', a: 'Zora charges buyers no booking or service fee — our cut is a commission from the organizer (see the pricing page). Your mobile-money or card provider may charge its own fee at payment.' },
   { cat: 'Account', q: 'How do I sign up?', a: 'Two taps with Google, or use your email. If your number says it is already in use, you already have an account — choose Sign in and request a one-time code.' },
   { cat: 'Account', q: 'I forgot my password', a: 'There are no passwords to forget. On the sign-in screen tap “Get a code” and we text you a one-time login code.' },
   { cat: 'Organizers', q: 'How much does it cost to sell on Zora?', a: 'A flat 5% per ticket during the Tanzania launch — no listing or monthly fees. It covers payments, your storefront, dashboard, CRM and email. Full breakdown on the pricing page.' },
   { cat: 'Organizers', q: 'When do I get paid out?', a: 'On your schedule, to mobile money or bank. Instant payout to mobile money is available once your identity check clears (usually within 24 hours of signing up).' },
   { cat: 'Organizers', q: 'Why is my account “pending verification”?', a: 'A one-time ID check keeps scammers off the marketplace. You can draft events immediately; payouts and public listing unlock once approved — normally within 24 hours.' },
   { cat: 'Refunds & resale', q: 'Can I get a refund or resell my ticket?', a: 'List it on the in-app resale market, capped at face value +10%. When it sells, the new pass issues and yours voids automatically. If the organizer cancels, you are refunded to your original method with no action needed.' },
-  { cat: 'Refunds & resale', q: 'Someone is reselling above face value', a: 'That is impossible on Zora — resale is hard-capped at face +10% inside the app, and off-platform passes will not scan. Only buy through the app or an organizer’s zora.com storefront.' },
+  { cat: 'Refunds & resale', q: 'Someone is reselling above face value', a: 'That is impossible on Zora — resale is hard-capped at face +10% inside the app, and off-platform passes will not scan. Only buy through the app or an organizer’s zorapass.com storefront.' },
 ];
 
 const CATS = ['All', ...Array.from(new Set(FAQS.map((f) => f.cat)))];
@@ -111,8 +111,14 @@ export function HelpApp() {
               <button className="btn pri" id="open-chat" onClick={() => zbotRef.current?.open()}>
                 CHAT WITH US
               </button>
-              <a className="btn" href="mailto:hello@zora.app">
-                EMAIL HELLO@ZORA.APP
+              <a className="btn" href="mailto:support@zorapass.com">
+                SUPPORT@ZORAPASS.COM
+              </a>
+              <a className="btn" href="tel:+255741099989">
+                +255 741 099 989
+              </a>
+              <a className="btn" href="https://instagram.com/zora.pass" target="_blank" rel="noopener noreferrer">
+                @ZORA.PASS
               </a>
             </div>
           </div>
