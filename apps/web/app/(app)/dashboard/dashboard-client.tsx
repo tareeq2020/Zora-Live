@@ -26,6 +26,12 @@ type OrgMe = {
   role: string;
   impersonating?: Impersonating;
   kycStatus?: string;
+  // BS41 (#4): 'pending' until a Zora admin approves a self-registered org.
+  status?: string | null;
+  // 'self-signup' = they registered themselves and have never been reviewed.
+  source?: string | null;
+  // User-facing rejection copy (reused from the KYC reasons), when rejected.
+  kycReason?: string | null;
 };
 
 type SummaryEvent = {
@@ -244,6 +250,13 @@ export default function DashboardClient() {
   // ── derived identity + gates ──
   const orgName = me.data?.name || (me.loading ? '' : 'Your organization');
   const kycApproved = me.data?.kycStatus === 'approved';
+  // BS41 (#4): a SELF-REGISTERED org awaiting its first review is a different
+  // situation from an established org whose ID documents are in review, and the
+  // wrong banner is worse than no banner — telling someone who has uploaded
+  // nothing to "resubmit your ID" is a dead end. Branch on `source`.
+  const selfSignup = me.data?.source === 'self-signup';
+  const awaitingFirstReview = selfSignup && !kycApproved && me.data?.kycStatus !== 'rejected';
+  const selfSignupRejected = selfSignup && me.data?.kycStatus === 'rejected';
   const impersonating = me.data?.impersonating;
   const impName =
     impersonating && typeof impersonating === 'object' ? impersonating.name || me.data?.name : me.data?.name;
@@ -348,8 +361,75 @@ export default function DashboardClient() {
               </>
             )}
 
-            {/* ── KYC-locked notice (preserved from the demo's page.tsx:164 affordance) ── */}
-            {me.data && !kycApproved ? (
+            {/* ── BS41 (#4): PENDING-VERIFICATION banner for a self-registered org.
+                Not a dead end (DESIGN.md rule 4b): it states plainly what works
+                now, what unlocks later, and hands over a primary action instead
+                of leaving them staring at three zeroes. Copy is the design spec's
+                verbatim line — publishing and withdrawals are the two things a
+                pending org genuinely cannot do, and both gates read kycStatus. ── */}
+            {me.data && awaitingFirstReview ? (
+              <div className="verif-banner pending">
+                <div className="vb-ic">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                </div>
+                <div className="vb-body">
+                  <p className="vb-t">
+                    Verification pending
+                    <span className="vb-badge">PENDING</span>
+                  </p>
+                  <p className="vb-d">
+                    You can build drafts now; publishing and withdrawals unlock once a Zora admin approves you.
+                  </p>
+                  <div className="vb-actions">
+                    <Link className="vb-btn primary" href="/dashboard/events/new">
+                      SET UP YOUR FIRST DROP
+                    </Link>
+                    <a className="vb-btn" href="/dashboard/onboarding">
+                      WHAT WE CHECK
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Rejected self-signup — a reason and a way forward, never silence. */}
+            {me.data && selfSignupRejected ? (
+              <div className="verif-banner">
+                <div className="vb-ic">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 8v5" />
+                    <path d="M12 16.5v.01" />
+                  </svg>
+                </div>
+                <div className="vb-body">
+                  <p className="vb-t">
+                    Verification needs attention
+                    <span className="vb-badge">ACTION NEEDED</span>
+                  </p>
+                  <p className="vb-d">
+                    {me.data.kycReason || 'We could not approve your account yet.'} Your drafts are safe — publishing
+                    and withdrawals stay locked until this is resolved.
+                  </p>
+                  <div className="vb-actions">
+                    <a className="vb-btn primary" href="/dashboard/onboarding">
+                      FIX MY VERIFICATION
+                    </a>
+                    <a className="vb-btn" href="mailto:support@zora.app">
+                      EMAIL SUPPORT
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* ── KYC-locked notice (preserved from the demo's page.tsx:164 affordance).
+                Self-signups get the two banners above instead — this one asks for
+                an ID they were never asked to upload. ── */}
+            {me.data && !kycApproved && !selfSignup ? (
               <div className="verif-banner">
                 <div className="vb-ic">
                   <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -662,7 +742,26 @@ const STYLE = `
 .zora-dash .verif-banner .vb-d{font-size:13px;color:#7a5212;margin-top:5px;line-height:1.55}
 .zora-dash .verif-banner .vb-d b{color:#5A340A;font-weight:500}
 .zora-dash .verif-banner .vb-actions{display:flex;gap:10px;margin-top:13px;flex-wrap:wrap}
-.zora-dash .verif-banner .vb-btn{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;padding:9px 16px;border-radius:8px;cursor:pointer;border:1px solid #EF9F27;background:#fff;color:#854F0B}
+.zora-dash .verif-banner .vb-btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;padding:12px 16px;min-height:44px;display:inline-flex;align-items:center;border-radius:8px;cursor:pointer;border:1px solid #EF9F27;background:#fff;color:#854F0B}
 .zora-dash .verif-banner .vb-btn:hover{background:#854F0B;color:#fff;border-color:#854F0B}
+/* BS41: the pending banner is the FIRST thing a new organizer sees, so its
+   primary action is a real button (filled, ≥44px) and its body copy sits at
+   13.5px / high contrast — DESIGN.md 4b, highest-stakes info, highest legibility. */
+.zora-dash .verif-banner .vb-btn.primary{background:#854F0B;color:#fff;border-color:#854F0B;font-weight:500}
+.zora-dash .verif-banner .vb-btn.primary:hover{background:#5A340A;border-color:#5A340A}
+.zora-dash .verif-banner.pending{background:#EDF0FE;border-color:var(--blue)}
+.zora-dash .verif-banner.pending .vb-ic{border-color:var(--blue)}
+.zora-dash .verif-banner.pending .vb-ic svg{stroke:var(--blue)}
+.zora-dash .verif-banner.pending .vb-t{color:#0A0A0B}
+.zora-dash .verif-banner.pending .vb-badge{background:var(--blue);color:#fff}
+.zora-dash .verif-banner.pending .vb-d{color:#2B2F45;font-size:13.5px}
+.zora-dash .verif-banner.pending .vb-btn{border-color:var(--blue);color:var(--blue)}
+.zora-dash .verif-banner.pending .vb-btn:hover{background:var(--blue);color:#fff}
+.zora-dash .verif-banner.pending .vb-btn.primary{background:var(--blue);color:#fff}
+.zora-dash .verif-banner.pending .vb-btn.primary:hover{background:#2A41D6;border-color:#2A41D6}
+@media(max-width:560px){
+  .zora-dash .verif-banner .vb-actions{flex-direction:column;align-items:stretch}
+  .zora-dash .verif-banner .vb-btn{justify-content:center}
+}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 `;

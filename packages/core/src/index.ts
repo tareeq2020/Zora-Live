@@ -88,3 +88,45 @@ export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
+// BS42 (#1): the door. The two-step scan lifecycle rides the EXISTING
+// credential.state (OV4); the agent scan is the gate and the supervisor confirm
+// is selective (OV6). Row-locked, so a replayed QR can never win twice.
+export {
+  scanCredential, confirmCredential, pendingConfirmations, getPass, scanTotals,
+  parseQrPayload, requiresSupervisor, scanErrorMessage, confirmErrorMessage,
+  CREDENTIAL_STATES, TERMINAL_CREDENTIAL_STATES,
+} from './scan';
+export type {
+  CredentialState, ScanErrorCode, ConfirmErrorCode, ScanPass, ScanActor, ScanOutcome,
+  ScanCredentialInput, ScanCredentialResult, ConfirmCredentialInput, ConfirmCredentialResult,
+  PendingFilter, ParsedQr,
+} from './scan';
+// BS42 (#1): the code→session exchange, rate-limited with lockout (ARCH-3/OV4).
+export {
+  authenticateScannerCode, scanLockoutState, generateScannerCode, hashScanCode,
+  toScannerUser, scanAuthMessage,
+  SCAN_LOCKOUT_WINDOW_SEC, SCAN_CODE_MAX_FAILURES, SCAN_IP_MAX_FAILURES, SCAN_SESSION_TTL_SEC,
+  SCANNER_USER_COLUMNS,
+} from './scan-auth';
+export type {
+  ScannerRole, ScannerUser, ScannerUserRow, ScanAuthInput, ScanAuthResult, ScanAuthErrorCode,
+} from './scan-auth';
+// BS43 (#2): broadcasts — ONE audience resolver / gate / queue / drain, mounted
+// twice (organizer + admin) so opt-out and the caps cannot diverge (CQ2).
+export {
+  countAudience, queueRecipients, createBroadcast, listBroadcasts, getBroadcast,
+  drainBroadcasts, pendingBroadcastCount,
+  suppressAddress, isSuppressed, resolveUnsubscribeToken, unsubscribeByToken, maskAddress,
+  smsSegments, smsUnitCost, estimateSmsCost, monthlySmsCap, smsUsedThisMonth, smsCapState,
+  broadcastErrorMessage, broadcastBatchSize, broadcastRateMs,
+  renderSmsBody, renderEmailBody,
+  BROADCAST_AUDIENCE_STATUSES, AUDIENCE_PAGE_SIZE,
+  DEFAULT_SMS_UNIT_COST, DEFAULT_MONTHLY_SMS_CAP,
+  DEFAULT_BROADCAST_BATCH, DEFAULT_BROADCAST_RATE_MS,
+} from './broadcasts';
+export type {
+  BroadcastChannel, RecipientChannel, BroadcastScopeKind, BroadcastStatus,
+  AudienceScope, AudienceCount, SmsCostEstimate, SmsCapState,
+  BroadcastErrorCode, BroadcastRecord, CreateBroadcastInput, CreateBroadcastResult,
+  ListBroadcastsFilter, SuppressInput, UnsubscribeTarget, DrainResult,
+} from './broadcasts';

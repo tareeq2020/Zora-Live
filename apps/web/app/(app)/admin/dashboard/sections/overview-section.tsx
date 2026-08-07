@@ -12,6 +12,7 @@ import { AdminCard, AdminTable, useAdminResource, useJsonLoader, whenLocal, type
 type AuditRow = { at: string; action: string; detail: string };
 type Organizer = { status?: string };
 type KycRow = { status?: string };
+type OrgSignupRow = { kycStatus?: string | null };
 type Crew = { size?: number | string };
 type MediaRow = { status?: string; lowres?: boolean };
 
@@ -29,11 +30,15 @@ function Stat({ label, value, loaded }: { label: string; value: string | number;
 export function OverviewSection({ onGo }: { onGo: (section: string) => void }) {
   const orgs = useAdminResource(useJsonLoader<Organizer[]>('/api/organizers'));
   const kyc = useAdminResource(useJsonLoader<KycRow[]>('/api/kyc'));
+  // BS41 (#5): a self-signup nobody looks at is an organizer who can never sell.
+  // Surface the count here so the queue is discoverable from the first screen.
+  const signups = useAdminResource(useJsonLoader<OrgSignupRow[]>('/api/kyc/organizers'));
   const crews = useAdminResource(useJsonLoader<Crew[]>('/api/registrations'));
   const media = useAdminResource(useJsonLoader<MediaRow[]>('/api/media'));
   const audit = useAdminResource(useJsonLoader<AuditRow[]>('/api/audit'));
 
   const pendingKyc = (kyc.data || []).filter((v) => v.status === 'submitted' || v.status === 'in_review').length;
+  const pendingSignups = (signups.data || []).filter((o) => o.kycStatus !== 'approved').length;
   const suspended = (orgs.data || []).filter((o) => o.status === 'suspended').length;
   const heads = (crews.data || []).reduce((n, c) => n + (parseInt(String(c.size), 10) || 0), 0);
   const flagged = (media.data || []).filter((m) => m.status === 'flagged' || m.lowres).length;
@@ -57,11 +62,26 @@ export function OverviewSection({ onGo }: { onGo: (section: string) => void }) {
         <div className="stat-row">
           <Stat label="ORGANIZERS" value={orgs.data?.length ?? 0} loaded={orgs.loaded} />
           <Stat label="SUSPENDED" value={suspended} loaded={orgs.loaded} />
+          <Stat label="SIGN-UPS AWAITING REVIEW" value={pendingSignups} loaded={signups.loaded} />
           <Stat label="IDS AWAITING REVIEW" value={pendingKyc} loaded={kyc.loaded} />
           <Stat label="CREWS" value={crews.data?.length ?? 0} loaded={crews.loaded} />
           <Stat label="HEADS" value={heads} loaded={crews.loaded} />
           <Stat label="FLAGGED MEDIA" value={flagged} loaded={media.loaded} />
         </div>
+
+        {signups.loaded && pendingSignups > 0 ? (
+          <p className="banner-soon">
+            {pendingSignups} NEW ORGANIZER{pendingSignups === 1 ? '' : 'S'} WAITING TO BE APPROVED — THEY CANNOT SELL
+            OR WITHDRAW UNTIL SOMEONE DECIDES —{' '}
+            <button
+              type="button"
+              onClick={() => onGo('verification')}
+              style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', font: 'inherit', padding: 0 }}
+            >
+              OPEN VERIFICATION
+            </button>
+          </p>
+        ) : null}
 
         {kyc.loaded && pendingKyc > 0 ? (
           <p className="banner-soon">

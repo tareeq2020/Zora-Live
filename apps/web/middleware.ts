@@ -133,12 +133,15 @@ export async function middleware(req: NextRequest) {
   // /dashboard/* -> organizer-gated seller app (PR-F6/F7). Prefix match so every
   // seller route is covered, but EXEMPT /dashboard/login (the sign-in page must
   // render to anon so an organizer can obtain a session — gating it would loop).
+  // BS41 (#4) adds /dashboard/signup to that exemption for the same reason: it is
+  // the page that CREATES the session, so requiring one would make becoming an
+  // organizer impossible.
   // Fail-closed: any /api/me error leaves us unauthorized and we rewrite to the
   // login page. Allow a real organizer, or an admin actively impersonating one.
   // (F3 adds its own event branches separately; this only ADDS the /dashboard
   // branch — the orchestrator reconciles.)
   if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
-    if (pathname === '/dashboard/login') return NextResponse.next();
+    if (pathname === '/dashboard/login' || pathname === '/dashboard/signup') return NextResponse.next();
     let allowed = false;
     try {
       const res = await fetch(`${API_URL}/api/me`, {
