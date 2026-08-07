@@ -165,8 +165,6 @@ export default async function TenantEventPage({ params }: { params: { handle: st
           )}
         </div>
 
-        <p className={styles.nofee}>Zora adds no booking fee. Your mobile-money or card provider may charge a small fee at payment.</p>
-
         <div className={styles.foot}>
           <span>runs on zora</span>
           <Link href={`/@${params.handle}`}>← back to the store</Link>
