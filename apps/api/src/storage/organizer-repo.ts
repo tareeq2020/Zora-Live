@@ -31,6 +31,17 @@ export interface OrganizerRecord {
   joined: string | null;
   events: number;
   revenue: number;
+  /* BS41 (#4/#5) — self-registration + verification (migration 0013). */
+  /** null = seeded or staff-created; 'self-signup' = registered themselves. */
+  source: string | null;
+  /** The MSISDN proven by SMS-OTP at registration (self-signups only). */
+  phone: string | null;
+  /** Row birth — the "submitted-at" the verification queue sorts and shows. */
+  createdAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  /** On reject: the KYC_REASONS code, plus an optional ` · note` suffix. */
+  verificationReason: string | null;
 }
 
 type Row = {
@@ -38,10 +49,20 @@ type Row = {
   kyc_status: string | null; commission_rate: string | number | null;
   password_hash: string | null; joined: string | null;
   events: number; revenue: string | number;
+  source: string | null; phone: string | null; created_at: Date | string | null;
+  reviewed_at: Date | string | null; reviewed_by: string | null; verification_reason: string | null;
 };
 
 const COLUMNS = `id, name, handle, email, status, kyc_status, commission_rate,
-                 password_hash, joined, events, revenue`;
+                 password_hash, joined, events, revenue,
+                 source, phone, created_at, reviewed_at, reviewed_by, verification_reason`;
+
+/** timestamptz -> ISO string (postgres.js hands back a Date). */
+function iso(v: Date | string | null): string | null {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 function toRecord(r: Row): OrganizerRecord {
   return {
@@ -60,6 +81,12 @@ function toRecord(r: Row): OrganizerRecord {
     joined: r.joined,
     events: Number(r.events ?? 0),
     revenue: Number(r.revenue ?? 0),
+    source: r.source ?? null,
+    phone: r.phone ?? null,
+    createdAt: iso(r.created_at ?? null),
+    reviewedAt: iso(r.reviewed_at ?? null),
+    reviewedBy: r.reviewed_by ?? null,
+    verificationReason: r.verification_reason ?? null,
   };
 }
 
@@ -72,6 +99,32 @@ export function publicOrganizer(o: OrganizerRecord, effectiveRate: number) {
     events: o.events, revenue: o.revenue, joined: o.joined,
     ...(o.kycStatus != null ? { kycStatus: o.kycStatus } : {}),
     commissionRate: effectiveRate,
+    // BS41: emitted ONLY for self-registered orgs. Conditional on purpose — the
+    // seeded/staff-created rows carry source=null, so GET /api/organizers stays
+    // byte-identical to db/test/golden/organizers.json (pg-parity diffs it).
+    ...(o.source ? { source: o.source } : {}),
+  };
+}
+
+/* BS41 (#5) — the verification-queue shape. Deliberately NOT publicOrganizer:
+   the reviewer needs the facts a decision rests on (the proven phone, when they
+   signed up, the last rejection) and none of the money columns. Never carries
+   passwordHash. */
+export function verificationOrganizer(o: OrganizerRecord) {
+  return {
+    id: o.id,
+    name: o.name,
+    handle: o.handle,
+    email: o.email,
+    phone: o.phone,
+    status: o.status,
+    kycStatus: o.kycStatus,
+    source: o.source,
+    submittedAt: o.createdAt,
+    reviewedAt: o.reviewedAt,
+    reviewedBy: o.reviewedBy,
+    rejection: o.verificationReason,
+    events: o.events,
   };
 }
 
@@ -80,17 +133,13 @@ export class OrganizerRepo {
   /** Every organizer, stable order (matches the blob's original ordering). */
   async list(): Promise<OrganizerRecord[]> {
     const rows = await db()<Row[]>`
-      select id, name, handle, email, status, kyc_status, commission_rate,
-             password_hash, joined, events, revenue
-        from organizer order by created_at asc, id asc`;
+      select ${db().unsafe(COLUMNS)} from organizer order by created_at asc, id asc`;
     return rows.map(toRecord);
   }
 
   async byId(id: string): Promise<OrganizerRecord | null> {
     const rows = await db()<Row[]>`
-      select id, name, handle, email, status, kyc_status, commission_rate,
-             password_hash, joined, events, revenue
-        from organizer where id = ${id}`;
+      select ${db().unsafe(COLUMNS)} from organizer where id = ${id}`;
     return rows.length ? toRecord(rows[0]) : null;
   }
 
@@ -99,9 +148,91 @@ export class OrganizerRepo {
     const h = String(handle ?? '').toLowerCase();
     if (!h) return null;
     const rows = await db()<Row[]>`
-      select id, name, handle, email, status, kyc_status, commission_rate,
-             password_hash, joined, events, revenue
-        from organizer where handle = ${h}`;
+      select ${db().unsafe(COLUMNS)} from organizer where handle = ${h}`;
+    return rows.length ? toRecord(rows[0]) : null;
+  }
+
+  /* ── BS41 (#4/#5): self-registration + the verification queue ──────────── */
+
+  /** Is this handle free? Case-insensitive by construction (handles are stored
+      lower-cased). Cheap enough to call on every keystroke of the picker. */
+  async handleTaken(handle: string): Promise<boolean> {
+    const h = String(handle ?? '').toLowerCase();
+    if (!h) return false;
+    const rows = await db()<{ n: number }[]>`
+      select count(*)::int as n from organizer where handle = ${h}`;
+    return Number(rows[0]?.n ?? 0) > 0;
+  }
+
+  /**
+   * Create a self-registered organizer. Throws the raw postgres error on a
+   * UNIQUE(handle) violation — the caller maps it to `handle_taken`, which is the
+   * ONLY correct way to close the gap between "the picker said free" and "the
+   * insert ran": two signups can be in that gap at the same time and the database
+   * is the only referee.
+   *
+   * `id` is a slug, not a uuid, because the entire API surface is keyed on slug
+   * ids (PUT /api/organizers/:id/commission) — see 0009's note.
+   */
+  async createSelfSignup(input: {
+    id: string;
+    name: string;
+    handle: string;
+    phone: string;
+    email?: string | null;
+    passwordHash?: string | null;
+  }): Promise<OrganizerRecord> {
+    const joined = new Date().toISOString().slice(0, 10); // display-only 'YYYY-MM-DD'
+    const rows = await db()<Row[]>`
+      insert into organizer
+        (id, name, handle, email, phone, status, kyc_status, source, password_hash, joined, events, revenue)
+      values
+        (${input.id}, ${input.name}, ${input.handle.toLowerCase()}, ${input.email ?? null},
+         ${input.phone}, 'pending', 'unverified', 'self-signup',
+         ${input.passwordHash ?? null}, ${joined}, 0, 0)
+      returning ${db().unsafe(COLUMNS)}`;
+    return toRecord(rows[0]);
+  }
+
+  /** The #5 queue: every self-registered org, oldest first (longest wait on top). */
+  async listSelfSignups(): Promise<OrganizerRecord[]> {
+    const rows = await db()<Row[]>`
+      select ${db().unsafe(COLUMNS)} from organizer
+       where source = 'self-signup'
+       order by created_at asc, id asc`;
+    return rows.map(toRecord);
+  }
+
+  /**
+   * Record a verification decision. Approve and reject are ONE method because
+   * they are one state transition over the same columns — splitting them let the
+   * two paths drift on which fields they cleared (a re-approved org keeping a
+   * stale rejection reason, say).
+   *
+   * approve → status 'active' + kyc_status 'approved' (this is what unlocks
+   *           publishing a sellable drop and requesting a payout — both gates
+   *           read kyc_status === 'approved').
+   * reject  → kyc_status 'rejected', and status stays 'pending': a rejection is
+   *           "not yet", not a ban. They keep their drafts and can be approved
+   *           later without a second signup.
+   */
+  async recordVerification(
+    id: string,
+    decision: 'approve' | 'reject',
+    reviewedBy: string,
+    reason?: string | null,
+  ): Promise<OrganizerRecord | null> {
+    const approved = decision === 'approve';
+    const rows = await db()<Row[]>`
+      update organizer set
+        status              = ${approved ? 'active' : 'pending'},
+        kyc_status          = ${approved ? 'approved' : 'rejected'},
+        verification_reason = ${approved ? null : (reason ?? null)},
+        reviewed_at         = now(),
+        reviewed_by         = ${reviewedBy},
+        updated_at          = now()
+       where id = ${id}
+      returning ${db().unsafe(COLUMNS)}`;
     return rows.length ? toRecord(rows[0]) : null;
   }
 
