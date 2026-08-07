@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Wordmark } from '../../components/wordmark';
 import { ZBot } from '../../components/zbot';
 import { Calc } from './calc';
@@ -134,6 +135,9 @@ const CSS = `
 `;
 
 export default function CommissionPage() {
+  // BS47: hidden for now — redirect rather than delete so it's a one-line
+  // revert when this page is ready to come back.
+  redirect('/');
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />

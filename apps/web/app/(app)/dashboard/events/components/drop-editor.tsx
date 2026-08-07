@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CITIES } from '../../../../lib/cities';
 import {
   type ApiError,
   type DropForm,
@@ -499,12 +500,20 @@ export default function DropEditor(props: DropEditorProps) {
             <div className="row2">
               <div className="field">
                 <label>CITY</label>
-                <input
+                <select
                   className="in"
                   value={form.city}
                   onChange={(e) => set('city', e.target.value)}
-                  placeholder="Dar es Salaam"
-                />
+                >
+                  <option value="" disabled>
+                    Select a city
+                  </option>
+                  {CITIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.city}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>CATEGORY</label>

@@ -104,3 +104,17 @@ export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
 // receipts, KYC rejection copy, ticket emails) read these rather than inlining.
 export const SUPPORT_EMAIL = 'support@zorapass.com';
 export const SUPPORT_PHONE = '+255 741 099 989';
+
+// BS47: canonical event-city list. Event.city must be one of these ids — before
+// this, the field was freetext and discover's city filter matched on a fixed id
+// set, so a value like "Dar Es Salaam" (freetext) silently never matched "dar"
+// and hid the event from its own city page. Mirrors
+// apps/web/app/lib/cities.ts; keep both in step when a city is added.
+export const EVENT_CITIES = [
+  { id: 'dar', label: 'Dar es Salaam', country: 'Tanzania' },
+  { id: 'zanzibar', label: 'Zanzibar', country: 'Tanzania' },
+  { id: 'nairobi', label: 'Nairobi', country: 'Kenya' },
+  { id: 'accra', label: 'Accra', country: 'Ghana' },
+  { id: 'lagos', label: 'Lagos', country: 'Nigeria' },
+] as const;
+export const EVENT_CITY_IDS = EVENT_CITIES.map((c) => c.id) as string[];
