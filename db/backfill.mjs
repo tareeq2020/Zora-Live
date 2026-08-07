@@ -76,7 +76,7 @@ async function syncScannerUserTable() {
            a->>'contact',
            a->>'via',
            case when a->>'role' = 'supervisor' then 'supervisor' else 'agent' end,
-           (select e.id from event e where e.id = a->>'event'),
+           (select e.id from event e where lower(trim(e.id)) = lower(trim(a->>'event')) or lower(trim(e.name)) = lower(trim(a->>'event')) limit 1),
            a->>'code',
            case when a->>'status' = 'revoked' then 'revoked' else 'active' end,
            coalesce((a->>'createdAt')::timestamptz, now()),

@@ -100,7 +100,7 @@ export default function OrganizerSignupPage() {
         }
         setHandleState(
           d.available
-            ? { kind: 'free', message: d.message || `zora.com/${h} is yours.` }
+            ? { kind: 'free', message: d.message || `zorapass.com/${h} is yours.` }
             : { kind: 'blocked', reason: String(d.reason || 'taken'), message: d.message || 'Try another handle.' },
         );
       } catch {
@@ -353,7 +353,7 @@ export default function OrganizerSignupPage() {
                   (handleState.kind === 'blocked' ? ' bad' : '')
                 }
               >
-                <span className="pfx mono">zora.com/</span>
+                <span className="pfx mono">zorapass.com/</span>
                 <input
                   id="su-handle"
                   autoCapitalize="none"
@@ -419,7 +419,7 @@ export default function OrganizerSignupPage() {
               </p>
               <h1>You’re in.</h1>
               <p className="lede">
-                <b className="mono">zora.com/{normalizeHandle(handle)}</b> is yours. Taking you to your dashboard…
+                <b className="mono">zorapass.com/{normalizeHandle(handle)}</b> is yours. Taking you to your dashboard…
               </p>
             </div>
           ) : null}

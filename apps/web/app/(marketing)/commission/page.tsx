@@ -205,7 +205,7 @@ export default function CommissionPage() {
           <h2 className="sec">Everything, actually.</h2>
           <div className="incl">
             <div className="inc"><div className="ic">&#9679;</div><h3>Payments &amp; payouts</h3><p>Card and mobile money in, fast settlement out. No separate processor bill.</p></div>
-            <div className="inc"><div className="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zora.com, live in minutes.</p></div>
+            <div className="inc"><div className="ic">&#9636;</div><h3>Your storefront</h3><p>A branded page at yourname.zorapass.com, live in minutes.</p></div>
             <div className="inc"><div className="ic">&#9650;</div><h3>Dashboard &amp; CRM</h3><p>Real-time sales, entry scans, and a customer database that&apos;s yours.</p></div>
             <div className="inc"><div className="ic">&#9993;</div><h3>Built-in marketing</h3><p>Native email to your audience. No Mailchimp, no add-on.</p></div>
           </div>

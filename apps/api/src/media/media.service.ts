@@ -49,7 +49,7 @@ export class MediaService {
         return {
           name: r.name,
           url: r.url,
-          cdnUrl: 'cdn.zora.com/img/' + crypto.createHash('md5').update(r.name).digest('hex').slice(0, 8) + '/' + r.name + '?w=1600&q=80&fm=webp',
+          cdnUrl: 'cdn.zorapass.com/img/' + crypto.createHash('md5').update(r.name).digest('hex').slice(0, 8) + '/' + r.name + '?w=1600&q=80&fm=webp',
           sizeKB: kb,
           optimizedKB: Math.max(6, Math.round(kb * 0.42)),
           dims: r.w && r.h ? r.w + '×' + r.h : '—',

@@ -1,6 +1,6 @@
 /* BS41 (#4) — the ONE place organizer-handle rules live.
    A handle is not cosmetic: it becomes a public front door three ways —
-   `zora.com/<handle>`, `zora.com/@<handle>` and `<handle>.zora.com` (see
+   `zorapass.com/<handle>`, `zorapass.com/@<handle>` and `<handle>.zorapass.com` (see
    apps/web/middleware.ts). So "is this handle free?" has to answer the same way
    in three places that used to each have their own opinion:
      · the live availability picker on the signup screen,

@@ -93,7 +93,7 @@ const MARKUP = `
   <div class="top">
     <a class="back" href="/dashboard">&larr; DASHBOARD</a>
     <span class="brand">z<span class="o">o</span>ra<small>STOREFRONT STUDIO</small></span>
-    <span class="url" id="live-url">thebrunchcity.zora.com</span>
+    <span class="url" id="live-url">thebrunchcity.zorapass.com</span>
     <span class="save-state" id="save-state">All changes staged</span>
     <button class="publish" id="publish">PUBLISH TO WEB</button>
   </div>
@@ -107,7 +107,7 @@ const MARKUP = `
         <div class="acc-body">
           <div class="field">
             <label>SUBDOMAIN PREFIX</label>
-            <div class="handle-wrap"><input id="f-handle" autocomplete="off" spellcheck="false" placeholder="thebrunchcity"><span class="suf">.zora.com</span></div>
+            <div class="handle-wrap"><input id="f-handle" autocomplete="off" spellcheck="false" placeholder="thebrunchcity"><span class="suf">.zorapass.com</span></div>
           </div>
           <div class="field">
             <label>BRAND NAME</label>
@@ -189,7 +189,7 @@ const MARKUP = `
           <button class="on" data-vp="desktop"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Desktop</button>
           <button data-vp="mobile"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Mobile</button>
         </div>
-        <span class="pv-url" id="pv-url">thebrunchcity.zora.com</span>
+        <span class="pv-url" id="pv-url">thebrunchcity.zorapass.com</span>
         <button class="pv-reload" id="pv-reload">RELOAD</button>
       </div>
       <div class="pv-stage">
@@ -230,7 +230,7 @@ const SCRIPT = String.raw`
   /* ── identity ── */
   $('f-handle').addEventListener('input', e=>{
     const h=e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,30); e.target.value=h;
-    theme.handle=h||'yourname'; $('live-url').innerHTML='<b>'+theme.handle+'</b>.zora.com'; $('pv-url').textContent=theme.handle+'.zora.com'; markStaged();
+    theme.handle=h||'yourname'; $('live-url').innerHTML='<b>'+theme.handle+'</b>.zorapass.com'; $('pv-url').textContent=theme.handle+'.zorapass.com'; markStaged();
   });
   $('f-brand').addEventListener('input', e=> setField('brandName', e.target.value));
 
@@ -300,7 +300,7 @@ const SCRIPT = String.raw`
       const r=await fetch('/api/storefront-theme',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(theme)});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
       dirty=false; $('save-state').textContent='Published just now';
-      toast('Published to '+theme.handle+'.zora.com');
+      toast('Published to '+theme.handle+'.zorapass.com');
     }catch(ex){ toast(String(ex.message||ex), true); }
     finally{ btn.disabled=false; btn.textContent=old; }
   });
@@ -309,7 +309,7 @@ const SCRIPT = String.raw`
   fetch('/api/storefront-theme').then(r=>r.ok?r.json():null).then(t=>{
     if(!t) return; Object.assign(theme, t);
     $('f-handle').value=theme.handle; $('f-brand').value=theme.brandName;
-    $('live-url').innerHTML='<b>'+theme.handle+'</b>.zora.com'; $('pv-url').textContent=theme.handle+'.zora.com';
+    $('live-url').innerHTML='<b>'+theme.handle+'</b>.zorapass.com'; $('pv-url').textContent=theme.handle+'.zorapass.com';
     COLORS.forEach(([k])=>{ if(theme[k]){ $('hex-'+k).value=theme[k].toUpperCase(); $('sw-'+k).value=theme[k]; } });
     $('f-type').value=theme.typography;
     [['logoUrl','thumb-logo','dz-logo'],['faviconUrl','thumb-favicon','dz-favicon'],['bannerUrl','thumb-banner','dz-banner']].forEach(([f,th,dz])=>{

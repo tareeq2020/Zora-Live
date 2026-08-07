@@ -250,7 +250,7 @@ function ticketSVG(data = {}, opts = {}) {
   const fy = H - 46;
   parts.push(
     `<line x1="${pad}" y1="${fy - 30}" x2="${W - pad}" y2="${fy - 30}" stroke="${t.hair}" stroke-width="1.5"/>`,
-    `<text x="${pad}" y="${fy}" font-family="${SANS}" font-weight="600" font-size="15" fill="${t.mut}">zora.com</text>`,
+    `<text x="${pad}" y="${fy}" font-family="${SANS}" font-weight="600" font-size="15" fill="${t.mut}">zorapass.com</text>`,
     `<text x="${W - pad}" y="${fy}" text-anchor="end" font-family="${MONO}" font-size="12.5" letter-spacing="1.5" fill="${t.mut}">THE TICKET IS THE PRODUCT</text>`
   );
 

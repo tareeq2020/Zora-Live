@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
    Everything else (static pages, assets, /api proxy) is handled outside middleware. */
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
-const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
+const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
 
 // Runtime diagnostics. Middleware fetches the API on the edge (tenant redirect,
 // /dashboard + /admin gates); when API_URL is wrong those fetches throw and the

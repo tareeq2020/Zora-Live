@@ -33,8 +33,8 @@ export function SiteFooter() {
           </div>
           <div>
             CONTACT
-            <a href="mailto:board@zora.app" id="foot-mail">
-              board@zora.app
+            <a href="mailto:support@zorapass.com" id="foot-mail">
+              support@zorapass.com
             </a>
             <a href="/admin">admin</a>
           </div>
