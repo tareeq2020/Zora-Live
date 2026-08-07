@@ -14,7 +14,9 @@ import { PlacementsModule } from './placements/placements.module';
 import { OrganizersModule } from './organizers/organizers.module';
 import { KycModule } from './kyc/kyc.module';
 import { ThemeModule } from './theme/theme.module';
-import { AgentsModule } from './agents/agents.module';
+// BS42 (#1): AgentsModule became ScanModule — same /api/agents admin paths,
+// now backed by `scanner_user` rows, plus the /api/scan/* door surface.
+import { ScanModule } from './scan/scan.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { EventsModule } from './events/events.module';
 import { CheckoutModule } from './checkout/checkout.module';
@@ -43,7 +45,7 @@ import { SplitsModule } from './splits/splits.module';
     OrganizersModule,
     KycModule,
     ThemeModule,
-    AgentsModule,
+    ScanModule,
     TicketsModule,
     EventsModule,
     CheckoutModule,
