@@ -359,7 +359,7 @@ export default function OrganizerSignupPage() {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder="thebrunchcity"
+                  placeholder="organizer"
                   value={handle}
                   onChange={(e) => {
                     setHandleTouched(true);

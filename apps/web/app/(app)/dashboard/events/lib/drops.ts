@@ -334,6 +334,7 @@ export function messageForError(err: ApiError, context: 'save' | 'delete'): stri
   };
   if (err.error && REQUIRED_LABELS[err.error])
     return `Add a ${REQUIRED_LABELS[err.error]} to publish this drop (drafts can skip it).`;
+  if (err.error === 'city_invalid') return 'Choose a city from the list to publish this drop.';
   if (err.error === 'priceFrom_invalid') return 'Set a valid starting price to publish.';
   if (err.error === 'seated_required') return 'Choose whether this is a seated event.';
   if (err.error === 'tiers_required') return 'A public drop needs at least one ticket tier.';
