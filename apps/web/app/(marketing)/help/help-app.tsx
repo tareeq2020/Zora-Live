@@ -23,7 +23,7 @@ const FAQS: Faq[] = [
   { cat: 'Organizers', q: 'When do I get paid out?', a: 'On your schedule, to mobile money or bank. Instant payout to mobile money is available once your identity check clears (usually within 24 hours of signing up).' },
   { cat: 'Organizers', q: 'Why is my account “pending verification”?', a: 'A one-time ID check keeps scammers off the marketplace. You can draft events immediately; payouts and public listing unlock once approved — normally within 24 hours.' },
   { cat: 'Refunds & resale', q: 'Can I get a refund or resell my ticket?', a: 'List it on the in-app resale market, capped at face value +10%. When it sells, the new pass issues and yours voids automatically. If the organizer cancels, you are refunded to your original method with no action needed.' },
-  { cat: 'Refunds & resale', q: 'Someone is reselling above face value', a: 'That is impossible on Zora — resale is hard-capped at face +10% inside the app, and off-platform passes will not scan. Only buy through the app or an organizer’s zora.com storefront.' },
+  { cat: 'Refunds & resale', q: 'Someone is reselling above face value', a: 'That is impossible on Zora — resale is hard-capped at face +10% inside the app, and off-platform passes will not scan. Only buy through the app or an organizer’s zorapass.com storefront.' },
 ];
 
 const CATS = ['All', ...Array.from(new Set(FAQS.map((f) => f.cat)))];
@@ -111,8 +111,11 @@ export function HelpApp() {
               <button className="btn pri" id="open-chat" onClick={() => zbotRef.current?.open()}>
                 CHAT WITH US
               </button>
-              <a className="btn" href="mailto:hello@zora.app">
-                EMAIL HELLO@ZORA.APP
+              <a className="btn" href="mailto:support@zorapass.com">
+                SUPPORT@ZORAPASS.COM
+              </a>
+              <a className="btn" href="tel:+255741099989">
+                +255 741 099 989
               </a>
             </div>
           </div>

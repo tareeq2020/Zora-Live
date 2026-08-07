@@ -56,7 +56,7 @@ export class OrgRegisterController {
     if (await this.organizers.handleTaken(handle)) {
       return { handle, available: false, reason: 'taken', message: handleIssueMessage('taken') };
     }
-    return { handle, available: true, reason: null, message: `zora.com/${handle} is yours.` };
+    return { handle, available: true, reason: null, message: `zorapass.com/${handle} is yours.` };
   }
 
   /* ── POST /api/org/register ───────────────────────────────────────────────

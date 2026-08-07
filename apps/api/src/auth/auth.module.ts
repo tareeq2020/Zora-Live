@@ -32,7 +32,7 @@ export class AuthController {
   // PR-F-AUTH: real ORGANIZER login. Authenticates handle+password against the
   // 'organizers' collection (bcrypt passwordHash, mirroring the admin account) and
   // mints an organizer session. Suspended accounts and password-less records are
-  // rejected. DEFER (comes with the app.zora.com move): CSRF token issuance and
+  // rejected. DEFER (comes with the app.zorapass.com move): CSRF token issuance and
   // the cross-subdomain impersonation handoff — the path-prefix phase is
   // same-origin with SameSite=Lax, an adequate baseline, and CSRF now would break
   // the curl-based e2e for no current benefit.

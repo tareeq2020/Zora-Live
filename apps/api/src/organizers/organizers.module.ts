@@ -79,7 +79,7 @@ export class OrganizersController {
 
   // Admin session temporarily "acts on behalf" of an organizer (impersonation
   // lives in the signed session cookie).
-  // DEFER (comes with the app.zora.com move): the cross-subdomain impersonation
+  // DEFER (comes with the app.zorapass.com move): the cross-subdomain impersonation
   // handoff. Today admin + organizer surfaces are same-origin under a path prefix,
   // so the one signed cookie carries the claim directly; once organizer surfaces
   // move to a separate subdomain this will need an explicit signed hand-off token.

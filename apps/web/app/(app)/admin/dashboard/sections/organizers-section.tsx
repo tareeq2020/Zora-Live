@@ -103,7 +103,7 @@ export function OrganizersSection() {
         </div>
       ),
     },
-    { key: 'handle', label: 'SUBDOMAIN', render: (o) => <span className="mono">{o.handle}.zora.com</span> },
+    { key: 'handle', label: 'SUBDOMAIN', render: (o) => <span className="mono">{o.handle}.zorapass.com</span> },
     { key: 'events', label: 'EVENTS', render: (o) => <span className="mono">{o.events}</span> },
     { key: 'revenue', label: 'REVENUE', render: (o) => <span className="mono">{money(o.revenue)}</span> },
     {
