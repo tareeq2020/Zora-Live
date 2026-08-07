@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Wordmark } from '../../components/wordmark';
 import { RevealImg } from '../../components/reveal-img';
 import { Placements } from '../../components/placements';
@@ -109,6 +110,9 @@ const CSS = `
 `;
 
 export default function AboutPage() {
+  // BS47: hidden for now — redirect rather than delete so it's a one-line
+  // revert when this page is ready to come back.
+  redirect('/');
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />

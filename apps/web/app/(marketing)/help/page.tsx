@@ -119,8 +119,6 @@ export default function HelpPage() {
           <Wordmark href="/" />
           <div className="nav-links">
             <a href="/discover">events</a>
-            <a href="/about">about</a>
-            <a href="/commission">pricing</a>
             <a href="/help" className="on">help</a>
           </div>
           <a href="/discover" className="nav-cta">FIND EVENTS</a>
@@ -132,7 +130,7 @@ export default function HelpPage() {
       <footer>
         <div className="foot">
           <span>© 2026 ZORA · HELP CENTRE</span>
-          <span><a href="/commission">pricing</a> &middot; <a href="/about">about</a> &middot; <a href="/">home</a></span>
+          <span><a href="/">home</a></span>
         </div>
       </footer>
     </>

@@ -117,6 +117,9 @@ export function HelpApp() {
               <a className="btn" href="tel:+255741099989">
                 +255 741 099 989
               </a>
+              <a className="btn" href="https://instagram.com/zora.pass" target="_blank" rel="noopener noreferrer">
+                @ZORA.PASS
+              </a>
             </div>
           </div>
         </div>

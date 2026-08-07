@@ -26,15 +26,12 @@ import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { RevealImg } from '../../components/reveal-img';
 import { ZBot } from '../../components/zbot';
 import { Placements } from '../../components/placements';
+import { CITIES } from '../../lib/cities';
 
-type City = { id: string; city: string; country: string; cur: string };
-const CITIES: City[] = [
-  { id: 'dar', city: 'Dar es Salaam', country: 'Tanzania', cur: 'TZS' },
-  { id: 'zanzibar', city: 'Zanzibar', country: 'Tanzania', cur: 'TZS' },
-  { id: 'nairobi', city: 'Nairobi', country: 'Kenya', cur: 'KES' },
-  { id: 'accra', city: 'Accra', country: 'Ghana', cur: 'GHS' },
-  { id: 'lagos', city: 'Lagos', country: 'Nigeria', cur: 'NGN' },
-];
+// BS47: KULTUR is invite/earn-only with no app to redeem it in yet — the banner
+// promises something the platform can't deliver on right now. Flagged off
+// rather than removed so it's a one-line flip once the app ships.
+const SHOW_KULTUR = false;
 
 /* Cover fallback tints — deep, desaturated, category-coded. Deliberately NOT the
    aura gradient (rule 1: aura = primary action or the logo O only). */
@@ -516,8 +513,6 @@ export function DiscoverApp() {
           </div>
 
           <div className="zd-nav-right">
-            <a href="/about" className="zd-link">about</a>
-            <a href="/commission" className="zd-link">pricing</a>
             <a href="/help" className="zd-link">help</a>
             <a href="/dashboard/onboarding" className="zd-ghost-btn">FOR ORGANIZERS</a>
           </div>
@@ -678,27 +673,29 @@ export function DiscoverApp() {
             {status === 'ready' ? top.map(({ e, i }) => <Card e={e} i={i} key={e.id || i} />) : null}
           </div>
 
-          <div className="zd-kultur" id="kultur">
-            <div className="zd-kultur-bg" />
-            <div className="zd-kultur-in">
-              <div>
-                <p className="zd-tagpre">THE ACTIVATION DIVISION — INVITE &amp; EARN ONLY</p>
-                <p className="zd-big">KULTUR<span className="zd-div">BY ZORA · NOT ON SALE ANYWHERE ELSE</span></p>
-                <p className="zd-flag"><b>OFFSHORE.</b> One coast, one long daytime session off Dar. You don&apos;t buy your way on — you earn it, in the app.</p>
-                <div className="zd-cta-row">
-                  <button className="zd-k-btn" id="k-download" type="button" onClick={() => toast('Get the Zora app to enter KULTUR — invite & earn only')}>GET THE APP TO ENTER</button>
-                  <a className="zd-k-btn zd-ghost" href="/drop-001.html">SEE THE FLAGSHIP &rarr;</a>
+          {SHOW_KULTUR ? (
+            <div className="zd-kultur" id="kultur">
+              <div className="zd-kultur-bg" />
+              <div className="zd-kultur-in">
+                <div>
+                  <p className="zd-tagpre">THE ACTIVATION DIVISION — INVITE &amp; EARN ONLY</p>
+                  <p className="zd-big">KULTUR<span className="zd-div">BY ZORA · NOT ON SALE ANYWHERE ELSE</span></p>
+                  <p className="zd-flag"><b>OFFSHORE.</b> One coast, one long daytime session off Dar. You don&apos;t buy your way on — you earn it, in the app.</p>
+                  <div className="zd-cta-row">
+                    <button className="zd-k-btn" id="k-download" type="button" onClick={() => toast('Get the Zora app to enter KULTUR — invite & earn only')}>GET THE APP TO ENTER</button>
+                    <a className="zd-k-btn zd-ghost" href="/drop-001.html">SEE THE FLAGSHIP &rarr;</a>
+                  </div>
                 </div>
+                {/* The QR resolves to the /t/:code scan landing (F8) rather than a bare
+                    app-download: that landing offers the app deep link AND a web-pass
+                    fallback, so a scan works whether or not the app is installed. */}
+                <a className="zd-qr-card" href="/t/OFFSHORE" aria-label="Open your OFFSHORE pass">
+                  <div className="zd-qr" id="qr" dangerouslySetInnerHTML={{ __html: QR_SVG }} />
+                  <p className="zd-qlabel">SCAN TO OPEN<br />YOUR OFFSHORE PASS</p>
+                </a>
               </div>
-              {/* The QR resolves to the /t/:code scan landing (F8) rather than a bare
-                  app-download: that landing offers the app deep link AND a web-pass
-                  fallback, so a scan works whether or not the app is installed. */}
-              <a className="zd-qr-card" href="/t/OFFSHORE" aria-label="Open your OFFSHORE pass">
-                <div className="zd-qr" id="qr" dangerouslySetInnerHTML={{ __html: QR_SVG }} />
-                <p className="zd-qlabel">SCAN TO OPEN<br />YOUR OFFSHORE PASS</p>
-              </a>
             </div>
-          </div>
+          ) : null}
 
           {status === 'ready' && bottom.length ? (
             <>
@@ -785,7 +782,7 @@ export function DiscoverApp() {
               type="button"
               onClick={() => { if (sheet.href) location.href = sheet.href; }}
             >
-              {sheetEv && sheetEv.subdomain ? 'GET TICKET AT ' + sheetEv.subdomain.toUpperCase() : 'GET TICKET'}
+              {sheetEv && sheetEv.organizer ? 'GET TICKETS AT ' + sheetEv.organizer.toUpperCase() + ' STORE' : 'GET TICKET'}
             </button>
             <div className="zd-methods"><span>M-PESA</span><span>TIGO PESA</span><span>AIRTEL</span><span>VISA</span><span>MASTERCARD</span></div>
           </div>

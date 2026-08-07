@@ -18,6 +18,7 @@ import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
+import { EVENT_CITY_IDS } from '../common/defaults';
 import { AuditService } from '../audit/audit.module';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService, type ProvisionTierInput } from './event-provisioning.service';
@@ -479,6 +480,7 @@ export class OrgEventsController {
     const name = req('name');
     const dateLabel = req('dateLabel');
     const city = req('city');
+    if (!EVENT_CITY_IDS.includes(city)) throw new BadRequestException({ error: 'city_invalid' });
     const venue = req('venue');
     const category = req('category');
     const priceFrom = Number(body?.priceFrom);
