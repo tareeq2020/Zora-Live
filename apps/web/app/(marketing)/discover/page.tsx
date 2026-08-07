@@ -17,7 +17,7 @@ import { DiscoverApp } from './discover-app';
 export const metadata: Metadata = {
   title: 'ZORA — Find your night',
   description:
-    'Every event worth being at, near you. Concerts, festivals, nightlife and daytime — one honest price, and Zora adds no booking fee.',
+    'Every event worth being at, near you. Concerts, festivals, nightlife and daytime.',
 };
 
 const CSS = `

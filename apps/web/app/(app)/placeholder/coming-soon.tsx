@@ -342,8 +342,13 @@ function ActThree() {
         <br className="zcs-br" /> See ya!
       </motion.h1>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9, ease: EASE, delay: 0.9 }} className="zcs-lede">
-        The operating system powering Africa&rsquo;s live experiences is almost here. Follow along — or explore what&rsquo;s live today.
+        The operating system powering Africa&rsquo;s live experiences is almost here. Follow along for launch.
       </motion.p>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 1.15 }}>
+        <Link href="/thebrunchcity" className="zcs-cta">
+          Explore events live now →
+        </Link>
+      </motion.div>
     </motion.div>
   );
 }
@@ -466,6 +471,8 @@ const STYLE = `
 .zcs-br{display:none}
 @media(min-width:640px){.zcs-br{display:block}}
 .zcs-lede{margin-top:24px;max-width:28rem;font-size:14px;line-height:1.6;color:rgba(255,255,255,.45)}
+.zcs-cta{display:inline-block;margin-top:28px;padding:15px 34px;border-radius:999px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:#fff;background:linear-gradient(90deg,#f7922f,#ec3f7e,#c41ee0);box-shadow:0 8px 30px rgba(236,63,126,.35);transition:transform .3s,box-shadow .3s}
+.zcs-cta:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(236,63,126,.5)}
 
 .zcs-burst{pointer-events:none;position:absolute;left:50%;top:50%;z-index:30;height:0;width:0}
 

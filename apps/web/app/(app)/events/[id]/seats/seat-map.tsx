@@ -189,7 +189,6 @@ const BODY = `
           <p style="font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.03em;margin-top:10px;line-height:1.7">Invites go out by WhatsApp / SMS. Each friend pays their share in the app; the table locks the moment everyone has paid.</p>
         </div>
       </div>
-      <p class="nofee"><b>Zora adds no booking fee.</b> Your mobile-money or card provider may charge a small fee at payment.</p>
       <button class="pay" id="rev-pay">LOCK SEATS &amp; CHECKOUT</button>
     </div>
   </div>
