@@ -37,7 +37,7 @@ const DEFAULTS = {
   coordinates: "06°45'S / 039°16'E",
   port: 'SLIPWAY, DAR',
   capacityLabel: '20 PAX PER YACHT',
-  contactEmail: 'board@zora.app',
+  contactEmail: 'support@zorapass.com',
 };
 
 type Settings = typeof DEFAULTS & Record<string, unknown>;
@@ -287,13 +287,13 @@ export function HomeApp() {
           <p className="kicker">FOR ORGANIZERS — ZORA DASHBOARD</p>
           <h2>run the night. keep the morning after.</h2>
           <p className="lead" style={{ maxWidth: '60ch', color: 'var(--mut)', marginTop: 20 }}>
-            Every promoter gets a premium storefront at <span className="mono" style={{ color: 'var(--bone)' }}>yourname.zora.com</span>, a real-time dashboard, a customer database that&apos;s yours to keep, and built-in email to reach it. One flat line, no junk fees passed to your crowd. The audience you bring compounds into an audience you share.
+            Every promoter gets a premium storefront at <span className="mono" style={{ color: 'var(--bone)' }}>yourname.zorapass.com</span>, a real-time dashboard, a customer database that&apos;s yours to keep, and built-in email to reach it. One flat line, no junk fees passed to your crowd. The audience you bring compounds into an audience you share.
           </p>
           <div className="pillars" style={{ marginTop: 44 }}>
             <div className="pillar">
               <p className="num mono">A</p>
               <h3>your own storefront</h3>
-              <p>A branded page at yourname.zora.com. You style the invitation; Zora runs the checkout and the promise underneath it.</p>
+              <p>A branded page at yourname.zorapass.com. You style the invitation; Zora runs the checkout and the promise underneath it.</p>
             </div>
             <div className="pillar">
               <p className="num mono">B</p>

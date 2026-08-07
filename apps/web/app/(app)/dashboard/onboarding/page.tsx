@@ -143,14 +143,14 @@ const MARKUP = `
     <h1>Claim your address.</h1>
     <p class="lede">This is your home on Zora — a premium link that's yours the second you claim it. You can add a custom domain later.</p>
     <div class="urlbox">
-      <div class="u"><span class="h" id="url-handle">yourname</span>.zora.com</div>
+      <div class="u"><span class="h" id="url-handle">yourname</span>.zorapass.com</div>
       <div class="avail ok" id="avail"><span class="tick">&checkmark;</span><span id="avail-txt">available</span></div>
     </div>
     <div class="field" style="margin-top:20px">
       <label>YOUR HANDLE</label>
       <div class="handle-wrap">
         <input id="handle" placeholder="thebrunchcity" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <span class="suf">.zora.com</span>
+        <span class="suf">.zorapass.com</span>
       </div>
     </div>
     <div class="field">
@@ -256,7 +256,7 @@ const MARKUP = `
     <div class="pending-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>VERIFICATION PENDING</div>
     <h1>You're in review.</h1>
     <p class="lede">Thanks — your dashboard is ready to explore while our security team checks your ID.</p>
-    <div class="live-url"><span class="h" id="done-handle">yourname</span>.zora.com <span class="badge"><span class="d"></span>PENDING</span></div>
+    <div class="live-url"><span class="h" id="done-handle">yourname</span>.zorapass.com <span class="badge"><span class="d"></span>PENDING</span></div>
     <div class="info-lock">
       <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
       <span>You can <b>draft events</b> right now. <b>Ticket payouts</b> and your <b>public listing</b> unlock the moment we approve your ID — usually within <b>24 hours</b>. We'll email you the second it clears.</span>

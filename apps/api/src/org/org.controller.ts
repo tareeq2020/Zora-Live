@@ -14,7 +14,7 @@ function rejectionCopy(reason: string | null): string | null {
   if (!reason) return null;
   const code = reason.split('·')[0].trim();
   const match = KYC_REASONS.find((r) => r.code === code);
-  return match ? match.user : 'We could not approve this account yet. Please contact support@zora.app.';
+  return match ? match.user : 'We could not approve this account yet. Please contact support@zorapass.com.';
 }
 
 /* /api/org/* — the organizer surface (OrganizerGuard: real organizer OR admin

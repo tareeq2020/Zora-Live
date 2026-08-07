@@ -117,7 +117,7 @@ select a->>'id',
        -- Only a value that matches a real event id becomes a hard scope; anything
        -- else (including 'All events') stays NULL = unscoped, which is what the
        -- legacy behaviour actually was.
-       (select e.id from event e where e.id = a->>'event'),
+       (select e.id from event e where lower(trim(e.id)) = lower(trim(a->>'event')) or lower(trim(e.name)) = lower(trim(a->>'event')) limit 1),
        a->>'code',
        case when a->>'status' = 'revoked' then 'revoked' else 'active' end,
        coalesce((a->>'createdAt')::timestamptz, now()),

@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
   tagline:       'Culture, exported.',
   zoraTagline:   'The ticket is the product.',
   appNote:       'The app is the only door.',
-  contactEmail:  'board@zora.app',
+  contactEmail:  'support@zorapass.com',
   instagram:     '',
 };
 
@@ -93,9 +93,14 @@ export const KYC_REASONS = [
   { code: 'incomplete_upload',    label: 'Incomplete — a side is missing', user: 'We need every side of the document. Please add the missing image and resubmit.' },
   { code: 'document_unclear',     label: 'Document type unclear',          user: 'We could not clearly read the document. Retake it with all four corners visible.' },
   { code: 'unsupported_document', label: 'Unsupported document',           user: "We could not accept this document. Please use a passport, driver's license, or national ID." },
-  { code: 'suspected_fraud',      label: 'Suspected fraud',                user: 'We could not verify this submission. Please contact support@zora.app.' },
+  { code: 'suspected_fraud',      label: 'Suspected fraud',                user: 'We could not verify this submission. Please contact support@zorapass.com.' },
 ];
 
 export const TICKET_FIELDS = ['event','dateLabel','venue','tableName','tableNo','seats','guest','ticketId','tier','qr'];
 
-export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zora.com';
+export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
+
+// BS46: the published support contacts. One source of truth — surfaces (help,
+// receipts, KYC rejection copy, ticket emails) read these rather than inlining.
+export const SUPPORT_EMAIL = 'support@zorapass.com';
+export const SUPPORT_PHONE = '+255 741 099 989';

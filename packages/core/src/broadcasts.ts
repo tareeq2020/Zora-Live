@@ -773,7 +773,7 @@ export function broadcastRateMs(env: NodeJS.ProcessEnv = process.env): number {
 const sleep = (ms: number) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 
 function publicOrigin(env: NodeJS.ProcessEnv): string {
-  return (env.PUBLIC_ORIGIN || 'https://zora.com').replace(/\/+$/, '');
+  return (env.PUBLIC_ORIGIN || 'https://zorapass.com').replace(/\/+$/, '');
 }
 
 /** SMS body as it actually goes out: the composed text plus a short opt-out

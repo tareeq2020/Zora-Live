@@ -354,7 +354,7 @@ export function VerificationSection({ onDecision }: { onDecision?: () => void })
             rowKey={(o) => o.id}
             resource={orgs}
             empty="No organizers waiting."
-            emptySub="Anyone who signs up at zora.com/dashboard/signup lands here within seconds of proving their phone."
+            emptySub="Anyone who signs up at zorapass.com/dashboard/signup lands here within seconds of proving their phone."
           />
         </AdminCard>
 
@@ -404,7 +404,7 @@ export function VerificationSection({ onDecision }: { onDecision?: () => void })
               {(
                 [
                   ['HANDLE', '@' + currentOrg.handle],
-                  ['STOREFRONT', 'zora.com/' + currentOrg.handle],
+                  ['STOREFRONT', 'zorapass.com/' + currentOrg.handle],
                   ['VERIFIED PHONE', currentOrg.phone ? '+' + currentOrg.phone : '—'],
                   ['EMAIL', currentOrg.email || '—'],
                   ['SOURCE', (currentOrg.source || 'staff').toUpperCase()],

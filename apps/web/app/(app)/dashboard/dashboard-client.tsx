@@ -285,7 +285,7 @@ export default function DashboardClient() {
         <div className="imp-bar">
           <span>
             ADMIN MODE — acting on behalf of <b>{impName}</b>
-            {impHandle ? ` (${impHandle}.zora.com)` : ''}. Every action is logged.
+            {impHandle ? ` (${impHandle}.zorapass.com)` : ''}. Every action is logged.
           </span>
           <button onClick={exitImpersonation}>EXIT ADMIN MODE</button>
         </div>
@@ -418,7 +418,7 @@ export default function DashboardClient() {
                     <a className="vb-btn primary" href="/dashboard/onboarding">
                       FIX MY VERIFICATION
                     </a>
-                    <a className="vb-btn" href="mailto:support@zora.app">
+                    <a className="vb-btn" href="mailto:support@zorapass.com">
                       EMAIL SUPPORT
                     </a>
                   </div>
