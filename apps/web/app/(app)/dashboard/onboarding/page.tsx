@@ -134,7 +134,7 @@ const MARKUP = `
     </button>
     <div class="or">OR</div>
     <button class="ebtn" id="email-btn">CONTINUE WITH EMAIL</button>
-    <p class="fine">Two clicks and you're in. By continuing you agree to Zora's<br>organizer terms and the one promise we never break: no junk fees.</p>
+    <p class="fine">Two clicks and you're in. By continuing you agree to Zora's<br>organizer terms.</p>
   </div>
 
   <!-- STEP 1 — claim subdomain -->

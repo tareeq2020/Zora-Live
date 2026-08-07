@@ -164,8 +164,8 @@ export function HomeApp() {
 
       <div className="marquee" aria-hidden="true">
         <span className="marquee-track" id="marquee">
-          NO BOOKING FEES &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
-          NO BOOKING FEES &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
+          ONE HONEST PRICE &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
+          ONE HONEST PRICE &nbsp;/&nbsp; <b>DROPS, NOT LISTINGS</b> &nbsp;/&nbsp; CREW SPLIT, NATIVE &nbsp;/&nbsp; <b>RESALE CAPPED AT FACE +10%</b> &nbsp;/&nbsp;
         </span>
       </div>
 
@@ -221,7 +221,7 @@ export function HomeApp() {
             <div className="pillar">
               <p className="num mono">01</p>
               <h3>one honest number</h3>
-              <p>Zora adds no booking, service, or facility fee — our cut is a commission from the organizer, not you. Your mobile-money or card provider may charge its own fee at payment.</p>
+              <p>Our cut is a commission we take from the organizer&apos;s side — never added to the price on your ticket.</p>
             </div>
             <div className="pillar">
               <p className="num mono">02</p>
@@ -287,7 +287,7 @@ export function HomeApp() {
           <p className="kicker">FOR ORGANIZERS — ZORA DASHBOARD</p>
           <h2>run the night. keep the morning after.</h2>
           <p className="lead" style={{ maxWidth: '60ch', color: 'var(--mut)', marginTop: 20 }}>
-            Every promoter gets a premium storefront at <span className="mono" style={{ color: 'var(--bone)' }}>yourname.zorapass.com</span>, a real-time dashboard, a customer database that&apos;s yours to keep, and built-in email to reach it. One flat line, no junk fees passed to your crowd. The audience you bring compounds into an audience you share.
+            Every promoter gets a premium storefront at <span className="mono" style={{ color: 'var(--bone)' }}>yourname.zorapass.com</span>, a real-time dashboard, a customer database that&apos;s yours to keep, and built-in email to reach it. One flat commission, nothing else. The audience you bring compounds into an audience you share.
           </p>
           <div className="pillars" style={{ marginTop: 44 }}>
             <div className="pillar">

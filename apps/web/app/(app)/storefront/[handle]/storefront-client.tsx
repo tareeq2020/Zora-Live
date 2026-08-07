@@ -319,8 +319,7 @@ export default function StorefrontClient(props: StorefrontProps) {
               RUNS ON{' '}
               <span className="zmark">
                 z<span className="o">o</span>ra
-              </span>{' '}
-              — NO BOOKING FEES, EVER
+              </span>
             </div>
             <p className="legal">
               © {new Date().getFullYear()} {brandName} · {subdomain}
@@ -384,10 +383,6 @@ export default function StorefrontClient(props: StorefrontProps) {
                         {fmt(total)} {cur}
                       </span>
                     </div>
-                    <div className="line fees">
-                      <span className="lbl">Zora booking fee</span>
-                      <span className="val">0 {cur}</span>
-                    </div>
                     <div className="total">
                       <span className="lbl">Total</span>
                       <span className="val">
@@ -395,10 +390,6 @@ export default function StorefrontClient(props: StorefrontProps) {
                       </span>
                     </div>
                   </div>
-                  <p className="nofees">
-                    Zora adds no booking fee. <b>Your mobile-money or card provider may add a small fee at payment.</b>
-                  </p>
-
                   <div className="crew-toggle" onClick={() => setCrew((c) => !c)}>
                     <span className="ic">6</span>
                     <div className="ct">

@@ -139,8 +139,6 @@ export default async function EventPage({ params }: { params: { id: string } }) 
         )}
       </div>
 
-      <p className={styles.nofee}>Zora adds no booking fee. Your mobile-money or card provider may charge a small fee at payment.</p>
-
       <div className={styles.foot}>
         <span>runs on zora</span>
         <Link href="/discover.html">← back to the marketplace</Link>

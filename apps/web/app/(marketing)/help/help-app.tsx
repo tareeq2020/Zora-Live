@@ -5,8 +5,8 @@
    whose "CHAT WITH US" button opens the ZBot, and the ZBot itself. Data + filter
    logic mirror the legacy inline <script>. */
 
-import { useRef, useState } from 'react';
-import { ZBot, type ZBotHandle } from '../../components/zbot';
+import { useState } from 'react';
+import { ZBot } from '../../components/zbot';
 
 type Faq = { cat: string; q: string; a: string };
 
@@ -15,8 +15,8 @@ const FAQS: Faq[] = [
   { cat: 'Tickets & entry', q: "My ticket won't download or show up", a: 'Pull to refresh in the app, or sign out and back in once to reissue passes to your device. Still missing? Open the chat and we can push it manually in minutes.' },
   { cat: 'Tickets & entry', q: 'How do I get into the event?', a: 'Show the live pass in the app at the gate — the animation confirms it is real. Screenshots do not scan. Arrive with the app installed and signed in.' },
   { cat: 'Payments', q: 'My payment timed out — was I charged?', a: 'No double charge. Pending mobile-money holds reverse automatically within a few minutes. If you got a confirmation SMS, your tickets are already in the app. No confirmation after 10 minutes? Just try again.' },
-  { cat: 'Payments', q: 'Which payment methods work?', a: 'Mobile money (M-Pesa, Tigo Pesa, Airtel Money and more by region) plus Visa and Mastercard. Zora adds no booking fee — your mobile-money or card provider may charge its own fee at payment.' },
-  { cat: 'Payments', q: 'Are there any booking or service fees?', a: 'Zora charges buyers no booking or service fee — our cut is a commission from the organizer (see the pricing page). Your mobile-money or card provider may charge its own fee at payment.' },
+  { cat: 'Payments', q: 'Which payment methods work?', a: 'Mobile money (M-Pesa, Tigo Pesa, Airtel Money and more by region) plus Visa and Mastercard.' },
+  { cat: 'Payments', q: 'Are there any booking or service fees?', a: "Zora's own charge is a commission taken from the organizer's side, not added to your ticket price. Your mobile-money or card provider sets its own charges for moving the money, separately from Zora." },
   { cat: 'Account', q: 'How do I sign up?', a: 'Two taps with Google, or use your email. If your number says it is already in use, you already have an account — choose Sign in and request a one-time code.' },
   { cat: 'Account', q: 'I forgot my password', a: 'There are no passwords to forget. On the sign-in screen tap “Get a code” and we text you a one-time login code.' },
   { cat: 'Organizers', q: 'How much does it cost to sell on Zora?', a: 'A flat 5% per ticket during the Tanzania launch — no listing or monthly fees. It covers payments, your storefront, dashboard, CRM and email. Full breakdown on the pricing page.' },
@@ -31,7 +31,6 @@ const CATS = ['All', ...Array.from(new Set(FAQS.map((f) => f.cat)))];
 export function HelpApp() {
   const [activeCat, setActiveCat] = useState('All');
   const [query, setQuery] = useState('');
-  const zbotRef = useRef<ZBotHandle>(null);
 
   let list = FAQS.filter((f) => activeCat === 'All' || f.cat === activeCat);
   if (query) list = list.filter((f) => (f.q + ' ' + f.a).toLowerCase().includes(query));
@@ -99,18 +98,18 @@ export function HelpApp() {
         </div>
         <div className="wrap">
           <p className="no-res" id="no-res" style={{ display: list.length ? 'none' : 'block' }}>
-            No answers matched that. Try the chat, bottom-right.
+            No answers matched that. Message us on WhatsApp, bottom-right.
           </p>
         </div>
 
         <div className="wrap">
           <div className="contact">
             <h3>Still stuck?</h3>
-            <p>Zora Assist handles most things instantly. For anything else, a human replies within a couple of hours.</p>
+            <p>Message us on WhatsApp, or reach us by email or phone. A human replies within a couple of hours.</p>
             <div className="btns">
-              <button className="btn pri" id="open-chat" onClick={() => zbotRef.current?.open()}>
-                CHAT WITH US
-              </button>
+              <a className="btn pri" href="https://wa.me/255741099989" target="_blank" rel="noopener noreferrer">
+                MESSAGE US ON WHATSAPP
+              </a>
               <a className="btn" href="mailto:support@zorapass.com">
                 SUPPORT@ZORAPASS.COM
               </a>
@@ -125,7 +124,7 @@ export function HelpApp() {
         </div>
       </main>
 
-      <ZBot ref={zbotRef} />
+      <ZBot />
     </>
   );
 }
