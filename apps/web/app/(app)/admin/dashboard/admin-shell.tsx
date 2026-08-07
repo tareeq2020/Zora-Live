@@ -32,7 +32,8 @@ import { PaymentsSection } from './sections/payments-section';
 import { MediaSection } from './sections/media-section';
 import { AccessSection } from './sections/access-section';
 import { PayoutsSection } from './sections/payouts-section';
-import { BroadcastsSection, OrdersSection } from './sections/placeholders';
+import { BroadcastsSection } from './sections/placeholders';
+import { OrdersSection } from './sections/orders-section';
 
 type SectionKey =
   | 'overview'

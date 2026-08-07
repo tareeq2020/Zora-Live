@@ -283,4 +283,12 @@ export const ADMIN_STYLE = `
 .admin-shell .kyc-events .ke-a{color:var(--bone)}
 .admin-shell .kyc-sla{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
 .admin-shell .kyc-sla.late{color:var(--orange)}
+
+/* BS45 (#3): the cart drawer's item/seat list + the inline filter controls. */
+.admin .cart-lines{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.admin .cart-lines li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 12px;border:1px solid var(--hair);border-radius:9px;background:var(--ink);font-size:13.5px}
+.admin select.mini,.admin input.mini{background:var(--ink);border:1px solid var(--hair);color:var(--bone);
+  font-family:var(--mono);font-size:11.5px;padding:8px 10px;border-radius:8px;min-height:36px;max-width:170px}
+.admin select.mini:focus,.admin input.mini:focus{outline:none;border-color:var(--blue)}
 `;

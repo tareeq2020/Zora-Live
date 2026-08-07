@@ -111,3 +111,22 @@ export {
 export type {
   ScannerRole, ScannerUser, ScannerUserRow, ScanAuthInput, ScanAuthResult, ScanAuthErrorCode,
 } from './scan-auth';
+// BS43 (#2): broadcasts — ONE audience resolver / gate / queue / drain, mounted
+// twice (organizer + admin) so opt-out and the caps cannot diverge (CQ2).
+export {
+  countAudience, queueRecipients, createBroadcast, listBroadcasts, getBroadcast,
+  drainBroadcasts, pendingBroadcastCount,
+  suppressAddress, isSuppressed, resolveUnsubscribeToken, unsubscribeByToken, maskAddress,
+  smsSegments, smsUnitCost, estimateSmsCost, monthlySmsCap, smsUsedThisMonth, smsCapState,
+  broadcastErrorMessage, broadcastBatchSize, broadcastRateMs,
+  renderSmsBody, renderEmailBody,
+  BROADCAST_AUDIENCE_STATUSES, AUDIENCE_PAGE_SIZE,
+  DEFAULT_SMS_UNIT_COST, DEFAULT_MONTHLY_SMS_CAP,
+  DEFAULT_BROADCAST_BATCH, DEFAULT_BROADCAST_RATE_MS,
+} from './broadcasts';
+export type {
+  BroadcastChannel, RecipientChannel, BroadcastScopeKind, BroadcastStatus,
+  AudienceScope, AudienceCount, SmsCostEstimate, SmsCapState,
+  BroadcastErrorCode, BroadcastRecord, CreateBroadcastInput, CreateBroadcastResult,
+  ListBroadcastsFilter, SuppressInput, UnsubscribeTarget, DrainResult,
+} from './broadcasts';

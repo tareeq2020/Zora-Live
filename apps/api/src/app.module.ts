@@ -17,6 +17,8 @@ import { ThemeModule } from './theme/theme.module';
 // BS42 (#1): AgentsModule became ScanModule — same /api/agents admin paths,
 // now backed by `scanner_user` rows, plus the /api/scan/* door surface.
 import { ScanModule } from './scan/scan.module';
+import { BroadcastsModule } from './broadcasts/broadcasts.module';
+import { AdminOrdersModule } from './admin-orders/admin-orders.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { EventsModule } from './events/events.module';
 import { CheckoutModule } from './checkout/checkout.module';
@@ -46,6 +48,8 @@ import { SplitsModule } from './splits/splits.module';
     KycModule,
     ThemeModule,
     ScanModule,
+    BroadcastsModule,
+    AdminOrdersModule,
     TicketsModule,
     EventsModule,
     CheckoutModule,
