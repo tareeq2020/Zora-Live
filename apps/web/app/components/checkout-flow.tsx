@@ -90,6 +90,11 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   const [ageAttested, setAgeAttested] = useState(false);
   const [method, setMethod] = useState<Method>('mobile');
   const [network, setNetwork] = useState('VODACOM');
+  // BS47: which methods the admin has switched on (settings.methodsEnabled).
+  // Fail-open — an absent map, or an absent key within it, means enabled — so
+  // this mirrors the checkout API's own guard and never hides a method just
+  // because /api/settings was slow or unreachable.
+  const [methodsEnabled, setMethodsEnabled] = useState<Record<Method, boolean>>({ mobile: true, billpay: true, card: true });
 
   // checkout / pay
   const [order, setOrder] = useState<Order | null>(null);
@@ -136,6 +141,13 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
         setAvail(map);
       })
       .catch(() => setInvError(true));
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { methodsEnabled?: Partial<Record<Method, boolean>> } | null) => {
+        const m = d?.methodsEnabled || {};
+        setMethodsEnabled({ mobile: m.mobile !== false, billpay: m.billpay !== false, card: m.card !== false });
+      })
+      .catch(() => {}); // leave the fail-open default in place
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -147,6 +159,16 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
     };
   }, [open]);
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  // BS47: if the admin has switched the currently-selected method off, land on
+  // the first method that's still on rather than showing a payment option that
+  // will 403 at submit. (all_methods_disabled is refused server-side, so this
+  // list is never empty in practice — falls back to 'mobile' defensively.)
+  const availableMethods = (['mobile', 'billpay', 'card'] as Method[]).filter((m) => methodsEnabled[m]);
+  useEffect(() => {
+    if (availableMethods.length && !availableMethods.includes(method)) setMethod(availableMethods[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [methodsEnabled]);
 
   const availOf = (tierId: string) => (avail == null ? Infinity : avail[tierId] ?? 0);
   const cartLines = useMemo(
@@ -422,7 +444,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
               <div className="zco-method">
                 <span className="zco-method-lab">Pay with</span>
                 <div className="zco-seg">
-                  {(['mobile', 'billpay', 'card'] as Method[]).map((m) => (
+                  {(availableMethods.length ? availableMethods : (['mobile', 'billpay', 'card'] as Method[])).map((m) => (
                     <button key={m} className={'zco-seg-btn' + (method === m ? ' on' : '')} onClick={() => setMethod(m)}>
                       {m === 'mobile' ? 'Mobile money' : m === 'billpay' ? 'Bill pay' : 'Card'}
                     </button>

@@ -25,8 +25,15 @@ const MNOS = [
 const MOBILE_FSPS = ['CLICKPESA', 'SELCOM', 'GODIGITAL'] as const; // GODIGITAL: mobile only
 const CARD_FSPS = ['CLICKPESA', 'SELCOM'] as const;
 
+const METHODS = [
+  ['mobile', 'Mobile money'],
+  ['billpay', 'Bill pay'],
+  ['card', 'Card'],
+] as const;
+
 type RouteMap = Record<string, Record<string, string>>;
-type Settings = { fspRouteMap?: RouteMap };
+type MethodsEnabled = Partial<Record<'mobile' | 'billpay' | 'card', boolean>>;
+type Settings = { fspRouteMap?: RouteMap; methodsEnabled?: MethodsEnabled };
 
 type FormState = {
   mobileDefault: string;
@@ -43,6 +50,12 @@ export function PaymentsSection() {
   const res = useAdminResource(loader);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [methodsEnabled, setMethodsEnabled] = useState<Record<'mobile' | 'billpay' | 'card', boolean>>({
+    mobile: true,
+    billpay: true,
+    card: true,
+  });
+  const [savingMethods, setSavingMethods] = useState(false);
 
   useEffect(() => {
     if (res.status !== 'ready' || !res.data) return;
@@ -55,7 +68,26 @@ export function PaymentsSection() {
       cardDefault: m.card?.default || 'SELCOM',
       overrides,
     });
+    const me = res.data.methodsEnabled || {};
+    setMethodsEnabled({ mobile: me.mobile !== false, billpay: me.billpay !== false, card: me.card !== false });
   }, [res.status, res.data]);
+
+  // BS47: one toggle -> one PUT, merged server-side onto the existing map, so
+  // flipping "card" off doesn't require resubmitting mobile/billpay's state.
+  async function toggleMethod(method: 'mobile' | 'billpay' | 'card', next: boolean) {
+    const prev = methodsEnabled;
+    setMethodsEnabled({ ...prev, [method]: next }); // optimistic
+    setSavingMethods(true);
+    try {
+      await adminApi('/api/settings/methods-enabled', { method: 'PUT', body: JSON.stringify({ methodsEnabled: { [method]: next } }) });
+      toast((next ? 'Enabled ' : 'Disabled ') + method);
+    } catch (ex) {
+      setMethodsEnabled(prev); // revert — the server refused (e.g. would disable every method)
+      toast(errText(ex), true);
+    } finally {
+      setSavingMethods(false);
+    }
+  }
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -91,6 +123,32 @@ export function PaymentsSection() {
           mobile-only.
         </p>
       </div>
+
+      <AdminCard title="ACTIVE PAYMENT METHODS">
+        {res.status === 'loading' && !res.loaded ? <AdminSkeleton rows={2} /> : null}
+        {res.status === 'error' && !res.loaded ? <AdminError message={res.error} onRetry={res.reload} /> : null}
+        {res.loaded ? (
+          <>
+            <p className="hint" style={{ margin: '0 0 14px' }}>
+              Which methods the customer-facing checkout offers. Turning one off doesn&apos;t touch its FSP routing
+              below — it just pulls it off the storefront. At least one method must stay on.
+            </p>
+            <div className="grid3">
+              {METHODS.map(([m, label]) => (
+                <label className="field" key={m} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={methodsEnabled[m]}
+                    disabled={savingMethods}
+                    onChange={(e) => toggleMethod(m, e.target.checked)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </AdminCard>
 
       <AdminCard title="FSP ROUTING">
         {res.status === 'loading' && !res.loaded ? <AdminSkeleton rows={5} /> : null}
