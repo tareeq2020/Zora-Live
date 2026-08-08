@@ -18,9 +18,14 @@
    and the handle states (taken · reserved) can all resolve against the field they
    belong to, on the screen the person is already looking at.
 
-   Styling matches /dashboard/login (dark control-room, Archivo + IBM Plex Mono,
-   page-scoped under .org-signup) — signup and sign-in are one surface, and this
-   is the palette the organizer dashboard is unifying onto in #9. No Tailwind.
+   BS50: restyled onto the CONSUMER plane of DESIGN.md (Space Grotesk / Inter /
+   IBM Plex Mono, the sunrise aura reserved for the wordmark O + the primary
+   CTA, blue focus rings, the same soft ambient glow language as /discover) —
+   this is a public acquisition funnel, not an internal tool, so it reads like
+   the rest of the fan-facing surfaces rather than the organizer control-room.
+   /dashboard/login stays on the control-room palette; the two no longer need
+   to match now that signup lives on a different plane. Page-scoped under
+   .org-signup. No Tailwind.
 
    Every state on this screen: default · checking/submitting (disabled + labelled)
    · empty (nothing typed → the primary action is disabled, not silently inert)
@@ -230,7 +235,7 @@ export default function OrganizerSignupPage() {
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
@@ -430,80 +435,97 @@ export default function OrganizerSignupPage() {
 }
 
 const STYLES = `
-.org-signup{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;
-  --orange:#FF5A1F;--green:#1D9E75;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
-  background:var(--black);color:var(--bone);font-family:var(--sans);min-height:100vh;
-  display:flex;align-items:center;justify-content:center;padding:24px}
+.org-signup{
+  --bg:#08080A;--surface2:#171A28;
+  --text:#EDEFF7;--text2:#9BA3C4;--text3:#5C6488;
+  --hair:rgba(124,160,255,.12);--hair2:rgba(124,160,255,.22);
+  --blue:#4C6FFF;--ice:#7CA0FF;--cyan:#3FE0FF;
+  --aura:linear-gradient(130deg,#D53AD8,#FF4D7D,#FF9145);
+  --err:#FFB9B9;--err-border:rgba(255,120,120,.34);--err-bg:rgba(40,14,16,.34);
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  position:relative;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .org-signup *{margin:0;padding:0;box-sizing:border-box}
 .org-signup .mono{font-family:var(--mono)}
-.org-signup .card{width:100%;max-width:440px;border:1px solid var(--hair);padding:44px 36px}
-.org-signup .wordmark{font-weight:600;font-size:26px;letter-spacing:-.02em}
-.org-signup .wordmark .o{color:var(--blue)}
-.org-signup .sub{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--mut);margin:10px 0 30px}
-.org-signup h1{font-size:25px;font-weight:600;letter-spacing:-.025em;line-height:1.15;margin-bottom:10px}
-.org-signup .lede{color:var(--mut);font-size:14px;line-height:1.6;margin-bottom:26px}
-.org-signup .lede b{color:var(--bone);font-weight:500}
-.org-signup label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--mut);margin:0 0 8px}
-.org-signup input{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);
-  font-family:var(--mono);font-size:15px;padding:13px 15px;outline:none;margin-bottom:18px;border-radius:0;min-height:46px}
-.org-signup input::placeholder{color:#4A4843}
-.org-signup input:focus{border-color:var(--blue)}
-.org-signup input.bad{border-color:var(--orange)}
+.org-signup :focus-visible{outline:2px solid var(--ice);outline-offset:2px;border-radius:8px}
+
+/* ambient glow — CSS only (no canvas/JS): a touch of the consumer plane's
+   aura-lit atmosphere without adding weight to a conversion-focused form. */
+.org-signup::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(circle at 18% 12%,rgba(213,58,216,.10),transparent 45%),
+             radial-gradient(circle at 86% 82%,rgba(255,145,69,.08),transparent 45%)}
+
+.org-signup .card{position:relative;z-index:1;width:100%;max-width:440px;border:1px solid var(--hair2);
+  border-radius:20px;background:rgba(17,19,30,.66);backdrop-filter:blur(12px);padding:44px 36px}
+.org-signup .wordmark{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:-.02em}
+.org-signup .wordmark .o{background:var(--aura);-webkit-background-clip:text;background-clip:text;color:transparent}
+.org-signup .sub{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--text2);margin:10px 0 30px}
+.org-signup h1{font-family:var(--display);font-size:25px;font-weight:600;letter-spacing:-.025em;line-height:1.15;margin-bottom:10px}
+.org-signup .lede{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:26px}
+.org-signup .lede b{color:var(--text);font-weight:500}
+.org-signup label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--text2);margin:0 0 8px}
+.org-signup input{width:100%;background:rgba(23,26,40,.66);border:1px solid var(--hair2);color:var(--text);
+  font-family:var(--mono);font-size:15px;padding:13px 15px;outline:none;margin-bottom:18px;border-radius:12px;min-height:46px;
+  transition:border-color .2s,box-shadow .2s}
+.org-signup input::placeholder{color:var(--text3)}
+.org-signup input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(76,111,255,.18)}
+.org-signup input.bad{border-color:var(--err-border)}
 
 /* prefixed fields (phone, handle) — the prefix is chrome, the input is the value */
-.org-signup .field{display:flex;align-items:center;gap:0;background:var(--ink);border:1px solid var(--hair);
-  margin-bottom:8px;min-height:46px}
-.org-signup .field:focus-within{border-color:var(--blue)}
-.org-signup .field.ok{border-color:var(--green)}
-.org-signup .field.bad{border-color:var(--orange)}
-.org-signup .field .pfx{color:var(--mut);font-size:14px;padding:0 0 0 15px;white-space:nowrap}
-.org-signup .field input{background:none;border:none;margin:0;padding:13px 12px}
-.org-signup .field input:focus{border:none}
-.org-signup .field .hstate{width:40px;flex:none;text-align:center;font-size:15px;color:var(--mut)}
-.org-signup .field.ok .hstate{color:var(--green)}
-.org-signup .field.bad .hstate{color:var(--orange)}
-.org-signup .field .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--hair);
+.org-signup .field{display:flex;align-items:center;gap:0;background:rgba(23,26,40,.66);border:1px solid var(--hair2);
+  border-radius:12px;margin-bottom:8px;min-height:46px;transition:border-color .2s,box-shadow .2s}
+.org-signup .field:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(76,111,255,.18)}
+.org-signup .field.ok{border-color:var(--cyan)}
+.org-signup .field.bad{border-color:var(--err-border)}
+.org-signup .field .pfx{color:var(--text2);font-size:14px;padding:0 0 0 15px;white-space:nowrap}
+.org-signup .field input{background:none;border:none;margin:0;padding:13px 12px;border-radius:0}
+.org-signup .field input:focus{border:none;box-shadow:none}
+.org-signup .field .hstate{width:40px;flex:none;text-align:center;font-size:15px;color:var(--text2)}
+.org-signup .field.ok .hstate{color:var(--cyan)}
+.org-signup .field.bad .hstate{color:var(--err)}
+.org-signup .field .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--hair2);
   border-top-color:var(--blue);border-radius:50%;animation:su-spin .7s linear infinite}
 @keyframes su-spin{to{transform:rotate(360deg)}}
 
 /* the 6-digit code gets the emphasis it earns — it is the gate (DESIGN.md 4b) */
 .org-signup input.code{text-align:center;letter-spacing:.5em;font-size:22px;padding:15px;margin-bottom:8px}
 
-.org-signup .hmsg{font-size:11.5px;letter-spacing:.04em;color:var(--mut);line-height:1.5;margin-bottom:18px;min-height:17px}
-.org-signup .hmsg.ok{color:var(--green)}
-.org-signup .hmsg.bad{color:var(--orange)}
-.org-signup .hint{font-size:12px;color:var(--mut);margin:-10px 0 18px;line-height:1.5}
-.org-signup .resend{font-size:11px;letter-spacing:.18em;color:var(--mut);margin-bottom:16px}
-.org-signup .resend .cooldown{color:#5E5B54}
-.org-signup .notice{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--bone);
-  border:1px dashed var(--hair);padding:11px 13px;margin-bottom:22px;line-height:1.5}
-.org-signup .err{font-family:var(--mono);font-size:12px;color:var(--orange);letter-spacing:.03em;line-height:1.5;
-  border:1px dashed var(--orange);padding:11px 13px;margin:-8px 0 18px}
+.org-signup .hmsg{font-size:11.5px;letter-spacing:.04em;color:var(--text2);line-height:1.5;margin-bottom:18px;min-height:17px}
+.org-signup .hmsg.ok{color:var(--cyan)}
+.org-signup .hmsg.bad{color:var(--err)}
+.org-signup .hint{font-size:12px;color:var(--text2);margin:-10px 0 18px;line-height:1.5}
+.org-signup .resend{font-size:11px;letter-spacing:.18em;color:var(--text2);margin-bottom:16px}
+.org-signup .resend .cooldown{color:var(--text3)}
+.org-signup .notice{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--text);
+  border:1px dashed var(--hair2);border-radius:10px;padding:11px 13px;margin-bottom:22px;line-height:1.5}
+.org-signup .err{font-family:var(--mono);font-size:12px;color:var(--err);letter-spacing:.03em;line-height:1.5;
+  border:1px solid var(--err-border);background:var(--err-bg);border-radius:10px;padding:11px 13px;margin:-8px 0 18px}
 
-.org-signup .primary{width:100%;background:var(--bone);color:var(--black);border:none;font-family:var(--mono);
-  font-size:13px;font-weight:500;letter-spacing:.2em;padding:16px;min-height:48px;cursor:pointer;
-  transition:background .2s,color .2s;margin-top:6px}
-.org-signup .primary:hover:not(:disabled){background:var(--blue);color:var(--bone)}
-.org-signup .primary:disabled{background:#2A2A2D;color:#6A6862;cursor:not-allowed}
+.org-signup .primary{width:100%;background:var(--aura);color:#120409;border:none;font-family:var(--mono);
+  font-size:13px;font-weight:600;letter-spacing:.2em;padding:16px;min-height:48px;border-radius:99px;cursor:pointer;
+  transition:transform .2s,box-shadow .2s;margin-top:6px;box-shadow:0 14px 40px rgba(213,58,216,.26)}
+.org-signup .primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 18px 50px rgba(213,58,216,.36)}
+.org-signup .primary:disabled{background:var(--surface2);color:var(--text3);box-shadow:none;cursor:not-allowed}
 
-.org-signup .linkish{background:none;border:none;color:var(--blue);font:inherit;cursor:pointer;padding:0;
+.org-signup .linkish{background:none;border:none;color:var(--ice);font:inherit;cursor:pointer;padding:0;
   text-decoration:underline;text-underline-offset:3px}
-.org-signup .linkish:disabled{color:var(--mut);cursor:not-allowed;text-decoration:none}
-.org-signup .foot{font-size:12.5px;color:var(--mut);text-align:center;margin-top:22px;line-height:1.6}
-.org-signup .foot a{color:var(--bone);text-decoration:underline;text-underline-offset:3px}
+.org-signup .linkish:disabled{color:var(--text2);cursor:not-allowed;text-decoration:none}
+.org-signup .foot{font-size:12.5px;color:var(--text2);text-align:center;margin-top:22px;line-height:1.6}
+.org-signup .foot a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 
 .org-signup .done{text-align:center;padding:10px 0 6px}
-.org-signup .done .tick{font-size:34px;color:var(--green);margin-bottom:12px}
+.org-signup .done .tick{font-size:34px;background:var(--aura);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:12px}
 .org-signup .done .lede{margin-bottom:0}
 
 /* mobile: the card becomes the page — full-bleed, no floating panel on a 360px screen */
 @media (max-width:520px){
   .org-signup{padding:0;align-items:flex-start}
-  .org-signup .card{max-width:none;border:none;padding:32px 20px 56px;min-height:100vh}
+  .org-signup .card{max-width:none;border:none;border-radius:0;padding:32px 20px 56px;min-height:100vh;backdrop-filter:none;background:var(--bg)}
   .org-signup h1{font-size:23px}
 }
 @media (prefers-reduced-motion:reduce){
-  .org-signup .spin{animation:none;border-top-color:var(--mut)}
+  .org-signup .spin{animation:none;border-top-color:var(--text2)}
 }
 `;
