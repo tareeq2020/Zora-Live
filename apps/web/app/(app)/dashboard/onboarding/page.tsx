@@ -12,8 +12,20 @@
 
 import { useEffect } from 'react';
 
+// BS51 (Lane 3D): same dark Control-room tokens + same --ink text/surface and
+// green->teal rules as 3A/3B/3C. .gbtn (the Google button) keeps its white
+// background on purpose — that's Google's own button convention, not app
+// chrome, and it stays legible with a literal dark text color rather than
+// var(--ink) (which now means a dark SURFACE, not text — the two happen to be
+// nearly the same hex value, but the reference would be semantically wrong).
+// .urlbox (the "your handle is live" spotlight) moves from "dark box on a
+// light page" to an elevated --ink2 surface with its own border, since a dark
+// box has no contrast left to give once the whole page is already dark.
 const STYLE = `
-.zora-onboard{--paper:#F4F1EA;--card:#FBF9F4;--ink:#0A0A0B;--hair:#DDD8CB;--mut:#8A877E;--blue:#3D5AFE;--bluewash:#E8EBFE;--green:#1D9E75;--amber-bg:#FAEEDA;--amber-bd:#EF9F27;--amber-tx:#854F0B;--sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-onboard{--black:#0A0A0B;--ink:#101012;--ink2:#16161A;--hair:#222226;--hair2:#2E2E34;--bone:#F4F1EA;--mut:#8A877E;
+  --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
+  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-onboard *{margin:0;padding:0;box-sizing:border-box}
 .zora-onboard a{color:inherit;text-decoration:none}
 .zora-onboard .mono{font-family:var(--mono)}
@@ -22,93 +34,93 @@ const STYLE = `
 .zora-onboard .brand{font-weight:600;font-size:19px;letter-spacing:-.02em}
 .zora-onboard .brand .o{color:var(--blue)}
 .zora-onboard .top .secure-tag{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--mut)}
-.zora-onboard .top .secure-tag svg{width:14px;height:14px;stroke:var(--green);fill:none;stroke-width:2}
+.zora-onboard .top .secure-tag svg{width:14px;height:14px;stroke:var(--teal);fill:none;stroke-width:2}
 .zora-onboard .stage{max-width:460px;margin:0 auto;padding:34px 24px 80px}
 .zora-onboard .dots{display:flex;gap:7px;justify-content:center;margin-bottom:34px}
 .zora-onboard .dots i{width:28px;height:4px;border-radius:2px;background:var(--hair);transition:background .3s}
 .zora-onboard .dots i.on{background:var(--blue)}
-.zora-onboard .dots i.done{background:var(--ink)}
+.zora-onboard .dots i.done{background:var(--bone)}
 .zora-onboard .step{display:none;animation:onboard-rise .4s ease both}
 .zora-onboard .step.on{display:block}
 @keyframes onboard-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .zora-onboard .crumb{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--mut);margin-bottom:14px}
 .zora-onboard h1{font-size:29px;font-weight:600;letter-spacing:-.025em;line-height:1.12;margin-bottom:10px}
 .zora-onboard .lede{color:var(--mut);font-size:14.5px;margin-bottom:26px}
-.zora-onboard .gbtn{width:100%;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:15px;font-family:var(--sans);font-size:15px;font-weight:500;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
-.zora-onboard .gbtn:hover{border-color:var(--mut);box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.zora-onboard .gbtn{width:100%;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:15px;font-family:var(--sans);font-size:15px;font-weight:500;color:#0A0A0B;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+.zora-onboard .gbtn:hover{border-color:var(--mut);box-shadow:0 2px 10px rgba(0,0,0,.2)}
 .zora-onboard .gbtn svg{width:19px;height:19px;flex-shrink:0}
 .zora-onboard .or{display:flex;align-items:center;gap:14px;margin:20px 0;color:var(--mut);font-family:var(--mono);font-size:10.5px;letter-spacing:.2em}
 .zora-onboard .or::before,.zora-onboard .or::after{content:'';flex:1;height:1px;background:var(--hair)}
 .zora-onboard .ebtn{width:100%;background:none;border:1px solid var(--hair);border-radius:12px;padding:14px;font-family:var(--mono);font-size:12.5px;letter-spacing:.08em;color:var(--mut);cursor:pointer;transition:border-color .2s,color .2s}
-.zora-onboard .ebtn:hover{border-color:var(--mut);color:var(--ink)}
+.zora-onboard .ebtn:hover{border-color:var(--mut);color:var(--bone)}
 .zora-onboard .fine{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.03em;text-align:center;margin-top:24px;line-height:1.7}
 .zora-onboard label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--mut);margin-bottom:9px}
-.zora-onboard .in{width:100%;background:#fff;border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:14px 15px;outline:none;transition:border-color .2s;color:var(--ink)}
+.zora-onboard .in{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:14px 15px;outline:none;transition:border-color .2s;color:var(--bone)}
 .zora-onboard .in:focus{border-color:var(--blue)}
 .zora-onboard select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center}
 .zora-onboard .field{margin-bottom:20px}
-.zora-onboard .secure-note{display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--mut);margin-bottom:24px;line-height:1.6}
-.zora-onboard .secure-note svg{width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2;flex-shrink:0;margin-top:1px}
-.zora-onboard .secure-note b{color:var(--ink);font-weight:500}
-.zora-onboard .urlbox{background:var(--ink);border-radius:14px;padding:26px 22px;text-align:center;margin-bottom:14px}
-.zora-onboard .urlbox .u{font-family:var(--mono);font-size:clamp(19px,5vw,26px);color:#fff;letter-spacing:-.01em;word-break:break-all}
+.zora-onboard .secure-note{display:flex;align-items:flex-start;gap:10px;background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--mut);margin-bottom:24px;line-height:1.6}
+.zora-onboard .secure-note svg{width:16px;height:16px;stroke:var(--teal);fill:none;stroke-width:2;flex-shrink:0;margin-top:1px}
+.zora-onboard .secure-note b{color:var(--bone);font-weight:500}
+.zora-onboard .urlbox{background:var(--ink2);border:1px solid var(--hair2);border-radius:14px;padding:26px 22px;text-align:center;margin-bottom:14px}
+.zora-onboard .urlbox .u{font-family:var(--mono);font-size:clamp(19px,5vw,26px);color:var(--bone);letter-spacing:-.01em;word-break:break-all}
 .zora-onboard .urlbox .u .h{color:var(--blue)}
 .zora-onboard .urlbox .avail{font-family:var(--mono);font-size:11px;letter-spacing:.1em;margin-top:12px;display:inline-flex;align-items:center;gap:7px}
-.zora-onboard .urlbox .avail.ok{color:#5DCAA5}
-.zora-onboard .urlbox .avail.no{color:#F0997B}
+.zora-onboard .urlbox .avail.ok{color:var(--teal)}
+.zora-onboard .urlbox .avail.no{color:var(--orange)}
 .zora-onboard .urlbox .avail .tick{width:15px;height:15px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;font-size:9px}
-.zora-onboard .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:#fff}
+.zora-onboard .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--black)}
 .zora-onboard .handle-wrap:focus-within{border-color:var(--blue)}
-.zora-onboard .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:15px;padding:14px 6px 14px 15px;background:none;text-align:right}
+.zora-onboard .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:15px;padding:14px 6px 14px 15px;background:none;text-align:right;color:var(--bone)}
 .zora-onboard .handle-wrap .suf{display:flex;align-items:center;padding:0 15px 0 0;font-family:var(--mono);font-size:15px;color:var(--mut)}
-.zora-onboard .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:5px;margin-bottom:20px}
+.zora-onboard .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:5px;margin-bottom:20px}
 .zora-onboard .seg button{border:none;background:none;border-radius:8px;padding:12px;font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--mut);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .18s}
-.zora-onboard .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.zora-onboard .seg button.on{background:var(--bone);color:var(--black);box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .zora-onboard .seg button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
 .zora-onboard .idtypes{display:grid;gap:10px;margin-bottom:22px}
-.zora-onboard .idtype{display:flex;align-items:center;gap:14px;border:1px solid var(--hair);border-radius:12px;padding:14px 16px;cursor:pointer;background:#fff;transition:all .2s}
+.zora-onboard .idtype{display:flex;align-items:center;gap:14px;border:1px solid var(--hair);border-radius:12px;padding:14px 16px;cursor:pointer;background:var(--black);transition:all .2s}
 .zora-onboard .idtype:hover{border-color:var(--mut)}
-.zora-onboard .idtype.on{border-color:var(--blue);background:var(--bluewash)}
-.zora-onboard .idtype .ico{width:38px;height:38px;border-radius:9px;background:var(--card);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.zora-onboard .idtype.on{border-color:var(--blue);background:rgba(61,90,254,.12)}
+.zora-onboard .idtype .ico{width:38px;height:38px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .zora-onboard .idtype .ico svg{width:19px;height:19px;stroke:var(--mut);fill:none;stroke-width:2}
-.zora-onboard .idtype.on .ico{background:#fff}
+.zora-onboard .idtype.on .ico{background:var(--ink2)}
 .zora-onboard .idtype .it-t{font-weight:500;font-size:14.5px}
 .zora-onboard .idtype .it-d{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.06em;margin-top:3px}
 .zora-onboard .idtype .radio{margin-left:auto;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--hair);flex-shrink:0}
-.zora-onboard .idtype.on .radio{border-color:var(--blue);background:radial-gradient(circle,var(--blue) 42%,#fff 46%)}
+.zora-onboard .idtype.on .radio{border-color:var(--blue);background:radial-gradient(circle,var(--blue) 42%,var(--black) 46%)}
 .zora-onboard .dz-grid{display:grid;gap:12px;margin-bottom:6px}
-.zora-onboard .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--card);min-height:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;cursor:pointer;transition:border-color .2s,background .2s;position:relative;overflow:hidden}
+.zora-onboard .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--ink);min-height:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;cursor:pointer;transition:border-color .2s,background .2s;position:relative;overflow:hidden}
 .zora-onboard .dz:hover{border-color:var(--mut)}
-.zora-onboard .dz.drag{border-color:var(--blue);background:var(--bluewash)}
+.zora-onboard .dz.drag{border-color:var(--blue);background:rgba(61,90,254,.12)}
 .zora-onboard .dz.filled{border-style:solid;padding:0}
 .zora-onboard .dz img{width:100%;height:118px;object-fit:cover;display:none}
 .zora-onboard .dz.filled img{display:block}
 .zora-onboard .dz.filled .dz-prompt{display:none}
-.zora-onboard .dz .lockic{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.zora-onboard .dz .lockic{width:30px;height:30px;border-radius:8px;background:var(--ink2);border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
 .zora-onboard .dz .lockic svg{width:15px;height:15px;stroke:var(--mut);fill:none;stroke-width:2}
 .zora-onboard .dz .dz-t{font-size:13px;font-weight:500}
 .zora-onboard .dz .dz-t b{color:var(--blue)}
 .zora-onboard .dz .dz-d{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--mut);margin-top:5px}
-.zora-onboard .dz .okbadge{position:absolute;top:8px;right:8px;z-index:2;background:var(--green);color:#fff;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 9px;border-radius:99px;display:none;align-items:center;gap:4px}
+.zora-onboard .dz .okbadge{position:absolute;top:8px;right:8px;z-index:2;background:var(--teal);color:#fff;font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:4px 9px;border-radius:99px;display:none;align-items:center;gap:4px}
 .zora-onboard .dz.filled .okbadge{display:inline-flex}
 .zora-onboard .dz .rm{position:absolute;top:8px;left:8px;z-index:2;background:rgba(10,10,11,.6);color:#fff;border:none;width:24px;height:24px;border-radius:50%;font-size:14px;cursor:pointer;display:none}
 .zora-onboard .dz.filled .rm{display:block}
-.zora-onboard .primary{width:100%;background:var(--ink);color:var(--paper);border:none;border-radius:12px;font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.14em;padding:16px;cursor:pointer;transition:background .2s;margin-top:10px}
-.zora-onboard .primary:hover{background:var(--blue)}
+.zora-onboard .primary{width:100%;background:var(--bone);color:var(--black);border:1px solid var(--bone);border-radius:12px;font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.14em;padding:16px;cursor:pointer;transition:background .2s,color .2s,border-color .2s;margin-top:10px}
+.zora-onboard .primary:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)}
 .zora-onboard .primary:disabled{opacity:.4;cursor:not-allowed}
-.zora-onboard .primary:disabled:hover{background:var(--ink)}
+.zora-onboard .primary:disabled:hover{background:var(--bone);border-color:var(--bone);color:var(--black)}
 .zora-onboard .skip{display:block;width:100%;text-align:center;background:none;border:none;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--mut);margin-top:16px;cursor:pointer;padding:8px}
-.zora-onboard .skip:hover{color:var(--ink)}
+.zora-onboard .skip:hover{color:var(--bone)}
 .zora-onboard .step.center{text-align:center}
-.zora-onboard .pending-badge{display:inline-flex;align-items:center;gap:8px;background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber-tx);font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:9px 16px;border-radius:99px;margin:0 auto 22px}
-.zora-onboard .pending-badge svg{width:14px;height:14px;stroke:var(--amber-tx);fill:none;stroke-width:2}
-.zora-onboard .live-url{font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:14px;margin:22px 0;letter-spacing:.02em}
+.zora-onboard .pending-badge{display:inline-flex;align-items:center;gap:8px;background:#191305;border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:9px 16px;border-radius:99px;margin:0 auto 22px}
+.zora-onboard .pending-badge svg{width:14px;height:14px;stroke:var(--amber);fill:none;stroke-width:2}
+.zora-onboard .live-url{font-family:var(--mono);font-size:14px;color:var(--bone);background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:14px;margin:22px 0;letter-spacing:.02em}
 .zora-onboard .live-url .h{color:var(--blue)}
-.zora-onboard .live-url .badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--amber-tx);margin-left:8px}
-.zora-onboard .live-url .badge .d{width:6px;height:6px;border-radius:50%;background:var(--amber-bd)}
-.zora-onboard .info-lock{display:flex;gap:11px;text-align:left;background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:16px;margin:20px 0;font-size:13px;color:var(--mut);line-height:1.6}
-.zora-onboard .info-lock svg{width:18px;height:18px;stroke:var(--green);fill:none;stroke-width:2;flex-shrink:0;margin-top:2px}
-.zora-onboard .info-lock b{color:var(--ink);font-weight:500}
+.zora-onboard .live-url .badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--amber);margin-left:8px}
+.zora-onboard .live-url .badge .d{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.zora-onboard .info-lock{display:flex;gap:11px;text-align:left;background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:16px;margin:20px 0;font-size:13px;color:var(--mut);line-height:1.6}
+.zora-onboard .info-lock svg{width:18px;height:18px;stroke:var(--teal);fill:none;stroke-width:2;flex-shrink:0;margin-top:2px}
+.zora-onboard .info-lock b{color:var(--bone);font-weight:500}
 .zora-onboard .two-cta{display:grid;gap:10px;margin-top:8px}
 `;
 
