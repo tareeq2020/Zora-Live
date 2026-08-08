@@ -337,6 +337,103 @@ function TiersPanel() {
   );
 }
 
+// ── MEGA EVENT (BS50) ─────────────────────────────────────────────────────
+// discover-app.tsx already reads `e.mega` and pins whichever event in the
+// viewer's OWN city has it set (see the `feat` memo there) — this panel is
+// the only thing that was missing: a way to actually set it. Reads the SAME
+// public /api/events list discover renders (events already carry `mega`
+// once set — no separate admin read path needed). Only the write
+// (PUT /api/events/:id/mega) is admin-gated; the server enforces at most one
+// mega event PER CITY (matching discover's own per-city scoping — a city can
+// have its own mega pin without clearing another city's), so this UI just
+// reflects whatever comes back.
+
+type MarketplaceEvent = {
+  id: string;
+  name: string;
+  organizer?: string | null;
+  organizerHandle?: string | null;
+  city?: string;
+  dateLabel?: string;
+  date?: string;
+  mega?: boolean;
+};
+
+function FeaturedPanel() {
+  const toast = useToast();
+  const loader = useJsonLoader<MarketplaceEvent[]>('/api/events');
+  const res = useAdminResource(loader);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function toggle(ev: MarketplaceEvent) {
+    setBusyId(ev.id);
+    try {
+      await adminApi(`/api/events/${encodeURIComponent(ev.id)}/mega`, {
+        method: 'PUT',
+        body: JSON.stringify({ mega: !ev.mega }),
+      });
+      toast(ev.mega ? `Unpinned ${ev.name}` : `${ev.name} is now the mega event for ${ev.city || 'its city'}`);
+      res.reload();
+    } catch (ex) {
+      toast(errText(ex), true);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const rows = res.data ? res.data.slice().sort((a, b) => (b.mega ? 1 : 0) - (a.mega ? 1 : 0)) : null;
+
+  const cols: AdminColumn<MarketplaceEvent>[] = [
+    {
+      key: 'name',
+      label: 'EVENT',
+      render: (e) => (
+        <div>
+          <b>{e.name}</b>
+          <br />
+          <span className="mono" style={{ color: 'var(--mut)' }}>
+            {e.organizer || e.organizerHandle || '—'}
+          </span>
+        </div>
+      ),
+    },
+    { key: 'city', label: 'CITY', render: (e) => e.city || '—' },
+    { key: 'date', label: 'DATE', render: (e) => <span className="mono">{e.dateLabel || e.date || '—'}</span> },
+    { key: 'mega', label: 'STATUS', render: (e) => (e.mega ? <span className="pill active">MEGA — {e.city}</span> : null) },
+    {
+      key: 'act',
+      label: '',
+      actions: true,
+      render: (e) => (
+        <button
+          type="button"
+          className={'btn small' + (e.mega ? ' ghost' : '')}
+          disabled={busyId === e.id}
+          onClick={() => toggle(e)}
+        >
+          {busyId === e.id ? 'SAVING…' : e.mega ? 'UNPIN' : 'SET AS MEGA EVENT'}
+        </button>
+      ),
+    },
+  ];
+
+  return (
+    <AdminCard
+      title="MEGA EVENT"
+      subtitle="Pin one event above the grid for its city on Discover. At most one mega event per city — setting a new one for a city un-pins that city's previous pick, but leaves other cities' picks alone."
+      flush
+    >
+      <AdminTable
+        columns={cols}
+        rows={rows}
+        rowKey={(e) => e.id}
+        resource={res}
+        empty="No published events yet."
+      />
+    </AdminCard>
+  );
+}
+
 // ── CREWS ───────────────────────────────────────────────────────────────────
 
 type Crew = {
@@ -431,13 +528,14 @@ function CrewsPanel() {
 // ── section ─────────────────────────────────────────────────────────────────
 
 const TABS = [
+  ['featured', 'FEATURED'],
   ['drop', 'THE DROP'],
   ['tiers', 'TIERS'],
   ['crews', 'CREWS'],
 ] as const;
 
 export function EventsSection() {
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>('drop');
+  const [tab, setTab] = useState<(typeof TABS)[number][0]>('featured');
   return (
     <>
       <div className="sec-h">
@@ -454,6 +552,7 @@ export function EventsSection() {
           </button>
         ))}
       </div>
+      {tab === 'featured' ? <FeaturedPanel /> : null}
       {tab === 'drop' ? (
         <AdminCard title="THE DROP" subtitle="Everything on both pages reads from here.">
           <DropPanel />
