@@ -49,7 +49,11 @@ export type CheckoutFlowProps = {
   accent?: string;
 };
 
-type Step = 'cart' | 'buyer' | 'pay' | 'poll' | 'done';
+// BS47: 'network' is a dedicated step — the buyer picks a METHOD first (mobile
+// / bill pay / card), and only mobile money asks a follow-up "which network"
+// question, on its own screen, with the network's own logo rather than a bare
+// text label.
+type Step = 'cart' | 'buyer' | 'network' | 'pay' | 'poll' | 'done';
 type Method = 'mobile' | 'billpay' | 'card';
 
 type PoolSnapshot = { tierId: string; available: number };
@@ -57,10 +61,10 @@ type Order = { orderId: string; total: number };
 type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string };
 
 const NETWORKS = [
-  { id: 'VODACOM', label: 'M-PESA' },
-  { id: 'TIGO', label: 'MIXX BY YAS' },
-  { id: 'AIRTEL', label: 'AIRTEL MONEY' },
-  { id: 'HALOTEL', label: 'HALOPESA' },
+  { id: 'VODACOM', label: 'M-PESA', logo: '/logos/mobile-money/mpesa.png' },
+  { id: 'TIGO', label: 'MIXX BY YAS', logo: '/logos/mobile-money/tigopesa.png' },
+  { id: 'AIRTEL', label: 'AIRTEL MONEY', logo: '/logos/mobile-money/airtel.png' },
+  { id: 'HALOTEL', label: 'HALOPESA', logo: '/logos/mobile-money/halopesa.png' },
 ];
 
 const POLL_MS = 3000;
@@ -182,6 +186,22 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
     const cap = Math.min(10, availOf(tierId));
     const clamped = Math.max(0, Math.min(cap, next));
     setQty((prev) => ({ ...prev, [tierId]: clamped }));
+  }
+
+  // BS47: the buyer step's own CONTINUE — validates, then either advances to
+  // the dedicated network-choice screen (mobile money) or goes straight to
+  // checkout (bill pay / card have no follow-up question).
+  function continueFromBuyer() {
+    setNotice(null);
+    if (!phone.trim()) return setNotice({ kind: 'error', text: 'Enter your phone number.' });
+    if (!email.trim()) return setNotice({ kind: 'error', text: 'Enter your email.' });
+    if (!ageAttested) return setNotice({ kind: 'error', text: 'Please confirm you are 18 or older.' });
+    if (!anyInCart) return setNotice({ kind: 'error', text: 'Add at least one pass.' });
+    if (method === 'mobile') {
+      setStep('network');
+      return;
+    }
+    submitCheckout();
   }
 
   // ── (c) POST /api/checkout ──────────────────────────────────────────────
@@ -353,7 +373,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
           {/* ── (a) CART ── */}
           {step === 'cart' ? (
             <>
-              <div className="zco-welcome">A real Zora pass, issued on payment — Zora adds no booking fee.</div>
+              <div className="zco-welcome">A real Zora pass, issued the moment you pay.</div>
               <p className="zco-event">{eventName}</p>
               {when ? <p className="zco-when">{when}</p> : null}
               {invError ? <p className="zco-muted">Live availability is unavailable right now — you can still try.</p> : null}
@@ -451,20 +471,34 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                   ))}
                 </div>
               </div>
-              {method === 'mobile' ? (
-                <div className="zco-networks">
-                  {NETWORKS.map((n) => (
-                    <button key={n.id} className={'zco-net' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>
-                      {n.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
               <label className="zco-check">
                 <input type="checkbox" checked={ageAttested} onChange={(e) => setAgeAttested(e.target.checked)} />
                 <span>I confirm I am 18 or older.</span>
               </label>
+
+              <button className="zco-pay" disabled={busy} onClick={continueFromBuyer}>
+                {method === 'mobile' ? 'CONTINUE' : busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT'}
+              </button>
+            </>
+          ) : null}
+
+          {/* ── (b2) NETWORK — mobile money only, its own screen with logos ── */}
+          {step === 'network' ? (
+            <>
+              <button className="zco-back" onClick={() => (setNotice(null), setStep('buyer'))}>
+                ← Back
+              </button>
+              <p className="zco-event">Which mobile money?</p>
+              <p className="zco-when">We&apos;ll send a payment prompt to {phone}.</p>
+
+              <div className="zco-net-grid">
+                {NETWORKS.map((n) => (
+                  <button key={n.id} className={'zco-net-card' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>
+                    <img src={n.logo} alt="" />
+                    <span>{n.label}</span>
+                  </button>
+                ))}
+              </div>
 
               <button className="zco-pay" disabled={busy} onClick={submitCheckout}>
                 {busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT'}
@@ -483,7 +517,6 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                     {fmt(order.total)} {currency}
                   </span>
                 </div>
-                <p className="zco-fineprint">This is your Zora total — we add nothing. Your mobile-money provider may charge its own small fee.</p>
               </div>
 
               <label className="zco-field">
@@ -752,9 +785,10 @@ const STYLE = `
 .zco-seg{display:flex;gap:8px;margin-top:9px}
 .zco-seg-btn{flex:1;background:#141416;border:1px solid var(--z-hair);border-radius:10px;color:var(--z-mut);font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;padding:12px 4px;cursor:pointer}
 .zco-seg-btn.on{border-color:var(--z-blue);color:var(--z-bone);background:rgba(61,90,254,.12)}
-.zco-networks{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.zco-net{background:none;border:1px solid var(--z-hair);border-radius:99px;color:var(--z-mut);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:9px 14px;cursor:pointer}
-.zco-net.on{border-color:var(--z-blue);color:var(--z-bone)}
+.zco-net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.zco-net-card{display:flex;flex-direction:column;align-items:center;gap:10px;background:#141416;border:1px solid var(--z-hair);border-radius:12px;padding:16px 10px;cursor:pointer;color:var(--z-bone);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.zco-net-card img{width:40px;height:40px;object-fit:contain;border-radius:8px}
+.zco-net-card.on{border-color:var(--z-blue);background:rgba(61,90,254,.12)}
 .zco-check{display:flex;align-items:center;gap:11px;margin-top:22px;font-size:13.5px;color:var(--z-bone);cursor:pointer}
 .zco-check input{width:18px;height:18px;accent-color:var(--z-blue);flex-shrink:0}
 .zco-pay{width:100%;background:var(--z-blue);color:var(--z-bone);border:none;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.14em;padding:17px;border-radius:12px;cursor:pointer;margin-top:24px;transition:background .2s}

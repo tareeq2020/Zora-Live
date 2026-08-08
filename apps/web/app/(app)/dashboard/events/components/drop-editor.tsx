@@ -573,7 +573,7 @@ export default function DropEditor(props: DropEditorProps) {
               <span className="n">2</span>TICKETS &amp; PRICING
             </p>
             <p className="tier-note" style={{ marginTop: -8, marginBottom: 14 }}>
-              Buyers pay these prices in full — Zora adds no booking fee. Your payout is each price net of your{' '}
+              Buyers pay these prices in full. Your payout is each price net of your{' '}
               {(commissionRate * 100).toFixed(1).replace(/\.0$/, '')}% Zora commission.
             </p>
             {noneOnSale ? (
@@ -825,7 +825,7 @@ export default function DropEditor(props: DropEditorProps) {
               </div>
             </div>
             <p className="side-note">
-              Buyers pay the price you set — Zora adds no booking fee.
+              Buyers pay the price you set.
               <br />
               Your payout is that price net of your Zora commission.
             </p>

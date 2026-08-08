@@ -277,11 +277,9 @@ export default function BrandPage() {
               <div className="qty"><span>Passes</span><div className="ctrl"><button>&minus;</button><span className="n">2</span><button>+</button></div></div>
               <div className="honest">
                 <div className="row"><span>2 × 65,000 TZS</span><span>130,000 TZS</span></div>
-                <div className="row"><span>Zora booking fee</span><span className="free">0 TZS</span></div>
                 <div className="total"><span className="l">Total</span><span className="v">130,000 TZS</span></div>
               </div>
               <button className="btn btn-aura pay">Lock in &amp; check out</button>
-              <p className="nofee"><b>No Zora booking fee.</b> Your payment provider may add a small fee at payment.</p>
             </div>
           </div>
         </div>
