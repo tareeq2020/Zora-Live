@@ -411,8 +411,15 @@ export default function PayoutsClient() {
 // Scoped control-room palette — the same token vocabulary as /dashboard and
 // /dashboard/sales. Money is IBM Plex Mono at >=11.5px against >=--mut contrast
 // and every tap target is >=44px (DESIGN.md rules 2/3/4b).
+// BS51 (Lane 3C): same dark Control-room tokens + the same --ink text/surface
+// and green/red -> teal/orange rules as 3A/3B. Money surfaces (balance figure,
+// table amounts) get extra care per DESIGN.md rule 4b — checked each one lands
+// on var(--bone), the highest-contrast text color, never var(--mut).
 const STYLE = `
-.zora-payouts{--paper:#F4F1EA;--card:#FBF9F4;--ink:#0A0A0B;--hair:#DDD8CB;--mut:#8A877E;--blue:#3D5AFE;--bluewash:#E8EBFE;--green:#1D9E75;--greenwash:#E4F5EE;--amber:#854F0B;--amberwash:#FAEEDA;--red:#8f2a1b;--redwash:#FBEAE7;--sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-payouts{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
+  --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
+  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-payouts *{margin:0;padding:0;box-sizing:border-box}
 .zora-payouts a{color:inherit;text-decoration:none}
 .zora-payouts a:hover{color:var(--blue)}
@@ -425,9 +432,9 @@ const STYLE = `
 .zora-payouts .sub{color:var(--mut);font-size:13.5px;margin-bottom:26px;max-width:640px}
 
 /* ── balance card: the biggest thing on the page (design spec #7) ── */
-.zora-payouts .bal{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:26px 28px;margin-bottom:20px}
+.zora-payouts .bal{background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:26px 28px;margin-bottom:20px}
 .zora-payouts .bal .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;color:var(--mut)}
-.zora-payouts .bal .big{font-family:var(--mono);font-size:46px;font-weight:500;letter-spacing:-.02em;line-height:1.15;margin-top:10px;color:var(--ink)}
+.zora-payouts .bal .big{font-family:var(--mono);font-size:46px;font-weight:500;letter-spacing:-.02em;line-height:1.15;margin-top:10px;color:var(--bone)}
 @media(max-width:520px){.zora-payouts .bal .big{font-size:34px}}
 .zora-payouts .bal .big .cur{font-size:19px;color:var(--mut);letter-spacing:.06em;margin-left:6px}
 .zora-payouts .bal .d{font-size:13px;color:var(--mut);margin-top:10px;max-width:56ch}
@@ -437,54 +444,54 @@ const STYLE = `
 @keyframes po-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .zora-payouts .breakdown{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
 .zora-payouts .breakdown .bk{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--mut)}
-.zora-payouts .breakdown .bv{font-family:var(--mono);font-size:15px;margin-top:5px;color:var(--ink)}
+.zora-payouts .breakdown .bv{font-family:var(--mono);font-size:15px;margin-top:5px;color:var(--bone)}
 
 .zora-payouts .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .zora-payouts .chip{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;padding:11px 18px;min-height:44px;border-radius:99px;border:1px solid var(--hair);background:none;color:var(--mut);cursor:pointer}
-.zora-payouts .chip:hover{color:var(--ink);border-color:var(--mut)}
-.zora-payouts .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.zora-payouts .chip:hover{color:var(--bone);border-color:var(--mut)}
+.zora-payouts .chip.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
 
 /* ── request form ── */
-.zora-payouts .box{background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:22px 24px;margin-bottom:20px}
+.zora-payouts .box{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:22px 24px;margin-bottom:20px}
 .zora-payouts .box .bh{font-family:var(--mono);font-size:10.5px;letter-spacing:.25em;color:var(--mut);margin-bottom:16px}
-.zora-payouts .notice{background:var(--amberwash);color:var(--amber);border-radius:8px;padding:13px 15px;font-size:13px;line-height:1.6;margin-bottom:18px}
+.zora-payouts .notice{background:#191305;color:var(--amber);border-radius:8px;padding:13px 15px;font-size:13px;line-height:1.6;margin-bottom:18px}
 .zora-payouts .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px}
 @media(max-width:640px){.zora-payouts .row{grid-template-columns:1fr}}
 .zora-payouts label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--mut);margin-bottom:7px}
-.zora-payouts input{width:100%;background:#fff;border:1px solid var(--hair);border-radius:8px;color:var(--ink);font-family:var(--sans);font-size:15px;padding:13px 14px;min-height:48px}
+.zora-payouts input{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:8px;color:var(--bone);font-family:var(--sans);font-size:15px;padding:13px 14px;min-height:48px}
 .zora-payouts input.mono{font-family:var(--mono);font-size:17px;letter-spacing:.02em}
 .zora-payouts input:focus{outline:none;border-color:var(--blue)}
-.zora-payouts input:disabled{background:var(--paper);color:var(--mut);cursor:not-allowed}
+.zora-payouts input:disabled{background:var(--ink);color:var(--mut);cursor:not-allowed}
 .zora-payouts .help{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:7px;letter-spacing:.02em}
 .zora-payouts .actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px}
 .zora-payouts .inline-warn{font-size:12.5px;color:var(--amber)}
 .zora-payouts .alert{margin-top:14px;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.6}
-.zora-payouts .alert.err{background:var(--redwash);color:var(--red)}
-.zora-payouts .alert.ok{background:var(--greenwash);color:var(--green)}
+.zora-payouts .alert.err{background:#2a1208;border:1px solid var(--orange);color:var(--orange)}
+.zora-payouts .alert.ok{background:#0d2622;border:1px solid var(--teal);color:var(--teal)}
 
 /* ── history ── */
 .zora-payouts .ptable{width:100%;border-collapse:collapse;font-size:13px}
 .zora-payouts .ptable th{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;color:var(--mut);text-align:left;padding:12px 8px;border-bottom:1px solid var(--hair);white-space:nowrap}
 .zora-payouts .ptable td{padding:14px 8px;border-bottom:1px solid var(--hair);vertical-align:top}
 .zora-payouts .ptable td.mono{font-size:12.5px}
-.zora-payouts .ptable td.amt{font-size:15px;color:var(--ink);white-space:nowrap}
+.zora-payouts .ptable td.amt{font-size:15px;color:var(--bone);white-space:nowrap}
 .zora-payouts .ptable tr:last-child td{border-bottom:none}
 .zora-payouts .cell-state{text-align:center;color:var(--mut);font-size:13px;padding:34px 8px}
 .zora-payouts .note{color:var(--mut);font-size:11.5px}
 .zora-payouts .reason{display:block;color:var(--mut);font-size:12px;margin-top:6px;max-width:34ch;line-height:1.5}
 .zora-payouts .fx{display:block;font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:5px}
 .zora-payouts .seg{font-family:var(--mono);font-size:10px;letter-spacing:.12em;padding:5px 11px;border-radius:99px;white-space:nowrap;display:inline-block}
-.zora-payouts .seg.paid{background:var(--greenwash);color:var(--green)}
-.zora-payouts .seg.pending{background:var(--bluewash);color:var(--blue)}
-.zora-payouts .seg.failed{background:var(--redwash);color:var(--red)}
+.zora-payouts .seg.paid{background:rgba(47,169,160,.14);color:var(--teal)}
+.zora-payouts .seg.pending{background:rgba(61,90,254,.14);color:var(--blue)}
+.zora-payouts .seg.failed{background:rgba(255,90,31,.14);color:var(--orange)}
 .zora-payouts .table-scroll{overflow-x:auto}
 
-.zora-payouts .state{background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:26px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.zora-payouts .state{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:26px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
 .zora-payouts .state.error{color:var(--mut);font-size:13.5px}
-.zora-payouts .btn{background:var(--ink);color:var(--paper);border:none;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.16em;padding:15px 26px;min-height:48px;border-radius:8px;cursor:pointer;transition:background .2s}
-.zora-payouts .btn:hover:not(:disabled){background:var(--blue)}
+.zora-payouts .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.16em;padding:15px 26px;min-height:48px;border-radius:8px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.zora-payouts .btn:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:var(--bone)}
 .zora-payouts .btn:disabled{opacity:.45;cursor:not-allowed}
-.zora-payouts .btn.ghost{background:none;border:1px solid var(--hair);color:var(--ink)}
+.zora-payouts .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
 .zora-payouts .btn.ghost:hover{border-color:var(--blue);color:var(--blue);background:none}
 .zora-payouts .linkbtn{background:none;border:none;color:var(--blue);font-family:var(--mono);font-size:12px;cursor:pointer;text-decoration:underline;padding:0}
 `;
