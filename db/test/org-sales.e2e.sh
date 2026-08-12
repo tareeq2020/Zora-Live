@@ -142,10 +142,11 @@ RESULT=$(BRUNCH_SOLD="$BRUNCH_SOLD" RAW_CODE="$RAW_CODE" RAW_REF="$RAW_REF" \
 const t = (name, cond) => console.log((cond ? "  ✓ " : "  ✗ ") + name) || (cond ? 0 : process.exitCode = 1);
 const sumA = JSON.parse(process.env.SUM_A);
 const sumB = JSON.parse(process.env.SUM_B);
-const ordA = JSON.parse(process.env.ORD_A);
-const ordAForeign = JSON.parse(process.env.ORD_A_FOREIGN);
-const ordAOwn = JSON.parse(process.env.ORD_A_OWN);
-const ordB = JSON.parse(process.env.ORD_B);
+// BS58: /api/org/orders now returns { rows, nextCursor } — assert on .rows.
+const ordA = JSON.parse(process.env.ORD_A).rows;
+const ordAForeign = JSON.parse(process.env.ORD_A_FOREIGN).rows;
+const ordAOwn = JSON.parse(process.env.ORD_A_OWN).rows;
+const ordB = JSON.parse(process.env.ORD_B).rows;
 const brunchSold = Number(process.env.BRUNCH_SOLD);
 const rawCode = process.env.RAW_CODE, rawRef = process.env.RAW_REF;
 
@@ -200,6 +201,36 @@ t("org A orders list includes the pending order (status pending)",
   ordA.some(o => o.status === "pending"));
 ' 2>&1 || true)
 echo "$RESULT"
+
+echo "== BS58. orders filters: status / q / tier / keyset paging =="
+F_PAID=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?status=paid")
+F_PENDING=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?status=pending")
+F_Q=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?q=alice@example.com")
+F_QNONE=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?q=nobody-zzz")
+F_PAGE1=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?limit=1")
+FR=$(F_PAID="$F_PAID" F_PENDING="$F_PENDING" F_Q="$F_Q" F_QNONE="$F_QNONE" F_PAGE1="$F_PAGE1" node -e '
+const t=(n,c)=>console.log((c?"  ✓ ":"  ✗ ")+n)||(c?0:process.exitCode=1);
+const paid=JSON.parse(process.env.F_PAID), pend=JSON.parse(process.env.F_PENDING);
+const q=JSON.parse(process.env.F_Q), qn=JSON.parse(process.env.F_QNONE), p1=JSON.parse(process.env.F_PAGE1);
+t("status=paid → only paid orders", paid.rows.length>0 && paid.rows.every(o=>o.status==="paid"));
+t("status=pending → only pending orders", pend.rows.length>0 && pend.rows.every(o=>o.status==="pending"));
+t("q=alice@example.com → matches the buyer email", q.rows.length>0 && q.rows.every(o=>o.buyer.email==="alice@example.com"));
+t("q=nonsense → empty page", Array.isArray(qn.rows) && qn.rows.length===0);
+t("limit=1 → one row + a nextCursor (more exist)", p1.rows.length===1 && typeof p1.nextCursor==="string" && p1.nextCursor.length>0);
+' 2>&1 || true)
+echo "$FR"; echo "$FR" | grep -q "✗" && fail=1
+
+# keyset paging: page 2 via the cursor must not repeat page 1's order.
+CUR=$(echo "$F_PAGE1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).nextCursor||""))')
+if [ -n "$CUR" ]; then
+  F_PAGE2=$(curl -s -b "$SNAP/orgA" "$BASE/api/org/orders?limit=1&cursor=$(printf %s "$CUR" | sed 's/+/%2B/g')")
+  PG=$(F_PAGE1="$F_PAGE1" F_PAGE2="$F_PAGE2" node -e '
+  const t=(n,c)=>console.log((c?"  ✓ ":"  ✗ ")+n)||(c?0:process.exitCode=1);
+  const a=JSON.parse(process.env.F_PAGE1).rows[0], b=JSON.parse(process.env.F_PAGE2).rows[0];
+  t("keyset page 2 returns a DIFFERENT order than page 1 (no repeat/skip)", a && b && a.orderId!==b.orderId);
+  ' 2>&1 || true)
+  echo "$PG"; echo "$PG" | grep -q "✗" && fail=1
+fi
 echo "$RESULT" | grep -q '✗' && fail=1
 
 # ════════════════════════════════════════════════════════════════════════════
