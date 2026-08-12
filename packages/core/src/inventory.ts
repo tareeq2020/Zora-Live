@@ -24,10 +24,20 @@ export async function releaseHolds(sql: Sql, orderId: string): Promise<void> {
 }
 
 /** Payment-success reacquire (PR-7's try_reacquire_order): all-or-nothing re-take
-    of the order's stock when the checkout holds already lapsed. Returns true only
-    if every tier had enough available (else it applies NOTHING). */
+    of the order's stock when the checkout holds already lapsed. Moves stock
+    available → SOLD. Use ONLY on a confirmed payment. Returns true only if every
+    tier had enough available (else it applies NOTHING). */
 export async function tryReacquire(sql: Sql, orderId: string): Promise<boolean> {
   const rows = await sql`select try_reacquire_order(${orderId}::uuid) as ok`;
+  return rows[0].ok === true;
+}
+
+/** BS56: re-HOLD an order's stock for a RETRY (all-or-nothing), inserting fresh
+    held holds — available → held, never sold. This is what a failed-payment retry
+    needs; using tryReacquire there marks unpaid seats sold forever (no hold to
+    release). Returns true only if every tier had enough available. */
+export async function tryRehold(sql: Sql, orderId: string, ttlSecs: number): Promise<boolean> {
+  const rows = await sql`select try_rehold_order(${orderId}::uuid, ${ttlSecs}) as ok`;
   return rows[0].ok === true;
 }
 

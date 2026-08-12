@@ -10,7 +10,7 @@
    - unit_price + price_version_id are snapshotted per line, so a later re-price
      never mutates a placed order. */
 import { tx } from '../db';
-import { placeHold, convertHolds, convertReservation, releaseHolds, tryReacquire } from '../inventory';
+import { placeHold, convertHolds, convertReservation, releaseHolds, tryReacquire, tryRehold } from '../inventory';
 import { generateCode, signCredential, generatePublicRef, ticketSigningKeys, qrPayload, renderQrPng } from '../credentials';
 import {
   collectMobile, collectBillPay, collectCard, cardCheckoutUrl, collectionStatus, normalizeMsisdn,
@@ -188,6 +188,9 @@ export interface InitiatePaymentInput {
   /** Per-FSP fee overrides (fee is already baked into target_value at checkout;
       accepted for a stable call signature / future per-attempt re-pricing). */
   feeRateByFsp?: Record<string, number>;
+  /** TTL for the hold a failed-order RETRY re-places (BS56). Defaults to the
+      same 15 min checkout uses; pass the org's configured hold_ttl_seconds. */
+  holdTtlSecs?: number;
 }
 
 export interface InitiatePaymentResult {
@@ -198,8 +201,9 @@ export interface InitiatePaymentResult {
 }
 
 /** Start a collection. Payable when the order is pending OR failed (retry): a
-    timed-out PIN does not lock the buyer out. A failed retry re-holds inventory
-    (try_reacquire) before re-opening the order to pending. */
+    timed-out PIN does not lock the buyer out. A failed retry RE-HOLDS inventory
+    (try_rehold, not try_reacquire) before re-opening the order to pending — the
+    seats are not paid yet, so they must go to HELD, never SOLD (BS56). */
 export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Promise<InitiatePaymentResult> {
   const { orderId, method, payerPhone, payerName, mno, callbackUrl, routeMap } = input;
   const [order] = await sql`
@@ -208,9 +212,11 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   if (order.status !== 'pending' && order.status !== 'failed') {
     throw new Error(`order not payable (status ${order.status})`);
   }
-  // A retry re-holds inventory for a failed order whose holds were released.
+  // A retry re-HOLDS inventory for a failed order whose holds were released.
+  // (BS56) tryRehold moves available → held; using tryReacquire here marked the
+  // unpaid seats SOLD forever, with no hold to ever release.
   if (order.status === 'failed') {
-    const ok = await tryReacquire(sql, orderId);
+    const ok = await tryRehold(sql, orderId, input.holdTtlSecs ?? 900);
     if (!ok) throw new Error('inventory no longer available');
     await sql`update "order" set status = 'pending' where id = ${orderId}`;
   }
