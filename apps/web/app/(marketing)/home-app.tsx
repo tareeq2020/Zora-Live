@@ -21,6 +21,7 @@
    /dashboard/*. */
 
 import { useEffect, useRef, useState } from 'react';
+import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { RevealImg } from '../components/reveal-img';
 import { Placements } from '../components/placements';
 
@@ -37,7 +38,7 @@ const DEFAULTS = {
   coordinates: "06°45'S / 039°16'E",
   port: 'SLIPWAY, DAR',
   capacityLabel: '20 PAX PER YACHT',
-  contactEmail: 'support@zorapass.com',
+  contactEmail: SUPPORT_EMAIL,
 };
 
 type Settings = typeof DEFAULTS & Record<string, unknown>;
