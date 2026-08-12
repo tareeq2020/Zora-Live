@@ -65,7 +65,18 @@ type OrderRow = {
 };
 
 const PAGE_SIZE = 50;
-const MAX_LIMIT = 500;
+
+// BS58: tier metadata for the filter dropdown, from /api/org/events.
+type EventMeta = { id: string; name: string; tiers?: { tierId?: string; name: string }[] };
+
+// The order statuses the filter offers. 'all' clears the status filter.
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'refunded', label: 'Refunded' },
+];
 
 const fmt = (n: number) => (typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—');
 const money = (n: number, cur?: string) => `${fmt(n)}${cur ? ' ' + cur : ''}`;
@@ -98,11 +109,28 @@ export default function SalesClient() {
   const [summaryError, setSummaryError] = useState(false);
 
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // BS58: server-side filters. Every change re-fetches from the first page.
   const [eventId, setEventId] = useState<string>(''); // '' = all events
-  const [limit, setLimit] = useState<number>(PAGE_SIZE);
+  const [tier, setTier] = useState<string>('');       // product_tier id
+  const [status, setStatus] = useState<string>('all');
+  const [qInput, setQInput] = useState<string>('');   // raw search box
+  const [q, setQ] = useState<string>('');             // debounced query
+  const [from, setFrom] = useState<string>('');       // yyyy-mm-dd
+  const [to, setTo] = useState<string>('');           // yyyy-mm-dd
+
+  // Event metadata (tiers) drives the tier dropdown — the summary has no tiers.
+  const [eventsMeta, setEventsMeta] = useState<EventMeta[]>([]);
+
+  // Debounce the search box so we don't fire a query per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(qInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [qInput]);
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -119,46 +147,84 @@ export default function SalesClient() {
     }
   }, []);
 
-  const loadOrders = useCallback(async (evId: string, lim: number) => {
+  const buildParams = useCallback((cursor: string | null) => {
+    const p = new URLSearchParams();
+    if (eventId) p.set('eventId', eventId);
+    if (tier) p.set('tier', tier);
+    if (status && status !== 'all') p.set('status', status);
+    if (q) p.set('q', q);
+    if (from) p.set('from', new Date(from + 'T00:00:00').toISOString());
+    if (to) p.set('to', new Date(to + 'T23:59:59').toISOString());
+    p.set('limit', String(PAGE_SIZE));
+    if (cursor) p.set('cursor', cursor);
+    return p.toString();
+  }, [eventId, tier, status, q, from, to]);
+
+  // First page: replaces the list. Re-runs whenever any filter changes.
+  const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
     setOrdersError(false);
     try {
-      const params = new URLSearchParams();
-      if (evId) params.set('eventId', evId);
-      params.set('limit', String(lim));
-      const res = await fetch(`/api/org/orders?${params.toString()}`, { cache: 'no-store' });
+      const res = await fetch(`/api/org/orders?${buildParams(null)}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as OrderRow[];
-      setOrders(Array.isArray(data) ? data : []);
+      const data = (await res.json()) as { rows: OrderRow[]; nextCursor: string | null };
+      setOrders(data.rows ?? []);
+      setNextCursor(data.nextCursor ?? null);
     } catch {
       setOrdersError(true);
       setOrders(null);
+      setNextCursor(null);
     } finally {
       setOrdersLoading(false);
     }
-  }, []);
+  }, [buildParams]);
+
+  // Next page: appends, keyset-cursor from the last response.
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/org/orders?${buildParams(nextCursor)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { rows: OrderRow[]; nextCursor: string | null };
+      setOrders((prev) => [...(prev ?? []), ...(data.rows ?? [])]);
+      setNextCursor(data.nextCursor ?? null);
+    } catch {
+      /* keep what we have; the cursor is unchanged so the user can retry */
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, buildParams]);
 
   useEffect(() => {
     loadSummary();
+    // Tier options come from the org's events (which carry their tiers).
+    fetch('/api/org/events', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setEventsMeta(Array.isArray(d) ? (d as EventMeta[]) : []))
+      .catch(() => setEventsMeta([]));
   }, [loadSummary]);
 
   useEffect(() => {
-    loadOrders(eventId, limit);
-  }, [loadOrders, eventId, limit]);
+    loadOrders();
+  }, [loadOrders]);
 
-  // Changing the event filter resets the page window back to the first page.
-  function onFilter(evId: string) {
+  // Selecting a different event invalidates a tier chosen under the old one.
+  function onEvent(evId: string) {
     setEventId(evId);
-    setLimit(PAGE_SIZE);
+    setTier('');
+  }
+  function clearFilters() {
+    setEventId(''); setTier(''); setStatus('all'); setQInput(''); setQ(''); setFrom(''); setTo('');
   }
 
   const totals = summary?.totals;
   const events = summary?.events ?? [];
   const selectedEvent = eventId ? events.find((e) => e.id === eventId) : null;
+  const tierOptions = eventId ? (eventsMeta.find((e) => e.id === eventId)?.tiers ?? []) : [];
+  const filtersActive = !!(eventId || tier || (status && status !== 'all') || q || from || to);
 
-  // The orders API returns a flat array (no cursor); if it filled the requested
-  // limit there may be more, so "load more" bumps the limit and re-fetches.
-  const hasMore = !!orders && orders.length >= limit && limit < MAX_LIMIT;
+  const hasMore = !!nextCursor;
   const shownPaid = orders ? orders.filter((o) => statusTone(o.status) === 'paid').length : 0;
 
   return (
@@ -268,12 +334,12 @@ export default function SalesClient() {
             </div>
           ) : null}
 
-          {/* ── Per-event filter (drives ?eventId=) ── */}
+          {/* ── Event filter chips (drives ?eventId=) ── */}
           {!summaryLoading && !summaryError && events.length > 0 ? (
             <div className="chips" role="tablist" aria-label="Filter orders by event">
               <button
                 className={'chip' + (eventId === '' ? ' on' : '')}
-                onClick={() => onFilter('')}
+                onClick={() => onEvent('')}
                 aria-pressed={eventId === ''}
               >
                 ALL EVENTS
@@ -282,13 +348,65 @@ export default function SalesClient() {
                 <button
                   key={e.id}
                   className={'chip' + (eventId === e.id ? ' on' : '')}
-                  onClick={() => onFilter(e.id)}
+                  onClick={() => onEvent(e.id)}
                   aria-pressed={eventId === e.id}
                 >
                   {e.name.toUpperCase()}
                 </button>
               ))}
             </div>
+          ) : null}
+
+          {/* ── BS58: tier / status / search / date filters (all server-side) ── */}
+          <div
+            className="ord-filters"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', margin: '4px 0 14px' }}
+          >
+            <input
+              type="search"
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              placeholder="Search phone, email or ticket code"
+              aria-label="Search orders"
+              className="fbx"
+              style={{ flex: '1 1 240px', minWidth: 200 }}
+            />
+            {eventId ? (
+              <select className="fbx" value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter by tier">
+                <option value="">All tiers</option>
+                {tierOptions.map((t) => (
+                  <option key={t.tierId ?? t.name} value={t.tierId ?? ''}>{t.name}</option>
+                ))}
+              </select>
+            ) : null}
+            <div className="seg" role="group" aria-label="Filter by status">
+              {STATUS_FILTERS.map((s) => (
+                <button
+                  key={s.value}
+                  className={'seg-btn' + (status === s.value ? ' on' : '')}
+                  onClick={() => setStatus(s.value)}
+                  aria-pressed={status === s.value}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <label className="fdate">From <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="fbx" /></label>
+            <label className="fdate">To <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="fbx" /></label>
+            {filtersActive ? (
+              <button className="chip" onClick={clearFilters}>CLEAR</button>
+            ) : null}
+          </div>
+          <style dangerouslySetInnerHTML={{ __html: `
+            .ord-filters .fbx{background:var(--ink,#101012);border:1px solid var(--hair,#26262b);color:var(--bone,#e8e6e1);border-radius:9px;padding:8px 10px;font-size:13px;outline:none}
+            .ord-filters .fbx:focus{border-color:var(--blue,#3a54ff)}
+            .ord-filters .seg{display:inline-flex;border:1px solid var(--hair,#26262b);border-radius:9px;overflow:hidden}
+            .ord-filters .seg-btn{background:transparent;border:0;color:var(--mut,#8b8b93);padding:8px 12px;font-size:12.5px;cursor:pointer}
+            .ord-filters .seg-btn.on{background:var(--blue,#3a54ff);color:#fff}
+            .ord-filters .fdate{display:inline-flex;align-items:center;gap:6px;color:var(--mut,#8b8b93);font-size:12px}
+          ` }} />
+          {ordersLoading && !orders ? null : filtersActive && orders && orders.length === 0 ? (
+            <p className="d" style={{ opacity: 0.7, marginBottom: 14 }}>No orders match these filters. <button className="chip" onClick={clearFilters}>Clear</button></p>
           ) : null}
 
           {/* ── Orders / sales table (from /api/org/orders) ── */}
@@ -318,7 +436,7 @@ export default function SalesClient() {
                     <tr>
                       <td colSpan={8} className="cell-state">
                         Could not load orders.{' '}
-                        <button className="linkbtn" onClick={() => loadOrders(eventId, limit)}>
+                        <button className="linkbtn" onClick={() => loadOrders()}>
                           Retry
                         </button>
                       </td>
@@ -378,15 +496,9 @@ export default function SalesClient() {
                   PAID
                 </span>
                 {hasMore ? (
-                  <button
-                    className="btn ghost"
-                    onClick={() => setLimit((l) => Math.min(l + PAGE_SIZE, MAX_LIMIT))}
-                    disabled={ordersLoading}
-                  >
-                    {ordersLoading ? 'LOADING…' : 'LOAD MORE'}
+                  <button className="btn ghost" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? 'LOADING…' : 'LOAD MORE'}
                   </button>
-                ) : orders.length >= MAX_LIMIT ? (
-                  <span className="mono note">MAX {fmt(MAX_LIMIT)} SHOWN — FILTER BY EVENT TO NARROW</span>
                 ) : null}
               </div>
             ) : null}
