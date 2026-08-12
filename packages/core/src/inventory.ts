@@ -41,6 +41,13 @@ export async function tryRehold(sql: Sql, orderId: string, ttlSecs: number): Pro
   return rows[0].ok === true;
 }
 
+/** BS62: return a fully-refunded line-item order's seats to inventory —
+    sold_count -= qty, available_count += qty per tier (total unchanged). No-op for
+    split/table orders (no order_item). Idempotent-ish via greatest(0, …). */
+export async function releaseOrderInventory(sql: Sql, orderId: string): Promise<void> {
+  await sql`select release_order_inventory(${orderId}::uuid)`;
+}
+
 /** Soft reserved-bucket hold (available → reserved). Returns reservation id or null. */
 export async function reserveInventory(sql: Sql, tierId: string, refType: string, refId: string, quantity: number, ttlSecs: number): Promise<string | null> {
   const rows = await sql`select reserve_inventory(${tierId}, ${refType}, ${refId}::uuid, ${quantity}, ${ttlSecs}) as id`;

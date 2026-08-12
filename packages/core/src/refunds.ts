@@ -14,6 +14,7 @@
    Deliberately NOT here: gateway/automated reversal and any UI. Recording the
    refund is what the money math needs; who pushes the button is an admin concern. */
 import { tx } from './db';
+import { releaseOrderInventory } from './inventory';
 
 type Sql = any;
 
@@ -74,6 +75,10 @@ export async function refundOrder(sql: Sql, orderId: string, amount?: number | n
       await t`
         update split_share set state = 'refunded', refunded_at = now()
          where order_id = ${orderId} and state = 'paid'`;
+      // BS62: return the seat to inventory too — sold_count was never decremented
+      // on refund, so "sold" over-counted and the seat could never be resold. Same
+      // transaction as the money side. No-op for split orders (no order_item).
+      await releaseOrderInventory(t, orderId);
     }
 
     return { ok: true, orderId, refunded, gross, fullyRefunded };

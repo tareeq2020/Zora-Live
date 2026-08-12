@@ -4,7 +4,7 @@
 'use strict';
 const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
-const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, tryRehold, organizerContactForEvent, closeDb } = core;
+const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, tryRehold, organizerContactForEvent, refundOrder, closeDb } = core;
 
 let failures = 0;
 function ok(cond, msg) {
@@ -150,6 +150,33 @@ function ok(cond, msg) {
 
   const unknown = await organizerContactForEvent(sql, 'no-such-event');
   ok(unknown.phone === null, 'unknown event -> null (no throw)');
+
+  // ── 7) BS62: a FULL refund returns the seat to inventory ──────────────────
+  // refundOrder recorded the money but never touched inventory: sold_count stayed
+  // up and available never came back. Pay a fresh order (sold+2, avail 5→3), then
+  // fully refund → sold back to 0, available back to 5, total conserved.
+  await sql`insert into product_tier (id, event_id, name, capacity) values ('t-refund','e-chk','Refund GA',5) on conflict do nothing`;
+  await sql`insert into price_version (tier_id, price, currency, fee_treatment) values ('t-refund', 40000, 'TZS', 'passed')`;
+  await sql`insert into inventory_pool (product_tier_id, capacity, available_count) values ('t-refund',5,5) on conflict do nothing`;
+
+  const r5 = await createGaVipOrder(sql, {
+    phone: '255700000005', email: 'e@buyer.tz',
+    cart: [{ tier: 't-refund', quantity: 2 }], feeRate: 0, holdTtl: 900,
+  });
+  ok(r5.ok === true, 'r5 (qty 2 on t-refund) -> ok:true');
+  await convertHolds(sql, r5.orderId);
+  await sql`update "order" set status='paid' where id = ${r5.orderId}`;
+  const beforeR = (await sql`select sold_count, available_count from inventory_pool where product_tier_id='t-refund'`)[0];
+  ok(Number(beforeR.sold_count) === 2 && Number(beforeR.available_count) === 3, 'paid: sold=2, available=3');
+
+  const refund = await refundOrder(sql, r5.orderId);
+  ok(refund.ok === true && refund.fullyRefunded === true, 'full refund -> ok, fullyRefunded');
+  const afterR = (await sql`select sold_count, available_count, capacity from inventory_pool where product_tier_id='t-refund'`)[0];
+  ok(Number(afterR.sold_count) === 0, 'refund decremented sold_count (2 -> 0) — no more phantom-sold');
+  ok(Number(afterR.available_count) === 5, 'refund returned the seats to available (3 -> 5, resellable)');
+  ok(Number(afterR.sold_count) + Number(afterR.available_count) === Number(afterR.capacity), 'pool conserved (sold+available == capacity)');
+  const ordStatus = (await sql`select status from "order" where id = ${r5.orderId}`)[0].status;
+  ok(ordStatus === 'refunded', 'order status = refunded');
 
   await closeDb();
   if (failures) { console.error('\n' + failures + ' assertion(s) failed'); process.exit(1); }
