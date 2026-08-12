@@ -411,16 +411,23 @@ function ticketSmsText(refs: string[], eventName: string): string {
   return `Your ${eventName} ${plural ? 'tickets are' : 'ticket is'} confirmed.${codePart}${link}`;
 }
 
-/** Send the purchase confirmation SMS + email EXACTLY once. The atomic claim on
-    order.notified_at is the once-latch; each delivery is best-effort (a gateway
-    failure never throws — the ticket is already valid). */
-export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> {
-  const [claimed] = await sql`
-    update "order" set notified_at = now()
-     where id = ${orderId} and status = 'paid' and notified_at is null
-    returning id`;
-  if (!claimed) return; // already notified, or not paid
+/** Outcome of a ticket delivery — surfaced to the organizer on a manual resend. */
+export interface TicketDeliveryResult {
+  sms: 'sent' | 'dev' | 'skipped';
+  email: 'sent' | 'skipped';
+  eventId: string;
+  eventName: string;
+  ticketCount: number;
+  amount: number | null;
+  currency: string | null;
+}
 
+/** Deliver a paid order's tickets to the BUYER (SMS + email with QR). Shared by
+    the once-only confirmation (notifyOrderPaid) and the manual resend
+    (resendOrderTickets). Best-effort per channel: a gateway failure never throws,
+    the ticket is already valid. Does NOT touch notified_at and does NOT notify the
+    organizer — those belong to the callers. Returns null if the order is unknown. */
+async function deliverBuyerTickets(sql: Sql, orderId: string): Promise<TicketDeliveryResult | null> {
   const [row] = await sql`
     select c.phone, c.email, c.name,
            e.id as event_id, e.name as event_name,
@@ -434,7 +441,7 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
       join customer c on c.id = o.customer_id
       join event e on e.id = o.event_id
      where o.id = ${orderId}`;
-  if (!row) return;
+  if (!row) return null;
 
   const creds = await sql`
     select c.code, c.signature, c.tier_id, c.public_ref, c.seat_index
@@ -452,25 +459,67 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
     tickets.push({ publicRef: c.public_ref ?? '', tier: c.tier_id, qrPng });
   }
 
+  let sms: TicketDeliveryResult['sms'] = 'skipped';
   try {
-    if (row.phone) await sendSms(row.phone, ticketSmsText(refs, row.event_name));
-  } catch (e) { console.error('confirm SMS failed', e); }
+    if (row.phone) {
+      const r = await sendSms(row.phone, ticketSmsText(refs, row.event_name));
+      sms = r.delivered ? 'sent' : 'dev';
+    }
+  } catch (e) { console.error('confirm SMS failed', e); sms = 'skipped'; }
+  let email: TicketDeliveryResult['email'] = 'skipped';
   try {
-    if (row.email) await sendCredentialEmail(row.email, {
-      buyerName: row.name ?? 'there', eventName: row.event_name, tickets,
-    });
-  } catch (e) { console.error('confirm email failed', e); }
+    if (row.email) {
+      await sendCredentialEmail(row.email, { buyerName: row.name ?? 'there', eventName: row.event_name, tickets });
+      email = 'sent';
+    }
+  } catch (e) { console.error('confirm email failed', e); email = 'skipped'; }
+
+  const amount = Number(row.gross ?? 0) || Number(row.target_value ?? 0) || null;
+  return {
+    sms, email, eventId: row.event_id, eventName: row.event_name,
+    ticketCount: refs.length, amount, currency: row.currency ?? null,
+  };
+}
+
+/** Send the purchase confirmation SMS + email EXACTLY once. The atomic claim on
+    order.notified_at is the once-latch; each delivery is best-effort (a gateway
+    failure never throws — the ticket is already valid). */
+export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> {
+  const [claimed] = await sql`
+    update "order" set notified_at = now()
+     where id = ${orderId} and status = 'paid' and notified_at is null
+    returning id`;
+  if (!claimed) return; // already notified, or not paid
+
+  const delivered = await deliverBuyerTickets(sql, orderId);
+  if (!delivered) return;
 
   // BS57: a little dopamine for the organizer — text them that a paid order just
   // landed. Best-effort and guarded on a phone being set (most orgs have none
   // yet); the buyer's ticket is unaffected either way.
   try {
-    const org = await organizerContactForEvent(sql, row.event_id);
+    const org = await organizerContactForEvent(sql, delivered.eventId);
     if (org.phone) {
-      const amount = Number(row.gross ?? 0) || Number(row.target_value ?? 0) || null;
-      await sendSms(org.phone, organizerOrderSmsText(row.event_name, refs.length, amount, row.currency ?? null));
+      await sendSms(org.phone, organizerOrderSmsText(
+        delivered.eventName, delivered.ticketCount, delivered.amount, delivered.currency));
     }
   } catch (e) { console.error('organizer new-order SMS failed', e); }
+}
+
+/** BS59: manually re-deliver a PAID order's tickets to the buyer. Unlike the
+    confirmation path this bypasses the notified_at once-latch (it's an explicit
+    organizer action), and does not re-alert the organizer. Refuses anything that
+    is not currently a paid order (a refunded/expired order has no live ticket). */
+export async function resendOrderTickets(sql: Sql, orderId: string): Promise<
+  | { ok: true; result: TicketDeliveryResult }
+  | { ok: false; reason: 'not_found' | 'not_paid' }
+> {
+  const [ord] = await sql`select status from "order" where id = ${orderId}`;
+  if (!ord) return { ok: false, reason: 'not_found' };
+  if (ord.status !== 'paid') return { ok: false, reason: 'not_paid' };
+  const result = await deliverBuyerTickets(sql, orderId);
+  if (!result) return { ok: false, reason: 'not_found' };
+  return { ok: true, result };
 }
 
 /** The organizer's "you got paid" nudge. Kept short — one SMS segment. */

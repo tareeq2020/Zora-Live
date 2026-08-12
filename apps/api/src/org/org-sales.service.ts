@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency } from '@zora/core';
+import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency, resendOrderTickets } from '@zora/core';
 import type { OrderMoney } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
@@ -536,7 +536,54 @@ export class OrgSalesService {
     });
     return { rows, nextCursor };
   }
+
+  /** BS59: resend ONE paid order's tickets to the buyer. Ownership is enforced —
+      the order's event must be owned by the acting org (else 404, no leak). */
+  async resendOrder(actingHandle: string, orderId: string): Promise<{ ok: boolean; reason?: string; result?: unknown }> {
+    const sql = db();
+    // A malformed id (not a uuid) makes Postgres throw — treat it as not-found, not a 500.
+    let ord: { event_id: string } | undefined;
+    try {
+      [ord] = await sql<{ event_id: string }[]>`select event_id from "order" where id = ${orderId}`;
+    } catch { return { ok: false, reason: 'not_found' }; }
+    const ownedIds = await this.scope.ownedEventIds(actingHandle);
+    if (!ord || !ownedIds.includes(ord.event_id)) return { ok: false, reason: 'not_found' };
+    const r = await resendOrderTickets(sql, orderId);
+    return r.ok ? { ok: true, result: r.result } : { ok: false, reason: r.reason };
+  }
+
+  /** BS59: resend tickets for EVERY paid order of an owned event. Bounded per call
+      (RESEND_BULK_CAP) so one request can't fan out unbounded or hammer the SMS
+      gateway; returns how many were processed and whether a cap was hit. */
+  async resendAllForEvent(actingHandle: string, eventId: string): Promise<{
+    total: number; sent: number; dev: number; skipped: number; capped: boolean;
+  }> {
+    await this.scope.assertOwnsEvent(actingHandle, eventId); // 404 if not owned
+    const sql = db();
+    const cap = RESEND_BULK_CAP;
+    const rows = await sql<{ id: string }[]>`
+      select id from "order"
+       where event_id = ${eventId} and status = 'paid'
+       order by created_at asc
+       limit ${cap + 1}`;
+    const capped = rows.length > cap;
+    const batch = capped ? rows.slice(0, cap) : rows;
+    let sent = 0, dev = 0, skipped = 0;
+    for (const r of batch) {
+      const res = await resendOrderTickets(sql, r.id);
+      if (!res.ok) { skipped += 1; continue; }
+      // Count the SMS outcome as the headline; email failures still count as an attempt.
+      if (res.result.sms === 'sent') sent += 1;
+      else if (res.result.sms === 'dev') dev += 1;
+      else skipped += 1;
+    }
+    return { total: batch.length, sent, dev, skipped, capped };
+  }
 }
+
+// BS59: bulk resend is bounded per request. Events are small today; a queued
+// (worker-drained) fan-out is the follow-up if an event ever exceeds this.
+const RESEND_BULK_CAP = 200;
 
 /** Mask PII keeping the last 3 chars visible (I4). Preserves length via '*'. */
 export function maskPii(value: string | null | undefined): string | null {

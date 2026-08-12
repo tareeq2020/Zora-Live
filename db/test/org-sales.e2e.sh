@@ -233,6 +233,23 @@ if [ -n "$CUR" ]; then
 fi
 echo "$RESULT" | grep -q '✗' && fail=1
 
+echo "== BS59. ticket resend: individual + bulk + ownership =="
+R_PAID=$(curl -s -b "$SNAP/orgA" -X POST "$BASE/api/org/orders/$OA_PAID/resend")
+R_PEND=$(curl -s -b "$SNAP/orgA" -X POST "$BASE/api/org/orders/$OA_PEND/resend")
+R_FOREIGN_CODE=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/orgA" -X POST "$BASE/api/org/orders/no-such-order/resend")
+R_ALL=$(curl -s -b "$SNAP/orgA" -X POST "$BASE/api/org/events/brunch-vol-09/resend-all")
+R_ALL_FOREIGN_CODE=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/orgA" -X POST "$BASE/api/org/events/offshore-001/resend-all")
+RS=$(R_PAID="$R_PAID" R_PEND="$R_PEND" R_ALL="$R_ALL" R_FC="$R_FOREIGN_CODE" R_AFC="$R_ALL_FOREIGN_CODE" node -e '
+const t=(n,c)=>console.log((c?"  ✓ ":"  ✗ ")+n)||(c?0:process.exitCode=1);
+const paid=JSON.parse(process.env.R_PAID), pend=JSON.parse(process.env.R_PEND), all=JSON.parse(process.env.R_ALL);
+t("resend a PAID order → ok:true with a delivery result", paid.ok===true && paid.result && typeof paid.result.sms==="string");
+t("resend a PENDING order → ok:false reason=not_paid (no live ticket)", pend.ok===false && pend.reason==="not_paid");
+t("resend a foreign/absent order → 404 (no leak)", process.env.R_FC==="404");
+t("resend-all for the owned event → total>=1 and sent+dev+skipped==total", all.total>=1 && (all.sent+all.dev+all.skipped)===all.total);
+t("resend-all for a FOREIGN event → 404 (ownership enforced)", process.env.R_AFC==="404");
+' 2>&1 || true)
+echo "$RS"; echo "$RS" | grep -q "✗" && fail=1
+
 # ════════════════════════════════════════════════════════════════════════════
 # BS35 — point-in-time commission, split revenue, refunds.
 # ════════════════════════════════════════════════════════════════════════════
