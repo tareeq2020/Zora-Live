@@ -17,15 +17,26 @@ export class OrgSalesController {
     return this.sales.summary(handle);
   }
 
+  // BS58: filters + keyset paging. All optional; each only narrows within the
+  // org's owned-event scope. Returns { rows, nextCursor }.
   @Get('orders')
   async orders(
     @Req() req: Request,
     @Query('eventId') eventId?: string,
+    @Query('tier') tier?: string,
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ) {
     const handle = req.actingHandle as string;
     const parsed = limit != null ? parseInt(limit, 10) : NaN;
-    return this.sales.orders(handle, eventId, Number.isFinite(parsed) ? parsed : 50);
+    return this.sales.orders(handle, {
+      eventId, tier, status, q, from, to, cursor,
+      limit: Number.isFinite(parsed) ? parsed : 50,
+    });
   }
 
   // ── GET /api/org/splits — splits forming + the refund worklist (BS12) ─────

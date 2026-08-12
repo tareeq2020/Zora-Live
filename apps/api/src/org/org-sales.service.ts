@@ -130,6 +130,39 @@ export interface OrgOrderRow {
   createdAt: string;
 }
 
+// BS58: server-side filters for GET /api/org/orders. Every filter intersects with
+// the org's owned-event scope (C3) — a filter can only narrow, never widen.
+export interface OrgOrderFilters {
+  eventId?: string;   // one owned event (foreign id → empty page)
+  tier?: string;      // product_tier id — orders containing that tier
+  status?: string;    // exact order status, or 'all'/undefined for every status
+  q?: string;         // search buyer phone / email / credential public_ref
+  from?: string;      // ISO — created_at >= from
+  to?: string;        // ISO — created_at <= to
+  limit?: number;
+  cursor?: string;    // opaque keyset cursor (created_at,id) for the next page
+}
+
+export interface OrgOrdersPage {
+  rows: OrgOrderRow[];
+  nextCursor: string | null;
+}
+
+/** Opaque keyset cursor over (created_at, id) — base64 so the client treats it as
+    a token, not a queryable value. */
+function encodeCursor(createdAt: Date | string, id: string): string {
+  const ts = createdAt instanceof Date ? createdAt.toISOString() : String(createdAt);
+  return Buffer.from(`${ts}|${id}`, 'utf8').toString('base64url');
+}
+function decodeCursor(cursor: string): { ts: string; id: string } | null {
+  try {
+    const [ts, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+    const id = rest.join('|');
+    if (!ts || !id) return null;
+    return { ts, id };
+  } catch { return null; }
+}
+
 @Injectable()
 export class OrgSalesService {
   constructor(private readonly scope: OrgScopeService, private readonly organizers: OrganizerRepo) {}
@@ -376,9 +409,10 @@ export class OrgSalesService {
     return null;
   }
 
-  /** GET /api/org/orders payload. `eventId` (if given) is intersected with the
-      owned id-set: a foreign/absent id yields [] (no leak). */
-  async orders(actingHandle: string, eventId: string | undefined, limit: number): Promise<OrgOrderRow[]> {
+  /** GET /api/org/orders payload (BS58). Every filter intersects with the owned
+      id-set (C3): a foreign/absent eventId yields an empty page (no leak). Keyset
+      paginated over (created_at, id) so paging stays correct under any filter. */
+  async orders(actingHandle: string, filters: OrgOrderFilters = {}): Promise<OrgOrdersPage> {
     const events = await this.scope.readEvents();
     const owned = events.filter((e) => e && e.organizerHandle === actingHandle);
     const ownedIds = owned.map((e) => e.id);
@@ -386,16 +420,40 @@ export class OrgSalesService {
 
     // Intersect any requested eventId with owned ids (C3). Foreign id → empty.
     let scopeIds = ownedIds;
-    if (eventId != null && eventId !== '') {
-      scopeIds = ownedIds.includes(eventId) ? [eventId] : [];
+    if (filters.eventId != null && filters.eventId !== '') {
+      scopeIds = ownedIds.includes(filters.eventId) ? [filters.eventId] : [];
     }
-    if (!scopeIds.length) return [];
+    if (!scopeIds.length) return { rows: [], nextCursor: null };
 
     type ItemRow = { order_id: string; tier_name: string; quantity: number; unit_price: number; currency: string };
     const sql = db();
-    const cappedLimit = Math.max(1, Math.min(limit || 50, 200));
+    const cappedLimit = Math.max(1, Math.min(filters.limit || 50, 200));
 
-    const orderRows = await sql<
+    // Compose the WHERE from the owned-scope base + the optional filters. Each
+    // fragment can only NARROW; the scope predicate is always present.
+    const conds: any[] = [sql`o.event_id = any(${scopeIds})`];
+    const status = filters.status;
+    if (status && status !== 'all') conds.push(sql`o.status = ${status}`);
+    if (filters.from) conds.push(sql`o.created_at >= ${filters.from}::timestamptz`);
+    if (filters.to) conds.push(sql`o.created_at <= ${filters.to}::timestamptz`);
+    if (filters.tier) {
+      conds.push(sql`exists (select 1 from order_item oi2 where oi2.order_id = o.id and oi2.product_tier_id = ${filters.tier})`);
+    }
+    const q = (filters.q ?? '').trim();
+    if (q) {
+      const like = `%${q}%`;
+      conds.push(sql`(cu.phone ilike ${like} or cu.email ilike ${like} or exists (
+        select 1 from credential c2 join order_item oi3 on oi3.id = c2.order_item_id
+         where oi3.order_id = o.id and c2.public_ref ilike ${like}))`);
+    }
+    const cur = filters.cursor ? decodeCursor(filters.cursor) : null;
+    if (cur) conds.push(sql`(o.created_at, o.id) < (${cur.ts}::timestamptz, ${cur.id})`);
+
+    let where = conds[0];
+    for (let i = 1; i < conds.length; i++) where = sql`${where} and ${conds[i]}`;
+
+    // Fetch cappedLimit+1 to know whether a next page exists without a count.
+    const fetched = await sql<
       { order_id: string; event_id: string; status: string; created_at: Date; phone: string | null; email: string | null }[]
     >`
       select o.id         as order_id,
@@ -406,11 +464,17 @@ export class OrgSalesService {
              cu.email     as email
         from "order" o
         left join customer cu on cu.id = o.customer_id
-       where o.event_id = any(${scopeIds})
-       order by o.created_at desc
-       limit ${cappedLimit}`;
+       where ${where}
+       order by o.created_at desc, o.id desc
+       limit ${cappedLimit + 1}`;
 
-    if (!orderRows.length) return [];
+    const hasMore = fetched.length > cappedLimit;
+    const orderRows = hasMore ? fetched.slice(0, cappedLimit) : fetched;
+    const nextCursor = hasMore
+      ? encodeCursor(orderRows[orderRows.length - 1].created_at, orderRows[orderRows.length - 1].order_id)
+      : null;
+
+    if (!orderRows.length) return { rows: [], nextCursor: null };
     const orderIds = orderRows.map((o) => o.order_id);
 
     // Line items (tier name, qty, amount, currency) for the page of orders.
@@ -446,7 +510,7 @@ export class OrgSalesService {
       credsByOrder.set(c.order_id, arr);
     }
 
-    return orderRows.map((o) => {
+    const rows: OrgOrderRow[] = orderRows.map((o) => {
       const items = itemsByOrder.get(o.order_id) ?? [];
       const qty = items.reduce((a, it) => a + it.quantity, 0);
       const amount = items.reduce((a, it) => a + it.unit_price * it.quantity, 0);
@@ -463,13 +527,14 @@ export class OrgSalesService {
         currency,
         status: o.status,
         // Full buyer contacts — an organizer owns their attendee list (scoped to
-      // their own paid orders). Was masked (I4); organizers now see the real
-      // phone/email so they can reach their guests.
-      buyer: { phone: o.phone, email: o.email },
+        // their own paid orders). Was masked (I4); organizers now see the real
+        // phone/email so they can reach their guests.
+        buyer: { phone: o.phone, email: o.email },
         credentials: credsByOrder.get(o.order_id) ?? [],
         createdAt: o.created_at instanceof Date ? o.created_at.toISOString() : String(o.created_at),
       };
     });
+    return { rows, nextCursor };
   }
 }
 
