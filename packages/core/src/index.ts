@@ -17,7 +17,7 @@ export type {
 } from './payments/service';
 export {
   nextAttemptKey, initiatePayment, mapStatus, applyOutcome, reconcile,
-  notifyOrderPaid, organizerContactForEvent, alertOps, resolveTransactionId, reconcilePending, sweepExpiredHolds,
+  notifyOrderPaid, organizerContactForEvent, resendOrderTickets, alertOps, resolveTransactionId, reconcilePending, sweepExpiredHolds,
 } from './payments/service';
 export type {
   PaymentOutcome, InitiatePaymentInput, InitiatePaymentResult,
