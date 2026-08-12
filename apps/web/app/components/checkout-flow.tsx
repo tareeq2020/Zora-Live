@@ -27,6 +27,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { SUPPORT_EMAIL } from '@zora/core/contacts';
 
 export type CheckoutTier = {
   tierId: string;
@@ -682,7 +683,7 @@ function ApologyState({
       <div className="zco-cross">!</div>
       <h3>{title}</h3>
       <p className="zco-muted">{body}</p>
-      <p className="zco-support">Need help? support@zora.live</p>
+      <p className="zco-support">Need help? {SUPPORT_EMAIL}</p>
       {onRetry ? (
         <button className="zco-pay" onClick={onRetry}>
           TRY AGAIN

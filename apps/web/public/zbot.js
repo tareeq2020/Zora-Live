@@ -39,7 +39,7 @@
     still_stuck: { label: "Still not showing", reply: "Sorry about that. Sign out and back in once — that reissues your passes to the device. If it's still missing, our team can push it manually in a few minutes.", next: ['human', 'help'] },
     no_tickets:  { label: "Still no tickets", reply: "Let's not leave you hanging. Share the phone number you paid with in the Help Centre form and we'll trace the transaction and release your tickets.", next: ['human', 'help'] },
     reset:       { label: "Reset my access", reply: "On the sign-in screen tap 'Get a code' — we'll text a one-time code to your number. No passwords to forget.", next: ['human', 'help'] },
-    human:       { label: "Talk to a human", reply: "On it. Our support team replies within a couple of hours (Mon–Sun). Drop your question in the Help Centre and we'll email you back — or reach us at hello@zora.app.", next: ['help'] },
+    human:       { label: "Talk to a human", reply: "On it. Our support team replies within a couple of hours (Mon–Sun). Drop your question in the Help Centre and we'll email you back — or reach us at support@zorapass.com.", next: ['help'] },
     help:        { label: "Open Help Centre", reply: "Opening the Help Centre — you'll find step-by-step answers there.", act: () => setTimeout(() => location.href = 'help.html', 700), next: [] }
   };
 

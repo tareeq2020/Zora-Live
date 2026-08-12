@@ -5,6 +5,7 @@
    still-static tenant page. Styling (.foot / .cols / .legal) comes from the home
    page CSS. */
 
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_HREF } from '@zora/core/contacts';
 import { Wordmark } from './wordmark';
 
 export function SiteFooter() {
@@ -33,8 +34,8 @@ export function SiteFooter() {
           </div>
           <div>
             CONTACT
-            <a href="mailto:support@zorapass.com" id="foot-mail">
-              support@zorapass.com
+            <a href={SUPPORT_EMAIL_HREF} id="foot-mail">
+              {SUPPORT_EMAIL}
             </a>
             <a href="/admin">admin</a>
           </div>
