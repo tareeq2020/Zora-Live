@@ -218,6 +218,50 @@ export default function SalesClient() {
     setEventId(''); setTier(''); setStatus('all'); setQInput(''); setQ(''); setFrom(''); setTo('');
   }
 
+  // BS59: resend a single order's tickets to the buyer.
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<{ id: string; kind: 'ok' | 'err'; text: string } | null>(null);
+  async function resendOne(orderId: string) {
+    if (resendingId) return;
+    setResendingId(orderId);
+    setResendMsg(null);
+    try {
+      const res = await fetch(`/api/org/orders/${encodeURIComponent(orderId)}/resend`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 404) throw new Error('Order not found.');
+      if (data?.ok === false) throw new Error(data.reason === 'not_paid' ? 'Only paid orders can be resent.' : 'Resend failed.');
+      const sms = data?.result?.sms as string | undefined;
+      const note = sms === 'dev' ? ' (SMS gateway not live — logged only)' : '';
+      setResendMsg({ id: orderId, kind: 'ok', text: `Resent to buyer.${note}` });
+    } catch (e) {
+      setResendMsg({ id: orderId, kind: 'err', text: (e as Error).message });
+    } finally {
+      setResendingId(null);
+    }
+  }
+
+  // BS59: resend every paid order's tickets for the selected event (bounded server-side).
+  const [bulkResending, setBulkResending] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  async function resendAll() {
+    if (!selectedEvent || bulkResending) return;
+    if (!window.confirm(`Resend tickets to every paid buyer of "${selectedEvent.name}"?`)) return;
+    setBulkResending(true);
+    setBulkMsg(null);
+    try {
+      const res = await fetch(`/api/org/events/${encodeURIComponent(selectedEvent.id)}/resend-all`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      const devNote = d.dev ? ` · ${d.dev} logged only (SMS gateway not live)` : '';
+      const capNote = d.capped ? ` · capped at ${d.total} — run again for the rest` : '';
+      setBulkMsg({ kind: 'ok', text: `Resent ${d.sent}/${d.total} paid orders${devNote}${capNote}.` });
+    } catch (e) {
+      setBulkMsg({ kind: 'err', text: `Bulk resend failed — ${(e as Error).message}.` });
+    } finally {
+      setBulkResending(false);
+    }
+  }
+
   const totals = summary?.totals;
   const events = summary?.events ?? [];
   const selectedEvent = eventId ? events.find((e) => e.id === eventId) : null;
@@ -423,18 +467,19 @@ export default function SalesClient() {
                     <th>BUYER</th>
                     <th>PASSES ISSUED</th>
                     <th>PLACED</th>
+                    <th>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ordersLoading && !orders ? (
                     <tr>
-                      <td colSpan={8} className="cell-state">
+                      <td colSpan={9} className="cell-state">
                         Loading orders…
                       </td>
                     </tr>
                   ) : ordersError ? (
                     <tr>
-                      <td colSpan={8} className="cell-state">
+                      <td colSpan={9} className="cell-state">
                         Could not load orders.{' '}
                         <button className="linkbtn" onClick={() => loadOrders()}>
                           Retry
@@ -443,7 +488,7 @@ export default function SalesClient() {
                     </tr>
                   ) : orders && orders.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="cell-state">
+                      <td colSpan={9} className="cell-state">
                         No sales yet{selectedEvent ? ` for ${selectedEvent.name}` : ''}. Orders appear
                         here the moment a buyer checks out.
                       </td>
@@ -481,6 +526,26 @@ export default function SalesClient() {
                             )}
                           </td>
                           <td className="mono note">{fmtWhen(o.createdAt)}</td>
+                          <td className="mono">
+                            {tone === 'paid' ? (
+                              <>
+                                <button
+                                  className="linkbtn"
+                                  onClick={() => resendOne(o.orderId)}
+                                  disabled={resendingId === o.orderId}
+                                >
+                                  {resendingId === o.orderId ? 'Resending…' : 'Resend'}
+                                </button>
+                                {resendMsg && resendMsg.id === o.orderId ? (
+                                  <span className="note" style={{ color: resendMsg.kind === 'ok' ? 'var(--blue)' : 'var(--orange, #e5484d)', marginLeft: 6 }}>
+                                    {resendMsg.text}
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="note">—</span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })
@@ -495,12 +560,25 @@ export default function SalesClient() {
                   SHOWING {fmt(orders.length)} ORDER{orders.length === 1 ? '' : 'S'} · {fmt(shownPaid)}{' '}
                   PAID
                 </span>
-                {hasMore ? (
-                  <button className="btn ghost" onClick={loadMore} disabled={loadingMore}>
-                    {loadingMore ? 'LOADING…' : 'LOAD MORE'}
-                  </button>
-                ) : null}
+                <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  {/* BS59: resend every paid order's tickets for the selected event. */}
+                  {selectedEvent ? (
+                    <button className="btn ghost" onClick={resendAll} disabled={bulkResending}>
+                      {bulkResending ? 'RESENDING…' : 'RESEND ALL TICKETS'}
+                    </button>
+                  ) : null}
+                  {hasMore ? (
+                    <button className="btn ghost" onClick={loadMore} disabled={loadingMore}>
+                      {loadingMore ? 'LOADING…' : 'LOAD MORE'}
+                    </button>
+                  ) : null}
+                </span>
               </div>
+            ) : null}
+            {bulkMsg ? (
+              <p className="mono note" style={{ color: bulkMsg.kind === 'ok' ? 'var(--blue)' : 'var(--orange, #e5484d)', marginTop: 8 }}>
+                {bulkMsg.text}
+              </p>
             ) : null}
           </div>
         </main>

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { OrgSalesService } from './org-sales.service';
@@ -44,5 +44,24 @@ export class OrgSalesController {
   async splits(@Req() req: Request) {
     const handle = req.actingHandle as string;
     return this.sales.splits(handle);
+  }
+
+  // ── POST /api/org/orders/:orderId/resend — re-send ONE order's tickets (BS59) ──
+  @Post('orders/:orderId/resend')
+  async resendOrder(@Req() req: Request, @Param('orderId') orderId: string) {
+    const handle = req.actingHandle as string;
+    const r = await this.sales.resendOrder(handle, orderId);
+    if (!r.ok) {
+      if (r.reason === 'not_paid') return { ok: false, reason: 'not_paid' }; // 200: a real state, not an error
+      throw new NotFoundException({ error: 'not_found' });                    // foreign/absent order
+    }
+    return { ok: true, result: r.result };
+  }
+
+  // ── POST /api/org/events/:eventId/resend-all — re-send every paid order (BS59) ──
+  @Post('events/:eventId/resend-all')
+  async resendAll(@Req() req: Request, @Param('eventId') eventId: string) {
+    const handle = req.actingHandle as string;
+    return this.sales.resendAllForEvent(handle, eventId);
   }
 }
