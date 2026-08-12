@@ -1,7 +1,7 @@
 export { makeSql, db, tx, closeDb } from './db';
 export type { Sql } from './db';
 export {
-  placeHold, convertHolds, releaseHolds, tryReacquire,
+  placeHold, convertHolds, releaseHolds, tryReacquire, tryRehold,
   reserveInventory, convertReservation, releaseReservation, sweepExpiredReservations,
   poolSnapshots, poolSnapshotsCached,
 } from './inventory';

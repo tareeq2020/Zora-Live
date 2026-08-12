@@ -4,7 +4,7 @@
 'use strict';
 const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
-const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, closeDb } = core;
+const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, tryRehold, closeDb } = core;
 
 let failures = 0;
 function ok(cond, msg) {
@@ -86,6 +86,44 @@ function ok(cond, msg) {
 
   const reacqFail = (await sql`select try_reacquire_order(${r3.orderId}::uuid) as ok`)[0].ok;
   ok(reacqFail === false, 'try_reacquire_order -> false when exhausted (applies nothing)');
+
+  // ── 5) BS56: a failed-payment RETRY re-HOLDS stock (held), never SELLS it ──
+  // Regression for the phantom-sold bug: initiatePayment's failed-retry branch
+  // used try_reacquire_order (available → SOLD) instead of a re-hold, so every
+  // retry of a failed payment marked unpaid seats sold forever, with no hold to
+  // release. try_rehold_order must move available → HELD and leave sold_count
+  // untouched; seats become sold ONLY when the retry actually pays.
+  await sql`insert into product_tier (id, event_id, name, capacity) values ('t-retry','e-chk','Retry GA',5) on conflict do nothing`;
+  await sql`insert into price_version (tier_id, price, currency, fee_treatment) values ('t-retry', 50000, 'TZS', 'passed')`;
+  await sql`insert into inventory_pool (product_tier_id, capacity, available_count) values ('t-retry',5,5) on conflict do nothing`;
+
+  const r4 = await createGaVipOrder(sql, {
+    phone: '255700000004', email: 'd@buyer.tz',
+    cart: [{ tier: 't-retry', quantity: 2 }], feeRate: 0, holdTtl: 900,
+  });
+  ok(r4.ok === true, 'r4 (qty 2 on t-retry) -> ok:true');
+
+  // Simulate a failed payment: the checkout holds were released, order -> failed.
+  await releaseHolds(sql, r4.orderId);
+  await sql`update "order" set status='failed' where id = ${r4.orderId}`;
+  const soldBefore = Number((await sql`select sold_count from inventory_pool where product_tier_id='t-retry'`)[0].sold_count);
+  ok(soldBefore === 0, 'nothing sold yet — the payment failed');
+
+  // The retry path (the fix) re-HOLDS: available -> held, sold UNCHANGED.
+  const reheld = await tryRehold(sql, r4.orderId, 900);
+  ok(reheld === true, 'tryRehold -> true when stock is available');
+  const pr = (await sql`select sold_count, available_count from inventory_pool where product_tier_id='t-retry'`)[0];
+  ok(Number(pr.sold_count) === 0, 'retry did NOT sell the seats (sold_count stays 0, not 2) — the phantom-sold bug');
+  ok(Number(pr.available_count) === 3, 'retry moved 2 available -> held (5 -> 3)');
+  const heldQty = Number((await sql`select coalesce(sum(quantity),0) n from inventory_hold where order_id = ${r4.orderId} and state='held'`)[0].n);
+  ok(heldQty === 2, 'a fresh HELD hold exists for the retried order (so it can be released)');
+
+  // The retry now actually pays: held -> sold. This is the ONLY path to sold.
+  const conv4 = await convertHolds(sql, r4.orderId);
+  ok(conv4 === 1, 'convert_order_holds on payment success -> 1');
+  const pr2 = (await sql`select sold_count, available_count from inventory_pool where product_tier_id='t-retry'`)[0];
+  ok(Number(pr2.sold_count) === 2, 'seats become sold ONLY after payment (sold 0 -> 2)');
+  ok(Number(pr2.available_count) === 3, 'available stays 3 (held converted, not decremented twice)');
 
   await closeDb();
   if (failures) { console.error('\n' + failures + ' assertion(s) failed'); process.exit(1); }
