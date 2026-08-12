@@ -15,10 +15,24 @@
    process while payments go unreconciled. Money loops keep their own intervals
    and are never behind the messaging one. */
 
-try { require('dotenv').config(); } catch { /* dotenv optional */ }
+// Env loading (BS58). The worker sends the ticket SMS (reconcile → notifyOrderPaid),
+// so it MUST have the SMS creds. Two things bit us before: dotenv was not a worker
+// dependency (require could silently throw), and config() with no path reads
+// <cwd>/.env = apps/worker/.env, NOT apps/api/.env where the secrets live. So:
+//   1. load a local apps/worker/.env if present (dev override),
+//   2. then the SHARED apps/api/.env (single source of truth) — dotenv does not
+//      overwrite already-set keys, so the local file still wins where it overlaps.
+// A load failure is logged LOUDLY, never swallowed.
+try {
+  const path = require('path');
+  require('dotenv').config();
+  require('dotenv').config({ path: path.resolve(__dirname, '../../api/.env') });
+} catch (e) {
+  console.error('[worker] FATAL: dotenv failed to load — env (DB, SMS, gateway) will be missing', e);
+}
 import {
   makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending, splitAwareExpirySweep,
-  drainBroadcasts, broadcastBatchSize,
+  drainBroadcasts, broadcastBatchSize, logSmsStartup,
 } from '@zora/core';
 
 // Constant key shared by every worker instance (distinct from the migrate lock).
@@ -116,6 +130,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
   console.log('[worker] advisory lock acquired — this instance owns the loops');
+  logSmsStartup(); // BS58: one-line SMS config check — the worker sends ticket SMS
   startWorkers();
 }
 
