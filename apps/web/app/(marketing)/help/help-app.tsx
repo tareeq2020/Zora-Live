@@ -6,6 +6,10 @@
    logic mirror the legacy inline <script>. */
 
 import { useState } from 'react';
+import {
+  SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, SUPPORT_PHONE, SUPPORT_PHONE_HREF,
+  WHATSAPP_HREF, INSTAGRAM_LABEL, INSTAGRAM_URL,
+} from '@zora/core/contacts';
 import { ZBot } from '../../components/zbot';
 
 type Faq = { cat: string; q: string; a: string };
@@ -107,17 +111,17 @@ export function HelpApp() {
             <h3>Still stuck?</h3>
             <p>Message us on WhatsApp, or reach us by email or phone. A human replies within a couple of hours.</p>
             <div className="btns">
-              <a className="btn pri" href="https://wa.me/255741099989" target="_blank" rel="noopener noreferrer">
+              <a className="btn pri" href={WHATSAPP_HREF} target="_blank" rel="noopener noreferrer">
                 MESSAGE US ON WHATSAPP
               </a>
-              <a className="btn" href="mailto:support@zorapass.com">
-                SUPPORT@ZORAPASS.COM
+              <a className="btn" href={SUPPORT_EMAIL_HREF}>
+                {SUPPORT_EMAIL.toUpperCase()}
               </a>
-              <a className="btn" href="tel:+255741099989">
-                +255 741 099 989
+              <a className="btn" href={SUPPORT_PHONE_HREF}>
+                {SUPPORT_PHONE}
               </a>
-              <a className="btn" href="https://instagram.com/zora.pass" target="_blank" rel="noopener noreferrer">
-                @ZORA.PASS
+              <a className="btn" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
+                {INSTAGRAM_LABEL.toUpperCase()}
               </a>
             </div>
           </div>

@@ -100,10 +100,12 @@ export const TICKET_FIELDS = ['event','dateLabel','venue','tableName','tableNo',
 
 export const ROOT_DOMAIN = process.env.ZORA_ROOT_DOMAIN || 'zorapass.com';
 
-// BS46: the published support contacts. One source of truth — surfaces (help,
-// receipts, KYC rejection copy, ticket emails) read these rather than inlining.
-export const SUPPORT_EMAIL = 'support@zorapass.com';
-export const SUPPORT_PHONE = '+255 741 099 989';
+// BS46: the published support contacts. One source of truth now lives in
+// @zora/core/contacts (shared with the web surfaces so the email/phone/IG can
+// never drift across apps); re-exported here so existing API imports are
+// unchanged. Surfaces (help, receipts, KYC rejection copy, ticket emails) read
+// these rather than inlining.
+export { SUPPORT_EMAIL, SUPPORT_PHONE } from '@zora/core';
 
 // BS47: canonical event-city list. Event.city must be one of these ids — before
 // this, the field was freetext and discover's city filter matched on a fixed id

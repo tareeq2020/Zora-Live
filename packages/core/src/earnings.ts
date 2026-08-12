@@ -130,3 +130,46 @@ export function netEarningsByCurrency(money: OrderMoney[]): Map<string, number> 
   for (const m of money) out.set(m.currency, (out.get(m.currency) ?? 0) + m.net);
   return out;
 }
+
+/** Per-(currency) money bucket used to build the organizer sales headline. */
+export interface CurrencyBucket {
+  revenue: number;
+  netRevenue: number;
+  refunded: number;
+  orders: number;   // paid orders only (a fully refunded order has status 'refunded')
+  weighted: number; // Σ(gross × rate) — feeds the blended display commission rate
+  rates: Set<number>; // distinct stamped rates seen on revenue-bearing rows
+}
+
+/**
+ * Fold per-order money into `currency → bucket`, OPTIONALLY skipping any order
+ * whose event is in `excludeEventIds`.
+ *
+ * This is the ONE place the "which events count toward the headline" decision is
+ * applied. The sales summary passes the org's ARCHIVED event ids so archived
+ * money never inflates "total sales" (D1:A). The payout balance reads the SAME
+ * `OrderMoney` rows but WITHOUT an exclude set, so archived money stays earned
+ * and withdrawable — the two numbers are allowed to differ ONLY by exactly the
+ * archived events, and by nothing else.
+ */
+export function foldMoneyByCurrency(
+  money: OrderMoney[],
+  excludeEventIds?: ReadonlySet<string>,
+): Map<string, CurrencyBucket> {
+  const out = new Map<string, CurrencyBucket>();
+  for (const m of money) {
+    if (excludeEventIds?.has(m.eventId)) continue;
+    let b = out.get(m.currency);
+    if (!b) {
+      b = { revenue: 0, netRevenue: 0, refunded: 0, orders: 0, weighted: 0, rates: new Set() };
+      out.set(m.currency, b);
+    }
+    b.revenue += m.gross;
+    b.netRevenue += m.net;
+    b.refunded += m.refunded;
+    b.weighted += m.gross * m.rate;
+    if (m.gross > 0) b.rates.add(m.rate);
+    if (m.status === 'paid') b.orders += 1;
+  }
+  return out;
+}

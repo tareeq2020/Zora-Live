@@ -32,7 +32,12 @@ import Link from 'next/link';
 // ── Response types (local, from the API contract — do NOT invent backend) ──
 // BS31: revenue is GROSS face value; netRevenue is what the org keeps after the
 // platform commission. Buyer price is unaffected.
-type Totals = { revenue: number; netRevenue?: number; commissionRate?: number; sold: number; orders: number; currency: string };
+type Totals = {
+  revenue: number; netRevenue?: number; commissionRate?: number; sold: number; orders: number; currency: string;
+  // D1:A — archived events are EXCLUDED from the headline above, surfaced here so
+  // the (higher) withdrawable payout balance stays explainable.
+  archivedRevenue?: number; archivedNetRevenue?: number; archivedSold?: number; archivedOrders?: number;
+};
 type SummaryEvent = {
   id: string;
   name: string;
@@ -225,6 +230,18 @@ export default function SalesClient() {
                 <p className="d">All statuses · total placed</p>
               </div>
             </div>
+          ) : null}
+
+          {/* D1:A — archived events don't count in the headline above, but their
+              money is still yours (and still in your payout balance). Show it so
+              the numbers reconcile. Only when viewing all events. */}
+          {totals && !selectedEvent && (totals.archivedRevenue ?? 0) > 0 ? (
+            <p className="d" style={{ marginTop: -6, marginBottom: 18, opacity: 0.75 }}>
+              Not counted above: {money(totals.archivedNetRevenue ?? totals.archivedRevenue ?? 0, totals.currency)} net
+              from {fmt(totals.archivedOrders ?? 0)} order{(totals.archivedOrders ?? 0) === 1 ? '' : 's'} across archived
+              events{(totals.archivedSold ?? 0) > 0 ? ` (${fmt(totals.archivedSold ?? 0)} passes)` : ''}. Still included in
+              your payout balance.
+            </p>
           ) : null}
 
           {/* ── Per-event revenue summary (from /api/org/summary) ── */}

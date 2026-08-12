@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { db, poolSnapshots, resolveCommissionRate, readOrderMoney } from '@zora/core';
+import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency } from '@zora/core';
 import type { OrderMoney } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
@@ -89,6 +89,14 @@ export interface OrgSummary {
     // BS35 (OV1): money already given back to buyers. Already subtracted from
     // revenue/netRevenue above — surfaced so "why did my balance drop" is answerable.
     refundedRevenue: number;
+    // D1:A — money from ARCHIVED events. EXCLUDED from revenue/netRevenue/sold/
+    // orders above (archived events don't inflate the headline), but still part of
+    // the withdrawable payout balance, so it's surfaced separately here. Revenue is
+    // the largest archived currency bucket; sold is a currency-agnostic count.
+    archivedRevenue: number;
+    archivedNetRevenue: number;
+    archivedSold: number;
+    archivedOrders: number;
   };
   events: OrgSummaryEvent[];
 }
@@ -166,6 +174,16 @@ export class OrgSalesService {
     const events = await this.scope.readEvents();
     const owned = events.filter((e) => e && e.organizerHandle === actingHandle);
     const ownedIds = owned.map((e) => e.id);
+    // Archived events keep their money in the withdrawable payout balance (it was
+    // really earned — archive is the ONLY delete path once an event has paid
+    // orders), but they must NOT inflate the sales headline (D1:A). Collect their
+    // ids once: the org-level totals below fold with this as an exclude set, while
+    // the per-event breakdown still lists each archived event with its revenue,
+    // and the payout balance (which reads the same money WITHOUT this set) still
+    // counts it. Blob events may predate `status` → missing counts as published.
+    const archivedIds = new Set(
+      owned.filter((e) => (e.status ?? 'published') === 'archived').map((e) => e.id),
+    );
     // The org's LIVE rate — only a display fallback for events with no stamped
     // revenue yet. Earnings below come from each order's own stamp (BS35).
     const liveRate = await this.liveCommissionRateFor(actingHandle);
@@ -174,6 +192,7 @@ export class OrgSalesService {
       totals: {
         revenue: 0, commissionRate: liveRate, netRevenue: 0, sold: 0, orders: 0, currency: null,
         revenueByCurrency: [], flaggedRevenue: 0, flaggedOrders: 0, refundedRevenue: 0,
+        archivedRevenue: 0, archivedNetRevenue: 0, archivedSold: 0, archivedOrders: 0,
       },
       events: [],
     };
@@ -282,18 +301,10 @@ export class OrgSalesService {
     });
 
     // Org totals. Sold/orders are currency-agnostic counts; revenue is grouped by
-    // currency and NEVER summed across currencies.
-    const orgByCurrency = new Map<string, Bucket>();
-    for (const m of money) {
-      let b = orgByCurrency.get(m.currency);
-      if (!b) { b = emptyBucket(); orgByCurrency.set(m.currency, b); }
-      b.revenue += m.gross;
-      b.netRevenue += m.net;
-      b.refunded += m.refunded;
-      b.weighted += m.gross * m.rate;
-      if (m.gross > 0) b.rates.add(m.rate);
-      if (m.status === PAID) b.orders += 1;
-    }
+    // currency and NEVER summed across currencies. Archived events are excluded
+    // from the headline (D1:A) via the fold's exclude set — this is the ONLY
+    // difference from the payout balance, which reads the same money unfiltered.
+    const orgByCurrency = foldMoneyByCurrency(money, archivedIds);
 
     const revenueByCurrency = [...orgByCurrency.entries()]
       .map(([currency, b]) => ({ currency, revenue: b.revenue }))
@@ -303,9 +314,31 @@ export class OrgSalesService {
     const headline = revenueByCurrency[0] ?? null;
     const headlineBucket = headline ? (orgByCurrency.get(headline.currency) ?? emptyBucket()) : emptyBucket();
 
-    const totalSold = [...soldByEvent.values()].reduce((a, b) => a + b, 0);
-    const flaggedRevenue = flaggedRows.reduce((a, r) => a + r.revenue, 0);
-    const flaggedOrders = flaggedRows.reduce((a, r) => a + r.orders, 0);
+    // Sold + flagged headline drop archived events too (sold is keyed by event id;
+    // flaggedRows carry event_id).
+    const totalSold = [...soldByEvent.entries()]
+      .filter(([id]) => !archivedIds.has(id))
+      .reduce((a, [, n]) => a + n, 0);
+    const flaggedRevenue = flaggedRows
+      .filter((r) => !archivedIds.has(r.event_id)).reduce((a, r) => a + r.revenue, 0);
+    const flaggedOrders = flaggedRows
+      .filter((r) => !archivedIds.has(r.event_id)).reduce((a, r) => a + r.orders, 0);
+
+    // Archived money, surfaced SEPARATELY (D1:A) so "why is my withdrawable
+    // balance higher than my total sales" is answerable: it's the archived events.
+    // Scoped to the largest archived currency bucket (never summed across
+    // currencies, I7); sold is a currency-agnostic seat count so it may sum.
+    const archivedByCurrency = foldMoneyByCurrency(
+      money, new Set(ownedIds.filter((id) => !archivedIds.has(id))),
+    );
+    const archivedHeadline = [...archivedByCurrency.values()]
+      .sort((a, b) => b.revenue - a.revenue)[0] ?? emptyBucket();
+    const archivedRevenue = archivedHeadline.revenue;
+    const archivedNetRevenue = archivedHeadline.netRevenue;
+    const archivedOrders = archivedHeadline.orders;
+    const archivedSold = [...soldByEvent.entries()]
+      .filter(([id]) => archivedIds.has(id))
+      .reduce((a, [, n]) => a + n, 0);
 
     return {
       totals: {
@@ -325,6 +358,10 @@ export class OrgSalesService {
         flaggedRevenue,
         flaggedOrders,
         refundedRevenue: headlineBucket.refunded,
+        archivedRevenue,
+        archivedNetRevenue,
+        archivedSold,
+        archivedOrders,
       },
       events: eventsOut,
     };

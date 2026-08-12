@@ -79,6 +79,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@zora/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       framer-motion:
         specifier: ^11.3.28
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

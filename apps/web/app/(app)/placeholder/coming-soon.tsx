@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
+import { INSTAGRAM_URL } from '@zora/core/contacts';
 
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]; // expo-out
 
@@ -275,18 +276,27 @@ function DissolveBurst({ show }: { show: boolean }) {
 }
 
 function SocialBar() {
+  // Only Instagram has a live handle today; TikTok/X stay inert until we have one.
   const links = [
-    { Icon: IgIcon, label: 'Instagram', href: '#' },
+    { Icon: IgIcon, label: 'Instagram', href: INSTAGRAM_URL },
     { Icon: TikTokIcon, label: 'TikTok', href: '#' },
     { Icon: XIcon, label: 'X', href: '#' },
   ];
   return (
     <div className="zcs-social">
-      {links.map(({ Icon, label, href }) => (
-        <a key={label} href={href} aria-label={label}>
-          <Icon width={18} height={18} />
-        </a>
-      ))}
+      {links.map(({ Icon, label, href }) => {
+        const external = href !== '#';
+        return (
+          <a
+            key={label}
+            href={href}
+            aria-label={label}
+            {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          >
+            <Icon width={18} height={18} />
+          </a>
+        );
+      })}
     </div>
   );
 }

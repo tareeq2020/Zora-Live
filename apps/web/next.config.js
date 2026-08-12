@@ -41,6 +41,12 @@ const CONVERTED_PAGES = ['about', 'help', 'commission', 'brand', 'discover'];
 
 /** @type {import('next').NextConfig} */
 module.exports = {
+  // Transpile the shared workspace package so client bundles can import the
+  // dependency-free `@zora/core/contacts` constants directly from TS source.
+  // We only ever import that subpath on the web side, so the server-only barrel
+  // (postgres/pdf-lib) is never pulled into the browser bundle, and there is no
+  // build-order dependency on packages/core's dist (Vercel-safe).
+  transpilePackages: ['@zora/core'],
   async redirects() {
     return CONVERTED_PAGES.map((p) => ({
       source: `/${p}.html`,

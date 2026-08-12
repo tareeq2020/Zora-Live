@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { SUPPORT_EMAIL_HREF } from '@zora/core/contacts';
 
 // ── Contract types (from mt-dashboard-plan.md "API contract"; local until backend lands) ──
 
@@ -418,7 +419,7 @@ export default function DashboardClient() {
                     <a className="vb-btn primary" href="/dashboard/onboarding">
                       FIX MY VERIFICATION
                     </a>
-                    <a className="vb-btn" href="mailto:support@zorapass.com">
+                    <a className="vb-btn" href={SUPPORT_EMAIL_HREF}>
                       EMAIL SUPPORT
                     </a>
                   </div>

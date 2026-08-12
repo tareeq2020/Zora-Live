@@ -8,10 +8,9 @@
    ref/open() API is gone since there's no panel left to open. */
 
 import { forwardRef } from 'react';
+import { WHATSAPP_HREF } from '@zora/core/contacts';
 
 export type ZBotHandle = { open: () => void };
-
-const WHATSAPP_HREF = 'https://wa.me/255741099989';
 
 export const ZBot = forwardRef<ZBotHandle>(function ZBot(_props, _ref) {
   return (
