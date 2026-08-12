@@ -19,6 +19,10 @@ const NAV: { href: string; label: string; accent?: boolean }[] = [
   { href: '/dashboard/payouts', label: 'Withdrawals' },
   { href: '/dashboard/storefront/studio', label: 'Storefront' },
   { href: '/dashboard/events/new', label: '+ New drop', accent: true },
+  // BS61: help/support, present on every organizer page. Points at the support
+  // centre (WhatsApp / phone / email / Instagram). Never marks active — it lives
+  // outside /dashboard, so the prefix match below can't false-positive.
+  { href: '/help', label: 'Help & Support' },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
