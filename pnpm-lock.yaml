@@ -119,6 +119,9 @@ importers:
       '@zora/core':
         specifier: workspace:*
         version: link:../../packages/core
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       postgres:
         specifier: ^3.4.5
         version: 3.4.9

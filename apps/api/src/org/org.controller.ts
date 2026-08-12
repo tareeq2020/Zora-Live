@@ -1,10 +1,11 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Body, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import type { Request } from 'express';
 import { resolveCommissionRate } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { OrgScopeService } from './org-scope.service';
 import { KYC_REASONS } from '../common/defaults';
+import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 
 /* BS41 (#5): a rejection the organizer cannot read is a dead end. The stored
    value is `code` or `code · internal note`; only the code maps to user-facing
@@ -50,6 +51,9 @@ export class OrgController {
       // login. (`status` is also what tells the UI a rejection is not a ban.)
       status: org ? org.status : null,
       source: org ? org.source : null,
+      // BS57: the org's own alert number (null until they set it) — the dashboard
+      // prefills the "SMS order alerts" field from this.
+      phone: org ? org.phone : null,
       // Null unless a reviewer actually rejected them.
       kycReason: org && org.kycStatus === 'rejected' ? rejectionCopy(org.verificationReason) : null,
       // BS31: the platform commission netted from this org's payout (default 5%).
@@ -57,5 +61,28 @@ export class OrgController {
       // BS35: resolved by @zora/core, the one place the fallback chain lives.
       commissionRate: resolveCommissionRate(null, org),
     };
+  }
+
+  // ── PUT /api/org/phone — set/clear the org's new-order SMS alert number ──────
+  // BS57: existing orgs (created before self-signup captured a phone, or seeded)
+  // had no way to add a number. An empty string clears it (opt out). Stored
+  // normalized to +255…; validated the same way self-registration validates.
+  @UseGuards(OrganizerGuard)
+  @Put('phone')
+  async setPhone(@Req() req: Request, @Body() body: { phone?: string }) {
+    const handle = req.actingHandle as string;
+    const org = await this.organizers.byHandle(handle);
+    if (!org) throw new BadRequestException({ error: 'not_found' });
+
+    const raw = String(body?.phone ?? '').trim();
+    let value = '';
+    if (raw !== '') {
+      value = normalizeTzPhone(raw);
+      if (!isValidTzMsisdn(value)) {
+        throw new BadRequestException({ error: 'invalid_phone', message: 'Enter a valid mobile number — 9 digits after +255.' });
+      }
+    }
+    const updated = await this.organizers.setPhone(org.id, value);
+    return { ok: true, phone: updated ? updated.phone : null };
   }
 }

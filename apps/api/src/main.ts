@@ -9,6 +9,7 @@ import { verifySession, readSessionCookie } from './common/session-cookie';
 import { AppModule } from './app.module';
 import { ExpressStatusInterceptor } from './common/express-status.interceptor';
 import { resolveSessionSecret } from './common/secret';
+import { logSmsStartup } from '@zora/core';
 
 async function bootstrap() {
   const SESSION_SECRET = resolveSessionSecret();
@@ -41,5 +42,6 @@ async function bootstrap() {
   const PORT = process.env.PORT || 4101;
   await app.listen(PORT);
   console.log(`ZORA api (NestJS) -> http://localhost:${PORT}`);
+  logSmsStartup(); // BS58: one-line SMS config check (API sends OTP + org alerts)
 }
 bootstrap();

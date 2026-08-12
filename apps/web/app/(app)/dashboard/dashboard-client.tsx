@@ -33,6 +33,8 @@ type OrgMe = {
   source?: string | null;
   // User-facing rejection copy (reused from the KYC reasons), when rejected.
   kycReason?: string | null;
+  // BS57: the org's own SMS alert number (+255…), or null until they set it.
+  phone?: string | null;
 };
 
 type SummaryEvent = {
@@ -459,6 +461,9 @@ export default function DashboardClient() {
               </div>
             ) : null}
 
+            {/* ── BS57: SMS order alerts — set the number we text on every paid order ── */}
+            {me.data ? <OrderAlertsCard initialPhone={me.data.phone ?? ''} /> : null}
+
             {/* ── KPI cards (revenue / tickets sold / orders) ── */}
             <section className="block">
               <p className="bh">OVERVIEW</p>
@@ -784,3 +789,92 @@ const STYLE = `
 }
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 `;
+
+// BS57: a compact card to set the number Zora texts on every paid order. Existing
+// orgs (created before self-signup captured a phone, or seeded) had no way to add
+// one. Prefilled from /api/org/me; saves to PUT /api/org/phone. Self-contained so
+// the (already large) DashboardClient render stays readable.
+function OrderAlertsCard({ initialPhone }: { initialPhone: string }) {
+  // Stored as +255XXXXXXXXX; the field edits the 9 digits after the +255 prefix.
+  const strip = (p: string) => p.replace(/^\+?255/, '').replace(/\D/g, '').slice(0, 9);
+  const [digits, setDigits] = useState(strip(initialPhone));
+  const [saved, setSaved] = useState(strip(initialPhone));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const dirty = digits !== saved;
+
+  async function save(clear = false) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const phone = clear || !digits ? '' : '+255' + digits;
+      const res = await fetch('/api/org/phone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json().catch(() => ({} as { phone?: string; message?: string }));
+      if (!res.ok) throw new Error(data?.message || 'Could not save your number.');
+      const next = strip(data?.phone ?? '');
+      setDigits(next);
+      setSaved(next);
+      setMsg({ kind: 'ok', text: next ? 'Saved. We’ll text you on every paid order.' : 'Alerts off — no more order texts.' });
+    } catch (e) {
+      setMsg({ kind: 'err', text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="block" style={{ marginBottom: 22 }}>
+      <p className="bh">ORDER ALERTS</p>
+      <div
+        style={{
+          border: '1px solid var(--hair)', borderRadius: 14, padding: '16px 18px',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14,
+          background: 'var(--ink)',
+        }}
+      >
+        <div style={{ flex: '1 1 220px', minWidth: 200 }}>
+          <p style={{ color: 'var(--bone)', fontWeight: 600, margin: 0 }}>Get an SMS on every paid order</p>
+          <p style={{ color: 'var(--mut)', fontSize: 13, margin: '3px 0 0' }}>
+            We&apos;ll text this number the moment a buyer pays. Leave it blank to turn alerts off.
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', border: '1px solid var(--hair)',
+              borderRadius: 10, overflow: 'hidden', background: '#00000022',
+            }}
+          >
+            <span style={{ padding: '10px 10px', color: 'var(--mut)', fontFamily: 'monospace', borderRight: '1px solid var(--hair)' }}>
+              +255
+            </span>
+            <input
+              inputMode="numeric"
+              placeholder="7XX XXX XXX"
+              value={digits}
+              onChange={(e) => setDigits(e.target.value.replace(/\D/g, '').slice(0, 9))}
+              style={{ padding: '10px 12px', width: 140, background: 'transparent', border: 0, color: 'var(--bone)', outline: 'none', fontFamily: 'monospace' }}
+            />
+          </div>
+          <button className="btn ghost sm" disabled={busy || !dirty} onClick={() => save(false)}>
+            {busy ? 'SAVING…' : 'SAVE'}
+          </button>
+          {saved ? (
+            <button className="btn ghost sm" disabled={busy} onClick={() => { setDigits(''); save(true); }}>
+              TURN OFF
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {msg ? (
+        <p style={{ marginTop: 8, fontSize: 13, color: msg.kind === 'ok' ? 'var(--blue)' : 'var(--red, #e5484d)' }}>
+          {msg.text}
+        </p>
+      ) : null}
+    </section>
+  );
+}
