@@ -422,7 +422,14 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
   if (!claimed) return; // already notified, or not paid
 
   const [row] = await sql`
-    select c.phone, c.email, c.name, e.name as event_name
+    select c.phone, c.email, c.name,
+           e.id as event_id, e.name as event_name,
+           o.target_value as target_value,
+           (select coalesce(sum(oi.unit_price * oi.quantity), 0)::bigint
+              from order_item oi where oi.order_id = o.id) as gross,
+           (select pv.currency from order_item oi
+              join price_version pv on pv.id = oi.price_version_id
+             where oi.order_id = o.id limit 1) as currency
       from "order" o
       join customer c on c.id = o.customer_id
       join event e on e.id = o.event_id
@@ -453,6 +460,42 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
       buyerName: row.name ?? 'there', eventName: row.event_name, tickets,
     });
   } catch (e) { console.error('confirm email failed', e); }
+
+  // BS57: a little dopamine for the organizer — text them that a paid order just
+  // landed. Best-effort and guarded on a phone being set (most orgs have none
+  // yet); the buyer's ticket is unaffected either way.
+  try {
+    const org = await organizerContactForEvent(sql, row.event_id);
+    if (org.phone) {
+      const amount = Number(row.gross ?? 0) || Number(row.target_value ?? 0) || null;
+      await sendSms(org.phone, organizerOrderSmsText(row.event_name, refs.length, amount, row.currency ?? null));
+    }
+  } catch (e) { console.error('organizer new-order SMS failed', e); }
+}
+
+/** The organizer's "you got paid" nudge. Kept short — one SMS segment. */
+function organizerOrderSmsText(eventName: string, tickets: number, amount: number | null, currency: string | null): string {
+  const money = amount && currency ? ` · ${amount.toLocaleString('en-US')} ${currency}` : '';
+  const plural = tickets !== 1;
+  return `New paid order on ${eventName}: ${tickets} ticket${plural ? 's' : ''}${money}. — Zora`;
+}
+
+/** BS57: the organizing org's contact for an event. The event→organizer link
+    lives in the 'events' collection_store blob (event.organizer_id is NULL
+    post-seed), so resolve the handle from the blob and join the organizer table.
+    Returns nulls when the event/org is unknown or the org has no phone set. */
+export async function organizerContactForEvent(
+  sql: Sql,
+  eventId: string,
+): Promise<{ phone: string | null; name: string | null }> {
+  const [row] = await sql`
+    select o.phone as phone, o.name as name
+      from collection_store cs
+      cross join lateral jsonb_array_elements(cs.data::jsonb) e
+      join organizer o on o.handle = lower(e->>'organizerHandle')
+     where cs.name = 'events' and e->>'id' = ${eventId}
+     limit 1`;
+  return { phone: row?.phone ?? null, name: row?.name ?? null };
 }
 
 // alertOps moved to ../ops (shared with the split domain to avoid a circular

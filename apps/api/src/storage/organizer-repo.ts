@@ -257,6 +257,16 @@ export class OrganizerRepo {
     return rows.length ? toRecord(rows[0]) : null;
   }
 
+  /** BS57: the organizer's own contact number — used for new-order SMS alerts.
+      Stored normalized (+255…); empty string clears it (opt out of alerts). */
+  async setPhone(id: string, phone: string): Promise<OrganizerRecord | null> {
+    const rows = await db()<Row[]>`
+      update organizer set phone = ${phone === '' ? null : phone}, updated_at = now()
+       where id = ${id}
+      returning ${db().unsafe(COLUMNS)}`;
+    return rows.length ? toRecord(rows[0]) : null;
+  }
+
   async setStatus(id: string, status: string): Promise<OrganizerRecord | null> {
     const rows = await db()<Row[]>`
       update organizer set status = ${status}, updated_at = now()

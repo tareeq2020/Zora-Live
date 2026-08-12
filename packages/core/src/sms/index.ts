@@ -27,6 +27,33 @@ function resolveDriver(env: NodeJS.ProcessEnv): SmsDriver {
   return 'mock';
 }
 
+/** Whether the selected driver actually has the creds it needs to hit a gateway.
+    Pure — makes no network call. Used by the startup banner so a misconfig is a
+    one-line boot check instead of a silent dev-log discovered via a test purchase. */
+export function smsConfigSummary(env: NodeJS.ProcessEnv = process.env): {
+  driver: SmsDriver; live: boolean; reason: string;
+} {
+  const driver = resolveDriver(env);
+  if (driver === 'mock') return { driver, live: false, reason: 'SMS_DRIVER=mock or unknown — dev-log only' };
+  if (driver === 'at') {
+    if (!env.AT_API_KEY || !env.AT_USERNAME) return { driver, live: false, reason: 'AT_API_KEY/AT_USERNAME missing' };
+    if (env.AT_USERNAME === 'sandbox') return { driver, live: false, reason: 'AT_USERNAME=sandbox (does not deliver)' };
+    return { driver, live: true, reason: 'AfricasTalking configured' };
+  }
+  // beem
+  if (!env.BEEM_KEY || !env.BEEM_SECRET || !env.BEEM_SENDER) {
+    return { driver, live: false, reason: 'BEEM_KEY/BEEM_SECRET/BEEM_SENDER missing' };
+  }
+  return { driver, live: true, reason: 'Beem configured' };
+}
+
+/** One-line startup banner: `[sms] driver=at LIVE (AfricasTalking configured)` or
+    `[sms] driver=mock NOT SENDING (…)`. Call once at each process boot. */
+export function logSmsStartup(env: NodeJS.ProcessEnv = process.env): void {
+  const s = smsConfigSummary(env);
+  console.log(`[sms] driver=${s.driver} ${s.live ? 'LIVE' : 'NOT SENDING'} (${s.reason})`);
+}
+
 /** Loud, uniform dev-log fallback. Returns the misconfig/mock result shape. */
 function devLog(to: string, message: string, reason: string): SmsResult {
   console.warn(`[sms:UNCONFIGURED] ${reason} — dev-log only, not sent`);

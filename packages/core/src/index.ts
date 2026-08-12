@@ -17,7 +17,7 @@ export type {
 } from './payments/service';
 export {
   nextAttemptKey, initiatePayment, mapStatus, applyOutcome, reconcile,
-  notifyOrderPaid, alertOps, resolveTransactionId, reconcilePending, sweepExpiredHolds,
+  notifyOrderPaid, organizerContactForEvent, alertOps, resolveTransactionId, reconcilePending, sweepExpiredHolds,
 } from './payments/service';
 export type {
   PaymentOutcome, InitiatePaymentInput, InitiatePaymentResult,
@@ -83,7 +83,7 @@ export type {
   PayoutOrgContext, RequestPayoutInput, RequestPayoutResult,
   DecidePayoutInput, DecidePayoutResult, ListPayoutsFilter,
 } from './payouts';
-export { sendSms } from './sms';
+export { sendSms, smsConfigSummary, logSmsStartup } from './sms';
 export type { SmsDriver, SmsResult } from './sms';
 export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {

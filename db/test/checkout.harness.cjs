@@ -4,7 +4,7 @@
 'use strict';
 const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
-const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, tryRehold, closeDb } = core;
+const { db, createGaVipOrder, issueCredentials, convertHolds, releaseHolds, tryRehold, organizerContactForEvent, closeDb } = core;
 
 let failures = 0;
 function ok(cond, msg) {
@@ -124,6 +124,32 @@ function ok(cond, msg) {
   const pr2 = (await sql`select sold_count, available_count from inventory_pool where product_tier_id='t-retry'`)[0];
   ok(Number(pr2.sold_count) === 2, 'seats become sold ONLY after payment (sold 0 -> 2)');
   ok(Number(pr2.available_count) === 3, 'available stays 3 (held converted, not decremented twice)');
+
+  // ── 6) BS57: resolve the organizing org's phone for a paid-order SMS alert ──
+  // The event→organizer link lives in the 'events' collection_store blob, so
+  // organizerContactForEvent reads the blob and joins the organizer by handle.
+  await sql`insert into organizer (id, handle, name, phone, status, events, revenue)
+            values ('o-alert','alertorg','Alert Org','+255700000123','active',0,0)
+            on conflict (id) do nothing`;
+  await sql`insert into organizer (id, handle, name, phone, status, events, revenue)
+            values ('o-nophone','nophoneorg','No Phone Org',null,'active',0,0)
+            on conflict (id) do nothing`;
+  await sql`insert into collection_store (name, data)
+            values ('events', ${JSON.stringify([
+              { id: 'e-chk', organizerHandle: 'alertorg' },
+              { id: 'e-silent', organizerHandle: 'nophoneorg' },
+            ])})
+            on conflict (name) do update set data = excluded.data`;
+
+  const contact = await organizerContactForEvent(sql, 'e-chk');
+  ok(contact.phone === '+255700000123', 'organizerContactForEvent resolves the org phone from the events blob');
+  ok(contact.name === 'Alert Org', 'organizerContactForEvent resolves the org name');
+
+  const silent = await organizerContactForEvent(sql, 'e-silent');
+  ok(silent.phone === null, 'org with no phone -> null (alert is skipped, guarded)');
+
+  const unknown = await organizerContactForEvent(sql, 'no-such-event');
+  ok(unknown.phone === null, 'unknown event -> null (no throw)');
 
   await closeDb();
   if (failures) { console.error('\n' + failures + ' assertion(s) failed'); process.exit(1); }
