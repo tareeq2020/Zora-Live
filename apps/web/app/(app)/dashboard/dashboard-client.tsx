@@ -331,6 +331,12 @@ export default function DashboardClient() {
             <Link className="nav-item" href="/dashboard/events/new" style={{ color: 'var(--blue)', fontWeight: 500 }}>
               <span className="dot" />+ New drop
             </Link>
+            {/* BS61: help/support — same link the shared shell shows on inner pages,
+                so every organizer page has one. */}
+            <Link className="nav-item" href="/help">
+              <span className="dot" />
+              Help &amp; Support
+            </Link>
             <p className="foot">
               <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
               <br />
