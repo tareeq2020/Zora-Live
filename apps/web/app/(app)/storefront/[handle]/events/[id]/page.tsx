@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const API_URL = process.env.API_URL || 'http://localhost:4101';
 const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
 
-type StorefrontTheme = { brandName?: string; accent?: string; secondary?: string; logoUrl?: string; bannerUrl?: string };
+type StorefrontTheme = { brandName?: string; accent?: string; secondary?: string; bg?: string; card?: string; logoUrl?: string; bannerUrl?: string };
 type TenantEvent = {
   id: string; name: string; tagline?: string; category?: string; city?: string;
   venue?: string; dateLabel?: string; time?: string; priceFrom?: number; seated?: boolean;
@@ -67,8 +67,26 @@ export default async function TenantEventPage({ params }: { params: { handle: st
   const when = [ev.dateLabel || 'TBA', ev.time, ev.venue].filter(Boolean).join(' · ').toUpperCase();
 
   const accent = theme.accent || '#4C6FFF';
-  // Only the accent is organizer-driven; the canvas + fonts are the fixed Zora system.
-  const themeVars = { ['--accent']: accent, ['--secondary']: theme.secondary || '#3FE0FF' } as React.CSSProperties;
+  // Accent + secondary are always organizer-driven. Per-org LIGHT mode
+  // (STOREFRONT-BRAND-SPEC.md D1a): if the org saved bg + card, flip the canvas
+  // and derived text/hairline tokens light; else the fixed Zora dark holds.
+  const light = !!(theme.bg && theme.card);
+  const themeVars = {
+    ['--accent']: accent,
+    ['--secondary']: theme.secondary || '#3FE0FF',
+    ...(light
+      ? {
+          ['--bg']: theme.bg!,
+          ['--surface']: theme.card!,
+          ['--surface2']: theme.card!,
+          ['--ink']: '#14161F',
+          ['--mut']: '#5B6272',
+          ['--mut2']: '#8A90A6',
+          ['--hair']: 'rgba(16,18,27,.12)',
+          ['--hair2']: 'rgba(16,18,27,.2)',
+        }
+      : {}),
+  } as React.CSSProperties;
 
   // ONE hero: per-event cover overrides the store banner; else an accent gradient.
   const heroImg = ev.cover || theme.bannerUrl || '';
@@ -117,8 +135,15 @@ export default async function TenantEventPage({ params }: { params: { handle: st
           <span className={styles.whitelabel}>WHITE-LABEL</span>
         </div>
 
-        {/* Single hero — cover / banner image, else accent gradient. Logo brand-mark bottom-left. */}
-        <div className={`${styles.hero}${heroImg ? '' : ' ' + styles.heroFallback}`} style={heroImg ? { backgroundImage: `url(${heroImg})` } : undefined}>
+        {/* Single hero — the full flyer (contain) over a blurred fill of itself so
+            nothing is cropped; else an accent gradient. Logo brand-mark bottom-left. */}
+        <div className={`${styles.hero}${heroImg ? '' : ' ' + styles.heroFallback}`}>
+          {heroImg ? (
+            <>
+              <div className={styles.heroBg} style={{ backgroundImage: `url("${heroImg}")` }} aria-hidden />
+              <img className={styles.heroImg} src={heroImg} alt="" />
+            </>
+          ) : null}
           {theme.logoUrl ? <span className={styles.brandmark} style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden /> : null}
         </div>
 

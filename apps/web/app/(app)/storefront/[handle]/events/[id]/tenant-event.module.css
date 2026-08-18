@@ -31,7 +31,8 @@
 }
 .logo {
   width: 42px; height: 42px; border-radius: 11px;
-  background-position: center; background-size: cover; background-repeat: no-repeat; border: 1px solid var(--hair);
+  background-position: center; background-size: contain; background-repeat: no-repeat;
+  background-color: #fff; border: 1px solid var(--hair);
 }
 .sn { font-family: var(--disp); font-weight: 700; font-size: 16px; line-height: 1.1; }
 .su { font-family: var(--mono); font-size: 11px; color: var(--mut2); letter-spacing: 0.04em; margin-top: 2px; }
@@ -40,12 +41,27 @@
   border: 1px solid var(--hair); border-radius: 99px; padding: 6px 11px;
 }
 
-/* single hero */
+/* single hero — the full flyer (portrait) contained over a blurred fill of itself,
+   so nothing is cropped; bordered, with a load fade-in + hover lift. */
 .hero {
-  height: 240px; border-radius: 20px; position: relative; overflow: hidden;
-  background-position: center; background-size: cover; background-repeat: no-repeat; border: 1px solid var(--hair);
+  position: relative; width: min(420px, 100%); aspect-ratio: 4 / 5; margin: 0 auto;
+  border-radius: 20px; overflow: hidden; border: 1px solid var(--hair); background: var(--surface);
+  animation: heroIn 0.55s ease both;
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s, border-color 0.35s;
 }
-.heroFallback { background: linear-gradient(135deg, var(--accent), #0a0b10); }
+.heroBg {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  filter: blur(30px) brightness(0.5) saturate(1.25); transform: scale(1.25);
+}
+.heroImg { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; }
+.hero:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 46px -20px color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--hair));
+}
+@keyframes heroIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .hero { animation: none; } .hero:hover { transform: none; } }
+.heroFallback { background: linear-gradient(135deg, var(--accent), var(--bg)); }
 .heroFallback::after {
   content: ''; position: absolute; inset: 0;
   background: radial-gradient(75% 85% at 80% 12%, rgba(255, 255, 255, 0.18), transparent 60%); pointer-events: none;

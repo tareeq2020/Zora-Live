@@ -32,7 +32,8 @@ per-event `cover` column + persistence already shipped (PR-BS15).
 ## Locked decisions
 | # | Decision |
 |---|----------|
-| D1 | **Dark canvas everywhere consumer-facing.** The Zora consumer dark palette is the storefront background — NOT the organizer's `theme.bg`. |
+| D1 | **Dark canvas is the DEFAULT consumer-facing.** The Zora consumer dark palette is the storefront background unless the organizer opts into light (see D1a). |
+| D1a | **Per-org LIGHT mode (2026-08, The Weekender).** An organizer may opt the storefront + event page into a light canvas by saving BOTH `theme.bg` AND `theme.card`. When set, those drive `--paper`/`--card` and the derived text/hairline/nav tokens flip light; when unset, the fixed dark canvas (D1) holds. Reversible per-org, no effect on other organizers. Fonts stay locked (D2); the poster hero shows the full flyer (`contain` over a blurred self-fill), never cropped. |
 | D2 | **Consumer type system is locked: Space Grotesk (display) + Inter (body) + IBM Plex Mono (labels).** Organizers do NOT choose fonts — that's what caused the drift. |
 | D3 | **Organizer customises exactly three things: logo, banner, accent colour.** (Plus favicon.) Everything else is the Zora system. |
 | D4 | **Banner = the single hero.** A per-event `cover` image, when set, *replaces* the banner as that event's hero. Never both; no placeholder. |
