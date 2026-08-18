@@ -8,7 +8,7 @@
    real per-yacht / per-day numbers before go-live.
 
    Writes:
-     - organizer  'weekender'  (status active, kyc approved → can publish + be
+     - organizer  'weekendar'  (status active, kyc approved → can publish + be
        impersonated; a dashboard password is set later via admin ACCESS).
      - theme row  (per-org LIGHT canvas: bg + card set → the storefront + event
        pages render light; accent = Weekendar blue, secondary = electric lime,
@@ -18,7 +18,7 @@
        blob into collection_store 'events' (webCheckout.tiers + per-event cover) so
        /api/events, discover, the storefront and live checkout all light up.
 
-   Usage: DATABASE_URL=postgres://... node db/seed-weekender.mjs */
+   Usage: DATABASE_URL=postgres://... node db/seed-weekendar.mjs */
 import postgres from 'postgres';
 import { config } from 'dotenv';
 import { readFileSync } from 'node:fs';
@@ -28,18 +28,24 @@ import { dirname, join } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 config({ path: join(HERE, '..', 'apps', 'api', '.env') });
 const url = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
-if (!url) { console.error('seed-weekender: set DATABASE_URL'); process.exit(1); }
+if (!url) { console.error('seed-weekendar: set DATABASE_URL'); process.exit(1); }
 const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
 
 const RATE = 2700;               // 1 USD -> TZS (Phase 1 prices)
 const CAP = 500;                 // PLACEHOLDER capacity per tier — set real caps before go-live
 
 const ORG = {
-  id: 'weekender',
-  name: 'The Weekender',
-  handle: 'weekender',
+  id: 'weekendar',
+  name: 'The Weekendar',
+  handle: 'weekendar',
   email: 'hello@theweekendar.com',
 };
+
+// The org was first seeded under the misspelt handle 'weekender'. Remove that
+// footprint before (re)seeding 'weekendar' so no orphan org/theme/events linger.
+// Safe: nothing was ever sold under it (no order_item/credential references the
+// deleted tiers). No-op on a fresh DB.
+const LEGACY_HANDLE = 'weekender';
 
 const THEME = {
   brandName: 'The Weekendar',
@@ -50,7 +56,7 @@ const THEME = {
   typography: 'grotesk',
   logoUrl: '',                   // TODO: drop in a transparent WEEKENDAR wordmark PNG
   faviconUrl: '',
-  bannerUrl: '/weekender/weekendar-hero.jpg',
+  bannerUrl: '/weekendar/weekendar-hero.jpg',
 };
 
 // kind 'shore' = a normal per-person GA-style tier (no table/split). USD is loaded × RATE.
@@ -66,7 +72,7 @@ const EVENTS = [
     time: '12:00',                              // tentative
     weekend: true,
     seated: false,
-    cover: '/weekender/the-14th.jpg',
+    cover: '/weekendar/the-14th.jpg',
     tiers: [
       { id: 'the-14th-regular', name: 'Regular · Food & Soft Drinks', usd: 85 },
       { id: 'the-14th-alcohol', name: 'With Alcohol',                 usd: 135 },
@@ -83,7 +89,7 @@ const EVENTS = [
     time: '13:00',                              // tentative
     weekend: true,
     seated: false,
-    cover: '/weekender/rhythm-brunch.jpg',
+    cover: '/weekendar/rhythm-brunch.jpg',
     tiers: [
       { id: 'rhythm-and-brunch-ga', name: 'General Admission', usd: 25 },
     ],
@@ -105,6 +111,18 @@ async function seedTier(eventId, t) {
 }
 
 try {
+  // 0) cleanup the misspelt 'weekender' footprint (delete children before the org
+  //    to respect FKs; theme cascades on org delete but we drop it explicitly).
+  //    No-op on a fresh DB. Safe: nothing sold under it.
+  const legacy = await sql`select id from organizer where handle = ${LEGACY_HANDLE}`;
+  if (legacy.length) {
+    await sql`delete from product_tier where event_id in (select id from event where organizer_id = ${legacy[0].id})`;
+    await sql`delete from event where organizer_id = ${legacy[0].id}`;
+    await sql`delete from theme where organizer_id = ${legacy[0].id}`;
+    await sql`delete from organizer where id = ${legacy[0].id}`;
+    console.log(`✓ removed legacy '${LEGACY_HANDLE}' org + its events/theme`);
+  }
+
   // 1) organizer — active + KYC approved so it can publish sellable drops (I6) and
   //    be reached via admin impersonation. Idempotent.
   await sql`insert into organizer (id, name, handle, email, status, kyc_status, joined, events, revenue)
@@ -157,7 +175,7 @@ try {
   await sql`insert into collection_store (name, data) values ('events', ${JSON.stringify(events)})
             on conflict (name) do update set data = excluded.data, updated_at = now()`;
   console.log(`\n✓ ${EVENTS.length} events in the 'events' collection`);
-  console.log('seed-weekender: done — visit /@weekender (or the weekender subdomain).');
+  console.log('seed-weekendar: done — visit /@weekendar (or the weekendar subdomain).');
 } finally {
   await sql.end({ timeout: 5 });
 }
