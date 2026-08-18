@@ -26,6 +26,7 @@ export type StorefrontEvent = {
   time?: string;
   priceFrom?: number;
   seated?: boolean;
+  cover?: string; // per-event hero poster (event blob `cover`)
   // PR-11: real product tiers wired to the payments backend. Present only on
   // web-sellable events (webCheckout.tiers in the event store); when absent the
   // event stays app-claim (the old sheet).
@@ -127,6 +128,19 @@ function Countdown({ ev }: { ev: StorefrontEvent }) {
   return <p className="countdown">{label}</p>;
 }
 
+// A poster tile that shows the WHOLE image (event flyers are portrait), never
+// cropped: a blurred, dimmed copy of the same image fills the frame behind, with
+// the full poster contained on top. Bordered, with a load fade-in + hover lift —
+// so partner/sponsor logos baked into the flyer stay fully visible.
+function Poster({ src, variant }: { src: string; variant: 'hero' | 'cover' }) {
+  return (
+    <div className={`poster ${variant}`}>
+      <div className="poster-bg" style={{ backgroundImage: `url("${src}")` }} aria-hidden />
+      <img className="poster-img" src={src} alt="" loading={variant === 'hero' ? 'eager' : 'lazy'} />
+    </div>
+  );
+}
+
 export default function StorefrontClient(props: StorefrontProps) {
   const { handle, subdomain, eyebrow, lede, aboutHeading, aboutBody, events, canManage } = props;
 
@@ -189,14 +203,21 @@ export default function StorefrontClient(props: StorefrontProps) {
     ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()
     : '';
 
+  // Per-org LIGHT mode (STOREFRONT-BRAND-SPEC.md D1a): an organizer opts in by
+  // saving BOTH bg + card in their theme. Then the whole canvas + derived text /
+  // hairline / nav tokens flip light; otherwise the fixed Zora consumer dark
+  // canvas holds. Fonts stay locked (D2); only the palette is the organizer's.
+  const light = !!(theme.bg && theme.card);
   const rootStyle = {
     ['--accent' as string]: accent,
     ['--accent-deep' as string]: accentDeep,
     ['--secondary' as string]: theme.secondary || '#1D6E56',
-    // Fixed Zora consumer DARK canvas + type system — only the accent is the
-    // organizer's (STOREFRONT-BRAND-SPEC.md D1/D2). No cream, no editorial fonts.
-    ['--paper' as string]: '#0A0B10',
-    ['--card' as string]: '#11131E',
+    ['--paper' as string]: light ? theme.bg! : '#0A0B10',
+    ['--card' as string]: light ? theme.card! : '#11131E',
+    ['--ink' as string]: light ? '#14161F' : '#EDEFF7',
+    ['--mut' as string]: light ? '#5B6272' : '#9BA3C4',
+    ['--hair' as string]: light ? 'rgba(16,18,27,.12)' : 'rgba(255,255,255,.12)',
+    ['--nav-bg' as string]: light ? 'rgba(255,255,255,.82)' : 'rgba(10,11,16,.85)',
     ['--display' as string]: "'Space Grotesk',system-ui,sans-serif",
     ['--body' as string]: "'Inter',system-ui,sans-serif",
   } as React.CSSProperties;
@@ -235,9 +256,7 @@ export default function StorefrontClient(props: StorefrontProps) {
         {/* ── hero ── */}
         <header id="top">
           <div className="wrap">
-            {theme.bannerUrl ? (
-              <div className="banner" style={{ backgroundImage: `url(${theme.bannerUrl})` }} />
-            ) : null}
+            {theme.bannerUrl ? <Poster src={theme.bannerUrl} variant="hero" /> : null}
             <p className="eyebrow">{eyebrow}</p>
             <h1>{brandName}</h1>
             <p className="lede">{lede}</p>
@@ -265,6 +284,11 @@ export default function StorefrontClient(props: StorefrontProps) {
                   : ev.priceFrom || 0;
                 return (
                   <div className="event" key={ev.id}>
+                    {ev.cover ? (
+                      <Link href={`/@${handle}/events/${encodeURIComponent(ev.id)}`} aria-label={ev.name}>
+                        <Poster src={ev.cover} variant="cover" />
+                      </Link>
+                    ) : null}
                     <div className="event-top">
                       <div>
                         <p className="name">{ev.name}</p>
@@ -459,18 +483,34 @@ const STYLE = `
 .zora-sf ::selection{background-color:var(--accent);color:#fff}
 .zora-sf .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
 
-.zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:rgba(10,11,16,.85);backdrop-filter:blur(10px);z-index:40}
+.zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:var(--nav-bg);backdrop-filter:blur(10px);z-index:40}
 .zora-sf .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
 .zora-sf .logo{display:flex;align-items:center;gap:11px;font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:-.01em}
 .zora-sf .logo .mark{width:26px;height:26px;border-radius:50%;background-color:var(--accent);flex-shrink:0}
 .zora-sf .nav-actions{display:flex;align-items:center;gap:14px}
 .zora-sf .nav-manage{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--ink);border:1px solid var(--hair);padding:10px 18px;border-radius:99px;transition:border-color .2s}
 .zora-sf .nav-manage:hover{border-color:var(--ink)}
-.zora-sf .nav-cta{font-family:var(--mono);font-size:12px;letter-spacing:.08em;background-color:var(--accent);color:#fff;padding:11px 20px;border-radius:99px;transition:background .2s}
-.zora-sf .nav-cta:hover{background-color:var(--accent-deep)}
+/* Storefront CTAs wear the ORGANIZER'S accent, not the global Zora aura
+   (STOREFRONT-BRAND-SPEC D6). zora-tokens.css forces .nav-cta to the aura with
+   !important, so this scoped rule (higher specificity) must also be !important to
+   win — otherwise GET PASSES renders magenta on every branded store. */
+.zora-sf .nav-cta{font-family:var(--mono);font-size:12px;letter-spacing:.08em;background:var(--accent) !important;background-image:none !important;color:#fff !important;padding:11px 20px;border-radius:99px;transition:background .2s}
+.zora-sf .nav-cta:hover{background:var(--accent-deep) !important}
 
 .zora-sf header{padding:90px 0 70px;border-bottom:1px solid var(--hair)}
-.zora-sf .banner{height:230px;background-size:cover;background-position:center;border-radius:16px;margin-bottom:34px}
+/* Poster tile — full flyer visible (contain) over a blurred fill of itself, so
+   nothing (incl. baked-in sponsor logos) is ever cropped. Border + load fade-in
+   + hover lift. */
+.zora-sf .poster{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--hair);background:var(--card);animation:posterIn .55s ease both;transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s}
+.zora-sf .poster-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(30px) brightness(.5) saturate(1.25);transform:scale(1.25)}
+.zora-sf .poster-img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain}
+.zora-sf .poster.hero{width:min(440px,86%);aspect-ratio:4/5;margin:0 auto 34px}
+.zora-sf .poster.hero:hover{transform:translateY(-4px);box-shadow:0 20px 46px -20px color-mix(in srgb,var(--accent) 60%,transparent),0 6px 18px rgba(0,0,0,.10);border-color:color-mix(in srgb,var(--accent) 45%,var(--hair))}
+.zora-sf .poster.cover{height:420px;border-radius:0;border:none;border-bottom:1px solid var(--hair)}
+.zora-sf .poster.cover .poster-img{transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+@media(max-width:680px){.zora-sf .poster.cover{height:320px}}
+@keyframes posterIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.zora-sf .poster{animation:none}.zora-sf .poster.hero:hover,.zora-sf .poster.cover .poster-img{transform:none}}
 .zora-sf .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.28em;color:var(--secondary);margin-bottom:22px}
 .zora-sf h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,7vw,78px);line-height:1.02;letter-spacing:-.02em;max-width:16ch}
 .zora-sf h1 em{font-style:italic;color:var(--accent)}
@@ -479,7 +519,9 @@ const STYLE = `
 .zora-sf section{padding:70px 0}
 .zora-sf .sec-h{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut);margin-bottom:30px}
 .zora-sf .empty{color:var(--mut);font-family:var(--mono);font-size:13px;letter-spacing:.04em}
-.zora-sf .event{background:var(--card);border:1px solid var(--hair);border-radius:16px;overflow:hidden;margin-bottom:22px}
+.zora-sf .event{background:var(--card);border:1px solid var(--hair);border-radius:16px;overflow:hidden;margin-bottom:22px;transition:border-color .3s,box-shadow .3s}
+.zora-sf .event:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--hair));box-shadow:0 14px 40px -22px color-mix(in srgb,var(--accent) 55%,transparent)}
+.zora-sf .event:hover .poster.cover .poster-img{transform:scale(1.035)}
 .zora-sf .event-top{padding:30px 32px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start}
 @media(max-width:680px){.zora-sf .event-top{grid-template-columns:1fr}}
 .zora-sf .event .name{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.5vw,34px);letter-spacing:-.01em;line-height:1.05}
