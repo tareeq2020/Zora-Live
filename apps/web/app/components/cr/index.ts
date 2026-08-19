@@ -8,6 +8,9 @@
 export { CrShell } from './CrShell';
 export type { CrShellProps, CrNavItem } from './CrShell';
 
+export { CrDrawer } from './CrDrawer';
+export type { CrDrawerProps } from './CrDrawer';
+
 export { CrThemeProvider, useCrTheme, CR_THEME_KEY, CR_THEME_ATTR, CR_THEME_BOOT } from './theme';
 export type { CrTheme } from './theme';
 export { CrThemeToggle } from './ThemeToggle';

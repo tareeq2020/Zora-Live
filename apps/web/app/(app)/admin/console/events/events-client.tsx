@@ -155,17 +155,6 @@ export default function AdminEventsClient() {
     },
   ];
 
-  const selectStyle: React.CSSProperties = {
-    height: 34,
-    borderRadius: 9,
-    border: '1px solid var(--cr-hair)',
-    background: 'var(--cr-card)',
-    color: 'var(--cr-ink)',
-    fontFamily: 'var(--cr-sans)',
-    fontSize: 12,
-    padding: '0 10px',
-  };
-
   return (
     <AdminConsoleShell title="Events-manager">
       <div className="cr-stack">
@@ -176,7 +165,7 @@ export default function AdminEventsClient() {
             </h2>
             {/* ③ filters (org · status) */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <select aria-label="Filter by organizer" value={org} onChange={(e) => setOrg(e.target.value)} style={selectStyle}>
+              <select className="cr-select cr-auto" aria-label="Filter by organizer" value={org} onChange={(e) => setOrg(e.target.value)}>
                 <option value="">All organizers</option>
                 {owners.map((o) => (
                   <option key={o} value={o}>
@@ -184,7 +173,7 @@ export default function AdminEventsClient() {
                   </option>
                 ))}
               </select>
-              <select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} style={selectStyle}>
+              <select className="cr-select cr-auto" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 <option value="enabled">Enabled</option>
                 <option value="disabled">Disabled</option>

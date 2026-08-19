@@ -1,21 +1,19 @@
 'use client';
 
 /* BS69 · Lane A — organizer Overview, on the Control-Room v2 primitives.
-   Proof-of-concept: KPI row → hero revenue chart → recent orders + your events
-   (the ①②③ hierarchy from the plan's "Org Home"). Everything is theme-driven
-   via the CR token set; the top-bar toggle flips light↔dark and persists.
+   KPI row → hero revenue chart → recent orders + your events (the ①②③ hierarchy
+   from the plan's "Org Home"). Everything is theme-driven via the CR token set;
+   the top-bar toggle flips light↔dark and persists.
 
-   ┌─────────────────────────── SEAM (Lane D) ───────────────────────────┐
-   │ The data below is MOCK. Lane D builds GET /api/org/analytics (funnel  │
-   │ + revenue-over-time + counts, reusing earnings.ts). To go live:       │
-   │   1. replace `useMockAnalytics()` with a real fetch of that endpoint  │
-   │      (mirror dashboard-client.tsx's Async<T> + fetchJson pattern);    │
-   │   2. keep the same shape (see the `Analytics` type) so the JSX below   │
-   │      is untouched; the primitives already render loading/empty/error. │
-   └──────────────────────────────────────────────────────────────────────┘ */
+   BS73 — WIRED to the real backend (mock seam removed):
+     · KPIs + hero chart  ← GET /api/org/analytics?range=7D|14D|30D|ALL (Lane D)
+     · Recent orders      ← GET /api/org/orders?limit=5           (BS58)
+     · Your events        ← GET /api/org/summary                  (MT3)
+   Each block keeps its own loading / empty / error state via the primitives. */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  CrShell,
   KPIRow,
   KPITile,
   HeroChart,
@@ -26,102 +24,144 @@ import {
   type ChartRange,
   type Column,
 } from '@/app/components/cr';
-// BS71 · Lane B — use the org-console shell (adds the ≤900px focus-trapped
-// hamburger drawer) + the shared nav, so Home matches every other surface.
-import { OrgShell } from '../components/org-shell';
+// BS73 — the shared <CrShell> now carries the ≤900px focus-trapped hamburger
+// drawer (folded in from Lane B), so every org surface uses it + the shared nav.
 import { ORG_NAV } from '../components/org-nav';
 
-// ── Contract the real endpoint should satisfy (Lane D fills it) ──────────────
-type Order = {
-  id: string;
-  buyer: string;
-  event: string;
+const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
+
+// ── Response shapes (Lane D contract — do NOT invent backend) ────────────────
+type AnalyticsKpis = {
+  revenue: number;
+  netRevenue: number;
+  ticketsSold: number;
+  orders: number;
+  avgOrderValue: number;
+  conversionRate: number; // 0..1
+  checkedIn: number;
+  currency: string | null;
+};
+type SeriesPoint = { date: string; revenue: number; netRevenue: number; orders: number; tickets: number };
+type Analytics = {
+  range: ChartRange;
+  currency: string | null;
+  series: SeriesPoint[];
+  kpis: AnalyticsKpis;
+  revenueByCurrency: { currency: string; revenue: number }[];
+};
+
+type OrderRow = {
+  orderId: string;
+  eventName: string;
   tier: string;
-  method: string;
+  qty: number;
   amount: number;
   currency: string;
   status: string;
+  buyer: { phone?: string; email?: string };
+  createdAt: string;
 };
-type EventRow = { id: string; name: string; date: string; status: string; sold: number; capacity: number };
-type Analytics = {
-  currency: string;
-  kpis: { revenue: number; net: number; sold: number; avgOrder: number; conversion: number };
-  deltas: { revenue: string; sold: string; avgOrder: string; conversion: string };
-  seriesByRange: Record<ChartRange, ChartPoint[]>;
-  orders: Order[];
-  events: EventRow[];
-};
+type SummaryEvent = { id: string; name: string; status: string; sold: number; capacity: number; revenue: number; currency: string };
 
-const CURRENCY = 'TZS';
-
-function series(days: number, base: number, amp: number): ChartPoint[] {
-  const out: ChartPoint[] = [];
-  const now = new Date('2026-08-19');
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const wobble = Math.sin(i / 2.3) * amp + Math.cos(i / 5) * amp * 0.4;
-    const value = Math.max(0, Math.round(base + wobble + (days - i) * (base * 0.012)));
-    out.push({ label: d.toISOString().slice(5, 10), value });
-  }
-  return out;
-}
-
-// ── SEAM: swap this hook for a fetch of /api/org/analytics (Lane D) ──────────
-function useMockAnalytics(): Analytics {
-  return useMemo(
-    () => ({
-      currency: CURRENCY,
-      kpis: { revenue: 4820500, net: 4098425, sold: 214, avgOrder: 22526, conversion: 38 },
-      deltas: { revenue: '12% WoW', sold: '8% WoW', avgOrder: '3% WoW', conversion: '2pt WoW' },
-      seriesByRange: {
-        '7D': series(7, 520000, 140000),
-        '14D': series(14, 430000, 150000),
-        '30D': series(30, 360000, 160000),
-        ALL: series(30, 200000, 180000),
-      },
-      orders: [
-        { id: 'o_9f21', buyer: 'Amina K.', event: 'Apricot Crush', tier: 'GA', method: 'M-Pesa', amount: 25000, currency: CURRENCY, status: 'paid' },
-        { id: 'o_9f18', buyer: 'Joseph M.', event: 'Apricot Crush', tier: 'VIP Table', method: 'Card', amount: 180000, currency: CURRENCY, status: 'paid' },
-        { id: 'o_9f14', buyer: 'Neema S.', event: 'Apricot Crush', tier: 'GA', method: 'Airtel', amount: 25000, currency: CURRENCY, status: 'pending' },
-        { id: 'o_9f0e', buyer: 'David O.', event: 'Sundown Sessions', tier: 'Early', method: 'M-Pesa', amount: 18000, currency: CURRENCY, status: 'paid' },
-        { id: 'o_9f07', buyer: 'Grace T.', event: 'Sundown Sessions', tier: 'Early', method: 'Card', amount: 18000, currency: CURRENCY, status: 'failed' },
-      ],
-      events: [
-        { id: 'e_apr', name: 'Apricot Crush', date: 'Aug 30', status: 'published', sold: 168, capacity: 300 },
-        { id: 'e_sun', name: 'Sundown Sessions', date: 'Sep 13', status: 'published', sold: 46, capacity: 200 },
-        { id: 'e_nye', name: 'NYE Rooftop', date: 'Dec 31', status: 'draft', sold: 0, capacity: 400 },
-      ],
-    }),
-    [],
-  );
-}
-
-const fmt = (n: number) => n.toLocaleString('en-US');
+const DEFAULT_CURRENCY = 'TZS';
+const fmt = (n: number) => (typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—');
 
 export default function OverviewClient() {
-  const a = useMockAnalytics();
   const [range, setRange] = useState<ChartRange>('7D');
 
-  const chartData = a.seriesByRange[range];
-  const rangeTotal = useMemo(() => chartData.reduce((s, p) => s + p.value, 0), [chartData]);
+  // ① + ② analytics (KPIs + hero chart) — refetched per range ─────────────────
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [aLoading, setALoading] = useState(true);
+  const [aError, setAError] = useState(false);
 
-  const orderCols: Column<Order>[] = [
-    { key: 'buyer', header: 'Buyer', primary: true, render: (r) => r.buyer },
-    { key: 'event', header: 'Event', render: (r) => r.event },
-    { key: 'tier', header: 'Tier', render: (r) => r.tier },
-    { key: 'method', header: 'Method', render: (r) => r.method },
+  const loadAnalytics = useCallback(async () => {
+    setALoading(true);
+    setAError(false);
+    try {
+      const res = await fetch(`/api/org/analytics?range=${encodeURIComponent(range)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAnalytics((await res.json()) as Analytics);
+    } catch {
+      setAError(true);
+      setAnalytics(null);
+    } finally {
+      setALoading(false);
+    }
+  }, [range]);
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  // ③ recent orders ───────────────────────────────────────────────────────────
+  const [orders, setOrders] = useState<OrderRow[] | null>(null);
+  const [oLoading, setOLoading] = useState(true);
+  const [oError, setOError] = useState(false);
+
+  const loadOrders = useCallback(async () => {
+    setOLoading(true);
+    setOError(false);
+    try {
+      const res = await fetch('/api/org/orders?limit=5', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { rows?: OrderRow[] };
+      setOrders(Array.isArray(data.rows) ? data.rows : []);
+    } catch {
+      setOError(true);
+      setOrders(null);
+    } finally {
+      setOLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // ③ your events (from the sales summary) ─────────────────────────────────────
+  const [events, setEvents] = useState<SummaryEvent[] | null>(null);
+  const [eLoading, setELoading] = useState(true);
+  const [eError, setEError] = useState(false);
+
+  const loadEvents = useCallback(async () => {
+    setELoading(true);
+    setEError(false);
+    try {
+      const res = await fetch('/api/org/summary', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { events?: SummaryEvent[] };
+      setEvents(Array.isArray(data.events) ? data.events : []);
+    } catch {
+      setEError(true);
+      setEvents(null);
+    } finally {
+      setELoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
+
+  const currency = analytics?.currency || DEFAULT_CURRENCY;
+  const k = analytics?.kpis;
+
+  const chartData: ChartPoint[] = useMemo(
+    () => (analytics?.series ?? []).map((p) => ({ label: p.date.slice(5), value: p.revenue })),
+    [analytics],
+  );
+
+  const orderCols: Column<OrderRow>[] = [
+    { key: 'buyer', header: 'Buyer', primary: true, render: (r) => r.buyer?.phone || r.buyer?.email || 'Unknown' },
+    { key: 'event', header: 'Event', render: (r) => r.eventName },
+    { key: 'tier', header: 'Tier', render: (r) => `${r.tier}${r.qty > 1 ? ` × ${r.qty}` : ''}` },
     {
       key: 'status',
       header: 'Status',
       render: (r) => <StatusPill tone={toneForStatus(r.status)} label={r.status} />,
     },
-    { key: 'amount', header: `Amount (${CURRENCY})`, numeric: true, render: (r) => fmt(r.amount) },
+    { key: 'amount', header: 'Amount', numeric: true, render: (r) => `${fmt(r.amount)} ${r.currency || currency}` },
   ];
 
-  const eventCols: Column<EventRow>[] = [
+  const eventCols: Column<SummaryEvent>[] = [
     { key: 'name', header: 'Event', primary: true, render: (r) => r.name },
-    { key: 'date', header: 'Date', render: (r) => r.date },
     {
       key: 'status',
       header: 'Status',
@@ -131,8 +171,9 @@ export default function OverviewClient() {
   ];
 
   return (
-    <OrgShell
+    <CrShell
       nav={ORG_NAV}
+      brand={ORG_BRAND}
       topbarTitle="Home"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>The Brunch City</span>}
       footer={
@@ -144,21 +185,24 @@ export default function OverviewClient() {
       <div className="cr-stack">
         {/* ① KPI row — revenue first (DESIGN Control-Room v2) */}
         <KPIRow>
-          <KPITile label="Revenue" tint="blue" value={fmt(a.kpis.revenue)} unit={CURRENCY} delta={{ dir: 'up', label: a.deltas.revenue }} />
-          <KPITile label="Net" tint="green" value={fmt(a.kpis.net)} unit={CURRENCY} />
-          <KPITile label="Tickets sold" tint="cyan" value={fmt(a.kpis.sold)} delta={{ dir: 'up', label: a.deltas.sold }} />
-          <KPITile label="Avg order" tint="neutral" value={fmt(a.kpis.avgOrder)} unit={CURRENCY} delta={{ dir: 'up', label: a.deltas.avgOrder }} />
-          <KPITile label="Conversion" tint="amber" value={a.kpis.conversion} unit="%" delta={{ dir: 'flat', label: a.deltas.conversion }} />
+          <KPITile label="Revenue" tint="blue" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Net" tint="green" value={k ? fmt(k.netRevenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Tickets sold" tint="cyan" value={k ? fmt(k.ticketsSold) : null} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Avg order" tint="neutral" value={k ? fmt(Math.round(k.avgOrderValue)) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Conversion" tint="amber" value={k ? Math.round(k.conversionRate * 100) : null} unit="%" loading={aLoading} error={aError} onRetry={loadAnalytics} />
         </KPIRow>
 
         {/* ② hero revenue chart */}
         <HeroChart
           title="Revenue over time"
           data={chartData}
-          total={fmt(rangeTotal)}
-          totalUnit={CURRENCY}
+          total={k ? fmt(k.revenue) : undefined}
+          totalUnit={currency}
           range={range}
           onRangeChange={setRange}
+          loading={aLoading}
+          error={aError ? 'Chart unavailable' : null}
+          onRetry={loadAnalytics}
           onExport={() => {
             /* SEAM(Lane D): wire to a CSV export of the analytics series */
           }}
@@ -172,8 +216,11 @@ export default function OverviewClient() {
             </div>
             <DataTable
               columns={orderCols}
-              rows={a.orders}
-              rowKey={(r) => r.id}
+              rows={orders ?? []}
+              rowKey={(r) => r.orderId}
+              loading={oLoading}
+              error={oError ? 'Could not load orders.' : null}
+              onRetry={loadOrders}
               caption="Recent orders"
               emptyTitle="No orders yet"
               emptyBody={<span>Share your storefront to make your first sale.</span>}
@@ -186,9 +233,12 @@ export default function OverviewClient() {
             </div>
             <DataTable
               columns={eventCols}
-              rows={a.events}
+              rows={events ?? []}
               rowKey={(r) => r.id}
               collapseAt={1120}
+              loading={eLoading}
+              error={eError ? 'Could not load events.' : null}
+              onRetry={loadEvents}
               caption="Your events"
               emptyTitle="No events yet"
               emptyBody={<span>Create your first drop to start selling.</span>}
@@ -196,6 +246,6 @@ export default function OverviewClient() {
           </section>
         </div>
       </div>
-    </OrgShell>
+    </CrShell>
   );
 }

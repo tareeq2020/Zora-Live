@@ -3,7 +3,7 @@
 /* BS71 · Lane B — the organizer SALES view, ported onto the Control-Room v2
    component library (Lane A · BS69). Replaces the imperative dark-only
    `sales-client.tsx` scoped-`<style>` surface with idiomatic CR primitives
-   (<OrgShell>, KPIRow/KPITile, DataTable→cards, StatusPill) so it is fully
+   (<CrShell>, KPIRow/KPITile, DataTable→cards, StatusPill) so it is fully
    light/dark theme-aware and responsive (table→cards + drawer) for free.
 
    DATA IS UNCHANGED — this is a re-skin/port, not a data change. It reads the
@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  CrShell,
   KPIRow,
   KPITile,
   DataTable,
@@ -25,9 +26,10 @@ import {
   toneForStatus,
   type Column,
 } from '@/app/components/cr';
-import { OrgShell } from '../components/org-shell';
 import { ORG_NAV } from '../components/org-nav';
 import '../components/org-surfaces.css';
+
+const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 import SplitsWorklist from './splits-worklist';
 
 // ── Response types (local, from the API contract — do NOT invent backend) ──
@@ -286,8 +288,9 @@ export default function SalesCr() {
   ];
 
   return (
-    <OrgShell
+    <CrShell
       nav={ORG_NAV}
+      brand={ORG_BRAND}
       topbarTitle="Sales"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>Your side of the counter</span>}
       footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a></>}
@@ -450,6 +453,6 @@ export default function SalesCr() {
           ) : null}
         </section>
       </div>
-    </OrgShell>
+    </CrShell>
   );
 }

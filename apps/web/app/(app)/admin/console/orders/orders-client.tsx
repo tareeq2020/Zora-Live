@@ -13,7 +13,7 @@
    the drawer renders those instead of a blank cart (the OV8 trap). */
 
 import { useCallback, useState } from 'react';
-import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
+import { CrDrawer, DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
 import { adminApi, useAdminResource } from '../../dashboard/admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 
@@ -98,17 +98,6 @@ export default function AdminOrdersClient() {
     },
   ];
 
-  const selectStyle: React.CSSProperties = {
-    height: 34,
-    borderRadius: 9,
-    border: '1px solid var(--cr-hair)',
-    background: 'var(--cr-card)',
-    color: 'var(--cr-ink)',
-    fontFamily: 'var(--cr-sans)',
-    fontSize: 12,
-    padding: '0 10px',
-  };
-
   return (
     <AdminConsoleShell title="Orders & carts">
       <div className="cr-stack">
@@ -124,7 +113,7 @@ export default function AdminOrdersClient() {
               }}
               style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
             >
-              <select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} style={selectStyle}>
+              <select className="cr-select cr-auto" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 {(filters?.statuses ?? []).map((s) => (
                   <option key={s} value={s}>
@@ -132,7 +121,7 @@ export default function AdminOrdersClient() {
                   </option>
                 ))}
               </select>
-              <select aria-label="Filter by event" value={event} onChange={(e) => setEvent(e.target.value)} style={selectStyle}>
+              <select className="cr-select cr-auto" aria-label="Filter by event" value={event} onChange={(e) => setEvent(e.target.value)}>
                 <option value="">All events</option>
                 {(filters?.events ?? []).map((ev) => (
                   <option key={ev.id} value={ev.id}>
@@ -141,11 +130,12 @@ export default function AdminOrdersClient() {
                 ))}
               </select>
               <input
+                className="cr-input cr-auto"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Phone, email or id"
                 aria-label="Search orders"
-                style={{ ...selectStyle, minWidth: 180 }}
+                style={{ minWidth: 180 }}
               />
               <button type="submit" className="cr-btn">
                 Search
@@ -178,41 +168,16 @@ export default function AdminOrdersClient() {
   );
 }
 
-/* The drawer IS the feature: the whole attempted cart in one place. CR-styled
-   with the token vars (the CR lib ships no drawer primitive — noted for the
-   orchestrator as a possible Lane A addition). */
+/* The drawer IS the feature: the whole attempted cart in one place. BS73 — now
+   built on the shared <CrDrawer> primitive (focus-trap + Esc + scrim + restore-
+   focus) instead of a hand-rolled modal; the body is unchanged. */
 function CartDrawer({ order: o, onClose }: { order: Order; onClose: () => void }) {
   const isSplit = o.type === 'table_share' || (o.seats?.length ?? 0) > 0;
   const line: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--cr-hair)' };
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Order detail"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.44)', display: 'flex', justifyContent: 'flex-end' }}
-    >
-      <div
-        style={{
-          width: 'min(440px, 100%)',
-          height: '100%',
-          overflowY: 'auto',
-          background: 'var(--cr-card)',
-          borderLeft: '1px solid var(--cr-hair)',
-          padding: 22,
-          color: 'var(--cr-ink)',
-          fontFamily: 'var(--cr-sans)',
-        }}
-      >
-        <button type="button" aria-label="Close" onClick={onClose} className="cr-btn" style={{ float: 'right' }}>
-          ×
-        </button>
-        <h3 style={{ margin: '0 0 2px', fontSize: 16 }}>{o.eventName || o.eventId || 'Order'}</h3>
-        <p style={{ margin: 0, fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{o.id}</p>
-
-        <div style={{ marginTop: 16, display: 'grid', gap: 2 }}>
+    <CrDrawer open onClose={onClose} ariaLabel="Order detail" title={o.eventName || o.eventId || 'Order'} subtitle={o.id}>
+      <>
+        <div style={{ marginTop: 2, display: 'grid', gap: 2 }}>
           <div style={line}>
             <span style={{ color: 'var(--cr-ink2)' }}>Status</span>
             <StatusPill tone={toneForStatus(o.status)} label={o.status} />
@@ -295,7 +260,7 @@ function CartDrawer({ order: o, onClose }: { order: Order; onClose: () => void }
             </div>
           </>
         ) : null}
-      </div>
-    </div>
+      </>
+    </CrDrawer>
   );
 }

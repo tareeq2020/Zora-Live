@@ -141,17 +141,33 @@
   flex-direction: column;
   padding: 22px 0;
 }
+/* ≤900px: the sidebar becomes a focus-trapped off-canvas hamburger drawer
+   (folded in from Lane B's org-shell fork · BS73). Same <aside class="cr-sidebar">
+   markup — re-presented as a slide-in column behind a scrim. Above 900px none of
+   this applies: the desktop sticky sidebar renders exactly as before. */
 @media (max-width: 900px) {
   .cr-sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--cr-hair);
-    padding: 12px 14px;
-    gap: 4px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(280px, 82vw);
+    height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-right: 1px solid var(--cr-hair);
+    border-bottom: none;
+    background: var(--cr-card2);
+    padding: 22px 0;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+    box-shadow: var(--cr-shadow);
+  }
+  .cr-root[data-drawer='open'] .cr-sidebar {
+    transform: translateX(0);
   }
 }
 
@@ -176,26 +192,14 @@
   font-weight: 500;
   text-transform: uppercase;
 }
-@media (max-width: 900px) {
-  .cr-brand {
-    padding: 0 10px 0 4px;
-  }
-  .cr-brand small {
-    display: none;
-  }
-}
+/* (≤900px brand/nav overrides removed in BS73 — the drawer keeps the column
+   layout, so the desktop defaults already apply inside the off-canvas drawer.) */
 
 .cr-nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 0 12px;
-}
-@media (max-width: 900px) {
-  .cr-nav {
-    flex-direction: row;
-    padding: 0;
-  }
 }
 .cr-nav-item {
   display: flex;
@@ -240,11 +244,6 @@
   color: var(--cr-mut);
   text-transform: uppercase;
 }
-@media (max-width: 900px) {
-  .cr-nav-foot {
-    display: none;
-  }
-}
 .cr-nav-foot a {
   color: var(--cr-mut);
   text-decoration: none;
@@ -285,6 +284,90 @@
   align-items: center;
   gap: 10px;
 }
+
+/* ── Responsive drawer chrome (≤900px) — folded from Lane B (BS73) ──
+   The hamburger (top-bar trigger), the scrim behind the open drawer, and the
+   in-drawer close (✕) are all invisible on the desktop rail and only appear
+   ≤900px. The top-bar lead keeps the hamburger left of the title. */
+.cr-topbar-lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.cr-hamburger {
+  display: none;
+}
+.cr-drawer-close {
+  display: none;
+  position: absolute;
+  top: 16px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--cr-hair);
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  cursor: pointer;
+}
+.cr-scrim {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .cr-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--cr-hair);
+    background: var(--cr-card);
+    color: var(--cr-ink);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .cr-hamburger:hover {
+    border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+  }
+  .cr-hamburger svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .cr-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: color-mix(in srgb, var(--cr-ink) 42%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease;
+    -webkit-backdrop-filter: blur(1px);
+    backdrop-filter: blur(1px);
+  }
+  .cr-root[data-drawer='open'] .cr-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .cr-drawer-close {
+    display: inline-flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-sidebar,
+  .cr-scrim {
+    transition: none;
+  }
+}
+
 .cr-content {
   padding: 24px;
   max-width: 1180px;
@@ -746,4 +829,120 @@
   .cr-two-col {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Form controls (BS73) — theme-aware inputs/selects/textareas against the
+   `--cr-*` vars. Replace the per-surface inline styles the admin toolbars used
+   so every filter/search field reads identically in light AND dark. ── */
+.cr-input,
+.cr-select,
+.cr-textarea {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--cr-hair);
+  border-radius: 9px;
+  background: var(--cr-card);
+  color: var(--cr-ink);
+  font-family: var(--cr-sans);
+  font-size: 12px;
+  padding: 0 10px;
+  line-height: 1.4;
+}
+.cr-textarea {
+  padding: 8px 10px;
+  min-height: 84px;
+  resize: vertical;
+  font-size: 13px;
+}
+.cr-input::placeholder,
+.cr-textarea::placeholder {
+  color: var(--cr-mut);
+}
+.cr-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--cr-ink2) 50%),
+    linear-gradient(135deg, var(--cr-ink2) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.cr-input:hover,
+.cr-select:hover,
+.cr-textarea:hover {
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+}
+.cr-input:disabled,
+.cr-select:disabled,
+.cr-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* auto-width variant for inline toolbar filters (don't stretch full width) */
+.cr-input.cr-auto,
+.cr-select.cr-auto {
+  width: auto;
+}
+
+/* ── CrDrawer (BS73) — the right-side off-canvas panel primitive. A focus-trap +
+   Esc + scrim modal the admin Orders cart drawer (and future drill-ins) share.
+   Themed on `--cr-*`; the scrim/panel slide respects prefers-reduced-motion. ── */
+.cr-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--cr-ink) 44%, transparent);
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+.cr-drawer-panel {
+  width: min(440px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--cr-card);
+  border-left: 1px solid var(--cr-hair);
+  padding: 22px;
+  color: var(--cr-ink);
+  font-family: var(--cr-sans);
+  box-shadow: var(--cr-shadow);
+  transform: translateX(0);
+  animation: cr-drawer-in 0.22s ease;
+}
+@keyframes cr-drawer-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-drawer-panel {
+    animation: none;
+  }
+}
+.cr-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cr-drawer-title {
+  margin: 0 0 2px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cr-ink);
+}
+.cr-drawer-sub {
+  margin: 0;
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  color: var(--cr-mut);
 }
