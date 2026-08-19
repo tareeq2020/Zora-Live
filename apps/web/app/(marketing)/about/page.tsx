@@ -189,6 +189,7 @@ export default function AboutPage() {
 
       <footer>
         <div className="wrap foot">
+          <Wordmark href="/" />
           <span>© 2026 ZORA · BUILT IN DAR ES SALAAM</span>
           <span><a href="/discover">events</a> &middot; <a href="/commission">pricing</a> &middot; <a href="/help">help</a></span>
         </div>

@@ -121,4 +121,7 @@
   justify-content: space-between; flex-wrap: wrap; gap: 10px; color: var(--mut2); font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
 }
 .foot a { color: var(--ink); text-decoration: none; }
+.runs { display: inline-flex; align-items: center; gap: 8px; }
+.runsMark { height: 15px; width: auto; display: inline-block; vertical-align: middle; opacity: 0.9; }
+.footLinks { display: inline-flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .notFound { padding: 60px 0; text-align: center; color: var(--mut); }

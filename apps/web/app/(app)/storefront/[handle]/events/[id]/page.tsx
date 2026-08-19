@@ -190,8 +190,18 @@ export default async function TenantEventPage({ params }: { params: { handle: st
         </div>
 
         <div className={styles.foot}>
-          <span>runs on zora</span>
-          <Link href={`/@${params.handle}`}>← back to the store</Link>
+          <span className={styles.runs}>
+            runs on{' '}
+            <img
+              className={styles.runsMark}
+              src={light ? '/assets/zora-wordmark-black.png' : '/assets/zora-wordmark-white.png'}
+              alt="Zora"
+            />
+          </span>
+          <span className={styles.footLinks}>
+            <Link href="/help">Help &amp; Support</Link>
+            <Link href={`/@${params.handle}`}>← back to the store</Link>
+          </span>
         </div>
       </div>
     </main>

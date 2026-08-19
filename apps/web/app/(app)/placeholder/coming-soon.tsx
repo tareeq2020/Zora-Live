@@ -403,11 +403,13 @@ export default function ComingSoon() {
       <header className="zcs-header">
         <span className="zcs-brand">
           <OrbChip size={22} />
-          Zora<span style={{ color: BRAND.pink }}>Pass</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="zcs-wordmark" src="/assets/zora-wordmark-white.png" alt="Zora" draggable={false} />
         </span>
         <nav className="zcs-nav">
           <Link href="/thebrunchcity">Explore events</Link>
           <Link href="/dashboard">Organizer sign in</Link>
+          <Link href="/help">Help &amp; Support</Link>
         </nav>
       </header>
 
@@ -458,6 +460,7 @@ const STYLE = `
 .zcs-header{position:absolute;left:0;right:0;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:24px}
 @media(min-width:640px){.zcs-header{padding:24px 40px}}
 .zcs-brand{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3em;color:rgba(255,255,255,.7)}
+.zcs-wordmark{height:18px;width:auto;display:block;user-select:none}
 .zcs-nav{display:flex;align-items:center;gap:20px}
 .zcs-nav a{font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.55);transition:color .3s}
 .zcs-nav a:hover{color:#fff}
