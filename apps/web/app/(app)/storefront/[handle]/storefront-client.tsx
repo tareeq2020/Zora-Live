@@ -279,9 +279,11 @@ export default function StorefrontClient(props: StorefrontProps) {
                 // points at a switched-off tier). Falls back to priceFrom for app-claim
                 // events (no web catalog).
                 const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
-                const fromPrice = onSaleTiers.length
-                  ? Math.min(...onSaleTiers.map((t) => t.unitPrice))
-                  : ev.priceFrom || 0;
+                const cheapest = onSaleTiers.length
+                  ? onSaleTiers.reduce((a, b) => (b.unitPrice < a.unitPrice ? b : a))
+                  : null;
+                const fromPrice = cheapest ? cheapest.unitPrice : ev.priceFrom || 0;
+                const fromUsd = cheapest?.usd; // BS65: show the USD price in brackets
                 return (
                   <div className="event" key={ev.id}>
                     {ev.cover ? (
@@ -310,6 +312,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                         <p className="price">
                           {fmt(fromPrice)}
                           <span style={{ fontSize: 15 }}> {evCur}</span>
+                          {fromUsd ? <span style={{ fontSize: 13, color: 'var(--mut)' }}> (${fmt(fromUsd)})</span> : null}
                         </p>
                       </div>
                     </div>

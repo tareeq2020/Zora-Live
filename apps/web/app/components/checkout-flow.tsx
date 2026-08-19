@@ -37,6 +37,7 @@ export type CheckoutTier = {
   split?: boolean;   // BS8: a splittable table tier — surfaces the "Split a table" CTA
   seats?: number;    // BS8: seats per table (max splitters); defaults to 8
   disabled?: boolean; // BS23: hidden from the storefront / not purchasable
+  usd?: number;      // BS65: original USD price — shown in brackets beside the TZS price
 };
 
 export type CheckoutFlowProps = {
