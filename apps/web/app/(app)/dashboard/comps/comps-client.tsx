@@ -18,10 +18,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { OrgShell } from '../components/org-shell';
+import { CrShell, DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
 import { ORG_NAV } from '../components/org-nav';
 import '../components/org-surfaces.css';
+
+const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 
 type EventMeta = { id: string; name: string; tiers?: { tierId?: string; name: string }[] };
 type Channel = 'sms' | 'email' | 'whatsapp';
@@ -145,8 +146,9 @@ export default function CompsClient() {
   );
 
   return (
-    <OrgShell
+    <CrShell
       nav={ORG_NAV}
+      brand={ORG_BRAND}
       topbarTitle="Comps"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>Complimentary passes</span>}
       footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a></>}
@@ -217,6 +219,6 @@ export default function CompsClient() {
           />
         </section>
       </div>
-    </OrgShell>
+    </CrShell>
   );
 }

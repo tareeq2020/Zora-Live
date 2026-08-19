@@ -3,7 +3,7 @@
 /* BS71 · Lane B — the organizer WITHDRAWALS view, ported onto the Control-Room
    v2 component library (Lane A · BS69). Replaces the imperative dark-only
    `payouts-client.tsx` scoped-`<style>` surface with idiomatic CR primitives
-   (<OrgShell>, the `.org-balance` hero, DataTable→cards, StatusPill) so it is
+   (<CrShell>, the `.org-balance` hero, DataTable→cards, StatusPill) so it is
    theme-aware + responsive for free.
 
    Hierarchy is unchanged (design spec #7): BALANCE → ACTION → HISTORY, balance
@@ -15,10 +15,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DataTable, StatusPill, type Column } from '@/app/components/cr';
-import { OrgShell } from '../components/org-shell';
+import { CrShell, DataTable, StatusPill, type Column } from '@/app/components/cr';
 import { ORG_NAV } from '../components/org-nav';
 import '../components/org-surfaces.css';
+
+const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 
 type Balance = { currency: string; earned: number; reserved: number; paidOut: number; available: number; minimum: number };
 type Payout = {
@@ -140,8 +141,9 @@ export default function PayoutsCr() {
   ];
 
   return (
-    <OrgShell
+    <CrShell
       nav={ORG_NAV}
+      brand={ORG_BRAND}
       topbarTitle="Withdrawals"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>Your money, on request</span>}
       footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a></>}
@@ -257,7 +259,7 @@ export default function PayoutsCr() {
           />
         </section>
       </div>
-    </OrgShell>
+    </CrShell>
   );
 }
 
