@@ -78,11 +78,22 @@ export class SuspendedHandleSet {
     await this.inflight;
   }
 
-  /** Load if never loaded or the TTL has lapsed; otherwise a no-op. */
+  /** Load if never loaded or the TTL has lapsed; otherwise a no-op.
+      Best-effort and FAIL-OPEN: `ensureFresh` runs on every public event read
+      (listEvents/getEvent), so a transient failure of the organizer query must
+      NOT throw and 500 the whole storefront. On error we keep the last-known set
+      (or an empty set on a cold start = show everything) and let the next read
+      retry — a suspended org's events briefly showing during a DB blip is far
+      less bad than taking the entire public read path down. The authoritative
+      suspension path is the synchronous flip (`markSuspended`), not this. */
   async ensureFresh(): Promise<void> {
     const fresh = this.loadedAt !== 0 && this.clock() - this.loadedAt < this.ttlMs;
     if (fresh) return;
-    await this.refresh();
+    try {
+      await this.refresh();
+    } catch {
+      /* fail open — retain last-known set, retry on the next read */
+    }
   }
 
   /** Optimistic synchronous write at the status flip — closes the stale window

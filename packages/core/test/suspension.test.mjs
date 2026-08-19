@@ -103,3 +103,26 @@ test('concurrent refresh calls share a single in-flight load', async () => {
   await Promise.all([s.refresh(), s.refresh(), s.refresh()]);
   assert.equal(calls, 1);
 });
+
+// ── RESILIENCE: ensureFresh is fail-open — a DB error must not 500 the storefront
+test('ensureFresh swallows fetcher errors and keeps the last-known set', async () => {
+  let mode = 'ok';
+  const s = new SuspendedHandleSet(async () => {
+    if (mode === 'boom') throw new Error('db down');
+    return ['orgx'];
+  });
+  await s.ensureFresh();                          // first load succeeds
+  assert.equal(s.has('orgx'), true);
+
+  mode = 'boom';
+  s.loadedAt = 0;                                 // force a reload attempt
+  await assert.doesNotReject(() => s.ensureFresh()); // must NOT throw (fail-open)
+  assert.equal(s.has('orgx'), true);             // last-known set retained
+});
+
+// ── RESILIENCE: cold-start with a failing fetcher fails open to "show everything"
+test('ensureFresh on a cold start with a failing fetcher leaves the set empty (visible)', async () => {
+  const s = new SuspendedHandleSet(async () => { throw new Error('db down'); });
+  await assert.doesNotReject(() => s.ensureFresh());
+  assert.equal(s.isVisible(ev('e1', 'anyorg')), true); // nothing hidden on cold-start failure
+});
