@@ -28,7 +28,7 @@ export class TenantService {
     return {
       ...ev,
       organizer: org ? org.name : null,
-      subdomain: ev.organizerHandle ? `${ev.organizerHandle}.${ROOT_DOMAIN}` : null,
+      subdomain: ev.organizerHandle ? `${ROOT_DOMAIN}/${ev.organizerHandle}` : null,
       url: ev.organizerHandle ? this.tenantEventUrl(ev.organizerHandle, ev.id, req) : null,
     };
   }
@@ -42,7 +42,7 @@ export class TenantController {
   async get(@Param('handle') handle: string) {
     const org = await this.tenant.organizerByHandle(handle);
     if (!org) throw new NotFoundException({ error: 'Unknown organizer' });
-    return { handle: org.handle, name: org.name, subdomain: `${org.handle}.${ROOT_DOMAIN}`, status: org.status };
+    return { handle: org.handle, name: org.name, subdomain: `${ROOT_DOMAIN}/${org.handle}`, status: org.status };
   }
 }
 
