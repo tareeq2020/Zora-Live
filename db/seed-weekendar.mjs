@@ -62,6 +62,25 @@ const THEME = {
 // kind 'shore' = a normal per-person GA-style tier (no table/split). USD is loaded × RATE.
 const EVENTS = [
   {
+    // Placeholder for the multi-day "experience" bundle (one pass, all five days).
+    // Modelled as a standalone event with a single Early Bird tier until the real
+    // experiences/bundle feature is built.
+    id: 'weekendar-experience',
+    name: 'The Weekendar Experience — Early Bird',
+    tagline: 'Access to: Yacht Party · Yacht Afterparty · Beyond Padel · Rhythm & Brunch · Tales of Monday',
+    category: 'Experience',
+    city: 'dar',
+    venue: 'Dar es Salaam · Sept 12–14',
+    dateLabel: 'Fri 12 – Mon 14 Sep',
+    time: '',
+    weekend: true,
+    seated: false,
+    cover: '/weekendar/weekendar-hero.jpg',
+    tiers: [
+      { id: 'weekendar-experience-early-bird', name: 'Early Bird — Full Weekend Pass', usd: 250 },
+    ],
+  },
+  {
     id: 'the-14th',
     name: 'The 14th — Yacht Party',
     tagline: 'Six catamarans, one horizon — the Weekendar opener.',
@@ -76,6 +95,10 @@ const EVENTS = [
     tiers: [
       { id: 'the-14th-regular', name: 'Regular · Food & Soft Drinks', usd: 85 },
       { id: 'the-14th-alcohol', name: 'With Alcohol',                 usd: 135 },
+      // Whole-yacht packages — sold as single units (cap 1), each includes a full
+      // meal lunch + soft drinks. pax noted in the name until yacht-as-venue ships.
+      { id: 'the-14th-fanotea', name: 'Fanotea · Full Yacht (20 pax) · lunch + soft drinks',          usd: 1700, cap: 1 },
+      { id: 'the-14th-sophia',  name: 'Sophia Catamaran · Full Yacht (22 pax) · lunch + soft drinks',  usd: 2500, cap: 1 },
     ],
   },
   {
@@ -98,16 +121,18 @@ const EVENTS = [
 
 async function seedTier(eventId, t) {
   const price = t.usd * RATE;
+  const cap = t.cap ?? CAP; // whole-yacht tiers are single units (cap 1); GA tiers use the placeholder
   await sql`insert into product_tier (id, event_id, name, kind, capacity, split_enabled, split_window_secs)
-            values (${t.id}, ${eventId}, ${t.name}, 'shore', ${CAP}, false, 2700)
+            values (${t.id}, ${eventId}, ${t.name}, 'shore', ${cap}, false, 2700)
             on conflict (id) do update set name = excluded.name, kind = 'shore'`;
   await sql`insert into price_version (tier_id, price, currency, fee_treatment)
             select ${t.id}, ${price}, 'TZS', 'included'
             where not exists (select 1 from price_version where tier_id = ${t.id})`;
   await sql`insert into inventory_pool (product_tier_id, capacity, available_count)
-            values (${t.id}, ${CAP}, ${CAP}) on conflict (product_tier_id) do nothing`;
-  console.log(`  ✓ tier ${t.id} — ${t.name} · ${price.toLocaleString('en-US')} TZS ($${t.usd})`);
-  return { tierId: t.id, name: t.name, unitPrice: price, currency: 'TZS' };
+            values (${t.id}, ${cap}, ${cap}) on conflict (product_tier_id) do nothing`;
+  console.log(`  ✓ tier ${t.id} — ${t.name} · ${price.toLocaleString('en-US')} TZS ($${t.usd})${cap === 1 ? ' · 1 unit' : ''}`);
+  // `usd` rides the blob tier so the storefront can show the USD price in brackets.
+  return { tierId: t.id, name: t.name, unitPrice: price, currency: 'TZS', usd: t.usd };
 }
 
 try {

@@ -165,7 +165,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
                     {t.name}
                     {t.split ? <span className={styles.pkgBadge}>SPLITTABLE</span> : null}
                   </span>
-                  <span className={styles.pkgPrice}>{t.currency || cur} {fmtN(t.unitPrice)}</span>
+                  <span className={styles.pkgPrice}>{t.currency || cur} {fmtN(t.unitPrice)}{t.usd ? ` ($${fmtN(t.usd)})` : ''}</span>
                 </div>
                 {t.split ? (
                   <div className={styles.pkgSplitRow}>
