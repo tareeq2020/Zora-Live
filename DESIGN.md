@@ -10,10 +10,17 @@ Zora runs three intentional visual planes. Pick by audience, never mix on one sc
 | | **Consumer** (fan-facing) | **Control-room** (organizer + admin) | **Door** (scanner) |
 |---|---|---|---|
 | Where | discovery, storefront, event, checkout, split, tickets | `/dashboard/*`, drop editor, sales, `/admin/*` | the gate-scanner PWA |
-| Base | dark obsidian `#0A0B10` | dark control-room `#0A0A0B` | dark utility `#0A0B10` |
-| Feel | premium nightlife, aura-lit | terminal, precise | glanceable traffic-light: brand chrome, utility core |
+| Base | dark obsidian `#0A0B10` | **light paper `#F4F1EA` (default) · dark `#0A0A0B` (toggle)** | dark utility `#0A0B10` |
+| Feel | premium nightlife, aura-lit | calm, data-forward, precise | glanceable traffic-light: brand chrome, utility core |
 
-**Unify note (2026-08-05):** the control-room used to be split — organizer light "paper", admin dark. It unifies onto ONE **dark** control-room during the #9 admin port; the organizer dashboard migrates light→dark. The light "paper" palette below is kept for reference during the migration, then retired.
+**Control-room theme note (2026-08-19, supersedes the 2026-08-05 "unify to dark"):** the
+control-room (org + admin dashboards) is **theme-toggleable** — a **calm light** default
++ a **true dark** alternate, driven by ONE token set (see *Control-Room v2*). This
+reverses the earlier plan to force the control-room dark: organizers work here for hours,
+and a light data-forward default (mookh-informed) reads as calm software you run a business
+on, while dark stays one tap away. Consumer stays fixed-dark (the shipped nightlife brand);
+the per-org storefront keeps its opt-in light (BS-Weekender, D1a). #7 "light/dark works
+everywhere" = every surface has ONE correct, QA-able mode + the dashboards get both.
 
 ## Consumer palette (dark, default)
 - bg `#0A0B10` · bg2 `#0D0F17` · surface `#11131E` · surface2 `#171A28`
@@ -41,6 +48,38 @@ battery, and 0.5s read beat polish at a door. Serves DESIGN.md rules 3 + 4b.
 - Chrome: thin top strip only — event · agent role/scope · an **offline dot** (agent HMAC-verify is offline-capable; amber when the confirm step can't reach the server).
 - Motion near-zero: a fast confident slam-in on the result; respect reduced-motion; no ambient animation.
 - Supervisor screen = a calm dark queue of scanned-pending credentials → big CONFIRM → "wristband issued".
+
+## Control-Room v2 — data-forward dashboards (2026-08-19)
+The org + admin dashboards. Mookh-informed (`mookh.com/features`): numbers are the hero,
+one clear story per screen, calm whitespace over chart-walls. Reuses existing type + the
+blue anchor; adds a theme-toggle token set and a small data-component vocabulary.
+
+**Theme tokens (ONE set, flips on `data-theme`).** Light default / dark alternate:
+- Light: `--paper #F4F1EA` · `--card #FFF` · `--card2 #FBF9F4` · `--ink #14161C` · `--ink2 #5B6270` · `--mut #8A8778` · `--hair #E7E2D5`
+- Dark: `--paper #0A0A0B` · `--card #141416` · `--card2 #101012` · `--ink #F4F1EA` · `--ink2 #B4B1A8` · `--mut #8A877E` · `--hair #222226`
+- Shared: blue anchor `#3D5AFE` (focus/structure) · green `#1D9E75` paid · amber `#C98A12` pending · red `#D85A30` refund · cyan `#0E8FB0` scanned. Aura stays primary-action / logo-O only.
+- KPI-tile tints (semantic wash, theme-aware): `--wash-blue/green/amber/cyan` — solid pastels on light, ~14% alpha on dark.
+
+**Shell.** Left **sidebar** (Home · Sales · Events · Payouts · Comps · Storefront; admin adds
+Overview · Organizers · Events-manager · Orders · Scanner-users · Broadcasts · Payments · Access)
++ a slim sticky **top bar** (store name · theme toggle). One shell, both consoles.
+
+**Data components (reuse, don't reinvent):**
+- **KPI stat-tile row** — 3–5 tiles; IBM Plex Mono value (big, `tabular-nums`), mono uppercase
+  label, a semantic tint bar, a small delta (▲ green / ▼ red / — mut). Revenue · Tickets sold ·
+  Avg order · Conversion % · Checked-in.
+- **Hero chart** — ONE metric (revenue over time), smooth filled area in the blue anchor, with a
+  range switch (7D/14D/30D/ALL) + EXPORT. Not a wall of charts.
+- **Data table** — mono numerics, semantic **status pills** (paid=cyan · pending=amber ·
+  refund=red · live/draft), sort/filter/export. **Collapses to stacked cards ≤900px** (rule 3).
+- **Admin events-manager (#6)** — replaces the single-drop `DropPanel`: a list of every event
+  with owner · status · per-event enable/disable (archive/unarchive). Pairs with the backend fix
+  where **org suspension cascades** to hide that org's events from public reads.
+
+**Density / motion.** 8px base, comfortable-but-dense card padding, rounded cards (`16–18px`).
+Minimal-functional: subtle number count-up + chart draw-in on load; respect `prefers-reduced-motion`.
+
+**Reference preview:** the approved direction (light + dark) — `/tmp/zora-dashboard-preview.html`.
 
 ## Type
 - **Space Grotesk** (400–700) — geometric headings, consumer wordmark, big numbers.
