@@ -23,6 +23,7 @@ const OWN_CHROME = [
   '/dashboard/sales',
   '/dashboard/payouts',
   '/dashboard/comps',
+  '/dashboard/help', // BS77 — renders its own Control-Room v2 <CrShell>
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
