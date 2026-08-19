@@ -16,18 +16,20 @@
 
 import { useMemo, useState } from 'react';
 import {
-  CrShell,
   KPIRow,
   KPITile,
   HeroChart,
   DataTable,
   StatusPill,
   toneForStatus,
-  type CrNavItem,
   type ChartPoint,
   type ChartRange,
   type Column,
 } from '@/app/components/cr';
+// BS71 · Lane B — use the org-console shell (adds the ≤900px focus-trapped
+// hamburger drawer) + the shared nav, so Home matches every other surface.
+import { OrgShell } from '../components/org-shell';
+import { ORG_NAV } from '../components/org-nav';
 
 // ── Contract the real endpoint should satisfy (Lane D fills it) ──────────────
 type Order = {
@@ -95,16 +97,6 @@ function useMockAnalytics(): Analytics {
   );
 }
 
-const NAV: CrNavItem[] = [
-  { href: '/dashboard/overview', label: 'Overview' },
-  { href: '/dashboard', label: 'Home (legacy)', exact: true },
-  { href: '/dashboard/sales', label: 'Sales' },
-  { href: '/dashboard/events/new', label: 'Events' },
-  { href: '/dashboard/payouts', label: 'Payouts' },
-  { href: '/dashboard/storefront/studio', label: 'Storefront' },
-  { href: '/help', label: 'Help & Support' },
-];
-
 const fmt = (n: number) => n.toLocaleString('en-US');
 
 export default function OverviewClient() {
@@ -139,10 +131,9 @@ export default function OverviewClient() {
   ];
 
   return (
-    <CrShell
-      nav={NAV}
-      brand={{ name: <>z<span className="cr-o">o</span>ra</>, sublabel: 'Organizer' }}
-      topbarTitle="Overview"
+    <OrgShell
+      nav={ORG_NAV}
+      topbarTitle="Home"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>The Brunch City</span>}
       footer={
         <>
@@ -205,6 +196,6 @@ export default function OverviewClient() {
           </section>
         </div>
       </div>
-    </CrShell>
+    </OrgShell>
   );
 }

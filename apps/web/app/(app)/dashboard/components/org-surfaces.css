@@ -1,0 +1,406 @@
+/* BS71 · Lane B — shared control-room surface bits (chips, filters, form
+   fields, the payout balance hero, alerts). Built ENTIRELY on the read-only CR
+   token set (`--cr-*`) so every element is theme-aware in light AND dark. Scoped
+   under `.org-*` classes so nothing collides with the CR library or other pages. */
+
+/* Page intro (breadcrumb + title + sub) — matches the CR type scale. */
+.org-crumb {
+  font-family: var(--cr-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+  margin: 0 0 8px;
+}
+.org-crumb a {
+  color: var(--cr-mut);
+  text-decoration: none;
+}
+.org-crumb a:hover {
+  color: var(--cr-ink);
+}
+.org-h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cr-ink);
+  margin: 0 0 4px;
+}
+.org-sub {
+  color: var(--cr-ink2);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 0 0 22px;
+  max-width: 640px;
+}
+
+/* Filter chips (event picker, currency picker). */
+.org-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.org-chip {
+  font-family: var(--cr-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--cr-hair);
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  cursor: pointer;
+}
+.org-chip:hover {
+  color: var(--cr-ink);
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+}
+.org-chip.on {
+  background: color-mix(in srgb, var(--cr-blue) 14%, transparent);
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+  color: var(--cr-blue);
+  font-weight: 600;
+}
+
+/* Filter bar (search + selects + dates + segmented status). */
+.org-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0 16px;
+}
+.org-input {
+  background: var(--cr-card);
+  border: 1px solid var(--cr-hair);
+  color: var(--cr-ink);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: var(--cr-sans);
+  min-height: 40px;
+  outline: none;
+}
+.org-input:focus-visible {
+  border-color: var(--cr-blue);
+}
+.org-seg {
+  display: inline-flex;
+  border: 1px solid var(--cr-hair);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.org-seg button {
+  border: none;
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 38px;
+}
+.org-seg button + button {
+  border-left: 1px solid var(--cr-hair);
+}
+.org-seg button.on {
+  background: color-mix(in srgb, var(--cr-blue) 14%, transparent);
+  color: var(--cr-blue);
+  font-weight: 600;
+}
+.org-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+}
+
+/* Table footer (counts + load-more / bulk actions). */
+.org-table-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 2px 2px;
+}
+.org-foot-note {
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cr-mut);
+}
+
+/* Inline credential/badge chips inside table cells. */
+.org-cred {
+  display: inline-block;
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  background: var(--cr-card2);
+  border: 1px solid var(--cr-hair);
+  color: var(--cr-ink);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.org-stack-xs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.org-muted {
+  color: var(--cr-mut);
+  font-size: 12px;
+}
+
+/* Per-event ledger rows on the Sales page. */
+.org-ledger {
+  width: 100%;
+  border-collapse: collapse;
+}
+.org-ledger td {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--cr-hair);
+  font-size: 13.5px;
+  color: var(--cr-ink);
+}
+.org-ledger tr:last-child td {
+  border-bottom: none;
+}
+.org-ledger td:last-child {
+  text-align: right;
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Payout balance hero (the biggest thing on the Payouts page) ── */
+.org-balance {
+  background: var(--cr-card);
+  border: 1px solid var(--cr-hair);
+  border-radius: 18px;
+  padding: 26px 28px;
+}
+.org-balance .k {
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+  margin: 0;
+}
+.org-balance .big {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 46px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 10px 0 0;
+  color: var(--cr-ink);
+}
+.org-balance .big .cur {
+  font-size: 19px;
+  color: var(--cr-ink2);
+  letter-spacing: 0.04em;
+  margin-left: 6px;
+}
+.org-balance .d {
+  font-size: 13px;
+  color: var(--cr-ink2);
+  margin: 10px 0 0;
+  max-width: 56ch;
+  line-height: 1.55;
+}
+.org-balance.empty .big {
+  color: var(--cr-mut);
+}
+@media (max-width: 520px) {
+  .org-balance .big {
+    font-size: 34px;
+  }
+}
+.org-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--cr-hair);
+}
+.org-breakdown .bk {
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+}
+.org-breakdown .bv {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  margin-top: 5px;
+  color: var(--cr-ink);
+}
+
+/* ── Form fields (Payouts request, Comps issue) ── */
+.org-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.org-field {
+  display: flex;
+  flex-direction: column;
+}
+.org-field label {
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+  margin-bottom: 7px;
+}
+.org-field input,
+.org-field select {
+  width: 100%;
+  background: var(--cr-card2);
+  border: 1px solid var(--cr-hair);
+  border-radius: 9px;
+  color: var(--cr-ink);
+  font-family: var(--cr-sans);
+  font-size: 15px;
+  padding: 12px 13px;
+  min-height: 46px;
+  outline: none;
+}
+.org-field input.mono {
+  font-family: var(--cr-mono);
+  font-size: 17px;
+}
+.org-field input:focus-visible,
+.org-field select:focus-visible {
+  border-color: var(--cr-blue);
+}
+.org-field input:disabled,
+.org-field select:disabled {
+  color: var(--cr-mut);
+  cursor: not-allowed;
+}
+.org-help {
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  color: var(--cr-mut);
+  margin-top: 7px;
+  letter-spacing: 0.02em;
+}
+.org-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+/* Primary / ghost buttons (control-room). */
+.org-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--cr-blue);
+  color: #fff;
+  border: 1px solid var(--cr-blue);
+  border-radius: 9px;
+  font-family: var(--cr-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 12px 22px;
+  min-height: 46px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.org-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.org-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.org-btn.ghost {
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  border-color: var(--cr-hair);
+}
+.org-btn.ghost:hover:not(:disabled) {
+  color: var(--cr-blue);
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+  filter: none;
+}
+
+/* Notices + alerts (all theme-aware washes). */
+.org-notice {
+  background: var(--cr-wash-amber);
+  color: var(--cr-on-wash-amber);
+  border-radius: 10px;
+  padding: 13px 15px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.org-alert {
+  margin-top: 14px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.org-alert.ok {
+  background: var(--cr-wash-green);
+  color: var(--cr-on-wash-green);
+}
+.org-alert.err {
+  background: var(--cr-wash-red);
+  color: var(--cr-on-wash-red);
+}
+.org-inline-warn {
+  font-size: 12.5px;
+  color: var(--cr-on-wash-amber);
+}
+
+/* Sub-tab switch (Sales: orders | splits). */
+.org-tabs {
+  display: inline-flex;
+  gap: 4px;
+  border: 1px solid var(--cr-hair);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+.org-tabs button {
+  border: none;
+  background: none;
+  color: var(--cr-ink2);
+  font-family: var(--cr-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  min-height: 38px;
+}
+.org-tabs button.on {
+  background: color-mix(in srgb, var(--cr-blue) 14%, transparent);
+  color: var(--cr-blue);
+  font-weight: 600;
+}
