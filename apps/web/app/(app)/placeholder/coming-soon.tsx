@@ -355,7 +355,7 @@ function ActThree() {
         The operating system powering Africa&rsquo;s live experiences is almost here. Follow along for launch.
       </motion.p>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 1.15 }}>
-        <Link href="/thebrunchcity" className="zcs-cta">
+        <Link href="/discover" className="zcs-cta">
           Explore events live now →
         </Link>
       </motion.div>
@@ -407,7 +407,7 @@ export default function ComingSoon() {
           <img className="zcs-wordmark" src="/assets/zora-wordmark-white.png" alt="Zora" draggable={false} />
         </span>
         <nav className="zcs-nav">
-          <Link href="/thebrunchcity">Explore events</Link>
+          <Link href="/discover">Explore events</Link>
           <Link href="/dashboard">Organizer sign in</Link>
           <Link href="/help">Help &amp; Support</Link>
         </nav>

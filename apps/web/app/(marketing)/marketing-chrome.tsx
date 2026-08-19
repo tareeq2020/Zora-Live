@@ -22,14 +22,20 @@ import { ThemeToggle } from '../components/theme-toggle';
 // Routes that render their own <nav>/<footer> and therefore opt out of the
 // shared SiteNav/SiteFooter.
 const OWN_CHROME = new Set(['/about', '/help', '/commission', '/brand', '/discover']);
+// Consumer-plane surfaces are FIXED-DARK (DESIGN.md) — they scope their own dark
+// tokens and must not read the light/dark theme. The floating toggle must not be
+// offered there, or flipping it leaks the global light body behind the dark
+// content (BS74 #5). /discover pins itself dark in DiscoverApp as well.
+const FIXED_DARK = new Set(['/discover']);
 
 export function MarketingChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const showToggle = !FIXED_DARK.has(pathname);
   if (OWN_CHROME.has(pathname)) {
     return (
       <>
         {children}
-        <ThemeToggle />
+        {showToggle && <ThemeToggle />}
       </>
     );
   }
@@ -38,7 +44,7 @@ export function MarketingChrome({ children }: { children: ReactNode }) {
       <SiteNav />
       {children}
       <SiteFooter />
-      <ThemeToggle />
+      {showToggle && <ThemeToggle />}
     </>
   );
 }
