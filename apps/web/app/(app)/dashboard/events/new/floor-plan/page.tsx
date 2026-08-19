@@ -7,38 +7,36 @@
    dangerouslySetInnerHTML, original script run once on mount. Styles scoped
    under `.zora-seatbuilder`; the DASHBOARD breadcrumb points to /dashboard. */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { CrShell } from '@/app/components/cr';
+import { ORG_NAV, ORG_BRAND } from '../../../components/org-nav';
 
-// BS51 (Lane 3B): same dark Control-room tokens as drop-editor.tsx and
-// dashboard-client.tsx. One judgment call specific to this file: the drawing
-// canvas (.canvas-wrap) is now a dark surface (var(--ink)) instead of white —
-// an all-white rectangle would look broken sitting in an otherwise all-dark
-// page, and zone rectangles + labels stay legible either way since their own
-// swatch colors are unrelated to the page theme. .ztext/.zsub fill stays the
-// original #0A0A0B on purpose — that text sits ON TOP of a zone's own bright
-// swatch color, not on the page background, so it's content-plane, not chrome.
+// BS75 (Lane) — RE-SKIN onto Control-Room v2: this builder is now wrapped in the
+// shared <CrShell> and every local palette var aliases to the theme-aware
+// `--cr-*` token set, so it reads as the same product and flips light↔dark with
+// the rest of the organizer console. The interactive SVG canvas + imperative
+// script (draw/select zones, sample, PUT /api/floorplan) are UNCHANGED — only
+// the surrounding chrome is re-skinned. .ztext/.zsub fill stays the fixed dark
+// ink on purpose — that text sits ON TOP of a zone's own bright swatch color,
+// not on the page background, so it's content-plane, not chrome.
 const STYLE = `
-.zora-seatbuilder{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
-  --blue:#3D5AFE;--teal:#2FA9A0;--amber:#F0C674;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
-  background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-seatbuilder{--black:var(--cr-paper);--ink:var(--cr-card);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
+  --blue:var(--cr-blue);--teal:var(--cr-green);--amber:var(--cr-amber);
+  --sans:var(--cr-sans);--mono:var(--cr-mono);
+  color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .zora-seatbuilder *{margin:0;padding:0;box-sizing:border-box}
 .zora-seatbuilder a{color:inherit;text-decoration:none}
 .zora-seatbuilder .mono{font-family:var(--mono)}
 .zora-seatbuilder button{font-family:inherit}
-.zora-seatbuilder .top{position:sticky;top:0;z-index:20;background:rgba(10,10,11,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
-.zora-seatbuilder .top-in{display:flex;align-items:center;gap:14px;padding:13px 22px}
-.zora-seatbuilder .back{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;color:var(--mut)}
-.zora-seatbuilder .back:hover{color:var(--bone)}
-.zora-seatbuilder .top .brand{font-weight:600;font-size:16px;letter-spacing:-.02em}
-.zora-seatbuilder .top .brand .o{color:var(--blue)}
+.zora-seatbuilder .top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.zora-seatbuilder .top-in{display:flex;align-items:center;gap:14px;width:100%}
 .zora-seatbuilder .top .title{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--mut)}
 .zora-seatbuilder .top-actions{margin-left:auto;display:flex;gap:10px}
-.zora-seatbuilder .ghost{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut);padding:11px 16px;cursor:pointer}
+.zora-seatbuilder .ghost{background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut);padding:11px 16px;cursor:pointer}
 .zora-seatbuilder .ghost:hover{border-color:var(--mut);color:var(--bone)}
-.zora-seatbuilder .pub{background:var(--bone);color:var(--black);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 22px;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
-.zora-seatbuilder .pub:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)}
-.zora-seatbuilder .grid{display:grid;grid-template-columns:1fr 330px;gap:0;min-height:calc(100vh - 55px)}
+.zora-seatbuilder .pub{background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 22px;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
+.zora-seatbuilder .pub:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.zora-seatbuilder .grid{display:grid;grid-template-columns:1fr 330px;gap:0;min-height:0;border:1px solid var(--hair);border-radius:16px;overflow:hidden}
 @media(max-width:900px){.zora-seatbuilder .grid{grid-template-columns:1fr}}
 .zora-seatbuilder .stage{padding:20px;display:flex;flex-direction:column;gap:14px}
 .zora-seatbuilder .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -75,17 +73,17 @@ const STYLE = `
 .zora-seatbuilder .swatches{display:flex;gap:8px}
 .zora-seatbuilder .sw{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid transparent}
 .zora-seatbuilder .sw.on{border-color:var(--bone)}
-.zora-seatbuilder .cap-pill{background:rgba(61,90,254,.12);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--blue);display:flex;justify-content:space-between}
+.zora-seatbuilder .cap-pill{background:var(--cr-wash-blue);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--cr-on-wash-blue);display:flex;justify-content:space-between}
 .zora-seatbuilder .cap-pill b{font-size:15px}
 .zora-seatbuilder .no-sel{color:var(--mut);font-family:var(--mono);font-size:12px;line-height:1.7;letter-spacing:.03em}
 .zora-seatbuilder .zlist{display:flex;flex-direction:column;gap:8px}
 .zora-seatbuilder .zitem{display:flex;align-items:center;gap:10px;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--black)}
-.zora-seatbuilder .zitem.on{border-color:var(--blue);background:rgba(61,90,254,.12)}
+.zora-seatbuilder .zitem.on{border-color:var(--blue);background:var(--cr-wash-blue)}
 .zora-seatbuilder .zitem .dot{width:12px;height:12px;border-radius:4px;flex-shrink:0}
 .zora-seatbuilder .zitem .zn{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .zora-seatbuilder .zitem .zc{font-family:var(--mono);font-size:10px;color:var(--mut)}
 .zora-seatbuilder .zitem .del{background:none;border:none;color:var(--mut);cursor:pointer;font-size:15px}
-.zora-seatbuilder .zitem .del:hover{color:#FF5A1F}
+.zora-seatbuilder .zitem .del:hover{color:var(--cr-red)}
 .zora-seatbuilder .summary{border-top:1px solid var(--hair);padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .zora-seatbuilder .stat{background:var(--black);border:1px solid var(--hair);border-radius:9px;padding:12px}
 .zora-seatbuilder .stat .sv{font-family:var(--mono);font-size:18px;font-weight:500}
@@ -102,8 +100,6 @@ const STYLE = `
 const MARKUP = `
 <div class="top">
   <div class="top-in">
-    <a class="back" href="/dashboard">&larr; DASHBOARD</a>
-    <span class="brand">z<span class="o">o</span>ra</span>
     <span class="title">FLOOR PLAN BUILDER</span>
     <div class="top-actions">
       <button class="ghost" id="preview">PREVIEW AS BUYER</button>
@@ -334,6 +330,22 @@ const SCRIPT = String.raw`
 `;
 
 export default function FloorPlanBuilderPage() {
+  // BS75 — the org store label in the CrShell top bar (/api/org/me → { name }),
+  // matching the overview/sales/editor pattern. Never hardcode a name.
+  const [orgName, setOrgName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/org/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && typeof d.name === 'string') setOrgName(d.name);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     try {
       // eslint-disable-next-line no-new-func
@@ -344,13 +356,21 @@ export default function FloorPlanBuilderPage() {
   }, []);
 
   return (
-    <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
+    <CrShell
+      nav={ORG_NAV}
+      brand={ORG_BRAND}
+      topbarTitle="Floor plan"
+      topbarExtra={
+        <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>{orgName || ' '}</span>
+      }
+      footer={
+        <>
+          <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
+        </>
+      }
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <div className="zora-seatbuilder" dangerouslySetInnerHTML={{ __html: MARKUP }} />
-    </>
+    </CrShell>
   );
 }

@@ -20,6 +20,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CrShell } from '@/app/components/cr';
+import { ORG_NAV, ORG_BRAND } from '../../components/org-nav';
 import { CITIES } from '../../../../lib/cities';
 import {
   type ApiError,
@@ -46,34 +48,29 @@ import {
   validate,
 } from '../lib/drops';
 
-// BS51 (Lane 3B): re-skinned onto DESIGN.md's Control-room plane — same dark
-// tokens as admin-style.ts / dashboard-client.tsx (Lane 3A). Same two rules
-// applied: old --ink-as-text -> --bone; old --card-as-surface -> --ink. Old
-// --green -> --teal and old --red -> --orange, matching the semantic mapping
-// already used across the admin console and 3A (teal=live/success,
-// orange=warning/danger — this codebase has no separate red).
+// BS75 (Lane) — RE-SKIN onto Control-Room v2. This surface is now wrapped in the
+// shared <CrShell> (sidebar + top bar + theme toggle) and every local palette var
+// is aliased to the theme-aware `--cr-*` token set, so the editor reads as the
+// same product and flips light↔dark with the rest of the organizer console. The
+// imperative editor body (controlled inputs, submit/delete/archive flows,
+// validation, live preview) is UNCHANGED — only the visual chrome is re-skinned.
+// (BS51 history: the surface previously carried its own fixed-dark palette.)
 const STYLE = `
-.zora-dropedit{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
-  --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
-  background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-dropedit{--black:var(--cr-paper);--ink:var(--cr-card);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
+  --blue:var(--cr-blue);--orange:var(--cr-red);--teal:var(--cr-green);--amber:var(--cr-amber);
+  --sans:var(--cr-sans);--mono:var(--cr-mono);
+  color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 .zora-dropedit *{margin:0;padding:0;box-sizing:border-box}
 .zora-dropedit a{color:inherit;text-decoration:none}
 .zora-dropedit .mono{font-family:var(--mono)}
 .zora-dropedit ::selection{background:var(--blue);color:#fff}
-.zora-dropedit .top{position:sticky;top:0;z-index:30;background:rgba(10,10,11,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
-.zora-dropedit .top-in{max-width:1080px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.zora-dropedit .back{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;color:var(--mut)}
-.zora-dropedit .back:hover{color:var(--bone)}
-.zora-dropedit .top .brand{font-weight:600;font-size:17px;letter-spacing:-.02em}
-.zora-dropedit .top .brand .o{color:var(--blue)}
-.zora-dropedit .top-actions{display:flex;gap:10px;align-items:center}
-.zora-dropedit .ghost{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--mut);padding:11px 18px;cursor:pointer;transition:border-color .2s,color .2s}
+.zora-dropedit .editbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:10px;max-width:1080px;margin:0 auto;padding:12px 0;background:var(--cr-paper)}
+.zora-dropedit .ghost{background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--mut);padding:11px 18px;cursor:pointer;transition:border-color .2s,color .2s}
 .zora-dropedit .ghost:hover:not(:disabled){border-color:var(--mut);color:var(--bone)}
-.zora-dropedit .publish{background:var(--bone);color:var(--black);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
-.zora-dropedit .publish:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:var(--bone)}
+.zora-dropedit .publish{background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.zora-dropedit .publish:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:#fff}
 .zora-dropedit button:disabled{opacity:.45;cursor:not-allowed}
-.zora-dropedit .grid{max-width:1080px;margin:0 auto;padding:34px 28px 90px;display:grid;grid-template-columns:1fr 380px;gap:40px;align-items:start}
+.zora-dropedit .grid{max-width:1080px;margin:0 auto;padding:18px 0 60px;display:grid;grid-template-columns:1fr 380px;gap:40px;align-items:start}
 @media(max-width:900px){.zora-dropedit .grid{grid-template-columns:1fr;gap:26px}}
 .zora-dropedit h1{font-size:27px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .zora-dropedit .sub{color:var(--mut);font-size:14px;margin-bottom:26px}
@@ -100,7 +97,7 @@ const STYLE = `
 .zora-dropedit .tier.off{background:var(--black);border-style:dashed}
 .zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
 .zora-dropedit .tier-note{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
-.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:11.5px;color:var(--amber);background:#191305;border:1px solid var(--amber);border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
+.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:11.5px;color:var(--cr-on-wash-amber);background:var(--cr-wash-amber);border:1px solid var(--amber);border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
 .zora-dropedit .tier-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}
 @media(max-width:620px){.zora-dropedit .tier-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .zora-dropedit .tier label{margin-bottom:6px}
@@ -123,24 +120,24 @@ const STYLE = `
 .zora-dropedit .switch .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bone);transition:transform .2s}
 .zora-dropedit .switch.on .knob{transform:translateX(18px)}
 .zora-dropedit .notice{display:flex;align-items:flex-start;gap:12px;border-radius:12px;padding:14px 16px;margin-top:14px;font-size:13px;line-height:1.55}
-.zora-dropedit .notice.kyc{background:#191305;border:1px solid var(--amber);color:var(--amber)}
-.zora-dropedit .notice.kyc b{color:var(--amber);font-weight:500}
+.zora-dropedit .notice.kyc{background:var(--cr-wash-amber);border:1px solid var(--amber);color:var(--cr-on-wash-amber)}
+.zora-dropedit .notice.kyc b{color:var(--cr-on-wash-amber);font-weight:500}
 .zora-dropedit .notice .ic{width:18px;height:18px;flex-shrink:0;margin-top:1px}
 .zora-dropedit .notice.kyc .ic{stroke:var(--amber)}
 .zora-dropedit .banner{display:flex;align-items:flex-start;gap:12px;border-radius:12px;padding:14px 16px;margin-bottom:24px;font-size:13.5px;line-height:1.55}
-.zora-dropedit .banner.error{background:#2a1208;border:1px solid var(--orange);color:var(--orange)}
-.zora-dropedit .banner.error b{color:var(--orange)}
+.zora-dropedit .banner.error{background:var(--cr-wash-red);border:1px solid var(--orange);color:var(--cr-on-wash-red)}
+.zora-dropedit .banner.error b{color:var(--cr-on-wash-red)}
 .zora-dropedit .side{position:sticky;top:88px}
 @media(max-width:900px){.zora-dropedit .side{position:static}}
 .zora-dropedit .side-h{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--mut);margin-bottom:12px}
 .zora-dropedit .pv{background:var(--ink);border:1px solid var(--hair);border-radius:16px;overflow:hidden}
 .zora-dropedit .pv .pv-url{font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:9px 14px;border-bottom:1px solid var(--hair);background:var(--black)}
-.zora-dropedit .pv .pv-banner{height:120px;background:rgba(61,90,254,.12);display:flex;align-items:center;justify-content:center}
+.zora-dropedit .pv .pv-banner{height:120px;background:var(--cr-wash-blue);display:flex;align-items:center;justify-content:center}
 .zora-dropedit .pv .pv-banner .ph{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--blue)}
 .zora-dropedit .pv .pv-body{padding:18px}
 .zora-dropedit .pv .pv-status{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:4px 10px;border-radius:99px;margin-bottom:12px}
-.zora-dropedit .pv .pv-status.live{background:rgba(47,169,160,.14);color:var(--teal)}
-.zora-dropedit .pv .pv-status.draft{background:var(--black);color:var(--mut);border:1px solid var(--hair)}
+.zora-dropedit .pv .pv-status.live{background:var(--cr-wash-green);color:var(--cr-on-wash-green)}
+.zora-dropedit .pv .pv-status.draft{background:var(--cr-card2);color:var(--mut);border:1px solid var(--hair)}
 .zora-dropedit .pv .pv-title{font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
 .zora-dropedit .pv .pv-meta{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.05em;margin-top:8px;line-height:1.8}
 .zora-dropedit .pv .pv-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--hair);margin-top:16px;padding-top:14px}
@@ -154,14 +151,14 @@ const STYLE = `
 .zora-dropedit .danger-zone .dz-actions{display:flex;gap:10px;flex-wrap:wrap}
 .zora-dropedit .del-btn{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--orange);padding:11px 18px;cursor:pointer;transition:background .2s,border-color .2s}
 .zora-dropedit .del-btn:hover:not(:disabled){background:var(--orange);border-color:var(--orange);color:var(--black)}
-.zora-dropedit .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px}
-.zora-dropedit .modal{background:var(--ink);border:1px solid var(--hair);border-radius:18px;max-width:440px;width:100%;padding:32px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.zora-dropedit .overlay{position:fixed;inset:0;background:color-mix(in srgb, var(--cr-ink) 44%, transparent);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px}
+.zora-dropedit .modal{background:var(--ink);border:1px solid var(--hair);border-radius:18px;max-width:440px;width:100%;padding:32px;box-shadow:var(--cr-shadow)}
 .zora-dropedit .modal h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px}
 .zora-dropedit .modal p{font-size:13.5px;color:var(--mut);line-height:1.6;margin-bottom:22px}
 .zora-dropedit .modal .modal-actions{display:flex;gap:10px;justify-content:flex-end}
 .zora-dropedit .modal .confirm-del{background:var(--orange);color:var(--black);border:none;border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:11px 20px;cursor:pointer}
 .zora-dropedit .modal .confirm-del:hover:not(:disabled){background:#ff7a49}
-.zora-dropedit .loading,.zora-dropedit .fatal{max-width:1080px;margin:0 auto;padding:80px 28px;font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--mut)}
+.zora-dropedit .loading,.zora-dropedit .fatal{max-width:1080px;margin:0 auto;padding:80px 0;font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--mut)}
 .zora-dropedit .fatal a{color:var(--blue);text-decoration:underline}
 .zora-dropedit .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--hair);border-top-color:var(--blue);border-radius:50%;animation:zde-spin .7s linear infinite;vertical-align:-1px;margin-right:8px}
 @keyframes zde-spin{to{transform:rotate(360deg)}}
@@ -177,7 +174,7 @@ const LockIcon = () => (
 );
 
 const AlertIcon = () => (
-  <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="#FF5A1F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 9v4M12 17h.01" />
     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
   </svg>
@@ -197,6 +194,7 @@ export default function DropEditor(props: DropEditorProps) {
   const [status, setStatus] = useState<string>(''); // BS24: loaded drop status (drives Archive vs Restore)
   const [kycStatus, setKycStatus] = useState<string>('unverified');
   const [commissionRate, setCommissionRate] = useState<number>(0.05); // BS31: netted from payout
+  const [orgName, setOrgName] = useState<string | null>(null); // BS75: CrShell topbar label (/api/org/me → { name })
   const [form, setForm] = useState<DropForm>(emptyForm);
 
   // Stable idempotency key for the lifetime of this form instance (create).
@@ -213,6 +211,7 @@ export default function DropEditor(props: DropEditorProps) {
           if (!alive) return;
           setKycStatus(me.kycStatus);
           setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
+          if (typeof me.name === 'string') setOrgName(me.name);
           const ev: OrgEvent | undefined = events.find((e) => String(e.id) === String((props as { eventId: string }).eventId));
           if (!ev) {
             setLoadState('not_found');
@@ -226,6 +225,7 @@ export default function DropEditor(props: DropEditorProps) {
           if (!alive) return;
           setKycStatus(me.kycStatus);
           setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
+          if (typeof me.name === 'string') setOrgName(me.name);
           setLoadState('ready');
         }
       } catch (e) {
@@ -397,10 +397,16 @@ export default function DropEditor(props: DropEditorProps) {
     }
   }
 
+  // ── CrShell topbar bits (BS75): title + the org store label (/api/org/me) ──
+  const topTitle = isEdit ? 'Edit drop' : 'Create a drop';
+  const topExtra = (
+    <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>{orgName || ' '}</span>
+  );
+
   // ── non-ready render states ──
   if (loadState === 'loading') {
     return (
-      <Shell>
+      <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
         <div className="loading">
           <span className="spin" />
           LOADING…
@@ -410,7 +416,7 @@ export default function DropEditor(props: DropEditorProps) {
   }
   if (loadState === 'load_error') {
     return (
-      <Shell>
+      <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
         <div className="fatal">
           {loadErrMsg} <a href="/dashboard">Back to dashboard →</a>
         </div>
@@ -419,7 +425,7 @@ export default function DropEditor(props: DropEditorProps) {
   }
   if (loadState === 'not_found') {
     return (
-      <Shell>
+      <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
         <div className="fatal">
           That drop no longer exists, or it isn&apos;t yours. <a href="/dashboard">Back to dashboard →</a>
         </div>
@@ -431,28 +437,18 @@ export default function DropEditor(props: DropEditorProps) {
   const submitBusy = submitting;
 
   return (
-    <Shell>
-      <div className="top">
-        <div className="top-in">
-          <a className="back" href="/dashboard">
-            ← DASHBOARD
-          </a>
-          <span className="brand">
-            z<span className="o">o</span>ra dashboard
-          </span>
-          <div className="top-actions">
-            <button className="publish" onClick={handleSubmit} disabled={submitBusy}>
-              {submitBusy ? (
-                <>
-                  <span className="spin" />
-                  SAVING…
-                </>
-              ) : (
-                submitLabel
-              )}
-            </button>
-          </div>
-        </div>
+    <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
+      <div className="editbar">
+        <button className="publish" onClick={handleSubmit} disabled={submitBusy}>
+          {submitBusy ? (
+            <>
+              <span className="spin" />
+              SAVING…
+            </>
+          ) : (
+            submitLabel
+          )}
+        </button>
       </div>
 
       <div className="grid">
@@ -889,16 +885,34 @@ export default function DropEditor(props: DropEditorProps) {
   );
 }
 
-// Scoped shell: fonts + page-scoped styles + the palette root class.
-function Shell({ children }: { children: React.ReactNode }) {
+// BS75 — the surface now lives inside the shared Control-Room v2 <CrShell>
+// (sidebar nav + slim sticky top bar + theme toggle), matching overview/sales.
+// The page-scoped styles + `.zora-dropedit` palette root ride inside the shell;
+// the editor's own local `--*` vars alias to the theme-aware `--cr-*` set (STYLE
+// above), so the editor reads as the same product and flips light↔dark.
+function Shell({
+  children,
+  topbarTitle,
+  topbarExtra,
+}: {
+  children: React.ReactNode;
+  topbarTitle?: React.ReactNode;
+  topbarExtra?: React.ReactNode;
+}) {
   return (
-    <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
+    <CrShell
+      nav={ORG_NAV}
+      brand={ORG_BRAND}
+      topbarTitle={topbarTitle}
+      topbarExtra={topbarExtra}
+      footer={
+        <>
+          <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
+        </>
+      }
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <div className="zora-dropedit">{children}</div>
-    </>
+    </CrShell>
   );
 }
