@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
-import SalesClient from './sales-client';
+// BS71 · Lane B — the Control-Room v2 React port. The legacy imperative surface
+// `./sales-client` is kept in-tree (strangler-fig) for parity / rollback.
+import SalesCr from './sales-cr';
 
 /* PR-MT5 — the organizer SALES / tickets-sold view at /dashboard/sales. The
    /dashboard/* prefix is already organizer-gated in middleware.ts (a real
@@ -22,5 +24,5 @@ export const metadata: Metadata = {
 };
 
 export default function SalesPage() {
-  return <SalesClient />;
+  return <SalesCr />;
 }

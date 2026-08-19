@@ -17,6 +17,12 @@ const OWN_CHROME = [
   '/dashboard/onboarding',
   '/dashboard/storefront', // studio renders its own rail
   '/dashboard/overview', // BS69 Lane A — renders its own Control-Room v2 <CrShell>
+  // BS71 Lane B — these surfaces render their own Control-Room v2 <OrgShell>
+  // (sidebar + hamburger drawer), so the legacy <DashboardShell> must NOT wrap
+  // them or the page would get two sidebars.
+  '/dashboard/sales',
+  '/dashboard/payouts',
+  '/dashboard/comps',
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

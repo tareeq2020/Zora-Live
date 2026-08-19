@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
-import PayoutsClient from './payouts-client';
+// BS71 · Lane B — the Control-Room v2 React port. The legacy imperative surface
+// `./payouts-client` is kept in-tree (strangler-fig) for parity / rollback.
+import PayoutsCr from './payouts-cr';
 
 /* PR-BS38 (#7) — the organizer WITHDRAWALS screen at /dashboard/payouts. The
    /dashboard/* prefix is already organizer-gated in middleware.ts (a real
@@ -20,5 +22,5 @@ export const metadata: Metadata = {
 };
 
 export default function PayoutsPage() {
-  return <PayoutsClient />;
+  return <PayoutsCr />;
 }
