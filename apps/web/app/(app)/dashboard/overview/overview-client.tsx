@@ -140,6 +140,18 @@ export default function OverviewClient() {
     loadEvents();
   }, [loadEvents]);
 
+  // ④ org identity — the topbar store label (BS74 #6: was hardcoded "The Brunch
+  // City"). GET /api/org/me returns { name } for the logged-in organizer.
+  const [orgName, setOrgName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/org/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d && typeof d.name === 'string') setOrgName(d.name); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const currency = analytics?.currency || DEFAULT_CURRENCY;
   const k = analytics?.kpis;
 
@@ -175,7 +187,7 @@ export default function OverviewClient() {
       nav={ORG_NAV}
       brand={ORG_BRAND}
       topbarTitle="Home"
-      topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>The Brunch City</span>}
+      topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>{orgName || ' '}</span>}
       footer={
         <>
           <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>

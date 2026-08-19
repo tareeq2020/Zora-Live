@@ -271,6 +271,21 @@ export function DiscoverApp() {
   const [toastMsg, setToastMsg] = useState('');
   const [toastShow, setToastShow] = useState(false);
 
+  // BS74 #5: /discover is a consumer-plane FIXED-DARK surface (it scopes its own
+  // .zd dark tokens). If the visitor arrived with the site toggled to light, pin
+  // the document to dark while here — and restore their choice on leave — so the
+  // light body never leaks behind the dark content. The marketing chrome also
+  // hides the theme toggle on this route.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.getAttribute('data-theme');
+    root.setAttribute('data-theme', 'dark');
+    return () => {
+      if (prev === null) root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', prev);
+    };
+  }, []);
+
   const locRef = useRef<HTMLDivElement>(null);
   const gridSecRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
