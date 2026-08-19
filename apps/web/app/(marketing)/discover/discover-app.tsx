@@ -229,7 +229,16 @@ function OrbWordmark({ href = '/', size = 20 }: { href?: string; size?: number }
     <a className="zd-brand" href={href} aria-label="Zora — home">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="zd-orb zora-aura" src="/zora-orb.png" alt="" width={size} height={size} style={{ width: size, height: size }} draggable={false} />
-      <span className="zd-brand-t">ZORA</span>
+      {/* BS67 (#3): the accurate Zora wordmark — white variant for this dark
+          surface — replaces the old text "ZORA". */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="zd-wordmark"
+        src="/assets/zora-wordmark-white.png"
+        alt="Zora"
+        style={{ height: Math.round(size * 0.9), width: 'auto', display: 'block' }}
+        draggable={false}
+      />
     </a>
   );
 }
@@ -353,11 +362,23 @@ export function DiscoverApp() {
   };
 
   // ── derived list ──
+  // BS67 (#5): a non-empty search is a GLOBAL lookup. We start from every event
+  // and drop the city filter — otherwise searching for a Lagos headliner while
+  // parked in Dar returned nothing (the list was city-scoped BEFORE the query
+  // ran). Category still applies, and the city name joins the haystack so a bare
+  // "Lagos" works as a query too. An empty query keeps the exact city-scoped
+  // behaviour as before.
+  const searching = !!query;
   const indexed = events.map((e, i) => ({ e, i }));
-  let list = indexed.filter(({ e }) => e.city === activeCity);
+  let list = searching ? indexed : indexed.filter(({ e }) => e.city === activeCity);
   if (activeCat === 'This Weekend') list = list.filter(({ e }) => e.wknd);
   else if (activeCat !== 'All') list = list.filter(({ e }) => e.cat === activeCat);
-  if (query) list = list.filter(({ e }) => (e.t + ' ' + e.art + ' ' + e.venue).toLowerCase().includes(query));
+  if (query)
+    list = list.filter(({ e }) =>
+      (e.t + ' ' + e.art + ' ' + e.venue + ' ' + (CITIES.find((c) => c.id === e.city)?.city || ''))
+        .toLowerCase()
+        .includes(query),
+    );
 
   const cityCount = events.filter((e) => e.city === activeCity).length;
   // Split into two grids only when there's enough to fill the first one (3 across
@@ -576,7 +597,7 @@ export function DiscoverApp() {
       </header>
 
       {/* featured — only once the list actually loaded */}
-      {status === 'ready' && feat ? (
+      {status === 'ready' && !searching && feat ? (
         <section className="zd-featured">
           <div className="zd-wrap">
             <a
@@ -626,7 +647,7 @@ export function DiscoverApp() {
       <section className="zd-sec" ref={gridSecRef}>
         <div className="zd-wrap">
           <div className="zd-sec-head">
-            <h2 id="grid-title">Upcoming in {curCity().city}</h2>
+            <h2 id="grid-title">{searching ? 'Results across all cities' : `Upcoming in ${curCity().city}`}</h2>
             <span className="zd-count" id="grid-count">
               {status === 'ready' ? `${list.length} event${list.length === 1 ? '' : 's'}` : status === 'loading' ? 'LOADING…' : 'UNAVAILABLE'}
             </span>
@@ -643,7 +664,7 @@ export function DiscoverApp() {
               </div>
             ) : null}
 
-            {status === 'ready' && cityCount === 0 ? (
+            {status === 'ready' && !searching && cityCount === 0 ? (
               <div className="zd-state">
                 <p className="zd-state-h">No events in {curCity().city} yet — try another city.</p>
                 <p className="zd-state-p">We&rsquo;re onboarding organizers city by city. Here&rsquo;s where the lights are on:</p>
@@ -657,13 +678,21 @@ export function DiscoverApp() {
               </div>
             ) : null}
 
-            {status === 'ready' && cityCount > 0 && list.length === 0 ? (
+            {status === 'ready' && !searching && cityCount > 0 && list.length === 0 ? (
               <div className="zd-state">
-                <p className="zd-state-h">
-                  {query ? <>Nothing matches “{searchText.trim()}” in {curCity().city}.</> : <>Nothing in {activeCat} in {curCity().city} right now.</>}
-                </p>
+                <p className="zd-state-h">Nothing in {activeCat} in {curCity().city} right now.</p>
                 <p className="zd-state-p">
                   {cityCount} other event{cityCount === 1 ? '' : 's'} {cityCount === 1 ? 'is' : 'are'} live here.
+                </p>
+                <button className="zd-state-btn" type="button" onClick={clearFilters}>SHOW EVERYTHING</button>
+              </div>
+            ) : null}
+
+            {status === 'ready' && searching && list.length === 0 ? (
+              <div className="zd-state">
+                <p className="zd-state-h">Nothing matches “{searchText.trim()}” in any city.</p>
+                <p className="zd-state-p">
+                  We searched every city{activeCat !== 'All' ? <> in {activeCat}</> : null}. Try a different spelling, or clear the search to browse.
                 </p>
                 <button className="zd-state-btn" type="button" onClick={clearFilters}>SHOW EVERYTHING</button>
               </div>
