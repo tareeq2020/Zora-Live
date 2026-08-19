@@ -36,10 +36,6 @@
 }
 .sn { font-family: var(--disp); font-weight: 700; font-size: 16px; line-height: 1.1; }
 .su { font-family: var(--mono); font-size: 11px; color: var(--mut2); letter-spacing: 0.04em; margin-top: 2px; }
-.whitelabel {
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; color: var(--mut2);
-  border: 1px solid var(--hair); border-radius: 99px; padding: 6px 11px;
-}
 
 /* single hero — the full flyer (portrait) contained over a blurred fill of itself,
    so nothing is cropped; bordered, with a load fade-in + hover lift. */

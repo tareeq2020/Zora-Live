@@ -132,7 +132,6 @@ export default async function TenantEventPage({ params }: { params: { handle: st
               {subdomain ? <div className={styles.su}>{subdomain}</div> : null}
             </div>
           </div>
-          <span className={styles.whitelabel}>WHITE-LABEL</span>
         </div>
 
         {/* Single hero — the full flyer (contain) over a blurred fill of itself so
