@@ -23,7 +23,8 @@ const OWN_CHROME = [
   '/dashboard/sales',
   '/dashboard/payouts',
   '/dashboard/comps',
-  '/dashboard/events', // BS75 Lane — the event editor renders its own Control-Room v2 <CrShell>
+  '/dashboard/events', // BS75 — the event editor renders its own Control-Room v2 <CrShell>
+  '/dashboard/help', // BS77 — renders its own Control-Room v2 <CrShell>
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

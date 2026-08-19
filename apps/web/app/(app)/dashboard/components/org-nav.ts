@@ -12,7 +12,7 @@ export const ORG_NAV: CrNavItem[] = [
   { href: '/dashboard/payouts', label: 'Payouts' },
   { href: '/dashboard/comps', label: 'Comps' },
   { href: '/dashboard/storefront/studio', label: 'Storefront' },
-  { href: '/help', label: 'Help & Support' },
+  { href: '/dashboard/help', label: 'Help & Support' },
 ];
 
 export const ORG_BRAND = { name: 'zora', sublabel: 'Organizer' } as const;
