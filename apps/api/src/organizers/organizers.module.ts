@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Module, NotFoundException, Param, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
-import { resolveCommissionRate } from '@zora/core';
+import { resolveCommissionRate, suspendedHandles } from '@zora/core';
 import { OrganizerRepo, publicOrganizer } from '../storage/organizer-repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
@@ -72,6 +72,13 @@ export class OrganizersController {
     if (!['active', 'suspended'].includes(status)) throw new BadRequestException({ error: 'Bad status' });
     const o = await this.organizers.setStatus(id, status);
     if (!o) throw new NotFoundException({ error: 'Not found' });
+    // BS70 (#6/T7): the suspension cascade. Update the in-memory suspended-handle
+    // set SYNCHRONOUSLY (optimistic, closes the stale window before any public
+    // read), then reconcile it against the DB — so the org's events vanish from
+    // (or return to) every public read on the very next request, not after a TTL.
+    const suspended = suspendedHandles();
+    suspended.markSuspended(o.handle, status === 'suspended');
+    await suspended.refresh();
     await this.audit.record(status === 'suspended' ? 'suspend_organizer' : 'unlock_organizer', o.name + ' (' + o.handle + ')', req.ip);
     // publicOrganizer (not the raw record) — the blob version echoed passwordHash back.
     return publicOrganizer(o, resolveCommissionRate(null, o));

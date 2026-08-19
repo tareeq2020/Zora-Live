@@ -70,6 +70,22 @@ export {
   EARNING_STATUSES, SETTLED_SHARE_STATES,
 } from './earnings';
 export type { OrderMoney, CurrencyBucket } from './earnings';
+// BS70 (dashboard #8): the pure date-bucket + KPI aggregator behind the org and
+// admin dashboards. Reuses the netted OrderMoney (never re-derives commission).
+export {
+  buildAnalytics, rangeDays, normalizeRange, ANALYTICS_RANGES,
+} from './analytics';
+export type {
+  AnalyticsRange, AnalyticsOrder, AnalyticsInput, AnalyticsResult,
+  AnalyticsKpis, RevenuePoint,
+} from './analytics';
+// BS70 (dashboard #6): the suspended-organizer cascade — a cached suspended-handle
+// set filtered on every public event read, refreshed synchronously on a status flip.
+export {
+  SuspendedHandleSet, suspendedHandles, fetchSuspendedHandles, normalizeHandle,
+  __resetSuspendedHandles, SUSPENDED_HANDLES_TTL_MS,
+} from './suspension';
+export type { HasOrganizerHandle } from './suspension';
 // BS38 (#7): the withdrawal ledger + the server-authoritative balance. Request
 // computes the balance and inserts the row in ONE transaction under a per-org
 // advisory lock, so two concurrent requests cannot over-withdraw (ARCH-2).

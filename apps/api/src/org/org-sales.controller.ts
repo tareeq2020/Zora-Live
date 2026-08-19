@@ -17,6 +17,15 @@ export class OrgSalesController {
     return this.sales.summary(handle);
   }
 
+  // BS70 (#8): GET /api/org/analytics?range=7D|14D|30D|ALL — the KPI row + hero
+  // revenue chart. Net revenue reuses the stamped-commission earnings read; the
+  // range is coerced server-side (defaults to 30D on anything unrecognised).
+  @Get('analytics')
+  async analytics(@Req() req: Request, @Query('range') range?: string) {
+    const handle = req.actingHandle as string;
+    return this.sales.analytics(handle, range);
+  }
+
   // BS58: filters + keyset paging. All optional; each only narrows within the
   // org's owned-event scope. Returns { rows, nextCursor }.
   @Get('orders')
