@@ -234,6 +234,7 @@ export default function CommissionPage() {
 
       <footer>
         <div className="wrap foot">
+          <Wordmark href="/" />
           <span>© 2026 ZORA · PRICING SHOWN IS THE TANZANIA LAUNCH RATE</span>
           <span><a href="/help">help centre</a> &middot; <a href="/about">about</a> &middot; <a href="/">home</a></span>
         </div>

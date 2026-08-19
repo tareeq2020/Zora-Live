@@ -345,9 +345,13 @@ export default function StorefrontClient(props: StorefrontProps) {
             <div className="runs">
               RUNS ON{' '}
               <span className="zmark">
-                z<span className="o">o</span>ra
+                <img
+                  src={light ? '/assets/zora-wordmark-black.png' : '/assets/zora-wordmark-white.png'}
+                  alt="Zora"
+                />
               </span>
             </div>
+            <a className="foot-help" href="/help">Help &amp; Support</a>
             <p className="legal">
               © {new Date().getFullYear()} {brandName} · {subdomain}
             </p>
@@ -549,8 +553,10 @@ const STYLE = `
 .zora-sf footer{padding:50px 0}
 .zora-sf .foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
 .zora-sf .runs{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut)}
-.zora-sf .runs .zmark{font-family:var(--body);font-weight:600;letter-spacing:-.02em;color:var(--ink)}
-.zora-sf .runs .zmark .o{color:var(--z-blue)}
+.zora-sf .runs .zmark{display:inline-flex;align-items:center}
+.zora-sf .runs .zmark img{height:16px;width:auto;display:block;opacity:.9}
+.zora-sf .foot .foot-help{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut);text-decoration:none}
+.zora-sf .foot .foot-help:hover{color:var(--ink)}
 .zora-sf .foot .legal{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.06em}
 
 .zora-sf .sheet{position:fixed;inset:0;background:rgba(10,10,11,.55);backdrop-filter:blur(4px);display:none;align-items:flex-end;justify-content:center;z-index:90}

@@ -129,6 +129,7 @@ export default function HelpPage() {
 
       <footer>
         <div className="foot">
+          <Wordmark href="/" />
           <span>© 2026 ZORA · HELP CENTRE</span>
           <span><a href="/">home</a></span>
         </div>
