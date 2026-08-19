@@ -16,6 +16,7 @@ const OWN_CHROME = [
   '/dashboard/signup',
   '/dashboard/onboarding',
   '/dashboard/storefront', // studio renders its own rail
+  '/dashboard/overview', // BS69 Lane A — renders its own Control-Room v2 <CrShell>
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

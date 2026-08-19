@@ -1,0 +1,749 @@
+/* ══════════════════════════════════════════════════════════════════
+   ZORA — Control-Room v2 tokens  (Lane A · BS69)
+   ONE token set for the organizer + admin control-room. Flips on an html
+   attribute `data-cr-theme` ("light" default · "dark" alternate). Values are
+   verbatim from DESIGN.md → "Control-Room v2 — data-forward dashboards".
+
+   SCOPING NOTE — why `data-cr-theme` and the `--cr-*` prefix (not the global
+   `data-theme`): the consumer plane already owns `<html data-theme>` (key
+   `zora-theme`, dark default) via zora-tokens.css. The control-room is a
+   *separate* theme (light default) that must NOT flip consumer/storefront
+   surfaces ("consumer stays fixed-dark" · storefront theme mechanics are an
+   explicit hard guard). A dedicated attribute + prefixed vars keep the two
+   systems fully independent: setting `data-cr-theme` on a consumer page is a
+   no-op because nothing there reads `--cr-*`.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Control-room type: Archivo (sans) + IBM Plex Mono (numerics/labels). The
+   global tokens only load Space Grotesk + Inter, so the CR pulls its own. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+/* ── LIGHT (default) ── */
+:root,
+:root[data-cr-theme='light'] {
+  --cr-paper: #F4F1EA;
+  --cr-card: #FFFFFF;
+  --cr-card2: #FBF9F4;
+  --cr-ink: #14161C;
+  --cr-ink2: #5B6270;
+  --cr-mut: #8A8778;
+  --cr-hair: #E7E2D5;
+
+  /* semantic (shared across both themes) */
+  --cr-blue: #3D5AFE;
+  --cr-green: #1D9E75;
+  --cr-amber: #C98A12;
+  --cr-red: #D85A30;
+  --cr-cyan: #0E8FB0;
+
+  /* KPI-tile washes — solid pastels on light */
+  --cr-wash-blue: #E8EBFE;
+  --cr-wash-green: #DCF1E8;
+  --cr-wash-amber: #F8ECCF;
+  --cr-wash-cyan: #D8EEF4;
+  --cr-wash-red: #FBE6DC;
+
+  /* on-wash ink for the label chip (kept ≥ AA on the pastel) */
+  --cr-on-wash-blue: #2436B8;
+  --cr-on-wash-green: #12664B;
+  --cr-on-wash-amber: #7A530A;
+  --cr-on-wash-cyan: #0A5E75;
+  --cr-on-wash-red: #973213;
+
+  --cr-focus: var(--cr-blue);
+  --cr-topbar: rgba(244, 241, 234, 0.82);
+  --cr-shadow: 0 1px 2px rgba(20, 22, 28, 0.04), 0 8px 24px rgba(20, 22, 28, 0.05);
+
+  --cr-sans: 'Archivo', system-ui, -apple-system, sans-serif;
+  --cr-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+/* ── DARK (alternate) ── */
+:root[data-cr-theme='dark'] {
+  --cr-paper: #0A0A0B;
+  --cr-card: #141416;
+  --cr-card2: #101012;
+  --cr-ink: #F4F1EA;
+  --cr-ink2: #B4B1A8;
+  --cr-mut: #8A877E;
+  --cr-hair: #222226;
+
+  --cr-blue: #5B72FF; /* lifted for contrast on near-black */
+  --cr-green: #35C495;
+  --cr-amber: #E0A63A;
+  --cr-red: #E87A54;
+  --cr-cyan: #2FB6D6;
+
+  /* KPI washes — ~14% alpha of the hue on dark */
+  --cr-wash-blue: rgba(61, 90, 254, 0.16);
+  --cr-wash-green: rgba(29, 158, 117, 0.16);
+  --cr-wash-amber: rgba(201, 138, 18, 0.18);
+  --cr-wash-cyan: rgba(14, 143, 176, 0.18);
+  --cr-wash-red: rgba(216, 90, 48, 0.18);
+
+  --cr-on-wash-blue: #AEBBFF;
+  --cr-on-wash-green: #7FE0C0;
+  --cr-on-wash-amber: #ECC981;
+  --cr-on-wash-cyan: #8FD9EC;
+  --cr-on-wash-red: #F2B49B;
+
+  --cr-focus: var(--cr-blue);
+  --cr-topbar: rgba(10, 10, 11, 0.82);
+  --cr-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.32);
+
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Base shell + component classes. All prefixed `.cr-` so they can never
+   collide with a wrapped page's own scoped styles.
+   ══════════════════════════════════════════════════════════════════ */
+
+.cr-root {
+  background: var(--cr-paper);
+  color: var(--cr-ink);
+  font-family: var(--cr-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cr-root *,
+.cr-root *::before,
+.cr-root *::after {
+  box-sizing: border-box;
+}
+
+.cr-root :focus-visible {
+  outline: 2px solid var(--cr-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Shell: sidebar + main, slim sticky top bar ── */
+.cr-shell {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 900px) {
+  .cr-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cr-sidebar {
+  border-right: 1px solid var(--cr-hair);
+  background: var(--cr-card2);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 0;
+}
+@media (max-width: 900px) {
+  .cr-sidebar {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--cr-hair);
+    padding: 12px 14px;
+    gap: 4px;
+  }
+}
+
+.cr-brand {
+  padding: 0 22px 22px;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: var(--cr-ink);
+}
+.cr-brand .cr-o {
+  color: var(--cr-blue);
+}
+.cr-brand small {
+  display: block;
+  font-family: var(--cr-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--cr-mut);
+  margin-top: 6px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+@media (max-width: 900px) {
+  .cr-brand {
+    padding: 0 10px 0 4px;
+  }
+  .cr-brand small {
+    display: none;
+  }
+}
+
+.cr-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 12px;
+}
+@media (max-width: 900px) {
+  .cr-nav {
+    flex-direction: row;
+    padding: 0;
+  }
+}
+.cr-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  color: var(--cr-ink2);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  text-align: left;
+  font-family: var(--cr-sans);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  min-height: 40px;
+}
+.cr-nav-item:hover {
+  color: var(--cr-ink);
+  background: color-mix(in srgb, var(--cr-blue) 8%, transparent);
+}
+.cr-nav-item.cr-on {
+  color: var(--cr-blue);
+  background: color-mix(in srgb, var(--cr-blue) 14%, transparent);
+  font-weight: 600;
+}
+.cr-nav-item .cr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.cr-nav-foot {
+  margin-top: auto;
+  padding: 20px 22px 0;
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--cr-mut);
+  text-transform: uppercase;
+}
+@media (max-width: 900px) {
+  .cr-nav-foot {
+    display: none;
+  }
+}
+.cr-nav-foot a {
+  color: var(--cr-mut);
+  text-decoration: none;
+}
+.cr-nav-foot a:hover {
+  color: var(--cr-ink);
+}
+
+.cr-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--cr-hair);
+  background: var(--cr-topbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.cr-topbar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cr-ink);
+  letter-spacing: -0.01em;
+}
+.cr-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cr-content {
+  padding: 24px;
+  max-width: 1180px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .cr-content {
+    padding: 16px;
+  }
+}
+
+/* ── Theme toggle (top bar) ── */
+.cr-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--cr-hair);
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  cursor: pointer;
+}
+.cr-theme-toggle:hover {
+  color: var(--cr-ink);
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+}
+.cr-theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Section heading ── */
+.cr-section-h {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cr-ink);
+  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+}
+
+/* ── KPI row + tiles ── */
+.cr-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1120px) {
+  .cr-kpi-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .cr-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .cr-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cr-kpi {
+  background: var(--cr-card);
+  border: 1px solid var(--cr-hair);
+  border-radius: 16px;
+  padding: 16px 16px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.cr-kpi-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+/* the semantic tint carries the LABEL only (Pass 4 fix: no left-border bar,
+   value/critical text stays at --cr-ink for contrast) */
+.cr-kpi-label[data-tint='blue'] {
+  background: var(--cr-wash-blue);
+  color: var(--cr-on-wash-blue);
+}
+.cr-kpi-label[data-tint='green'] {
+  background: var(--cr-wash-green);
+  color: var(--cr-on-wash-green);
+}
+.cr-kpi-label[data-tint='amber'] {
+  background: var(--cr-wash-amber);
+  color: var(--cr-on-wash-amber);
+}
+.cr-kpi-label[data-tint='cyan'] {
+  background: var(--cr-wash-cyan);
+  color: var(--cr-on-wash-cyan);
+}
+.cr-kpi-label[data-tint='neutral'] {
+  background: var(--cr-card2);
+  color: var(--cr-ink2);
+}
+.cr-kpi-value {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.05;
+  color: var(--cr-ink);
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+.cr-kpi-value .cr-kpi-unit {
+  font-size: 13px;
+  color: var(--cr-ink2);
+  margin-left: 4px;
+  font-weight: 500;
+}
+.cr-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cr-mut);
+}
+.cr-kpi-delta[data-dir='up'] {
+  color: var(--cr-green);
+}
+.cr-kpi-delta[data-dir='down'] {
+  color: var(--cr-red);
+}
+
+/* skeleton shimmer for loading states */
+.cr-skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--cr-card2);
+  border-radius: 6px;
+}
+.cr-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cr-ink) 6%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: cr-shimmer 1.4s infinite;
+}
+@keyframes cr-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-skel::after {
+    animation: none;
+  }
+}
+
+/* ── Cards / panels ── */
+.cr-panel {
+  background: var(--cr-card);
+  border: 1px solid var(--cr-hair);
+  border-radius: 18px;
+  padding: 18px;
+}
+.cr-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* ── Hero chart ── */
+.cr-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.cr-chart-metric {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 28px;
+  color: var(--cr-ink);
+  letter-spacing: -0.01em;
+}
+.cr-chart-metric small {
+  display: block;
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.cr-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cr-range {
+  display: inline-flex;
+  border: 1px solid var(--cr-hair);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.cr-range button {
+  border: none;
+  background: var(--cr-card);
+  color: var(--cr-ink2);
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 7px 11px;
+  cursor: pointer;
+  min-height: 34px;
+}
+.cr-range button + button {
+  border-left: 1px solid var(--cr-hair);
+}
+.cr-range button.cr-on {
+  background: color-mix(in srgb, var(--cr-blue) 14%, transparent);
+  color: var(--cr-blue);
+  font-weight: 600;
+}
+.cr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--cr-hair);
+  background: var(--cr-card);
+  color: var(--cr-ink);
+  border-radius: 9px;
+  font-family: var(--cr-sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 34px;
+  text-decoration: none;
+}
+.cr-btn:hover {
+  border-color: color-mix(in srgb, var(--cr-blue) 40%, var(--cr-hair));
+}
+.cr-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 8px;
+}
+.cr-chart-empty {
+  padding: 28px 8px;
+  text-align: center;
+  color: var(--cr-ink2);
+  font-size: 13px;
+}
+.cr-linkbtn {
+  background: none;
+  border: none;
+  color: var(--cr-blue);
+  font-family: var(--cr-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  padding: 4px;
+}
+.cr-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-family: var(--cr-mono);
+  font-size: 12px;
+}
+.cr-chart-table th,
+.cr-chart-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--cr-hair);
+  color: var(--cr-ink2);
+}
+.cr-chart-table td:last-child {
+  text-align: right;
+  color: var(--cr-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Status pill ── */
+.cr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--cr-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.cr-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cr-pill[data-tone='paid'] {
+  background: var(--cr-wash-cyan);
+  color: var(--cr-on-wash-cyan);
+}
+.cr-pill[data-tone='pending'] {
+  background: var(--cr-wash-amber);
+  color: var(--cr-on-wash-amber);
+}
+.cr-pill[data-tone='refund'],
+.cr-pill[data-tone='failed'] {
+  background: var(--cr-wash-red);
+  color: var(--cr-on-wash-red);
+}
+.cr-pill[data-tone='live'] {
+  background: var(--cr-wash-green);
+  color: var(--cr-on-wash-green);
+}
+.cr-pill[data-tone='draft'],
+.cr-pill[data-tone='neutral'] {
+  background: var(--cr-card2);
+  color: var(--cr-ink2);
+}
+
+/* ── Data table (→ cards ≤900px) ── */
+.cr-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.cr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.cr-table th {
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+  text-align: left;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--cr-hair);
+  white-space: nowrap;
+}
+.cr-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--cr-hair);
+  color: var(--cr-ink);
+  vertical-align: middle;
+}
+.cr-table tr:last-child td {
+  border-bottom: none;
+}
+.cr-table .cr-num {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cr-table th.cr-num {
+  text-align: right;
+}
+
+/* stacked cards below the collapse breakpoint (DESIGN rule 3) */
+.cr-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cr-card-row {
+  background: var(--cr-card2);
+  border: 1px solid var(--cr-hair);
+  border-radius: 14px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cr-card-row .cr-card-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cr-card-row .cr-card-k {
+  font-family: var(--cr-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cr-mut);
+}
+.cr-card-row .cr-card-v {
+  font-size: 13px;
+  color: var(--cr-ink);
+}
+.cr-card-row .cr-card-v.cr-num {
+  font-family: var(--cr-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── generic states ── */
+.cr-empty,
+.cr-error {
+  padding: 26px 16px;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed var(--cr-hair);
+  color: var(--cr-ink2);
+  font-size: 13.5px;
+}
+.cr-empty strong,
+.cr-error strong {
+  display: block;
+  color: var(--cr-ink);
+  font-size: 14px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.cr-error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--cr-red) 40%, var(--cr-hair));
+}
+
+/* ── layout helpers ── */
+.cr-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cr-two-col {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 1120px) {
+  .cr-two-col {
+    grid-template-columns: 1fr;
+  }
+}
