@@ -23,11 +23,19 @@ export const metadata: Metadata = {
 // tolerates the SSR('dark')→client attribute difference for light-theme users.
 const NO_FLASH_THEME = `(function(){try{var t=localStorage.getItem('zora-theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
+// BS69 · Lane A — the control-room's OWN no-FOUC boot. Independent of the
+// consumer `data-theme` above (which stays fixed-dark): sets `data-cr-theme`
+// on <html> pre-paint from localStorage['zora-cr-theme'], falling back to
+// prefers-color-scheme on first visit, then 'light'. Any throw → 'light'.
+// Source of truth mirrored in app/components/cr/theme.tsx (CR_THEME_BOOT).
+const NO_FLASH_CR_THEME = `(function(){try{var k='zora-cr-theme';var t=localStorage.getItem(k);if(t!=='light'&&t!=='dark'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}document.documentElement.setAttribute('data-cr-theme',t);}catch(e){document.documentElement.setAttribute('data-cr-theme','light');}})();`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_CR_THEME }} />
       </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
