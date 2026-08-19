@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency, resendOrderTickets } from '@zora/core';
-import type { OrderMoney } from '@zora/core';
+import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency, resendOrderTickets,
+  buildAnalytics, normalizeRange, DEFAULT_COMMISSION_RATE, EARNING_STATUSES, SETTLED_SHARE_STATES } from '@zora/core';
+import type { OrderMoney, AnalyticsResult, AnalyticsRange, AnalyticsOrder } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -400,6 +401,84 @@ export class OrgSalesService {
     };
   }
 
+  /* ── BS70 (#8): dashboard analytics — the date-bucketed revenue series + KPI
+     aggregates behind the hero chart + KPI row. NET revenue reuses the SAME
+     `readOrderMoney` the sales summary and payout balance use (net from the
+     stamped `order.commission_rate`, migration 0010) — no commission math is
+     re-derived here. The bucketing/aggregation is a pure @zora/core function
+     (`buildAnalytics`), so its two critical failure-modes (no paid orders →
+     empty funnel; a range with no data → flat baseline) are unit-tested there. */
+
+  /** GET /api/org/analytics?range= — scoped to the acting organizer. */
+  async analytics(actingHandle: string, rangeRaw?: string): Promise<AnalyticsResult> {
+    const events = await this.scope.readEvents();
+    const owned = events.filter((e) => e && e.organizerHandle === actingHandle);
+    const ownedIds = owned.map((e) => e.id);
+    const liveRate = await this.liveCommissionRateFor(actingHandle);
+    return this.analyticsFor(ownedIds, liveRate, normalizeRange(rangeRaw));
+  }
+
+  /** GET /api/admin/analytics?range= — the platform-wide (all-orgs) variant for
+      the super-admin overview (GMV + take). Same shape; the fallback rate for the
+      rare un-stamped legacy order is the platform default (each order still nets
+      at its OWN stamp). Platform take = revenue − netRevenue. */
+  async analyticsAll(rangeRaw?: string): Promise<AnalyticsResult> {
+    const events = await this.scope.readEvents();
+    const allIds = events.filter((e) => e && e.id).map((e) => e.id);
+    return this.analyticsFor(allIds, DEFAULT_COMMISSION_RATE, normalizeRange(rangeRaw));
+  }
+
+  /** Assemble the pure analytics input for a set of event ids, then bucket. */
+  private async analyticsFor(eventIds: string[], fallbackRate: number, range: AnalyticsRange): Promise<AnalyticsResult> {
+    if (!eventIds.length) return buildAnalytics({ money: [], startedAt: [], checkedIn: 0, range });
+    const sql = db();
+
+    // NET revenue — the SAME read the summary/payout use (net of stamped rate + refunds).
+    const money: OrderMoney[] = await readOrderMoney(sql, eventIds, fallbackRate);
+
+    // created_at + seat count for the earning orders (paid/refunded). Seats = line
+    // items + settled split shares (a split seat has no order_item, 0006).
+    const metaRows = await sql<{ id: string; created_at: Date; tickets: number }[]>`
+      select o.id as id, o.created_at as created_at,
+             (coalesce((select sum(oi.quantity) from order_item oi where oi.order_id = o.id), 0)
+              + coalesce((select count(*) from split_share ss
+                           where ss.order_id = o.id and ss.state = any(${[...SETTLED_SHARE_STATES]})), 0))::int as tickets
+        from "order" o
+       where o.event_id = any(${eventIds}) and o.status = any(${[...EARNING_STATUSES]})`;
+    const metaById = new Map(metaRows.map((r) => [r.id, r]));
+
+    // Every started order (any status) — the conversion denominator.
+    const startedRows = await sql<{ created_at: Date }[]>`
+      select created_at from "order" where event_id = any(${eventIds})`;
+    const startedAt = startedRows.map((r) => toIso(r.created_at));
+
+    // Live checked-in count: passes past the door (scanned / confirmed / used).
+    const scanRows = await sql<{ n: number }[]>`
+      select count(*)::int as n from credential
+       where event_id = any(${eventIds}) and state = any(${CHECKED_IN_STATES})`;
+    const checkedIn = Number(scanRows[0]?.n ?? 0);
+
+    // Merge money (per order,currency) with timing/seats. Seats are attributed to
+    // an order once, even in the rare multi-currency-per-order case.
+    const seen = new Set<string>();
+    const orders: AnalyticsOrder[] = money.map((m) => {
+      const meta = metaById.get(m.orderId);
+      const firstForOrder = !seen.has(m.orderId);
+      seen.add(m.orderId);
+      return {
+        orderId: m.orderId,
+        createdAt: meta ? toIso(meta.created_at) : EPOCH_ISO,
+        status: m.status,
+        currency: m.currency,
+        gross: m.gross,
+        net: m.net,
+        tickets: firstForOrder ? Number(meta?.tickets ?? 0) : 0,
+      };
+    });
+
+    return buildAnalytics({ money: orders, startedAt, checkedIn, range });
+  }
+
   /** If the org has no paid revenue yet, still label totals.currency when every
       owned event shares one currency; else null. */
   private orgUniformCurrency(fallback: Map<string, string>): string | null {
@@ -584,6 +663,17 @@ export class OrgSalesService {
 // BS59: bulk resend is bounded per request. Events are small today; a queued
 // (worker-drained) fan-out is the follow-up if an event ever exceeds this.
 const RESEND_BULK_CAP = 200;
+
+// BS70 (#8): credential states that count as "checked in" for the analytics KPI —
+// a pass that has passed the door gate (scanned), been confirmed (wristband) or
+// used (legacy standalone terminal). 'issued' is not yet through; 'revoked' never.
+const CHECKED_IN_STATES = ['scanned', 'wristband_issued', 'used'] as const;
+const EPOCH_ISO = new Date(0).toISOString();
+
+/** timestamptz → ISO (UTC). postgres.js hands back a Date; be defensive. */
+function toIso(v: Date | string): string {
+  return v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+}
 
 /** Mask PII keeping the last 3 chars visible (I4). Preserves length via '*'. */
 export function maskPii(value: string | null | undefined): string | null {

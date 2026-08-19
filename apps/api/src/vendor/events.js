@@ -3,7 +3,7 @@
    The old supabase-js `events` TABLE path is retired — there is no such table; the
    data is the JSON blob. (This finishes the "events.js split-brain" retirement:
    the marketplace + storefronts read the same store the rest of the app writes.) */
-const { db } = require('@zora/core');
+const { db, suspendedHandles } = require('@zora/core');
 
 // Canonical slug aliases: friendly flagship URLs (/events/offshore) resolve to the
 // real event id (offshore-001). Keeps the marketing URL stable if the id ever moves.
@@ -21,6 +21,18 @@ function isPubliclyVisible(e) {
   return !!e && (e.status == null || e.status === 'published');
 }
 
+// BS70 (#6/T7): a published event is ALSO hidden when its organizer is suspended
+// — the cascade. Consulted against the in-memory suspended-handle set (never a
+// per-event DB join, C3): the org table's handle column is the key and the set
+// is refreshed synchronously the moment an admin flips status. `ensureFresh`
+// lazily reloads it on a short TTL so a first read after boot is never stale.
+async function isPublicEvent(e) {
+  if (!isPubliclyVisible(e)) return false;
+  const suspended = suspendedHandles();
+  await suspended.ensureFresh();
+  return suspended.isVisible(e);
+}
+
 async function readAll() {
   const rows = await db()`select data from collection_store where name = 'events'`;
   return rows.length ? JSON.parse(rows[0].data) : [];
@@ -32,7 +44,9 @@ async function writeAll(rows) {
 }
 
 async function listEvents(city) {
-  let rows = (await readAll()).filter(isPubliclyVisible);
+  const suspended = suspendedHandles();
+  await suspended.ensureFresh(); // one refresh for the whole list, then sync checks
+  let rows = (await readAll()).filter((e) => isPubliclyVisible(e) && suspended.isVisible(e));
   if (city) rows = rows.filter((e) => e.city === city);
   return rows.sort(byDate);
 }
@@ -40,9 +54,10 @@ async function listEvents(city) {
 async function getEvent(id) {
   id = resolveSlug(id);
   const row = (await readAll()).find((e) => e.id === id);
-  // A non-published event is treated as non-existent on the public read path
-  // (404), same as an unknown id — no draft/archived leak.
-  if (!row || !isPubliclyVisible(row)) throw new Error('Event not found');
+  // A non-published event — or one whose organizer is suspended — is treated as
+  // non-existent on the public read path (404), same as an unknown id: no draft/
+  // archived leak, and a suspended org's events vanish entirely (BS70 #6).
+  if (!row || !(await isPublicEvent(row))) throw new Error('Event not found');
   return row;
 }
 
@@ -57,4 +72,4 @@ async function upsertEvent(event) {
   return row;
 }
 
-module.exports = { listEvents, getEvent, upsertEvent, resolveSlug };
+module.exports = { listEvents, getEvent, upsertEvent, resolveSlug, isPublicEvent, isPubliclyVisible };
