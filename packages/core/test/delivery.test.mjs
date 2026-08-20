@@ -6,7 +6,7 @@
    QR still builds both the PDF and the credential email). */
 import assert from 'node:assert/strict';
 import {
-  sendSms, sendEmail, sendCredentialEmail, renderQrPng, buildTicketsPdf, gsmSafe,
+  sendSms, sendEmail, sendCredentialEmail, renderQrPng, buildTicketsPdf, gsmSafe, publicWebOrigin,
 } from '../dist/index.js';
 
 let pass = 0;
@@ -110,6 +110,16 @@ await test('gsmSafe leaves plain ASCII untouched, and result is pure ASCII', () 
   assert.equal(gsmSafe(s), s);
   const cleaned = gsmSafe('Ticket — event 🎟 with 漢字');
   assert.ok(/^[\x00-\x7F]*$/.test(cleaned), 'output must be pure ASCII');
+});
+
+// 7. publicWebOrigin: buyer links must use the WEB origin, never PUBLIC_ORIGIN
+//    (the API host — the ticket SMS was sending users to zora-api.<tenant>/tickets).
+await test('publicWebOrigin ignores PUBLIC_ORIGIN and defaults to the web domain', () => {
+  assert.equal(publicWebOrigin({ PUBLIC_ORIGIN: 'https://zora-api.thebrunchcity.com' }), 'https://zorapass.com');
+  assert.equal(publicWebOrigin({}), 'https://zorapass.com');
+});
+await test('publicWebOrigin honours PUBLIC_WEB_ORIGIN and trims trailing slash', () => {
+  assert.equal(publicWebOrigin({ PUBLIC_WEB_ORIGIN: 'https://tickets.example.com/' }), 'https://tickets.example.com');
 });
 
 if (process.exitCode) {

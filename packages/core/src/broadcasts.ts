@@ -44,6 +44,7 @@
 import { tx } from './db';
 import { sendSms } from './sms';
 import { escapeHtml, sendEmail } from './email';
+import { publicWebOrigin } from './origins';
 
 type Sql = any;
 
@@ -773,7 +774,9 @@ export function broadcastRateMs(env: NodeJS.ProcessEnv = process.env): number {
 const sleep = (ms: number) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 
 function publicOrigin(env: NodeJS.ProcessEnv): string {
-  return (env.PUBLIC_ORIGIN || 'https://zorapass.com').replace(/\/+$/, '');
+  // Unsubscribe links (/u/:token) live on the WEB app, not the API — use the web
+  // origin, never PUBLIC_ORIGIN (the API host). See origins.ts.
+  return publicWebOrigin(env);
 }
 
 /** SMS body as it actually goes out: the composed text plus a short opt-out
