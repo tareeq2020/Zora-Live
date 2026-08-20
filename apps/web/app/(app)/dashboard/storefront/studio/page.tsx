@@ -11,7 +11,7 @@
    to /@thebrunchcity for every organizer; PR-F5's storefront still listens for
    the same `zora-theme` postMessage for live preview). */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CrShell } from '@/app/components/cr';
 import { ORG_NAV, ORG_BRAND } from '../../components/org-nav';
 
@@ -342,9 +342,20 @@ const SCRIPT = String.raw`
 export default function StorefrontStudioPage() {
   // BS76: the top-bar store label (same /api/org/me name pattern as Overview/Sales).
   const [orgName, setOrgName] = useState<string | null>(null);
+  const studioRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
+    // BS78 #2: inject the studio markup IMPERATIVELY into a ref-owned host rather
+    // than via React's dangerouslySetInnerHTML. Inside CrShell the theme-provider
+    // fires a mount re-render that was re-inserting the dangerouslySetInnerHTML
+    // subtree and resetting the preview <iframe> to about:blank (iframes don't
+    // survive DOM re-insertion; inputs do — which is why the fields refilled but
+    // the preview went blank after the re-skin). A ref-owned subtree is invisible
+    // to React reconciliation, so the SCRIPT's <iframe> + listeners persist across
+    // every re-render, exactly as they did before the studio was wrapped in CrShell.
+    const host = studioRef.current;
+    if (host && !host.firstChild) host.innerHTML = MARKUP;
     (async () => {
       // BS47: resolve the acting organizer's own handle before the script runs
       // — it used to assume thebrunchcity for every organizer.
@@ -387,9 +398,11 @@ export default function StorefrontStudioPage() {
           </>
         }
       >
-        {/* BS76 visual re-skin only — the injected markup (all ids/classes the
-            SCRIPT binds) and the script itself are byte-for-byte unchanged. */}
-        <div className="zora-studio" dangerouslySetInnerHTML={{ __html: MARKUP }} />
+        {/* BS76 visual re-skin. BS78 #2: markup is injected imperatively via the
+            ref in the effect (see note) so React never reconciles/resets this
+            subtree — the preview <iframe> the SCRIPT points at the storefront
+            must survive CrShell's mount re-render. */}
+        <div className="zora-studio" ref={studioRef} />
       </CrShell>
     </>
   );
