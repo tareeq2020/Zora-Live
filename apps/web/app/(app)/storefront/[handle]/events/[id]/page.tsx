@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { GetTicketButton } from '../../../../events/[id]/event-cta';
 import type { CheckoutTier } from '../../../../../components/checkout-flow';
 import styles from './tenant-event.module.css';
+import { shareCardImage } from '@/app/lib/share-card';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. Zora consumer
 // DARK canvas + Space Grotesk/Inter (the system every consumer screen uses); the
@@ -50,7 +51,17 @@ export async function generateMetadata({ params }: { params: { handle: string; i
   const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme(params.handle)]);
   if (!ev) return { title: 'Event — Zora white-label store' };
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
-  return { title: `${ev.name} — ${orgName}`, description: ev.tagline || `${ev.name} on ${orgName}.` };
+  const title = `${ev.name} — ${orgName}`;
+  const description = ev.tagline || `${ev.name} on ${orgName}.`;
+  // BS86: brand-matched drop card (event cover + org theme) as the unfurl image.
+  const card = await shareCardImage(params.handle, params.id, `${ev.name} — get passes`);
+  const images = card ? [{ url: card.url, width: card.width, height: card.height, alt: card.alt }] : undefined;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: 'website', ...(images ? { images } : {}) },
+    ...(images ? { twitter: { card: 'summary_large_image', title, description, images: [card!.url] } } : {}),
+  };
 }
 
 export default async function TenantEventPage({ params }: { params: { handle: string; id: string } }) {

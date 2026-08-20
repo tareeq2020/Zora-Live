@@ -13,6 +13,8 @@ export { CrNavIcon } from './CrNavIcon';
 export { CrDrawer } from './CrDrawer';
 export type { CrDrawerProps } from './CrDrawer';
 
+export { CrPromptBar } from './CrPromptBar';
+
 export { CrThemeProvider, useCrTheme, CR_THEME_KEY, CR_THEME_ATTR, CR_THEME_BOOT } from './theme';
 export type { CrTheme } from './theme';
 export { CrThemeToggle } from './ThemeToggle';

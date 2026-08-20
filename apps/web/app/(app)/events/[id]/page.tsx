@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { GetTicketButton } from './event-cta';
 import type { CheckoutTier } from '../../../components/checkout-flow';
 import styles from './event-page.module.css';
+import { shareCardImage } from '@/app/lib/share-card';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
 // slug alias in the API's getEvent, the flagship URL /events/offshore). Lives
@@ -59,12 +60,16 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   const title = `${ev.name} — ZORA`;
   const description = ev.tagline || `${ev.name} on ZORA.`;
   const canonical = `/events/${params.id}`;
+  // BS86: the brand-matched drop card is the unfurl image when the event belongs to
+  // an organizer (the card reads that org's theme + this event's cover).
+  const card = await shareCardImage(ev.organizerHandle, ev.id, `${ev.name} — get passes`);
+  const images = card ? [{ url: card.url, width: card.width, height: card.height, alt: card.alt }] : undefined;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: 'website' },
-    twitter: { card: 'summary_large_image', title, description },
+    openGraph: { title, description, url: canonical, type: 'website', ...(images ? { images } : {}) },
+    twitter: { card: 'summary_large_image', title, description, ...(images ? { images: [card!.url] } : {}) },
   };
 }
 
