@@ -182,6 +182,23 @@
 .cr-brand .cr-o {
   color: var(--cr-blue);
 }
+/* BS83 — the shared Zora wordmark image, theme-aware on data-cr-theme (black on
+   the light paper sidebar, white on the dark one). */
+.cr-brand .cr-wordmark {
+  height: 19px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+.cr-brand .cr-wordmark-dark {
+  display: none;
+}
+:root[data-cr-theme='dark'] .cr-brand .cr-wordmark-light {
+  display: none;
+}
+:root[data-cr-theme='dark'] .cr-brand .cr-wordmark-dark {
+  display: inline-block;
+}
 .cr-brand small {
   display: block;
   font-family: var(--cr-mono);

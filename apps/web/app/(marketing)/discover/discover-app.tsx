@@ -760,7 +760,7 @@ export function DiscoverApp() {
             <p className="zd-pre">FOR ORGANIZERS</p>
             <h2>Take control of your event.</h2>
             <p className="zd-org-p">
-              Launch a custom Zora subdomain in two minutes — your own storefront, your data, built-in
+              Launch your own Zora storefront in two minutes — your own storefront, your data, built-in
               marketing, and one honest price your crowd will love.
             </p>
             <a className="zd-aura-btn" href="/dashboard/onboarding">

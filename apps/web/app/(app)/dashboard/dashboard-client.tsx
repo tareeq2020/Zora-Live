@@ -288,7 +288,7 @@ export default function DashboardClient() {
         <div className="imp-bar">
           <span>
             ADMIN MODE — acting on behalf of <b>{impName}</b>
-            {impHandle ? ` (${impHandle}.zorapass.com)` : ''}. Every action is logged.
+            {impHandle ? ` (zorapass.com/${impHandle})` : ''}. Every action is logged.
           </span>
           <button onClick={exitImpersonation}>EXIT ADMIN MODE</button>
         </div>

@@ -386,7 +386,7 @@ export default function OrganizerSignupPage() {
                 role="status"
                 aria-live="polite"
               >
-                {handleState.kind === 'idle' ? 'This is your public address and your subdomain. It can’t be changed later.' : null}
+                {handleState.kind === 'idle' ? 'This is your public store address — zorapass.com/you. It can’t be changed later.' : null}
                 {handleState.kind === 'checking' ? 'CHECKING…' : null}
                 {handleState.kind === 'free' ? handleState.message : null}
                 {handleState.kind === 'blocked' ? handleState.message : null}

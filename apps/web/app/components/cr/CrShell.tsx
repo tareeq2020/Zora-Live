@@ -118,7 +118,13 @@ export function CrShell({ nav, brand, topbarTitle, topbarExtra, footer, children
               </svg>
             </button>
             <p className="cr-brand">
-              {brand.name}
+              {/* BS83: the canonical Zora wordmark image (theme-aware on
+                  data-cr-theme), matching every other surface — no bespoke text
+                  logo in the console. brand.name stays the accessible label. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="cr-wordmark cr-wordmark-light" src="/assets/zora-wordmark-black.png" alt="Zora" draggable={false} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="cr-wordmark cr-wordmark-dark" src="/assets/zora-wordmark-white.png" alt="Zora" draggable={false} />
               {brand.sublabel ? <small>{brand.sublabel}</small> : null}
             </p>
             <nav className="cr-nav" aria-label="Primary">
