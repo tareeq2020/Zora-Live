@@ -100,6 +100,7 @@ export type {
   DecidePayoutInput, DecidePayoutResult, ListPayoutsFilter,
 } from './payouts';
 export { sendSms, smsConfigSummary, logSmsStartup, gsmSafe } from './sms';
+export { publicWebOrigin } from './origins';
 export type { SmsDriver, SmsResult } from './sms';
 export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {

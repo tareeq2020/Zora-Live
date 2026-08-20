@@ -19,6 +19,7 @@ import {
 import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
+import { publicWebOrigin } from '../origins';
 import { alertOps } from '../ops';
 import { isCommissionRate } from '../commission';
 import {
@@ -406,8 +407,11 @@ function ticketSmsText(refs: string[], eventName: string): string {
   const plural = refs.length !== 1;
   const shown = refs.filter(Boolean);
   const codePart = shown.length && shown.length <= 3 ? ` Code${plural ? 's' : ''}: ${shown.join(', ')}.` : '';
-  const origin = process.env.PUBLIC_ORIGIN || '';
-  const link = origin ? ` View: ${origin}/tickets` : '';
+  // The buyer pass lives at the WEB app's /t/:code (keyed by the public ref we
+  // just showed) — NOT PUBLIC_ORIGIN/tickets, which pointed at the API host and
+  // isn't a page. Link the first ticket; the email carries them all.
+  const code = shown[0];
+  const link = code ? ` View: ${publicWebOrigin()}/t/${encodeURIComponent(code)}` : '';
   return `Your ${eventName} ${plural ? 'tickets are' : 'ticket is'} confirmed.${codePart}${link}`;
 }
 
