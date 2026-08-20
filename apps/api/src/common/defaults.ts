@@ -17,6 +17,10 @@ export const DEFAULT_SETTINGS = {
   appNote:       'The app is the only door.',
   contactEmail:  'support@zorapass.com',
   instagram:     '',
+  // BS87: global USD→TZS rate, controlled by Zora admin (PUT /settings). Organizers
+  // price tiers in USD; the API charges TZS = round(usd * usdRate). One place to
+  // re-rate the whole platform.
+  usdRate:       2700,
 };
 
 export const DEFAULT_TIERS = [

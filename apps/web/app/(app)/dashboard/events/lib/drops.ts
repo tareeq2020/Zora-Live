@@ -25,6 +25,7 @@ export type OrgTier = {
   tierId?: string;
   name: string;
   unitPrice: number;
+  usd?: number; // BS87: USD anchor (the price the organizer set)
   capacity: number;
   sold?: number;
   available?: number;
@@ -53,7 +54,7 @@ export type OrgEvent = {
 
 // Tier as the create/edit form submits it — the provisioning service (MT2)
 // drives product_tier/price_version/inventory_pool off this, NOT the display blob.
-export type DropTierInput = { tierId?: string; name: string; price: number; capacity: number; splitEnabled?: boolean; seats?: number; disabled?: boolean };
+export type DropTierInput = { tierId?: string; name: string; price: number; usd?: number; capacity: number; splitEnabled?: boolean; seats?: number; disabled?: boolean };
 
 export type DropInput = {
   name: string;
@@ -108,11 +109,13 @@ export const emptyForm = (): DropForm => ({
 });
 
 // Hydrate the editable form from a server event (edit route prefill).
-export function formFromEvent(ev: OrgEvent): DropForm {
+export function formFromEvent(ev: OrgEvent, rate: number): DropForm {
   const tiers = (ev.tiers || []).map((t) => ({
     tierId: t.tierId, // preserved so edits match by id (not name) and delete/disable can target it
     name: t.name || '',
-    price: t.unitPrice != null ? String(t.unitPrice) : '',
+    // BS87: the form price field is the USD anchor. Prefer the stored usd; for a
+    // legacy tier that only has a TZS unitPrice, derive USD at the current rate.
+    price: t.usd != null ? String(t.usd) : t.unitPrice != null ? String(Math.round(t.unitPrice / rate)) : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
     splitEnabled: !!t.split,
     seats: t.seats != null ? String(t.seats) : '',
@@ -175,19 +178,26 @@ export const hasErrors = (e: FieldErrors): boolean =>
   !!(e.name || e.tiers || (e.tierRows && Object.keys(e.tierRows).length));
 
 // Tiers that are complete enough to send (used for priceFrom + body).
-export function usableTiers(form: DropForm): DropTierInput[] {
+export function usableTiers(form: DropForm, rate: number): DropTierInput[] {
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
-    .map((t) => ({
-      tierId: t.tierId,
-      name: t.name.trim(),
-      price: Number(t.price) || 0,
-      capacity: Number(t.capacity) || 0,
-      splitEnabled: !!t.splitEnabled,
-      // BS30: people-per-table only rides along for split tiers (>=2); server defaults to 8.
-      ...(t.splitEnabled && Number(t.seats) >= 2 ? { seats: Math.floor(Number(t.seats)) } : {}),
-      disabled: !!t.disabled,
-    }));
+    .map((t) => {
+      // BS87 (Option B): the price field is the USD anchor; the buyer is charged
+      // TZS = round(usd * rate). The server recomputes this authoritatively from the
+      // admin rate — `price` here is for the live preview and priceFrom.
+      const usd = Number(t.price) || 0;
+      return {
+        tierId: t.tierId,
+        name: t.name.trim(),
+        usd,
+        price: Math.round(usd * rate),
+        capacity: Number(t.capacity) || 0,
+        splitEnabled: !!t.splitEnabled,
+        // BS30: people-per-table only rides along for split tiers (>=2); server defaults to 8.
+        ...(t.splitEnabled && Number(t.seats) >= 2 ? { seats: Math.floor(Number(t.seats)) } : {}),
+        disabled: !!t.disabled,
+      };
+    });
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {
@@ -207,8 +217,8 @@ export function newIdempotencyKey(): string {
   return 'idem-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
-export function buildBody(form: DropForm, idempotencyKey: string): DropInput {
-  const tiers = usableTiers(form);
+export function buildBody(form: DropForm, idempotencyKey: string, rate: number): DropInput {
+  const tiers = usableTiers(form, rate);
   return {
     name: form.name.trim(),
     dateLabel: form.dateLabel.trim(),

@@ -195,11 +195,25 @@ export default function DropEditor(props: DropEditorProps) {
   const [kycStatus, setKycStatus] = useState<string>('unverified');
   const [commissionRate, setCommissionRate] = useState<number>(0.05); // BS31: netted from payout
   const [orgName, setOrgName] = useState<string | null>(null); // BS75: CrShell topbar label (/api/org/me → { name })
+  const [usdRate, setUsdRate] = useState<number>(2700); // BS87: admin USD→TZS rate (GET /api/settings)
   const [form, setForm] = useState<DropForm>(emptyForm);
 
   // Stable idempotency key for the lifetime of this form instance (create).
   const idemKeyRef = useRef<string>('');
   if (!idemKeyRef.current) idemKeyRef.current = newIdempotencyKey();
+
+  // BS87: the admin-controlled USD→TZS rate. Prices are entered in USD; TZS is
+  // computed for the preview (the server recomputes authoritatively on save).
+  const fetchUsdRate = async (): Promise<number> => {
+    try {
+      const r = await fetch('/api/settings', { cache: 'no-store' });
+      const s = r.ok ? await r.json() : null;
+      const n = Number(s?.usdRate);
+      return Number.isFinite(n) && n > 0 ? n : 2700;
+    } catch {
+      return 2700;
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -207,25 +221,27 @@ export default function DropEditor(props: DropEditorProps) {
       try {
         const mePromise = fetchMe();
         if (isEdit) {
-          const [me, events] = await Promise.all([mePromise, fetchEvents()]);
+          const [me, events, rate] = await Promise.all([mePromise, fetchEvents(), fetchUsdRate()]);
           if (!alive) return;
           setKycStatus(me.kycStatus);
           setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           if (typeof me.name === 'string') setOrgName(me.name);
+          setUsdRate(rate);
           const ev: OrgEvent | undefined = events.find((e) => String(e.id) === String((props as { eventId: string }).eventId));
           if (!ev) {
             setLoadState('not_found');
             return;
           }
-          setForm(formFromEvent(ev));
+          setForm(formFromEvent(ev, rate));
           setStatus(ev.status || '');
           setLoadState('ready');
         } else {
-          const me = await mePromise;
+          const [me, rate] = await Promise.all([mePromise, fetchUsdRate()]);
           if (!alive) return;
           setKycStatus(me.kycStatus);
           setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           if (typeof me.name === 'string') setOrgName(me.name);
+          setUsdRate(rate);
           setLoadState('ready');
         }
       } catch (e) {
@@ -321,7 +337,7 @@ export default function DropEditor(props: DropEditorProps) {
   };
 
   // ── derived preview values ──
-  const tiersForBody = usableTiers(form);
+  const tiersForBody = usableTiers(form, usdRate);
   const priceFrom = priceFromOf(tiersForBody);
   const totalCap = tiersForBody.reduce((sum, t) => sum + (Number.isFinite(t.capacity) ? t.capacity : 0), 0);
   // BS25: a sellable drop with real tiers but none on sale is hidden from the
@@ -338,7 +354,7 @@ export default function DropEditor(props: DropEditorProps) {
     if (invalid) return;
     setSubmitting(true);
     try {
-      const body = buildBody(form, idemKeyRef.current);
+      const body = buildBody(form, idemKeyRef.current, usdRate);
       if (isEdit) await updateDrop((props as { eventId: string }).eventId, body);
       else await createDrop(body);
       // Success → back to the dashboard (MT4 owns the drops list refresh).
@@ -604,15 +620,20 @@ export default function DropEditor(props: DropEditorProps) {
                       />
                     </div>
                     <div>
-                      <label>PRICE (TZS)</label>
+                      <label>PRICE (USD)</label>
                       <input
                         className="in"
                         type="number"
                         min={0}
                         value={t.price}
                         onChange={(e) => setTier(i, 'price', e.target.value)}
-                        placeholder="45000"
+                        placeholder="85"
                       />
+                      {Number(t.price) > 0 ? (
+                        <p style={{ marginTop: 6, fontFamily: 'var(--cr-mono, monospace)', fontSize: 11, color: 'var(--cr-mut, #8A877E)' }}>
+                          ≈ {fmt(Math.round(Number(t.price) * usdRate))} TZS charged
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label>CAPACITY</label>
