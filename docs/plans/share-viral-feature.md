@@ -208,18 +208,52 @@ Synthesized from the findings above.
 - [ ] **T5 (P3, human: ~2h / CC: ~10min)** — a11y + responsive polish (landmark,
   focus order, reduced-motion, contrast). Surfaced by: Pass 6.
 
+## Engineering review (2026-08-20) — architecture locked
+
+- **R1 — Card render reuses the tickets renderer; NO headless browser.** Compose the
+  card as a themed SVG (org bg/card/accent/logo + event cover) and rasterize with the
+  existing SVG→PNG path (`packages/core` qrcode/PNG + `apps/api/src/tickets/tickets.module.ts`
+  `ticketSVG`/`ticketPNG`). Adding Puppeteer/satori would drop a browser (cold start,
+  hundreds of MB) into the 256M worker/API — rejected. The cover is fetched + embedded
+  with a hard size/timeout cap.
+- **R2 — og:image is a CACHED route, never a per-hit render (the critical lock).**
+  `GET /api/share-card/{handle}[/{eventId}].png?v=<digest>` sends
+  `Cache-Control: public, s-maxage=…` so WhatsApp/link-unfurl crawlers hit the CDN/edge,
+  not a fresh render. `v` = digest of (theme-version · price · sold-bucket). Bump `v` on
+  publish / theme change / sold-bucket crossing → at most one render per (event, v). An
+  uncached og:image re-renders on every crawl; that is the cost/perf failure this avoids.
+- **R3 — "{N} going" reuses `inventory_pool.sold_count` via `poolSnapshots`** (the same
+  org-read source; no new aggregation). The D4 threshold (≥10) is applied at render, and
+  the cache key uses a COARSE sold-bucket so the card doesn't re-render on every sale —
+  only when it crosses a bucket boundary.
+- **R4 — Read-only; storefront/theme mechanics untouched.** The route READS the org theme
+  (same source the storefront reads) and the suspension-aware public event read
+  (`isPublicEvent`), so a suspended org's card 404s like its storefront. No writes. The
+  banner (`CrPromptBar`) is client-only on Home and reuses `CrDrawer`.
+
+**Critical failure modes → tests**
+1. Card render throws (broken/oversized cover, missing theme) → return a **branded
+   fallback card** (org colors + name + GET PASSES, no cover), never a 500 — the unfurl
+   must never break. Test: broken cover URL → still a valid PNG.
+2. Suspended org / unpublished event → `/api/share-card/...` 404s (reuse `isPublicEvent`).
+   Test: suspended handle → 404, no live card.
+3. Cache staleness → publishing/editing a drop or a theme change bumps `v` so the unfurl
+   shows current price/sold. Test: publish flips the version.
+
+**Parallel lanes:** A) share-card route + og:image tags (backend) ∥ B) `CrPromptBar` +
+channels (frontend, against a mock card URL). Wire at the end. Maps to T1–T5.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | skipped | no OPENAI/codex key (informational) |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 0 | — | not yet run — recommended next (share-card route) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | clean | render reuses tickets SVG→PNG (no headless dep); og:image cached by handle+event+theme/sold digest; "N going" via inventory_pool.sold_count; read-only + suspension-aware; 3 failure-modes → tests |
 | Design Review | `/plan-design-review` | UI/UX gaps | 1 | clean | score 5/10 → 9/10, 4 decisions resolved (D1–D4) |
 
-Passes: IA 6→9 · States 4→9 · Journey 5→9 · AI-slop 7→9 · Design-sys 6→9 · Responsive/a11y 3→9. Overall 5→9.
-Mockups: AI generator unavailable (no OpenAI key) — text review; ASCII IA + state/journey tables stand in.
+Passes (design): IA 6→9 · States 4→9 · Journey 5→9 · AI-slop 7→9 · Design-sys 6→9 · Responsive/a11y 3→9.
 
-**VERDICT:** DESIGN CLEARED — the share/virality banner is design-complete (9/10). The virality moment ("It's live. Now flex it.") is specified end-to-end: seed (organizer share card) → existing multiplier (buyer bring-your-crew). Eng review recommended next for the server share-card/og:image route (T2).
+**VERDICT:** DESIGN + ENG CLEARED — ready to build. Design 9/10; eng architecture locked (R1–R4 — no new browser dep, and the cached og:image is the keystone). Codex/CEO skipped (informational, no key).
 
 NO UNRESOLVED DECISIONS
