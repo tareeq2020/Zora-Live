@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CrShell,
+  CrPromptBar,
   KPIRow,
   KPITile,
   HeroChart,
@@ -195,7 +196,10 @@ export default function OverviewClient() {
       }
     >
       <div className="cr-stack">
-        {/* ① KPI row — revenue first (DESIGN Control-Room v2) */}
+        {/* ① Share prompt bar — the growth lever, above the KPIs (BS86 · IA Pass 1) */}
+        <CrPromptBar />
+
+        {/* ② KPI row — revenue first (DESIGN Control-Room v2) */}
         <KPIRow>
           <KPITile label="Revenue" tint="blue" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
           <KPITile label="Net" tint="green" value={k ? fmt(k.netRevenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />

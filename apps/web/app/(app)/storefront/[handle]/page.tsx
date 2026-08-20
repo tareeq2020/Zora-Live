@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import StorefrontClient, { type StorefrontEvent, type StorefrontTheme } from './storefront-client';
+import { shareCardImage } from '@/app/lib/share-card';
 
 // PR-F5 — the tenant STOREFRONT INDEX route. The middleware rewrites the /@handle
 // front door (and a tenant subdomain's "/") to /storefront/:handle, which lands
@@ -84,7 +85,15 @@ export async function generateMetadata({ params }: { params: { handle: string } 
   if (!org) return { title: 'Storefront — ZORA' };
   const title = `${org.name} — ZORA`;
   const description = `Live events from ${org.name}. Passes run on Zora.`;
-  return { title, description, openGraph: { title, description, type: 'website' } };
+  // BS86: the server-rendered, brand-matched share card is this page's unfurl image.
+  const card = await shareCardImage(params.handle, null, `${org.name} on Zora`);
+  const images = card ? [{ url: card.url, width: card.width, height: card.height, alt: card.alt }] : undefined;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: 'website', ...(images ? { images } : {}) },
+    ...(images ? { twitter: { card: 'summary_large_image', title, description, images: [card!.url] } } : {}),
+  };
 }
 
 export default async function StorefrontPage({ params }: { params: { handle: string } }) {
