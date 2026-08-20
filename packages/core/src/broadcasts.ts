@@ -893,11 +893,12 @@ export async function drainBroadcasts(
     }
 
     try {
+      let result;
       if (channel === 'sms') {
-        await sendSms(r.address, renderSmsBody(b.body_sms ?? '', r.unsubscribe_token, env), env);
+        result = await sendSms(r.address, renderSmsBody(b.body_sms ?? '', r.unsubscribe_token, env), env);
       } else {
         const label = b.sender_kind === 'admin' ? 'Zora' : b.sender_handle;
-        await sendEmail(
+        result = await sendEmail(
           r.address,
           b.subject ?? 'A message from Zora',
           renderEmailBody(b.body_email ?? '', r.unsubscribe_token, label, env),
@@ -905,8 +906,22 @@ export async function drainBroadcasts(
           env,
         );
       }
-      await sql`update broadcast_recipient set status = 'sent', sent_at = now(), error = null where id = ${r.id}`;
-      out.sent += 1;
+      // The SMS/email drivers do NOT throw on misconfiguration: a real driver with
+      // absent creds (or the mock) dev-logs and returns { delivered:false, dev:true }.
+      // Marking that 'sent' silently swallows an entire blast — this is exactly how a
+      // worker running without SMS creds looked like it "sent" while nothing arrived.
+      // Honour `delivered`: only a genuine gateway acceptance is 'sent'; a dev-log is
+      // surfaced as failed so a misconfigured worker shows up in the broadcast report.
+      if (result.delivered) {
+        await sql`update broadcast_recipient set status = 'sent', sent_at = now(), error = null where id = ${r.id}`;
+        out.sent += 1;
+      } else {
+        const why = result.dev
+          ? `not delivered — ${channel === 'sms' ? 'SMS' : 'email'} driver not configured on the sender process (dev-log only)`
+          : 'not delivered';
+        await sql`update broadcast_recipient set status = 'failed', error = ${why} where id = ${r.id}`;
+        out.failed += 1;
+      }
     } catch (e) {
       const msg = (e instanceof Error ? e.message : String(e)).slice(0, 400);
       await sql`update broadcast_recipient set status = 'failed', error = ${msg} where id = ${r.id}`;
