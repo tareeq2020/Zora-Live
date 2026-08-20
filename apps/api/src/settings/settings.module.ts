@@ -52,6 +52,15 @@ function validateMethodsEnabled(raw: unknown): Record<string, boolean> {
   return out;
 }
 
+// BS87: the global USD→TZS rate. Money-critical — a zero/negative/absurd rate would
+// make every USD-priced tier free or nonsensical, so reject anything outside a sane
+// band and round to a whole TZS-per-USD figure.
+function validateUsdRate(raw: unknown): number {
+  const r = Number(raw);
+  if (!Number.isFinite(r) || r <= 0 || r > 1_000_000) throw new BadRequestException({ error: 'invalid_usd_rate' });
+  return Math.round(r);
+}
+
 @Controller()
 export class SettingsController {
   constructor(private readonly entities: EntityStore) {}
@@ -64,10 +73,23 @@ export class SettingsController {
   @UseGuards(SessionGuard)
   @Put('settings')
   async update(@Body() body: any) {
+    // BS87: guard the money-critical rate on the generic write too.
+    if (body?.usdRate !== undefined) body = { ...body, usdRate: validateUsdRate(body.usdRate) };
     const current = await this.entities.read('settings', DEFAULT_SETTINGS);
     const updated = { ...current, ...body };
     await this.entities.write('settings', updated);
     return updated;
+  }
+
+  // BS87: admin-only USD→TZS rate. Organizers price tiers in USD; the API charges
+  // TZS = round(usd * usdRate). This is the ONE global rate for the platform.
+  @UseGuards(SessionGuard)
+  @Put('settings/usd-rate')
+  async updateUsdRate(@Body() body: any) {
+    const usdRate = validateUsdRate(body?.usdRate);
+    const current = await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS);
+    await this.entities.write('settings', { ...current, usdRate });
+    return { usdRate };
   }
 
   // Admin-only, validated payment-routing save (the FSP the x-bridge gateway uses

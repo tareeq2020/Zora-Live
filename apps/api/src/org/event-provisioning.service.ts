@@ -30,6 +30,9 @@ export interface ProvisionTierInput {
   seats?: number;
   /** BS23: born hidden from the storefront / not purchasable. */
   disabled?: boolean;
+  /** BS87: USD anchor — the price the organizer set (Option B). Charge is
+      TZS = round(usd * admin usdRate); this rides the blob for the $ bracket. */
+  usd?: number;
 }
 
 export interface ProvisionedTier {
@@ -40,6 +43,8 @@ export interface ProvisionedTier {
   split?: boolean;
   seats?: number;
   disabled?: boolean;
+  /** BS87: USD anchor (shown as the storefront $ bracket). */
+  usd?: number;
 }
 
 function slugPart(name: string, index: number): string {
@@ -89,7 +94,7 @@ export class EventProvisioningService {
               values (${tierId}, ${capacity}, ${capacity})
               on conflict (product_tier_id) do nothing`;
 
-      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled, seats: tier.seats, disabled: !!tier.disabled });
+      provisioned.push({ tierId, name: tier.name, unitPrice: price, currency, split: !!tier.splitEnabled, seats: tier.seats, disabled: !!tier.disabled, usd: tier.usd });
       i++;
     }
     return provisioned;
@@ -154,6 +159,7 @@ export class EventProvisioningService {
       ...(p.split ? { split: true } : {}),
       ...(p.split && p.seats ? { seats: p.seats } : {}),
       ...(p.disabled ? { disabled: true } : {}),
+      ...(p.usd != null ? { usd: p.usd } : {}),
     }));
     const row = { ...event, webCheckout: { tiers: webTiers }, updated_at: new Date().toISOString() };
     const idx = rows.findIndex((e) => e && e.id === row.id);

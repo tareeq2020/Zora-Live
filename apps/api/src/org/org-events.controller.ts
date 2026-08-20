@@ -18,7 +18,7 @@ import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
-import { EVENT_CITY_IDS } from '../common/defaults';
+import { EVENT_CITY_IDS, DEFAULT_SETTINGS } from '../common/defaults';
 import { AuditService } from '../audit/audit.module';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService, type ProvisionTierInput } from './event-provisioning.service';
@@ -52,6 +52,7 @@ interface TierInput {
   splitWindowSecs?: number;
   seats?: number; // BS30: max people per table (splitters), for split-enabled tiers
   disabled?: boolean; // BS23: hidden from the storefront / not purchasable
+  usd?: number; // BS87: USD anchor (Option B) — charge = round(usd * admin usdRate)
 }
 
 const PAID_STATES = ['paid', 'paid_unseatable', 'payment_short'];
@@ -99,7 +100,7 @@ export class OrgEventsController {
     // Full field validation (date/city/venue/category/priceFrom/seated) is enforced
     // only when PUBLISHING a sellable, public drop.
     const fields = sellable ? this.validateEventFields(body) : this.validateDraftFields(body);
-    const tiers = this.normalizeTiers(body?.tiers, sellable);
+    const tiers = this.normalizeTiers(body?.tiers, sellable, await this.usdRate());
     const idempotencyKey = typeof body?.idempotencyKey === 'string' ? body.idempotencyKey : null;
 
     if (sellable) await this.assertKycApproved(handle); // I6 (before any write)
@@ -133,6 +134,7 @@ export class OrgEventsController {
           splitWindowSecs: t2.splitWindowSecs,
           seats: t2.seats,
           disabled: t2.disabled,
+          usd: t2.usd,
         }));
         const { event } = await this.prov.provisionSellableDrop(
           t,
@@ -161,7 +163,8 @@ export class OrgEventsController {
     await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
 
     const wantPublish = body?.sellable === true;
-    const incomingTiers = Array.isArray(body?.tiers) ? this.normalizeTiers(body.tiers, false) : null;
+    const rate = await this.usdRate();
+    const incomingTiers = Array.isArray(body?.tiers) ? this.normalizeTiers(body.tiers, false, rate) : null;
 
     const updated = await tx(async (t) => {
       const rows = await this.prov.readEventsForUpdate(t);
@@ -180,14 +183,14 @@ export class OrgEventsController {
       if (!wasSellable && wantPublish) {
         // Draft → published: KYC gate (I6) + fresh provisioning (C4).
         await this.assertKycApproved(handle);
-        const tiers = this.normalizeTiers(body?.tiers ?? ev.tiers, true);
+        const tiers = this.normalizeTiers(body?.tiers ?? ev.tiers, true, rate);
         const provisioned = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, seats: x.seats, disabled: x.disabled })),
+          tiers.map((x) => ({ name: x.name, price: x.price, capacity: x.capacity, currency: x.currency, splitEnabled: x.splitEnabled, splitWindowSecs: x.splitWindowSecs, seats: x.seats, disabled: x.disabled, usd: x.usd })),
           ev.name,
         );
-        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) })) };
+        ev.webCheckout = { tiers: provisioned.map((p) => ({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}), ...(p.usd != null ? { usd: p.usd } : {}) })) };
         ev.status = 'published';
         delete ev.tiers; // sellable events carry tiers via webCheckout + the pool
       } else if (wasSellable && incomingTiers) {
@@ -341,10 +344,10 @@ export class OrgEventsController {
         const [p] = await this.prov.provisionSellableTiers(
           t,
           ev.id,
-          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, seats: tier.seats, disabled: tier.disabled }],
+          [{ name: tier.name, price: tier.price, capacity: tier.capacity, currency: tier.currency, splitEnabled: tier.splitEnabled, splitWindowSecs: tier.splitWindowSecs, seats: tier.seats, disabled: tier.disabled, usd: tier.usd }],
           ev.name,
         );
-        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}) });
+        web.push({ tierId: p.tierId, name: p.name, unitPrice: p.unitPrice, currency: p.currency, ...(p.split ? { split: true } : {}), ...(p.split && p.seats ? { seats: p.seats } : {}), ...(p.disabled ? { disabled: true } : {}), ...(p.usd != null ? { usd: p.usd } : {}) });
         continue;
       }
 
@@ -377,6 +380,7 @@ export class OrgEventsController {
         await t`insert into price_version (tier_id, price, currency)
                 values (${match.tierId}, ${Number(tier.price)}, ${match.currency || tier.currency || 'TZS'})`;
         match.unitPrice = Number(tier.price);
+        if (tier.usd != null) match.usd = tier.usd; // BS87: keep the $ bracket in sync
       }
 
       // C7 — capacity: apply the delta to available too; refuse below what's committed.
@@ -507,7 +511,14 @@ export class OrgEventsController {
     return out as { name: string } & Record<string, unknown>;
   }
 
-  private normalizeTiers(raw: any, requireNonEmpty: boolean): TierInput[] {
+  /** BS87: the admin-controlled USD→TZS rate (settings.usdRate; default 2700). */
+  private async usdRate(): Promise<number> {
+    const s = (await this.entities.read('settings', DEFAULT_SETTINGS)) as { usdRate?: unknown };
+    const r = Number(s?.usdRate);
+    return Number.isFinite(r) && r > 0 ? r : 2700;
+  }
+
+  private normalizeTiers(raw: any, requireNonEmpty: boolean, rate: number): TierInput[] {
     if (!Array.isArray(raw)) {
       if (requireNonEmpty) throw new BadRequestException({ error: 'tiers_required' });
       return [];
@@ -515,12 +526,17 @@ export class OrgEventsController {
     const tiers = raw.map((t: any, i: number) => {
       const name = typeof t?.name === 'string' ? t.name.trim() : '';
       if (!name) throw new BadRequestException({ error: `tier_${i}_name_required` });
-      const price = Number(t?.price);
+      // BS87 Option B: USD is the anchor. When the editor sends `usd`, the charge is
+      // TZS = round(usd * the admin-controlled rate) — computed HERE, never trusting a
+      // client-sent TZS. Falls back to the sent `price` (TZS) for legacy payloads.
+      const usdRaw = Number(t?.usd);
+      const usd = t?.usd != null && Number.isFinite(usdRaw) && usdRaw >= 0 ? usdRaw : undefined;
+      const price = usd != null ? Math.round(usd * rate) : Number(t?.price);
       if (!Number.isFinite(price) || price < 0) throw new BadRequestException({ error: `tier_${i}_price_invalid` });
       const capacity = Number(t?.capacity);
       if (!Number.isInteger(capacity) || capacity <= 0) throw new BadRequestException({ error: `tier_${i}_capacity_invalid` });
       return {
-        tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity,
+        tierId: typeof t?.tierId === 'string' ? t.tierId : undefined, name, price, capacity, usd,
         currency: (t?.currency || 'TZS') as string,
         splitEnabled: !!t?.splitEnabled,
         splitWindowSecs: Number.isInteger(t?.splitWindowSecs) ? Number(t.splitWindowSecs) : undefined,

@@ -33,7 +33,7 @@ const METHODS = [
 
 type RouteMap = Record<string, Record<string, string>>;
 type MethodsEnabled = Partial<Record<'mobile' | 'billpay' | 'card', boolean>>;
-type Settings = { fspRouteMap?: RouteMap; methodsEnabled?: MethodsEnabled };
+type Settings = { fspRouteMap?: RouteMap; methodsEnabled?: MethodsEnabled; usdRate?: number };
 
 type FormState = {
   mobileDefault: string;
@@ -56,6 +56,8 @@ export function PaymentsSection() {
     card: true,
   });
   const [savingMethods, setSavingMethods] = useState(false);
+  const [usdRate, setUsdRate] = useState<string>(''); // BS87: global USD→TZS rate
+  const [savingRate, setSavingRate] = useState(false);
 
   useEffect(() => {
     if (res.status !== 'ready' || !res.data) return;
@@ -70,7 +72,29 @@ export function PaymentsSection() {
     });
     const me = res.data.methodsEnabled || {};
     setMethodsEnabled({ mobile: me.mobile !== false, billpay: me.billpay !== false, card: me.card !== false });
+    if (res.data.usdRate != null) setUsdRate(String(res.data.usdRate));
   }, [res.status, res.data]);
+
+  // BS87: the global USD→TZS rate (Option B). Organizers price in USD; buyers are
+  // charged TZS = round(usd * this rate). Zora admin owns it.
+  async function saveRate(e: FormEvent) {
+    e.preventDefault();
+    const n = Number(usdRate);
+    if (!Number.isFinite(n) || n <= 0) {
+      toast('Enter a positive rate', true);
+      return;
+    }
+    setSavingRate(true);
+    try {
+      await adminApi('/api/settings/usd-rate', { method: 'PUT', body: JSON.stringify({ usdRate: n }) });
+      toast('USD rate saved — new saves price at ' + Math.round(n) + ' TZS/$');
+      res.reload();
+    } catch (ex) {
+      toast(errText(ex), true);
+    } finally {
+      setSavingRate(false);
+    }
+  }
 
   // BS47: one toggle -> one PUT, merged server-side onto the existing map, so
   // flipping "card" off doesn't require resubmitting mobile/billpay's state.
@@ -115,6 +139,24 @@ export function PaymentsSection() {
 
   return (
     <>
+      <div className="sec-h">
+        <h2>Currency</h2>
+        <p className="hint">
+          The global USD → TZS rate. Organizers price tiers in USD; buyers are charged
+          TZS = price × this rate. New/edited drops use the current rate; live drops keep
+          their price until re-saved.
+        </p>
+      </div>
+      <form onSubmit={saveRate} style={{ marginBottom: 28 }}>
+        <div className="grid3">
+          <div className="field">
+            <label>USD → TZS RATE</label>
+            <input className="in" type="number" min={1} value={usdRate} onChange={(e) => setUsdRate(e.target.value)} placeholder="2700" />
+          </div>
+        </div>
+        <button className="btn" type="submit" disabled={savingRate}>{savingRate ? 'Saving…' : 'Save rate'}</button>
+      </form>
+
       <div className="sec-h">
         <h2>Payments routing</h2>
         <p className="hint">
