@@ -61,6 +61,26 @@ function devLog(to: string, message: string, reason: string): SmsResult {
   return { delivered: false, dev: true };
 }
 
+/** GSM-7 / plain-ASCII normaliser. Beem sends with encoding 0 and rejects ANY
+    Unicode with a 400 (API_UNSUPPORTED_VALUE). Organizer-entered names routinely
+    carry smart punctuation — an em dash in "Experience — Early Bird", the "·"
+    separator, curly quotes — which silently broke every ticket + reminder SMS
+    while the ASCII-only OTP sailed through. Fold the common smart punctuation to
+    ASCII, strip diacritics (â → a), and drop anything still non-ASCII so the body
+    is always GSM-7 safe. Exported for the unit test. */
+export function gsmSafe(message: string): string {
+  return message
+    .replace(/[‒-―−]/g, '-') // figure/en/em dash, horizontal bar, minus → -
+    .replace(/[‘’‚‛]/g, "'") // curly single quotes → '
+    .replace(/[“”„‟]/g, '"') // curly double quotes → "
+    .replace(/…/g, '...') // ellipsis → ...
+    .replace(/[•·‧]/g, '-') // bullet / middot / hyphenation point → -
+    .replace(/ /g, ' ') // non-breaking space → space
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // strip diacritics
+    .replace(/[^\x00-\x7F]/g, ''); // drop any remaining non-ASCII
+}
+
 async function sendViaAt(to: string, message: string, env: NodeJS.ProcessEnv): Promise<SmsResult> {
   const apiKey = env.AT_API_KEY;
   const username = env.AT_USERNAME;
@@ -107,7 +127,9 @@ async function sendViaBeem(to: string, message: string, env: NodeJS.ProcessEnv):
     body: JSON.stringify({
       source_addr: sender,
       encoding: 0,
-      message,
+      // encoding 0 = GSM-7; Beem 400s on any Unicode, so normalise smart
+      // punctuation (em dash, "·", curly quotes) in organizer names to ASCII.
+      message: gsmSafe(message),
       recipients: [{ recipient_id: 1, dest_addr: destAddr }],
     }),
   });

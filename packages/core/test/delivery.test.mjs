@@ -6,7 +6,7 @@
    QR still builds both the PDF and the credential email). */
 import assert from 'node:assert/strict';
 import {
-  sendSms, sendEmail, sendCredentialEmail, renderQrPng, buildTicketsPdf,
+  sendSms, sendEmail, sendCredentialEmail, renderQrPng, buildTicketsPdf, gsmSafe,
 } from '../dist/index.js';
 
 let pass = 0;
@@ -93,6 +93,23 @@ await test('buildTicketsPdf tolerates non-WinAnsi glyphs (emoji, diacritics)', a
     { publicRef: 'ZORA-EMOJI-01', tier: 'VIP 🎟️', eventName: 'Fâl452 — Ngoma 🎶 Zawadi' },
   ]);
   assert.equal(pdf.subarray(0, 4).toString('ascii'), '%PDF');
+});
+
+// 6. gsmSafe: organizer names with smart punctuation must become GSM-7/ASCII so
+//    Beem (encoding 0) stops 400ing on Unicode — the ticket/reminder SMS bug.
+await test('gsmSafe folds em dash + middot to ASCII (the Weekendar case)', () => {
+  assert.equal(gsmSafe('The Weekendar Experience — Early Bird'), 'The Weekendar Experience - Early Bird');
+  assert.equal(gsmSafe('Yacht Party · Rhythm & Brunch'), 'Yacht Party - Rhythm & Brunch');
+});
+await test('gsmSafe folds curly quotes, ellipsis, and strips diacritics', () => {
+  assert.equal(gsmSafe('“Don’t miss it…”'), '"Don\'t miss it..."');
+  assert.equal(gsmSafe('Fâl452 Ngoma Zawadi'), 'Fal452 Ngoma Zawadi');
+});
+await test('gsmSafe leaves plain ASCII untouched, and result is pure ASCII', () => {
+  const s = 'Your Zora code is 123456. Expires in 5 min.';
+  assert.equal(gsmSafe(s), s);
+  const cleaned = gsmSafe('Ticket — event 🎟 with 漢字');
+  assert.ok(/^[\x00-\x7F]*$/.test(cleaned), 'output must be pure ASCII');
 });
 
 if (process.exitCode) {
