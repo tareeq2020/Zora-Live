@@ -8,6 +8,8 @@
 export { CrShell } from './CrShell';
 export type { CrShellProps, CrNavItem } from './CrShell';
 
+export { CrNavIcon } from './CrNavIcon';
+
 export { CrDrawer } from './CrDrawer';
 export type { CrDrawerProps } from './CrDrawer';
 

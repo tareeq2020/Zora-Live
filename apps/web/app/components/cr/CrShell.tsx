@@ -18,8 +18,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './cr-tokens.css';
 import { CrThemeProvider } from './theme';
 import { CrThemeToggle } from './ThemeToggle';
+import { CrNavIcon } from './CrNavIcon';
 
-export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean };
+export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean; icon?: string };
 
 export type CrShellProps = {
   nav: CrNavItem[];
@@ -130,7 +131,7 @@ export function CrShell({ nav, brand, topbarTitle, topbarExtra, footer, children
                   style={n.accent ? { color: 'var(--cr-blue)', fontWeight: 600 } : undefined}
                   onClick={close}
                 >
-                  <span className="cr-dot" />
+                  <CrNavIcon name={n.icon ?? ''} />
                   {n.label}
                 </Link>
               ))}
