@@ -65,8 +65,8 @@ const STYLE = `
 .zora-studio select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A8778'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center}
 .zora-studio .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:9px;overflow:hidden;background:var(--cr-card)}
 .zora-studio .handle-wrap:focus-within{border-color:var(--blue)}
-.zora-studio .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:13.5px;padding:11px 4px 11px 13px;background:none;text-align:right;color:var(--bone)}
-.zora-studio .handle-wrap .suf{display:flex;align-items:center;padding:0 13px 0 0;font-family:var(--mono);font-size:13.5px;color:var(--mut)}
+.zora-studio .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:13.5px;padding:11px 13px 11px 4px;background:none;text-align:left;color:var(--bone)}
+.zora-studio .handle-wrap .pre{display:flex;align-items:center;padding:0 0 0 13px;font-family:var(--mono);font-size:13.5px;color:var(--mut)}
 .zora-studio .dz{border:2px dashed var(--hair);border-radius:12px;background:var(--cr-card);min-height:104px;display:flex;align-items:center;gap:14px;padding:14px;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
 .zora-studio .dz:hover{border-color:var(--hair2)}
 .zora-studio .dz.drag{border-color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
@@ -107,7 +107,7 @@ const STYLE = `
 const MARKUP = `
 <div class="studio">
   <div class="top">
-    <span class="url" id="live-url">thebrunchcity.zorapass.com</span>
+    <span class="url" id="live-url">zorapass.com/thebrunchcity</span>
     <span class="save-state" id="save-state">All changes staged</span>
     <button class="publish" id="publish">PUBLISH TO WEB</button>
   </div>
@@ -120,8 +120,8 @@ const MARKUP = `
         <button class="acc-h"><span><span class="n">01</span><span class="t">IDENTITY</span></span><span class="chev">&#9662;</span></button>
         <div class="acc-body">
           <div class="field">
-            <label>SUBDOMAIN PREFIX</label>
-            <div class="handle-wrap"><input id="f-handle" autocomplete="off" spellcheck="false" readonly placeholder="organizer"><span class="suf">.zorapass.com</span></div>
+            <label>YOUR STORE ADDRESS</label>
+            <div class="handle-wrap"><span class="pre">zorapass.com/</span><input id="f-handle" autocomplete="off" spellcheck="false" readonly placeholder="organizer"></div>
           </div>
           <div class="field">
             <label>BRAND NAME</label>
@@ -203,7 +203,7 @@ const MARKUP = `
           <button class="on" data-vp="desktop"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Desktop</button>
           <button data-vp="mobile"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Mobile</button>
         </div>
-        <span class="pv-url" id="pv-url">thebrunchcity.zorapass.com</span>
+        <span class="pv-url" id="pv-url">zorapass.com/thebrunchcity</span>
         <button class="pv-reload" id="pv-reload">RELOAD</button>
       </div>
       <div class="pv-stage">
@@ -236,8 +236,8 @@ const SCRIPT = String.raw`
   const frame = $('preview-frame');
   frame.src = '/@' + ORG_HANDLE + '?preview=1';
   $('f-handle').value = ORG_HANDLE;
-  $('live-url').innerHTML = '<b>'+ORG_HANDLE+'</b>.zorapass.com';
-  $('pv-url').textContent = ORG_HANDLE+'.zorapass.com';
+  $('live-url').innerHTML = 'zorapass.com/<b>'+ORG_HANDLE+'</b>';
+  $('pv-url').textContent = 'zorapass.com/'+ORG_HANDLE;
   let frameReady = false;
   function pushToPreview(){
     if (!frameReady) return;
@@ -313,14 +313,14 @@ const SCRIPT = String.raw`
   });
   $('pv-reload').addEventListener('click', ()=>{ frameReady=false; frame.src=frame.src; });
 
-  /* ── publish: one PUT updates the live subdomain ── */
+  /* ── publish: one PUT updates the live store page ── */
   $('publish').addEventListener('click', async ()=>{
     const btn=$('publish'); btn.disabled=true; const old=btn.textContent; btn.textContent='PUBLISHING…';
     try{
       const r=await fetch('/api/storefront-theme',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(theme)});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
       dirty=false; $('save-state').textContent='Published just now';
-      toast('Published to '+theme.handle+'.zorapass.com');
+      toast('Published to zorapass.com/'+theme.handle);
     }catch(ex){ toast(String(ex.message||ex), true); }
     finally{ btn.disabled=false; btn.textContent=old; }
   });
@@ -329,7 +329,7 @@ const SCRIPT = String.raw`
   fetch('/api/storefront-theme?handle='+encodeURIComponent(ORG_HANDLE)).then(r=>r.ok?r.json():null).then(t=>{
     if(!t) return; Object.assign(theme, t);
     $('f-handle').value=theme.handle; $('f-brand').value=theme.brandName;
-    $('live-url').innerHTML='<b>'+theme.handle+'</b>.zorapass.com'; $('pv-url').textContent=theme.handle+'.zorapass.com';
+    $('live-url').innerHTML='zorapass.com/<b>'+theme.handle+'</b>'; $('pv-url').textContent='zorapass.com/'+theme.handle;
     COLORS.forEach(([k])=>{ if(theme[k]){ $('hex-'+k).value=theme[k].toUpperCase(); $('sw-'+k).value=theme[k]; } });
     $('f-type').value=theme.typography;
     [['logoUrl','thumb-logo','dz-logo'],['faviconUrl','thumb-favicon','dz-favicon'],['bannerUrl','thumb-banner','dz-banner']].forEach(([f,th,dz])=>{

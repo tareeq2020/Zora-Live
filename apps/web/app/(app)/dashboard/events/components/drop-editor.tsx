@@ -806,7 +806,7 @@ export default function DropEditor(props: DropEditorProps) {
           <div className="side">
             <p className="side-h">LIVE PREVIEW — HOW YOUR CROWD SEES IT</p>
             <div className="pv">
-              <p className="pv-url">yourname.zorapass.com</p>
+              <p className="pv-url">zorapass.com/yourname</p>
               <div className="pv-banner">
                 <span className="ph">YOUR BANNER APPEARS HERE</span>
               </div>

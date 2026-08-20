@@ -1,7 +1,7 @@
 'use client';
 
 /* PR-F6/F7 — the organizer onboarding flow (signup.html) at
-   /dashboard/onboarding: claim subdomain, wallet/payout setup, KYC identity
+   /dashboard/onboarding: claim address, wallet/payout setup, KYC identity
    verification. Faithful port: page-scoped styles + markup via
    dangerouslySetInnerHTML, the original multi-step script run once on mount.
    Styles scoped under `.zora-onboard`. Internal links repointed to /dashboard/*.
@@ -71,8 +71,8 @@ const STYLE = `
 .zora-onboard .urlbox .avail .tick{width:15px;height:15px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;font-size:9px}
 .zora-onboard .handle-wrap{display:flex;align-items:stretch;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--black)}
 .zora-onboard .handle-wrap:focus-within{border-color:var(--blue)}
-.zora-onboard .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:15px;padding:14px 6px 14px 15px;background:none;text-align:right;color:var(--bone)}
-.zora-onboard .handle-wrap .suf{display:flex;align-items:center;padding:0 15px 0 0;font-family:var(--mono);font-size:15px;color:var(--mut)}
+.zora-onboard .handle-wrap input{flex:1;border:none;outline:none;font-family:var(--mono);font-size:15px;padding:14px 15px 14px 6px;background:none;text-align:left;color:var(--bone)}
+.zora-onboard .handle-wrap .pre{display:flex;align-items:center;padding:0 0 0 15px;font-family:var(--mono);font-size:15px;color:var(--mut)}
 .zora-onboard .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:5px;margin-bottom:20px}
 .zora-onboard .seg button{border:none;background:none;border-radius:8px;padding:12px;font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--mut);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .18s}
 .zora-onboard .seg button.on{background:var(--bone);color:var(--black);box-shadow:0 1px 4px rgba(0,0,0,.3)}
@@ -149,20 +149,20 @@ const MARKUP = `
     <p class="fine">Two clicks and you're in. By continuing you agree to Zora's<br>organizer terms.</p>
   </div>
 
-  <!-- STEP 1 — claim subdomain -->
+  <!-- STEP 1 — claim address -->
   <div class="step" id="s1">
     <p class="crumb">STEP 1 OF 3 · YOUR ADDRESS</p>
     <h1>Claim your address.</h1>
     <p class="lede">This is your home on Zora — a premium link that's yours the second you claim it. You can add a custom domain later.</p>
     <div class="urlbox">
-      <div class="u"><span class="h" id="url-handle">yourname</span>.zorapass.com</div>
+      <div class="u">zorapass.com/<span class="h" id="url-handle">yourname</span></div>
       <div class="avail ok" id="avail"><span class="tick">&checkmark;</span><span id="avail-txt">available</span></div>
     </div>
     <div class="field" style="margin-top:20px">
       <label>YOUR HANDLE</label>
       <div class="handle-wrap">
+        <span class="pre">zorapass.com/</span>
         <input id="handle" placeholder="thebrunchcity" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <span class="suf">.zorapass.com</span>
       </div>
     </div>
     <div class="field">
@@ -268,7 +268,7 @@ const MARKUP = `
     <div class="pending-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>VERIFICATION PENDING</div>
     <h1>You're in review.</h1>
     <p class="lede">Thanks — your dashboard is ready to explore while our security team checks your ID.</p>
-    <div class="live-url"><span class="h" id="done-handle">yourname</span>.zorapass.com <span class="badge"><span class="d"></span>PENDING</span></div>
+    <div class="live-url">zorapass.com/<span class="h" id="done-handle">yourname</span> <span class="badge"><span class="d"></span>PENDING</span></div>
     <div class="info-lock">
       <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
       <span>You can <b>draft events</b> right now. <b>Ticket payouts</b> and your <b>public listing</b> unlock the moment we approve your ID — usually within <b>24 hours</b>. We'll email you the second it clears.</span>
@@ -303,7 +303,7 @@ const SCRIPT = String.raw`
   $('google-btn').addEventListener('click', () => goStep(1));
   $('email-btn').addEventListener('click', () => goStep(1));
 
-  /* step 1: subdomain */
+  /* step 1: address */
   const sani = v => v.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 30);
   function checkHandle(){
     const h = sani($('handle').value);

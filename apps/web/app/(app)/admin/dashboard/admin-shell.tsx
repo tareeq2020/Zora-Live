@@ -105,7 +105,7 @@ function ImpersonationBanner() {
     <div className="imp-banner" role="status">
       <div>
         <p className="ib-t">Acting on behalf of {imp.name || imp.handle}</p>
-        <p className="ib-d">EVERY ACTION IS LOGGED · {imp.handle ? imp.handle + '.zorapass.com' : 'ORGANIZER SESSION'}</p>
+        <p className="ib-d">EVERY ACTION IS LOGGED · {imp.handle ? 'zorapass.com/' + imp.handle : 'ORGANIZER SESSION'}</p>
       </div>
       <button type="button" className="btn small ghost" onClick={exit} disabled={busy}>
         EXIT
