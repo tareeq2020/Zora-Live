@@ -175,7 +175,15 @@ export async function middleware(req: NextRequest) {
       logApiFail('admin-gate', '/api/me', err);
     }
     const url = req.nextUrl.clone();
-    url.pathname = isAdmin ? '/admin/dashboard' : '/admin/login';
+    if (isAdmin) {
+      // BS88: land admins on the Control-Room v2 console (Lane C), not the legacy
+      // /admin/dashboard. Redirect (not rewrite) so the visible URL + usePathname
+      // match the console's path-based nav highlighting.
+      url.pathname = '/admin/console/overview';
+      url.hash = '';
+      return NextResponse.redirect(url);
+    }
+    url.pathname = '/admin/login';
     return NextResponse.rewrite(url);
   }
 
