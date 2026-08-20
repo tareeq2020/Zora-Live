@@ -21,18 +21,18 @@ import { CrShell, type CrNavItem } from '@/app/components/cr';
 
 const NAV: CrNavItem[] = [
   // Lane C — rebuilt on the CR lib.
-  { href: '/admin/console/overview', label: 'Overview' },
-  { href: '/admin/console/events', label: 'Events-manager' },
-  { href: '/admin/console/orders', label: 'Orders & carts' },
-  { href: '/admin/console/broadcasts', label: 'Broadcasts' },
+  { href: '/admin/console/overview', label: 'Overview', icon: 'overview' },
+  { href: '/admin/console/events', label: 'Events-manager', icon: 'events-manager' },
+  { href: '/admin/console/orders', label: 'Orders & carts', icon: 'orders' },
+  { href: '/admin/console/broadcasts', label: 'Broadcasts', icon: 'broadcasts' },
   // Sections other lanes own — deep-link into the legacy console for now.
-  { href: '/admin/dashboard#organizers', label: 'Organizers' },
-  { href: '/admin/dashboard#verification', label: 'Verification' },
-  { href: '/admin/dashboard#payouts', label: 'Payouts' },
-  { href: '/admin/dashboard#scanner', label: 'Scanner users' },
-  { href: '/admin/dashboard#payments', label: 'Payments routing' },
-  { href: '/admin/dashboard#media', label: 'Media' },
-  { href: '/admin/dashboard#access', label: 'Access' },
+  { href: '/admin/dashboard#organizers', label: 'Organizers', icon: 'organizers' },
+  { href: '/admin/dashboard#verification', label: 'Verification', icon: 'verification' },
+  { href: '/admin/dashboard#payouts', label: 'Payouts', icon: 'payouts' },
+  { href: '/admin/dashboard#scanner', label: 'Scanner users', icon: 'scanner' },
+  { href: '/admin/dashboard#payments', label: 'Payments routing', icon: 'payments' },
+  { href: '/admin/dashboard#media', label: 'Media', icon: 'media' },
+  { href: '/admin/dashboard#access', label: 'Access', icon: 'access' },
 ];
 
 export type AdminConsoleShellProps = {

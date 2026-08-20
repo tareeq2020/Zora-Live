@@ -6,13 +6,13 @@
 import type { CrNavItem } from '@/app/components/cr';
 
 export const ORG_NAV: CrNavItem[] = [
-  { href: '/dashboard/overview', label: 'Home' },
-  { href: '/dashboard/sales', label: 'Sales' },
-  { href: '/dashboard/events', label: 'Events' },
-  { href: '/dashboard/payouts', label: 'Payouts' },
-  { href: '/dashboard/comps', label: 'Comps' },
-  { href: '/dashboard/storefront/studio', label: 'Storefront' },
-  { href: '/dashboard/help', label: 'Help & Support' },
+  { href: '/dashboard/overview', label: 'Home', icon: 'home' },
+  { href: '/dashboard/sales', label: 'Sales', icon: 'sales' },
+  { href: '/dashboard/events', label: 'Events', icon: 'events' },
+  { href: '/dashboard/payouts', label: 'Payouts', icon: 'payouts' },
+  { href: '/dashboard/comps', label: 'Comps', icon: 'comps' },
+  { href: '/dashboard/storefront/studio', label: 'Storefront', icon: 'storefront' },
+  { href: '/dashboard/help', label: 'Help & Support', icon: 'help' },
 ];
 
 export const ORG_BRAND = { name: 'zora', sublabel: 'Organizer' } as const;

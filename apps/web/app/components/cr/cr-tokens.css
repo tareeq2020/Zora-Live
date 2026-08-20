@@ -235,6 +235,17 @@
   background: currentColor;
   flex-shrink: 0;
 }
+/* BS81 — nav icons (stroke, currentColor so they follow idle/active colour). */
+.cr-nav-item .cr-nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.82;
+}
+.cr-nav-item:hover .cr-nav-icon,
+.cr-nav-item.cr-on .cr-nav-icon {
+  opacity: 1;
+}
 .cr-nav-foot {
   margin-top: auto;
   padding: 20px 22px 0;
