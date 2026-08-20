@@ -99,7 +99,7 @@ export type {
   PayoutOrgContext, RequestPayoutInput, RequestPayoutResult,
   DecidePayoutInput, DecidePayoutResult, ListPayoutsFilter,
 } from './payouts';
-export { sendSms, smsConfigSummary, logSmsStartup } from './sms';
+export { sendSms, smsConfigSummary, logSmsStartup, gsmSafe } from './sms';
 export type { SmsDriver, SmsResult } from './sms';
 export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
