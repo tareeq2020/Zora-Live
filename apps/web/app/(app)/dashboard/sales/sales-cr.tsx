@@ -293,7 +293,7 @@ export default function SalesCr() {
       brand={ORG_BRAND}
       topbarTitle="Sales"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>Your side of the counter</span>}
-      footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a></>}
+      footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORAPASS.COM</a></>}
     >
       <div className="cr-stack">
         <div>

@@ -605,7 +605,7 @@ export function DiscoverApp() {
           </span>
 
           <h1 className="zd-h1">
-            find your <span className="shimmer-text">night</span>.
+            find your <span className="shimmer-text">vibe</span>.
           </h1>
           <p className="zd-subline">
             Every event worth being at, near you — concerts, festivals, nightlife and daytime.
@@ -809,11 +809,10 @@ export function DiscoverApp() {
           <OrbWordmark href="/" size={18} />
           <div className="zd-cols">
             <a href="/">brand</a>
-            <a href="/drop-001.html">kultur</a>
             <a href="/dashboard/onboarding">organizers</a>
             <a href="/help">help</a>
           </div>
-          <p className="zd-legal">© 2026 ZORA · FIND YOUR NIGHT</p>
+          <p className="zd-legal">© 2026 ZORA · FIND YOUR VIBE</p>
         </div>
       </footer>
 

@@ -982,7 +982,7 @@ function Shell({
       topbarExtra={topbarExtra}
       footer={
         <>
-          <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
+          <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORAPASS.COM</a>
         </>
       }
     >

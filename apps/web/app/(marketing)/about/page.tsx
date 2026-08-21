@@ -182,7 +182,7 @@ export default function AboutPage() {
 
       <section className="cta">
         <div className="wrap">
-          <h2 style={{ textAlign: 'center' }}>Find your next night.</h2>
+          <h2 style={{ textAlign: 'center' }}>Find your next vibe.</h2>
           <a className="big-btn" href="/discover">EXPLORE EVENTS</a>
         </div>
       </section>
