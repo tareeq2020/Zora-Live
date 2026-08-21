@@ -35,11 +35,19 @@ export class OrgPayoutsController {
     return this.payouts.organizerView(req.actingHandle as string);
   }
 
+  /** GET /api/org/payouts/methods — the destination catalog the request form
+      renders (payment methods · banks · mobile-money operators). Static registry
+      data; scoped under the org guard only so it rides the same session. */
+  @Get('methods')
+  methods() {
+    return this.payouts.destinationCatalog();
+  }
+
   /** POST /api/org/payouts — request a withdrawal. */
   @Post()
   async request(
     @Req() req: Request,
-    @Body() body: { amount?: unknown; currency?: unknown; note?: unknown },
+    @Body() body: { amount?: unknown; currency?: unknown; note?: unknown; destination?: unknown },
   ) {
     const handle = req.actingHandle as string;
     // Parse only — do NOT decide here. Core owns every rule so the same verdict
@@ -47,8 +55,11 @@ export class OrgPayoutsController {
     const amount = typeof body?.amount === 'string' ? Number(body.amount.replace(/[\s,]/g, '')) : Number(body?.amount);
     const currency = String(body?.currency ?? '').trim().toUpperCase();
     const note = typeof body?.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 280) : null;
+    // Destination is passed through as-is; core validates it against the canonical
+    // registry (the ONE place the rules live) and returns `destination_invalid`.
+    const destination = body?.destination ?? null;
 
-    const result = await this.payouts.request(handle, amount, currency, note);
+    const result = await this.payouts.request(handle, amount, currency, note, destination);
     if (!result.ok) {
       // The balance rides along on a refusal so the UI can correct itself
       // immediately instead of showing a stale figure next to the error.
@@ -59,9 +70,12 @@ export class OrgPayoutsController {
       });
     }
 
+    const d = result.payout.destination;
     await this.audit.record(
       'payout.request',
-      `${result.payout.amount} ${result.payout.currency} (payout ${result.payout.id})`,
+      `${result.payout.amount} ${result.payout.currency}` +
+        (d ? ` → ${d.providerName} ${d.account}${d.accountName ? ` (${d.accountName})` : ''}` : '') +
+        ` (payout ${result.payout.id})`,
       req.ip,
       req.actingViaImpersonation ? `admin(as ${handle})` : handle,
     );

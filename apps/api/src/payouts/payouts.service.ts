@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   db, resolveCommissionRate, availableBalances, requestPayout, decidePayout, listPayouts, getPayout,
+  payoutDestinationCatalog,
 } from '@zora/core';
 import type {
   PayoutBalance, PayoutRecord, RequestPayoutResult, DecidePayoutResult, PayoutOrgContext,
@@ -66,10 +67,22 @@ export class PayoutsService {
     };
   }
 
+  /** The lists the withdrawal form renders (methods · banks · MNOs). Static —
+      comes straight from the canonical registry, no DB. */
+  destinationCatalog() {
+    return payoutDestinationCatalog();
+  }
+
   /** POST /api/org/payouts — the money-critical path (core holds the lock). */
-  async request(handle: string, amount: number, currency: string, note?: string | null): Promise<RequestPayoutResult> {
+  async request(
+    handle: string,
+    amount: number,
+    currency: string,
+    note?: string | null,
+    destination?: unknown,
+  ): Promise<RequestPayoutResult> {
     const { ctx, verified } = await this.contextFor(handle);
-    return requestPayout(db(), { org: ctx, amount, currency, kycApproved: verified, note });
+    return requestPayout(db(), { org: ctx, amount, currency, kycApproved: verified, note, destination });
   }
 
   /** GET /api/admin/payouts — the whole queue (optionally one status). */

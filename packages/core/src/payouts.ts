@@ -34,6 +34,7 @@
    has to string-match and the copy lives in one place (`payoutErrorMessage`). */
 import { tx } from './db';
 import { netEarningsByCurrency, readOrderMoney } from './earnings';
+import { providerFor, type PayoutMethod } from './fsp-registry';
 
 type Sql = any;
 
@@ -52,7 +53,26 @@ export type PayoutErrorCode =
   | 'not_verified'
   | 'amount_invalid'
   | 'duplicate_request'
-  | 'unsupported_currency';
+  | 'unsupported_currency'
+  | 'destination_invalid';
+
+/** BS98 — WHERE the money goes. The organizer picks a method, then a provider
+    (a mobile-money operator or a bank from the canonical registry), then enters
+    the receiving account. We store the CANONICAL provider code (gateway-agnostic)
+    plus a `providerName` snapshot so the record stays readable. Bank transfers
+    additionally need the account holder's name (the x-bridge bank payout DTO
+    requires `recipientName`); mobile money does not. */
+export interface PayoutDestination {
+  method: PayoutMethod; // 'mobile_money' | 'bank'
+  /** Canonical code: an MNO code (MPESA, TIGOPESA…) or a bank code (CRDB, NMB…). */
+  provider: string;
+  /** Display snapshot of the provider at request time. */
+  providerName: string;
+  /** Receiving account: a phone number (mobile money) or bank account number. */
+  account: string;
+  /** Account holder name — required for bank, optional (null) for mobile money. */
+  accountName: string | null;
+}
 
 /** Reasons an admin decision can be refused (separate surface, separate codes). */
 export type PayoutDecisionErrorCode =
@@ -75,6 +95,9 @@ export interface PayoutRecord {
   fxNote: string | null;
   note: string | null;
   reason: string | null;
+  /** BS98 — where the organizer asked to be paid (null for legacy rows written
+      before destinations existed). */
+  destination: PayoutDestination | null;
 }
 
 /** One currency's ledger line. Every field is shown to the organizer — "why did
@@ -149,7 +172,22 @@ type PayoutRow = {
   status: string; requested_at: Date | string; decided_at: Date | string | null;
   decided_by: string | null; reference: string | null; fx_note: string | null;
   note: string | null; reason: string | null;
+  dest_method: string | null; dest_provider: string | null; dest_provider_name: string | null;
+  dest_account: string | null; dest_account_name: string | null;
 };
+
+/** Rebuild the destination object from its flat columns (null when a row predates
+    destinations — `dest_method` is the presence flag). */
+function toDestination(r: PayoutRow): PayoutDestination | null {
+  if (!r.dest_method || !r.dest_provider) return null;
+  return {
+    method: r.dest_method as PayoutMethod,
+    provider: r.dest_provider,
+    providerName: r.dest_provider_name ?? r.dest_provider,
+    account: r.dest_account ?? '',
+    accountName: r.dest_account_name ?? null,
+  };
+}
 
 const iso = (v: Date | string | null): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : String(v);
@@ -168,11 +206,13 @@ function toRecord(r: PayoutRow): PayoutRecord {
     fxNote: r.fx_note,
     note: r.note,
     reason: r.reason,
+    destination: toDestination(r),
   };
 }
 
 const PAYOUT_COLUMNS = `id, organizer_handle, amount, currency, status, requested_at,
-                        decided_at, decided_by, reference, fx_note, note, reason`;
+                        decided_at, decided_by, reference, fx_note, note, reason,
+                        dest_method, dest_provider, dest_provider_name, dest_account, dest_account_name`;
 
 // ── balance ──────────────────────────────────────────────────────────────────
 
@@ -260,6 +300,9 @@ export interface RequestPayoutInput {
   /** #5 gate: only a verified (kycStatus 'approved') organizer may withdraw. */
   kycApproved: boolean;
   note?: string | null;
+  /** BS98 — WHERE to send it. Required: validated against the canonical registry
+      inside `requestPayout` and persisted on the row. */
+  destination?: unknown;
 }
 
 export type RequestPayoutResult =
@@ -282,9 +325,52 @@ export function payoutErrorMessage(code: PayoutErrorCode, ctx?: { minimum?: numb
       return 'You already have a withdrawal request pending. We’ll settle that one first.';
     case 'unsupported_currency':
       return `You have no balance in${cur || ' that currency'}. Withdrawals settle per currency.`;
+    case 'destination_invalid':
+      return 'Choose how you want to be paid — mobile money or bank, the provider, and the account number.';
     default:
       return 'That withdrawal could not be requested.';
   }
+}
+
+/** BS98 — validate + normalise a chosen destination against the canonical
+    registry. Returns the clean destination to persist, or a `destination_invalid`
+    failure. The provider must be a real code for the chosen method; the account
+    is required (and, for mobile money, must look like a phone number); a bank
+    transfer additionally requires the account holder's name. */
+export function validateDestination(
+  raw: unknown,
+): { ok: true; destination: PayoutDestination } | { ok: false } {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  const method = String(d.method ?? '').trim().toLowerCase();
+  if (method !== 'mobile_money' && method !== 'bank') return { ok: false };
+
+  const entry = providerFor(method as PayoutMethod, String(d.provider ?? ''));
+  if (!entry) return { ok: false };
+
+  const account = String(d.account ?? '').trim();
+  if (!account) return { ok: false };
+  if (method === 'mobile_money') {
+    // A phone number: 9–12 digits after stripping spaces / punctuation / +.
+    const digits = account.replace(/[^0-9]/g, '');
+    if (digits.length < 9 || digits.length > 12) return { ok: false };
+  } else {
+    // A bank account number: digits (some banks include separators) — at least 6.
+    if (account.replace(/[^0-9]/g, '').length < 6) return { ok: false };
+  }
+
+  const accountName = String(d.accountName ?? '').trim();
+  if (method === 'bank' && !accountName) return { ok: false }; // recipientName is required by the bank rail
+
+  return {
+    ok: true,
+    destination: {
+      method: method as PayoutMethod,
+      provider: entry.code,
+      providerName: entry.name,
+      account,
+      accountName: accountName || null,
+    },
+  };
 }
 
 const fail = (code: PayoutErrorCode, ctx?: Parameters<typeof payoutErrorMessage>[1], balance?: PayoutBalance): RequestPayoutResult =>
@@ -341,9 +427,20 @@ export async function requestPayout(sql: Sql, input: RequestPayoutInput): Promis
       return fail('insufficient_balance', { currency, available: line.available }, line);
     }
 
+    // WHERE to send it — validated last (money checks first), but still required:
+    // no clean destination, no row. Persisted alongside the amount so the record
+    // is complete the moment it is created (BS98).
+    const dest = validateDestination(input.destination);
+    if (!dest.ok) return fail('destination_invalid', { currency }, line);
+    const d = dest.destination;
+
     const [row] = (await t`
-      insert into payout (organizer_handle, amount, currency, status, note)
-      values (${handle}, ${amount}, ${currency}, 'requested', ${input.note ?? null})
+      insert into payout (
+        organizer_handle, amount, currency, status, note,
+        dest_method, dest_provider, dest_provider_name, dest_account, dest_account_name)
+      values (
+        ${handle}, ${amount}, ${currency}, 'requested', ${input.note ?? null},
+        ${d.method}, ${d.provider}, ${d.providerName}, ${d.account}, ${d.accountName})
       returning ${t.unsafe(PAYOUT_COLUMNS)}`) as PayoutRow[];
 
     // The balance returned is post-reservation — what the organizer sees next.

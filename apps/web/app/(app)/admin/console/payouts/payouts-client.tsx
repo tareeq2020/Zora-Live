@@ -36,6 +36,14 @@ type Payout = {
   fxNote: string | null;
   note: string | null;
   reason: string | null;
+  // BS98 — the structured destination the organizer picked (null for legacy rows).
+  destination: {
+    method: 'mobile_money' | 'bank' | string;
+    provider: string;
+    providerName: string;
+    account: string;
+    accountName: string | null;
+  } | null;
 };
 
 const statusTone = (s: string): PillTone => (s === 'approved' ? 'paid' : s === 'rejected' ? 'failed' : 'pending');
@@ -43,6 +51,17 @@ const statusLabel = (s: string) => (s === 'approved' ? 'PAID' : s === 'rejected'
 
 /** Whole units, grouped — the exact figure, never abbreviated. */
 const exact = (n: number) => (Number(n) || 0).toLocaleString('en-US');
+
+const methodLabel = (m: string) => (m === 'bank' ? 'Bank' : m === 'mobile_money' ? 'Mobile money' : m);
+
+/** The destination as a single readable line for the queue's "Send to" column —
+    the provider + account a staffer types into their banking / momo app, with the
+    holder name for a bank. Falls back to the freetext note for legacy rows. */
+function destSummary(p: Payout): string | null {
+  const d = p.destination;
+  if (!d) return p.note || null;
+  return `${methodLabel(d.method)} · ${d.providerName} · ${d.account}${d.accountName ? ` · ${d.accountName}` : ''}`;
+}
 
 export default function AdminPayoutsClient() {
   return (
@@ -133,7 +152,7 @@ function PayoutsInner() {
     },
     { key: 'amount', header: 'Amount', numeric: true, render: (p) => exact(p.amount) },
     { key: 'currency', header: 'Currency', render: (p) => <span style={{ fontFamily: 'var(--cr-mono)' }}>{p.currency}</span> },
-    { key: 'dest', header: 'Send to', render: (p) => (p.note ? <span style={{ fontFamily: 'var(--cr-mono)' }}>{p.note}</span> : <span style={{ color: 'var(--cr-mut)' }}>—</span>) },
+    { key: 'dest', header: 'Send to', render: (p) => { const s = destSummary(p); return s ? <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11 }}>{s}</span> : <span style={{ color: 'var(--cr-mut)' }}>—</span>; } },
     {
       key: 'act',
       header: '',
@@ -240,7 +259,15 @@ function PayoutsInner() {
               ['AMOUNT', `${exact(current.amount)} ${current.currency}`],
               ['HANDLE', current.organizerHandle],
               ['REQUESTED', whenLocal(current.requestedAt)],
-              ['SEND TO', current.note || '— (not supplied)'],
+              ...(current.destination
+                ? ([
+                    ['METHOD', methodLabel(current.destination.method)],
+                    ['PROVIDER', current.destination.providerName],
+                    ['ACCOUNT', current.destination.account],
+                    ...(current.destination.accountName ? [['ACCOUNT NAME', current.destination.accountName]] : []),
+                  ] as [string, string][])
+                : ([['SEND TO', current.note || '— (not supplied)']] as [string, string][])),
+              ...(current.destination && current.note ? ([['NOTE', current.note]] as [string, string][]) : []),
             ]}
           />
 
