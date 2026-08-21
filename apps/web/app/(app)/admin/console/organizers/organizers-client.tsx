@@ -14,10 +14,10 @@
    with the org suspension cascade. */
 
 import { useState } from 'react';
-import { DataTable, StatusPill, type Column, type PillTone } from '@/app/components/cr';
+import { DataTable, StatusPill, CrDrawer, type Column, type PillTone } from '@/app/components/cr';
 import { adminApi, errText, money, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
 import { AdminConsoleShell } from '../console-shell';
-import { ConsoleToastProvider, CrSectionHead, crDangerBtn, useConsoleToast } from '../console-kit';
+import { ConsoleToastProvider, CrField, CrSectionHead, crDangerBtn, crPrimaryBtn, useConsoleToast } from '../console-kit';
 
 type Organizer = {
   id: string;
@@ -46,6 +46,82 @@ function OrganizersInner() {
   const res = useAdminResource(loader);
   const [comm, setComm] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+
+  // BS95 (Phase 3.5, C) — "New organizer" (name · handle · owner email) drawer.
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newHandle, setNewHandle] = useState('');
+  const [newOwner, setNewOwner] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  // Per-row "Assign / transfer owner" drawer (holds the target org).
+  const [ownerFor, setOwnerFor] = useState<Organizer | null>(null);
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [savingOwner, setSavingOwner] = useState(false);
+
+  async function createOrganizer(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newName.trim();
+    const handle = newHandle.trim().replace(/^@+/, '').toLowerCase();
+    const email = newOwner.trim();
+    if (name.length < 2 || handle.length < 3 || !email.includes('@')) {
+      toast('Enter a name, handle and a valid owner email', true);
+      return;
+    }
+    setCreating(true);
+    try {
+      const r = await adminApi<{ owner: string; handle: string }>('/api/admin/organizers', {
+        method: 'POST',
+        body: JSON.stringify({ name, handle, ownerEmail: email }),
+      });
+      toast(r.owner === 'invited' ? `Created — owner invite sent to ${email}` : `Created — ${email} is now the owner`);
+      setNewOpen(false);
+      setNewName('');
+      setNewHandle('');
+      setNewOwner('');
+      res.reload();
+    } catch (ex) {
+      toast(errText(ex), true);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function openOwner(o: Organizer) {
+    setOwnerFor(o);
+    setOwnerEmail('');
+  }
+
+  async function transferOwner(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ownerFor) return;
+    const email = ownerEmail.trim();
+    if (!email.includes('@')) {
+      toast('Enter a valid owner email', true);
+      return;
+    }
+    setSavingOwner(true);
+    try {
+      const r = await adminApi<{ owner: string }>(`/api/admin/organizers/${ownerFor.id}/owner`, {
+        method: 'PUT',
+        body: JSON.stringify({ email }),
+      });
+      toast(
+        r.owner === 'invited'
+          ? `Owner invite sent to ${email}`
+          : r.owner === 'unchanged'
+            ? `${email} is already the owner`
+            : `Ownership assigned to ${email}`,
+      );
+      setOwnerFor(null);
+      setOwnerEmail('');
+      res.reload();
+    } catch (ex) {
+      toast(errText(ex), true);
+    } finally {
+      setSavingOwner(false);
+    }
+  }
 
   const pctOf = (o: Organizer) => ((Number(o.commissionRate) || 0) * 100).toFixed(1);
   const commValue = (o: Organizer) => (o.id in comm ? comm[o.id] : pctOf(o));
@@ -147,6 +223,9 @@ function OrganizersInner() {
       header: '',
       render: (o) => (
         <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="cr-btn" disabled={busy === o.id} onClick={() => openOwner(o)}>
+            Owner
+          </button>
           {o.status === 'active' ? (
             <>
               <button type="button" className="cr-btn" disabled={busy === o.id} onClick={() => impersonate(o)}>
@@ -174,10 +253,13 @@ function OrganizersInner() {
           hint="Every registered organizer account. Set the Zora commission, suspend or unlock access, or act on their behalf for support. Every admin action is logged to the audit trail on Overview."
         />
         <section className="cr-panel">
-          <div className="cr-panel-head">
+          <div className="cr-panel-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <h2 className="cr-section-h" style={{ margin: 0 }}>
               Accounts
             </h2>
+            <button type="button" className="cr-btn" style={crPrimaryBtn} onClick={() => setNewOpen(true)}>
+              New organizer
+            </button>
           </div>
           <DataTable
             columns={cols}
@@ -192,6 +274,54 @@ function OrganizersInner() {
           />
         </section>
       </div>
+
+      {/* BS95 — New organizer (name · handle · owner email). */}
+      <CrDrawer
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        ariaLabel="Create a new organizer"
+        title="New organizer"
+        subtitle="Creates a draft (unverified) organizer and ensures it has an owner. If the owner email has no account yet, they get an invite to set a password and take ownership."
+      >
+        <form onSubmit={createOrganizer} style={{ display: 'grid', gap: 14, padding: '4px 2px' }}>
+          <CrField label="Name" htmlFor="new-org-name">
+            <input id="new-org-name" className="cr-input" type="text" value={newName} placeholder="The Brunch City" onChange={(e) => setNewName(e.target.value)} disabled={creating} required />
+          </CrField>
+          <CrField label="Handle" htmlFor="new-org-handle">
+            <input id="new-org-handle" className="cr-input" type="text" value={newHandle} placeholder="thebrunchcity" autoComplete="off" onChange={(e) => setNewHandle(e.target.value)} disabled={creating} required />
+          </CrField>
+          <CrField label="Owner email" htmlFor="new-org-owner">
+            <input id="new-org-owner" className="cr-input" type="email" value={newOwner} placeholder="owner@example.com" autoComplete="off" onChange={(e) => setNewOwner(e.target.value)} disabled={creating} required />
+          </CrField>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" className="cr-btn" onClick={() => setNewOpen(false)} disabled={creating}>Cancel</button>
+            <button type="submit" className="cr-btn" style={crPrimaryBtn} disabled={creating || !newName.trim() || !newHandle.trim() || !newOwner.trim()}>
+              {creating ? 'Creating…' : 'Create organizer'}
+            </button>
+          </div>
+        </form>
+      </CrDrawer>
+
+      {/* BS95 — Assign / transfer owner for a single org. */}
+      <CrDrawer
+        open={!!ownerFor}
+        onClose={() => setOwnerFor(null)}
+        ariaLabel="Assign or transfer owner"
+        title="Assign / transfer owner"
+        subtitle={ownerFor ? `Make someone the owner of ${ownerFor.name}. The current owner is demoted to admin (never removed).` : undefined}
+      >
+        <form onSubmit={transferOwner} style={{ display: 'grid', gap: 14, padding: '4px 2px' }}>
+          <CrField label="Owner email" htmlFor="owner-email">
+            <input id="owner-email" className="cr-input" type="email" value={ownerEmail} placeholder="owner@example.com" autoComplete="off" onChange={(e) => setOwnerEmail(e.target.value)} disabled={savingOwner} required />
+          </CrField>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" className="cr-btn" onClick={() => setOwnerFor(null)} disabled={savingOwner}>Cancel</button>
+            <button type="submit" className="cr-btn" style={crPrimaryBtn} disabled={savingOwner || !ownerEmail.trim()}>
+              {savingOwner ? 'Saving…' : 'Assign owner'}
+            </button>
+          </div>
+        </form>
+      </CrDrawer>
     </AdminConsoleShell>
   );
 }

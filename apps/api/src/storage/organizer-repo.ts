@@ -206,6 +206,33 @@ export class OrganizerRepo {
     return toRecord(rows[0]);
   }
 
+  /**
+   * BS95 (auth Phase 3.5) — create an organizer from the ADMIN console (a
+   * super-admin giving someone an org). Lands `status:'pending' +
+   * kyc_status:'unverified'` exactly like a self-signup draft (the publish/payout
+   * gates stay locked until #5 approves), but `source:'admin'` distinguishes it and
+   * there is no phone/OTP (the admin is the authority). Owner provisioning is done
+   * by the controller after this row exists. Re-throws the raw postgres error on a
+   * UNIQUE(handle) violation so the caller maps the picker→insert race to
+   * `handle_taken`, same as createSelfSignup.
+   */
+  async createByAdmin(input: {
+    id: string;
+    name: string;
+    handle: string;
+    email?: string | null;
+  }): Promise<OrganizerRecord> {
+    const joined = new Date().toISOString().slice(0, 10); // display-only 'YYYY-MM-DD'
+    const rows = await db()<Row[]>`
+      insert into organizer
+        (id, name, handle, email, status, kyc_status, source, joined, events, revenue)
+      values
+        (${input.id}, ${input.name}, ${input.handle.toLowerCase()}, ${input.email ?? null},
+         'pending', 'unverified', 'admin', ${joined}, 0, 0)
+      returning ${db().unsafe(COLUMNS)}`;
+    return toRecord(rows[0]);
+  }
+
   /** The #5 queue: every self-registered org, oldest first (longest wait on top). */
   async listSelfSignups(): Promise<OrganizerRecord[]> {
     const rows = await db()<Row[]>`

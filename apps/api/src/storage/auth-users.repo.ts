@@ -92,6 +92,29 @@ export class AuthUsersRepo {
     return toUser(rows[0]);
   }
 
+  /** BS95 (Phase 3.5): idempotently create-or-get the identity for an email. Keyed
+      on lower(email) via app_user_email_lower_uq, carrying phone + username to
+      MATCH db/backfill-users.mjs's convention (so a signup provisions the same row
+      shape the backfill would). ON CONFLICT DO NOTHING makes a re-run a no-op — a
+      second signup/provision for the same email resolves to the SAME user rather
+      than throwing. The password_hash/phone/username are only used when the row is
+      first created; an existing identity keeps whatever it already had. */
+  async ensureUser(input: {
+    email: string;
+    passwordHash?: string | null;
+    phone?: string | null;
+    username?: string | null;
+  }): Promise<AuthUser> {
+    const e = String(input.email ?? '').trim().toLowerCase();
+    await db()`
+      insert into app_user (email, phone, password_hash, username, updated_at)
+      values (${e}, ${input.phone ?? null}, ${input.passwordHash ?? null}, ${input.username ?? null}, now())
+      on conflict (lower(email)) where email is not null do nothing`;
+    const rows = await db()<UserRow[]>`
+      select id, email, phone, password_hash from app_user where lower(email) = ${e} limit 1`;
+    return toUser(rows[0]);
+  }
+
   /** BS94 (Phase 3): set a password on an EXISTING identity that had none (e.g. an
       org backfilled with a real email but no password). Lets that invitee log in
       after accepting. */

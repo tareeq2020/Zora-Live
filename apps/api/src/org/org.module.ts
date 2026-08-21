@@ -7,6 +7,7 @@ import { OrgSalesController } from './org-sales.controller';
 import { OrgSalesService } from './org-sales.service';
 import { OrgRegisterController } from './org-register.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
+import { AdminOrganizersController } from './admin-organizers.controller';
 import { OrgMembersController } from './org-members.controller';
 import { OrgInvitesController } from './org-invites.controller';
 
@@ -21,7 +22,7 @@ import { OrgInvitesController } from './org-invites.controller';
    controller here that is deliberately UNGUARDED — you cannot require an
    organizer session on the endpoint that creates one. */
 @Module({
-  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController, OrgMembersController, OrgInvitesController],
+  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController, AdminOrganizersController, OrgMembersController, OrgInvitesController],
   providers: [OrgScopeService, EventProvisioningService, OrgSalesService],
   exports: [OrgScopeService, EventProvisioningService, OrgSalesService],
 })
