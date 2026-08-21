@@ -108,9 +108,12 @@ psql_q "update collection_store set data='[{\"id\":\"recB0001\",\"ref\":\"KYC-B\
 B_PUB0=$(publish_probe "$SNAP/orgb" "B Locked")
 [ "$(body_of "$B_PUB0" | jq_get error)" = "kyc_required" ] && echo "  ✓ before: publish → 403 kyc_required" || { echo "  ✗ B publish pre: $B_PUB0"; fail=1; }
 
-# The identity record is in the admin queue, carrying its org link.
+# The identity record is in the admin queue; its org link is stamped on the stored
+# record (not surfaced in /api/kyc — that stays byte-identical to the golden fixture).
 Q=$(curl -s -b "$SNAP/admin" "$BASE/api/kyc")
-echo "$Q" | grep -q '"organizerHandle":"identityco"' && echo "  ✓ the identity record carries organizerHandle=identityco" || { echo "  ✗ queue: $Q"; fail=1; }
+echo "$Q" | grep -q '"id":"recB0001"' && echo "  ✓ the identity record is in the admin queue" || { echo "  ✗ queue: $Q"; fail=1; }
+LINK=$(psql_q "select data::jsonb->0->>'organizerHandle' from collection_store where name='kyc';" | tr -d '[:space:]')
+[ "$LINK" = "identityco" ] && echo "  ✓ the stored record carries organizerHandle=identityco (used by the approve transition)" || { echo "  ✗ stored link=$LINK"; fail=1; }
 
 APP_B=$(curl -s -b "$SNAP/admin" -X POST "$BASE/api/kyc/recB0001/approve")
 [ "$(echo "$APP_B" | jq_get status)" = "approved" ] && echo "  ✓ identity-doc approve → record status=approved" || { echo "  ✗ B approve: $APP_B"; fail=1; }
