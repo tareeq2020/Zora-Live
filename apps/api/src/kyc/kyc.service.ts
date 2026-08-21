@@ -50,6 +50,11 @@ export class KycService {
   public(v: any) {
     return {
       id: v.id, ref: v.ref, status: v.status, idType: v.idType, country: v.country,
+      // BS92 (E5): the organizer this document belongs to (stamped at submit from
+      // the session). Null on records that predate the link — the reviewer/UI can
+      // then see it needs a manual org link. The org's own verified state is always
+      // organizer.kyc_status, never this record's status.
+      organizerHandle: v.organizerHandle ?? null,
       fullName: v.fullName, docNumberMasked: v.docNumberMasked || null,
       attempt: v.attempt, submittedAt: v.submittedAt, reviewedAt: v.reviewedAt,
       reviewedBy: v.reviewedBy, rejection: v.rejection,
