@@ -7,6 +7,8 @@ import { OrgSalesController } from './org-sales.controller';
 import { OrgSalesService } from './org-sales.service';
 import { OrgRegisterController } from './org-register.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
+import { OrgMembersController } from './org-members.controller';
+import { OrgInvitesController } from './org-invites.controller';
 
 /* org module — the org-scoping spine. MT1 registers the shared services
    (OrgScopeService, EventProvisioningService) + GET /api/org/me. MT2 (events
@@ -19,7 +21,7 @@ import { AdminAnalyticsController } from './admin-analytics.controller';
    controller here that is deliberately UNGUARDED — you cannot require an
    organizer session on the endpoint that creates one. */
 @Module({
-  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController],
+  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController, OrgMembersController, OrgInvitesController],
   providers: [OrgScopeService, EventProvisioningService, OrgSalesService],
   exports: [OrgScopeService, EventProvisioningService, OrgSalesService],
 })

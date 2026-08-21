@@ -79,6 +79,26 @@ export class AuthUsersRepo {
        order by (m.role = 'owner') desc, m.created_at asc`;
   }
 
+  /** BS94 (Phase 3): create a brand-new identity for an invitee who has no
+      app_user yet (email + the password they set on the accept page). Email is
+      stored lower-cased to line up with app_user_email_lower_uq. Returns the new
+      user; the caller then adds the organizer_member. */
+  async createUser(input: { email: string; passwordHash: string }): Promise<AuthUser> {
+    const e = String(input.email ?? '').trim().toLowerCase();
+    const rows = await db()<UserRow[]>`
+      insert into app_user (email, password_hash, updated_at)
+      values (${e}, ${input.passwordHash}, now())
+      returning id, email, phone, password_hash`;
+    return toUser(rows[0]);
+  }
+
+  /** BS94 (Phase 3): set a password on an EXISTING identity that had none (e.g. an
+      org backfilled with a real email but no password). Lets that invitee log in
+      after accepting. */
+  async setPasswordForUser(userId: string, passwordHash: string): Promise<void> {
+    await db()`update app_user set password_hash = ${passwordHash}, updated_at = now() where id = ${userId}`;
+  }
+
   /** The user's GLOBAL platform roles (super_admin | staff | scanner). */
   async globalRolesOf(userId: string): Promise<string[]> {
     const id = String(userId ?? '');
