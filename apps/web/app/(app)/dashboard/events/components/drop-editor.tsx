@@ -38,6 +38,7 @@ import {
   emptyTier,
   fetchEvents,
   fetchMe,
+  formatDateLabel,
   formFromEvent,
   hasErrors,
   messageForError,
@@ -514,11 +515,13 @@ export default function DropEditor(props: DropEditorProps) {
             <div className="row2">
               <div className="field">
                 <label>DATE</label>
+                {/* BS101: a real date drives the marketplace "This Weekend" filter
+                    and chronological sort — a free-text label can't. */}
                 <input
                   className="in"
-                  value={form.dateLabel}
-                  onChange={(e) => set('dateLabel', e.target.value)}
-                  placeholder="Sat 15 Aug 2026"
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => set('date', e.target.value)}
                 />
               </div>
               <div className="field">
@@ -530,6 +533,18 @@ export default function DropEditor(props: DropEditorProps) {
                   onChange={(e) => set('time', e.target.value)}
                 />
               </div>
+            </div>
+            <div className="field">
+              <label>DISPLAY LABEL (OPTIONAL)</label>
+              <input
+                className="in"
+                value={form.dateLabel}
+                onChange={(e) => set('dateLabel', e.target.value)}
+                placeholder={formatDateLabel(form.date) || 'e.g. Sat 12 – Mon 14 Sep'}
+              />
+              <p className="tier-note" style={{ marginTop: 6 }}>
+                How the date reads on your storefront. Leave blank to use the date above. Use this for multi-day events.
+              </p>
             </div>
             <div className="row2">
               <div className="field">

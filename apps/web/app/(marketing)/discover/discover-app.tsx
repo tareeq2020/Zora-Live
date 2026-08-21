@@ -53,6 +53,37 @@ type Ev = {
   organizer?: string; subdomain?: string; url?: string;
 };
 
+// BS101: "This Weekend" is a TIME-RELATIVE filter, so it must be computed from the
+// event's real date against TODAY — never a stored `weekend` flag (which every
+// event carried, so far-off events showed under it forever). An event counts as
+// "this weekend" when its ISO start date falls on the upcoming Saturday or Sunday
+// (or the current one, when today is already the weekend). No date → not this
+// weekend (we can't claim a date we don't have). Local-date math so the day never
+// slips across a timezone boundary.
+export function isThisWeekend(iso: string | null | undefined, now: Date = new Date()): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return false;
+  const ev = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (isNaN(ev.getTime())) return false;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = today.getDay(); // 0=Sun .. 6=Sat
+  const sat = new Date(today);
+  if (day === 0) sat.setDate(today.getDate() - 1); // Sun → this weekend's Saturday was yesterday
+  else if (day === 6) sat.setDate(today.getDate()); // Sat → today
+  else sat.setDate(today.getDate() + (6 - day)); // weekday → the coming Saturday
+  const sun = new Date(sat);
+  sun.setDate(sat.getDate() + 1);
+  return ev.getTime() >= sat.getTime() && ev.getTime() <= sun.getTime();
+}
+
+/** ISO YYYY-MM-DD → short display label ("Sun 30 Aug"); '' when not parseable. */
+function isoToLabel(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapEvent(e: any): Ev {
   // BS22 flags splittable tables on the event's web catalogue; the marketplace
@@ -60,9 +91,11 @@ function mapEvent(e: any): Ev {
   const tiers: any[] = Array.isArray(e?.webCheckout?.tiers) ? e.webCheckout.tiers : []; // eslint-disable-line @typescript-eslint/no-explicit-any
   return {
     id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: e.category || 'Festivals',
-    city: e.city, venue: e.venue, date: e.dateLabel || e.date || '', time: e.time || '',
+    // Display prefers the organizer's label; falls back to the structured date.
+    city: e.city, venue: e.venue, date: e.dateLabel || isoToLabel(e.date) || '', time: e.time || '',
     price: e.priceFrom != null ? e.priceFrom : e.price || 0,
-    wknd: !!e.weekend, mega: !!e.mega, seated: !!e.seated,
+    // BS101: computed from the real date, not the stored flag.
+    wknd: isThisWeekend(e.date), mega: !!e.mega, seated: !!e.seated,
     splittable: tiers.some((t) => t && t.split && !t.disabled),
     cover: e.cover || '',
     organizer: e.organizer, subdomain: e.subdomain, url: e.url,
