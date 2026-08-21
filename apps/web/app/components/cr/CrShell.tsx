@@ -20,6 +20,7 @@ import { CrThemeProvider } from './theme';
 import { CrThemeToggle } from './ThemeToggle';
 import { CrNavIcon } from './CrNavIcon';
 import { CrOrgSwitcher } from './CrOrgSwitcher';
+import { CrAccountMenu } from './CrAccountMenu';
 
 export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean; icon?: string };
 
@@ -171,6 +172,10 @@ export function CrShell({ nav, brand, topbarTitle, topbarExtra, footer, children
                 <CrOrgSwitcher />
                 {topbarExtra}
                 <CrThemeToggle />
+                {/* BS96 (Phase 4, C): the account menu — signed-in email, a link to
+                    Account, and Log out. Self-hides for anon; legacy/admin sessions
+                    still get a working Log out. */}
+                <CrAccountMenu />
               </div>
             </header>
             <main className="cr-content">{children}</main>

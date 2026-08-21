@@ -28,9 +28,21 @@ type Organizer = {
   revenue: number;
   status: 'active' | 'suspended' | string;
   commissionRate?: number;
+  // BS96 (Phase 4, A/B) — the identity behind the org + its REAL verification state.
+  owner?: string | null;
+  memberCount?: number;
+  kycStatus?: string | null;
 };
 
 const statusTone = (s: string): PillTone => (s === 'active' ? 'live' : s === 'suspended' ? 'failed' : 'neutral');
+
+// BS96 — the real organizer.kyc_status, rendered honestly (null = not yet reviewed).
+const KYC_LABEL: Record<string, string> = {
+  approved: 'Verified', rejected: 'Rejected', pending: 'In review', unverified: 'Unverified',
+};
+const kycTone = (s: string | null | undefined): PillTone =>
+  s === 'approved' ? 'paid' : s === 'rejected' ? 'failed' : s === 'pending' ? 'pending' : 'neutral';
+const kycLabel = (s: string | null | undefined): string => (s ? (KYC_LABEL[s] ?? s) : 'Not verified');
 
 export default function AdminOrganizersClient() {
   return (
@@ -177,6 +189,32 @@ function OrganizersInner() {
     }
   }
 
+  // BS96 (Phase 4, A) — verify/reject ANY organizer (not just self-signups). Routes
+  // through the one verification transition so the payout + publish gates unlock.
+  async function verify(o: Organizer, decision: 'approve' | 'reject') {
+    let reason: string | null = null;
+    if (decision === 'reject') {
+      const r = window.prompt(`Reject ${o.name}? Optionally add a reason (shown to the organizer).`, '');
+      if (r === null) return; // cancelled
+      reason = r.trim() || null;
+    } else if (!window.confirm(`Verify ${o.name}? This unlocks their payouts and publishing.`)) {
+      return;
+    }
+    setBusy(o.id);
+    try {
+      await adminApi(`/api/admin/organizers/${o.id}/verification`, {
+        method: 'PUT',
+        body: JSON.stringify(decision === 'reject' ? { decision, reason } : { decision }),
+      });
+      toast(decision === 'approve' ? `${o.name} verified` : `${o.name} rejected`);
+      res.reload();
+    } catch (ex) {
+      toast(errText(ex), true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const cols: Column<Organizer>[] = [
     {
       key: 'org',
@@ -191,6 +229,21 @@ function OrganizersInner() {
       ),
     },
     { key: 'handle', header: 'Store', render: (o) => <span style={{ fontFamily: 'var(--cr-mono)' }}>zorapass.com/{o.handle}</span> },
+    {
+      key: 'owner',
+      header: 'Owner',
+      render: (o) =>
+        o.owner ? (
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11 }}>
+            {o.owner}
+            {o.memberCount && o.memberCount > 1 ? (
+              <span style={{ color: 'var(--cr-mut)' }}> +{o.memberCount - 1}</span>
+            ) : null}
+          </span>
+        ) : (
+          <span style={{ color: 'var(--cr-mut)', fontSize: 11 }}>— (no user yet)</span>
+        ),
+    },
     { key: 'events', header: 'Events', numeric: true, render: (o) => String(o.events) },
     { key: 'revenue', header: 'Revenue', numeric: true, render: (o) => money(o.revenue) },
     {
@@ -219,10 +272,31 @@ function OrganizersInner() {
     },
     { key: 'status', header: 'Status', render: (o) => <StatusPill tone={statusTone(o.status)} label={String(o.status)} /> },
     {
+      key: 'verification',
+      header: 'Verification',
+      render: (o) => <StatusPill tone={kycTone(o.kycStatus)} label={kycLabel(o.kycStatus)} />,
+    },
+    {
       key: 'act',
       header: '',
       render: (o) => (
         <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+          {o.kycStatus === 'approved' ? (
+            <button type="button" className="cr-btn" style={crDangerBtn} disabled={busy === o.id} onClick={() => verify(o, 'reject')}>
+              Reject
+            </button>
+          ) : (
+            <>
+              <button type="button" className="cr-btn" style={crPrimaryBtn} disabled={busy === o.id} onClick={() => verify(o, 'approve')}>
+                Verify
+              </button>
+              {o.kycStatus !== 'rejected' ? (
+                <button type="button" className="cr-btn" style={crDangerBtn} disabled={busy === o.id} onClick={() => verify(o, 'reject')}>
+                  Reject
+                </button>
+              ) : null}
+            </>
+          )}
           <button type="button" className="cr-btn" disabled={busy === o.id} onClick={() => openOwner(o)}>
             Owner
           </button>

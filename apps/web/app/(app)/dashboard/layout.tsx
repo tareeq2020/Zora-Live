@@ -25,6 +25,7 @@ const OWN_CHROME = [
   '/dashboard/comps',
   '/dashboard/events', // BS75 — the event editor renders its own Control-Room v2 <CrShell>
   '/dashboard/team', // BS94 — the Team surface renders its own Control-Room v2 <CrShell>
+  '/dashboard/account', // BS96 — the Account surface renders its own Control-Room v2 <CrShell>
   '/dashboard/help', // BS77 — renders its own Control-Room v2 <CrShell>
 ];
 

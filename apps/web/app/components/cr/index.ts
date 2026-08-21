@@ -19,6 +19,7 @@ export { CrThemeProvider, useCrTheme, CR_THEME_KEY, CR_THEME_ATTR, CR_THEME_BOOT
 export type { CrTheme } from './theme';
 export { CrThemeToggle } from './ThemeToggle';
 export { CrOrgSwitcher } from './CrOrgSwitcher';
+export { CrAccountMenu } from './CrAccountMenu';
 
 export { KPITile, KPIRow } from './KpiTile';
 export type { KpiTileProps, KpiTint } from './KpiTile';
