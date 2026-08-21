@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Post, Query, Req, UseGuards
 import type { Request } from 'express';
 import { smsUnitCost } from '@zora/core';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { BroadcastsService, normalizeSenderId, type ScopeRequest } from './broadcasts.service';
@@ -19,6 +20,8 @@ import { BroadcastsService, normalizeSenderId, type ScopeRequest } from './broad
    to stop, not one promoter. */
 const ADMIN_SENDER = 'admin';
 
+/* BS93 (Phase 2, E4): /api/admin/* requires global super_admin (isAdmin maps to it). */
+@Roles('super_admin')
 @Controller('admin/broadcasts')
 @UseGuards(SessionGuard)
 export class AdminBroadcastsController {

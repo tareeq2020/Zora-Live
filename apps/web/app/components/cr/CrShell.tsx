@@ -19,6 +19,7 @@ import './cr-tokens.css';
 import { CrThemeProvider } from './theme';
 import { CrThemeToggle } from './ThemeToggle';
 import { CrNavIcon } from './CrNavIcon';
+import { CrOrgSwitcher } from './CrOrgSwitcher';
 
 export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean; icon?: string };
 
@@ -164,6 +165,10 @@ export function CrShell({ nav, brand, topbarTitle, topbarExtra, footer, children
                 <span className="cr-topbar-title">{topbarTitle}</span>
               </span>
               <div className="cr-topbar-actions">
+                {/* BS93 (T3): acting-org switcher — self-hides unless the user has >1
+                    membership, so single-membership + admin + legacy sessions are
+                    unaffected. Lives in the reused topbar-extra slot area. */}
+                <CrOrgSwitcher />
                 {topbarExtra}
                 <CrThemeToggle />
               </div>

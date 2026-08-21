@@ -28,6 +28,8 @@ import { OrgModule } from './org/org.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { SplitsModule } from './splits/splits.module';
+import { APP_GUARD } from '@nestjs/core';
+import { RolesGuard } from './common/roles.guard';
 
 /* Every feature module = one route group from the legacy server.js.
    StorageModule, AuditModule, TenantModule are @Global (injected everywhere). */
@@ -61,5 +63,8 @@ import { SplitsModule } from './splits/splits.module';
     ConsumerModule,
     SplitsModule,
   ],
+  /* BS93 (Phase 2, E4): the RBAC guard is GLOBAL but a no-op unless a route carries
+     @Roles(...) — so it cooperates with (never replaces) OrganizerGuard/SessionGuard. */
+  providers: [{ provide: APP_GUARD, useClass: RolesGuard }],
 })
 export class AppModule {}

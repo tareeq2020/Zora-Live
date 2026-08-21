@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { OrganizerGuard } from '../common/organizer.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { PayoutsService } from './payouts.service';
 
@@ -17,6 +18,9 @@ import { PayoutsService } from './payouts.service';
    writes the row (@zora/core/payouts, eng review ARCH-2). A refusal comes back
    as HTTP 400 with a typed `error` code plus a human `message` (CQ3), so the UI
    maps codes and never string-matches. */
+/* BS93 (Phase 2, E4): payouts are money — owner/admin/finance only. A viewer/door
+   member is refused (403); a legacy session (no memberships) is an implicit owner. */
+@Roles('owner', 'admin', 'finance')
 @Controller('org/payouts')
 @UseGuards(OrganizerGuard)
 export class OrgPayoutsController {

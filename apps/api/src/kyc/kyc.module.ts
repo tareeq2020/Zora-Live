@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { KycService } from './kyc.service';
 import { OrgVerificationController } from './org-verification.controller';
@@ -100,6 +101,7 @@ export class KycController {
   }
 
   // Admin review queue (newest first).
+  @Roles('super_admin') // BS93 (Phase 2, E4): /api/kyc/* admin review = super_admin
   @UseGuards(SessionGuard)
   @Get('kyc')
   async queue() {
@@ -107,6 +109,7 @@ export class KycController {
   }
 
   // Gated document stream — authenticated admin only, never cached, view is logged.
+  @Roles('super_admin') // BS93 (Phase 2, E4): /api/kyc/* admin review = super_admin
   @UseGuards(SessionGuard)
   @Get('kyc/:id/documents/:docId')
   async document(@Param('id') id: string, @Param('docId') docId: string, @Res() res: Response) {
@@ -128,6 +131,7 @@ export class KycController {
   }
 
   // Approve — unlocks payouts (is_verified). Decision is audited.
+  @Roles('super_admin') // BS93 (Phase 2, E4): /api/kyc/* admin review = super_admin
   @UseGuards(SessionGuard)
   @Post('kyc/:id/approve')
   async approve(@Param('id') id: string, @Req() req: Request) {
@@ -170,6 +174,7 @@ export class KycController {
   }
 
   // Reject — requires a standardized reason; user is shown the mapped message.
+  @Roles('super_admin') // BS93 (Phase 2, E4): /api/kyc/* admin review = super_admin
   @UseGuards(SessionGuard)
   @Post('kyc/:id/reject')
   async reject(@Param('id') id: string, @Body() body: any, @Req() req: Request) {

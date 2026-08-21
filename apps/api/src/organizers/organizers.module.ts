@@ -5,6 +5,7 @@ import { resolveCommissionRate, suspendedHandles } from '@zora/core';
 import { OrganizerRepo, publicOrganizer } from '../storage/organizer-repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 
 /* BS35: reads and writes go through OrganizerRepo (the relational `organizer`
@@ -20,6 +21,7 @@ export class OrganizersController {
     private readonly sessions: SessionService,
   ) {}
 
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Get('organizers')
   async list() {
@@ -34,6 +36,7 @@ export class OrganizersController {
   // BS31: set the platform commission taken from this organizer's payout. Does NOT
   // change the ticket price a buyer pays — it nets the organizer's earnings. Stored
   // as a fraction (0.05 = 5%); capped at 50% as a guardrail.
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Put('organizers/:id/commission')
   async setCommission(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
@@ -52,6 +55,7 @@ export class OrganizersController {
   // admin POST /api/password flow; bcrypt hash lands on the organizer record and is
   // stripped from GET /api/organizers. This is how an organizer gets a credential so
   // they can POST /api/org/login.
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Put('organizers/:id/password')
   async setPassword(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
@@ -64,6 +68,7 @@ export class OrganizersController {
     return { ok: true };
   }
 
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Put('organizers/:id/status')
   async setStatus(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
@@ -90,6 +95,7 @@ export class OrganizersController {
   // handoff. Today admin + organizer surfaces are same-origin under a path prefix,
   // so the one signed cookie carries the claim directly; once organizer surfaces
   // move to a separate subdomain this will need an explicit signed hand-off token.
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Post('organizers/:id/impersonate')
   async impersonate(@Param('id') id: string, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
@@ -102,6 +108,7 @@ export class OrganizersController {
     return { ok: true, impersonating };
   }
 
+  @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
   @UseGuards(SessionGuard)
   @Post('impersonate/exit')
   async exitImpersonation(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
