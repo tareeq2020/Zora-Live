@@ -79,6 +79,15 @@ export class OrgMembersRepo {
     return Number(rows[0]?.n ?? 0) > 0;
   }
 
+  /** BS95 (Phase 3.5): the user ids of every OWNER of an org — the ownership-transfer
+      flow demotes each of these (except the incoming owner) to `admin`. */
+  async ownerUserIds(organizerId: string): Promise<string[]> {
+    const rows = await db()<{ user_id: string }[]>`
+      select user_id from organizer_member
+       where organizer_id = ${organizerId} and role = 'owner'`;
+    return rows.map((r) => r.user_id);
+  }
+
   /** How many owners the org has — the sole-owner guard reads this. */
   async ownerCount(organizerId: string): Promise<number> {
     const rows = await db()<{ n: number }[]>`

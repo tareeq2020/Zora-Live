@@ -6,10 +6,17 @@ import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { db, resolveCommissionRate, verifyOtp } from '@zora/core';
 import { OrganizerRepo, publicOrganizer } from '../storage/organizer-repo';
+import { AuthUsersRepo } from '../storage/auth-users.repo';
+import { OrgMembersRepo } from '../storage/org-members.repo';
 import { SessionService } from '../common/session.module';
+import type { SessionMembership } from '../common/session-cookie';
 import { AuditService } from '../audit/audit.module';
 import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import { HANDLE_MAX, handleIssue, handleIssueMessage, normalizeHandle } from '../common/handles';
+
+/* BS95 (auth Phase 3.5, D4): the synthetic email a signup with no real email gets,
+   so every organizer yields a real app_user — MATCHES db/backfill-users.mjs. */
+const EMAIL_FALLBACK_DOMAIN = 'handles.zorapass';
 
 /* BS41 (#4) — ORGANIZER SELF-REGISTRATION over phone-OTP.
 
@@ -37,6 +44,8 @@ import { HANDLE_MAX, handleIssue, handleIssueMessage, normalizeHandle } from '..
 export class OrgRegisterController {
   constructor(
     private readonly organizers: OrganizerRepo,
+    private readonly authUsers: AuthUsersRepo,
+    private readonly members: OrgMembersRepo,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
   ) {}
@@ -145,8 +154,40 @@ export class OrgRegisterController {
       throw e;
     }
 
-    // Same session shape as POST /api/org/login.
+    // ── BS95 (Phase 3.5, A): provision the OWNER user + membership ───────────────
+    // Every path that yields an organizer must also yield a real app_user + an
+    // `owner` organizer_member (no org row without an owner user). Keyed on
+    // lower(email), synthetic `handle@handles.zorapass` when email is null — the
+    // SAME convention db/backfill-users.mjs uses — carrying the org's passwordHash.
+    // Both writes are idempotent (ensureUser + addMember are ON CONFLICT DO NOTHING),
+    // so a retried signup never duplicates. This is the exact pattern invite-accept
+    // uses (AuthUsersRepo + OrgMembersRepo).
+    const ownerEmail = email ? email.trim().toLowerCase() : `${org.handle}@${EMAIL_FALLBACK_DOMAIN}`;
+    const ownerUser = await this.authUsers.ensureUser({
+      email: ownerEmail,
+      passwordHash,
+      phone,
+      username: org.handle,
+    });
+    await this.members.addMember({ userId: ownerUser.id, organizerId: org.id, role: 'owner' });
+
+    // The session now ALSO carries the new user + membership so Phase-2 login/roles
+    // resolve cleanly (the legacy organizerHandle/role/kycStatus fields stay put so
+    // every existing surface keeps working — additive, never replacing).
+    const [membershipRows, globalRoles] = await Promise.all([
+      this.authUsers.membershipsOf(ownerUser.id),
+      this.authUsers.globalRolesOf(ownerUser.id),
+    ]);
+    const memberships: SessionMembership[] = membershipRows.map((m) => ({
+      organizerId: m.organizerId,
+      organizerHandle: m.organizerHandle,
+      role: m.role,
+    }));
     this.sessions.set(res, {
+      userId: ownerUser.id,
+      globalRoles,
+      memberships,
+      actingOrganizerId: org.id,
       organizerHandle: org.handle,
       role: 'organizer',
       kycStatus: org.kycStatus ?? undefined,
