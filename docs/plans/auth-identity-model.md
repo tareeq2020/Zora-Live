@@ -83,11 +83,11 @@ see Phase 1 backfill). Verification columns (`kyc_status`, `verification_reason`
   dashboard: **Team** (list members + roles + invite).
 
 ## Phased rollout
-- **Phase 0 — stop the bleeding (ship now, small):** make the identity-document
-  approve also flip `organizer.kyc_status` (or route both queues through
-  `recordVerification`); make the admin "verified" badge read `organizer.kyc_status`.
-  This fixes #2/#3 without the model change. Add a dedup/merge check for parallel
-  `thebrunchcity` / `thebrunchcity.co` rows.
+- **Phase 0 — verification-gate unification (FOLDED INTO PHASE 1 per decision):**
+  route both KYC approve paths through the one `recordVerification` transition so
+  `organizer.kyc_status` is the only truth; the admin badge reads it; add a
+  dedup/merge check for parallel `thebrunchcity` / `thebrunchcity.co` rows. Lands
+  as the verification slice of Phase 1, which fixes #2/#3 as part of the model rebuild.
 - **Phase 1 — introduce Users + memberships:** new tables + a backfill that, per
   existing organizer, creates an `app_user` (from its email or `handle@…`, carrying
   its `password_hash`) and an `owner` membership; the admin account becomes a
@@ -112,3 +112,100 @@ see Phase 1 backfill). Verification columns (`kyc_status`, `verification_reason`
   backfill with the old path intact until parity is proven (strangler-fig).
 - Backfill must be idempotent and reversible; never lose an existing login.
 - Handle-as-login has live sessions — keep it as an alias through Phase 2.
+
+## Engineering review (2026-08-21) — architecture locked
+- **E1 — Extend the existing server session, do NOT add JWT.** The app already
+  signs a cookie session (`sessions.set(res, …)`). Change the payload from
+  `{ organizerHandle, role }` to `{ userId, globalRoles[], memberships:[{organizerId, role}], actingOrganizerId }`. No new auth stack, no token rotation to build.
+- **E2 — Idempotent, reversible backfill (`db/backfill-users.mjs`).** Per `organizer`
+  row: upsert an `app_user` keyed by lower(email) (fallback `handle@handles.zorapass`
+  when email is null), carry its `password_hash`, and upsert an `owner`
+  `organizer_member`. The admin account → an `app_user` with global `super_admin`.
+  Additive tables only; `organizer.password_hash` is NOT dropped until Phase 2 parity.
+  Re-runnable (ON CONFLICT DO NOTHING on the unique keys).
+- **E3 — Dual-path login into one session shape.** Login accepts email/phone OR the
+  legacy handle; a handle resolves `organizer.handle → owner membership → user`.
+  Both live through Phase 2, then the handle path is retired. This is what stops
+  live organizers being locked out mid-migration.
+- **E4 — One RBAC guard, session-derived, never body-derived.** A `@Roles()`
+  decorator + guard reads the session: `/api/org/*` needs an `owner|admin` (or
+  `finance` for payouts) membership on the ACTING org (from the session, matching
+  the existing "acting org from session, never the body" invariant); `/api/admin/*`
+  + `/api/kyc/*` need global `super_admin`; scanner endpoints need `door|scanner`.
+  Replaces `OrganizerGuard` + the admin `SessionGuard`.
+- **E5 — Verification: one transition, one field (folds Phase 0).** Both KYC queues
+  call `recordVerification(organizerId, …)` → `organizer.kyc_status`; the identity-
+  document approve resolves its record's organizer and flips it; the admin badge
+  reads `organizer.kyc_status`. A dedup pass merges parallel `handle`/`handle.co`
+  rows (or flags them) so one org has one owner + one status.
+- **E6 — Acting-org switch:** `POST /api/me/acting-org { organizerId }` validated
+  against memberships; default = sole membership; a topbar switcher when >1.
+- Data integrity: `unique(lower(email))` on app_user; `unique(user_id, organizer_id)`
+  on membership; FK to `organizer`. All migrations additive + idempotent.
+
+**Critical failure modes → tests**
+1. Backfill run twice → no dup users/memberships (idempotent). 2. Every login that
+worked pre-migration still works post-Phase-1 (no locked-out org). 3. Approving via
+EITHER KYC queue unlocks payout+publish AND shows verified — the divergence cannot
+recur. 4. A `viewer`/`door` member is refused owner-only endpoints (payout request,
+publish, invite). 5. Duplicate `handle`/`handle.co` org rows resolve to ONE owner,
+not two.
+
+**Phasing / parallelization.** Phase 1 (tables + backfill + verification unification)
+is foundational and lands first. Phase 2 (RBAC guard + dual-login + switcher) depends
+on Phase 1. Phase 3 (invites + Team surface) depends on Phase 2. Within a phase,
+backend and its UI can run as parallel lanes.
+
+## Design review (2026-08-21) — UI passes
+Classifier: **APP UI** (organizer + admin consoles), calibrated to DESIGN.md
+Control-Room v2.
+- **Login / register (IA + states):** email/phone + password; clear error states
+  (wrong creds, unverified-but-can-still-log-in, suspended). No dead ends. The
+  legacy handle still works during transition — the form accepts either, one field
+  labelled "Email or handle".
+- **Acting-org switcher (Journey):** a slim top-bar control in `CrShell`, shown only
+  when the user has >1 membership; single-membership users never see it. Reuses the
+  topbar-extra slot; keyboard + aria-current.
+- **Team surface (new `/dashboard/team`, App-UI):** a `DataTable` of members (email ·
+  role · status pill), an "Invite by email + role" action (CrDrawer), remove /
+  change-role with confirm. States: **only you** (warm empty state → "invite your
+  first teammate"), pending invite (amber pill), owner-can't-remove-self guard.
+- **Verification (already CR, BS89):** no visual change — it just reads
+  `organizer.kyc_status` now, so the badge stops lying.
+- **Roles legibility:** roles render as CR status pills with plain labels (Owner ·
+  Admin · Finance · Door). No jargon. Responsive: Team table → stacked cards ≤900px;
+  44px targets; reduced-motion.
+
+## Resolved decisions (autorun)
+- **D1 — Login field:** one "Email or handle" field (accept both), not two — least
+  friction, and it carries the transition. *(Don't-make-me-think.)*
+- **D2 — Role set (v1):** global {super_admin, staff, scanner}; org-scoped {owner,
+  admin, finance, door, viewer}. Start here; more later. *(Constraint worship.)*
+- **D3 — Verification stays organizer-level** (not user-level) — a member of a
+  verified org inherits no personal verification. *(Matches the money gate.)*
+- **D4 — Backfill email fallback:** `handle@handles.zorapass` synthetic address when
+  an org has no email, so every org gets a user without inventing a real inbox.
+- **D5 — Duplicate orgs (thebrunchcity vs .co):** the backfill flags a same-name /
+  same-owner collision for a MANUAL merge rather than auto-merging money-bearing rows.
+
+## Implementation Tasks
+- [ ] **T1 (Phase 1)** — migrations: `app_user`, `user_role`, `organizer_member`,
+  `org_invite` (additive, idempotent) + `db/backfill-users.mjs` (E2, idempotent) +
+  verification unification (E5) + tests (failure modes 1–3, 5).
+- [ ] **T2 (Phase 2)** — session shape (E1) + dual-path login (E3) + `@Roles()` guard
+  (E4) + acting-org switch (E6) + tests (failure mode 4). Retire `organizer.password_hash`.
+- [ ] **T3 (Phase 2, UI ∥ T2)** — login "email or handle" + the acting-org switcher.
+- [ ] **T4 (Phase 3)** — invites API + accept flow + the `/dashboard/team` surface.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | skipped | no codex/OpenAI key (informational) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | clean | E1–E6 locked (extend session not JWT · idempotent reversible backfill · dual-path login · one RBAC guard · one verification transition · acting-org switch); 5 failure-modes → tests; 3 sequential phases |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | clean | login/switcher/Team surfaces spec'd + states; D1–D5 resolved |
+
+**VERDICT:** DESIGN + ENG CLEARED — ready to build. Root cause folded in (E5 fixes the verification divergence as the Phase-1 slice). Phases are sequential (1→2→3); backend/UI parallelize within a phase. Money/security surfaces migrate strangler-fig behind the backfill with the old paths intact until parity. Codex/CEO skipped (informational).
+
+NO UNRESOLVED DECISIONS
