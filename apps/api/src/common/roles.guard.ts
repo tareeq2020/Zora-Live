@@ -29,6 +29,12 @@ import { resolveActingContext } from '../org/acting-context';
 
 export const ROLES_KEY = 'zora:roles';
 
+/** The platform-wide roles (as opposed to the org-scoped membership roles). A route
+    that requires ONLY these is an admin/platform route already guarded by the admin
+    SessionGuard, whose legacy denial shape for a non-admin is 401 'Not logged in' —
+    which we preserve (Prime Directive: don't change what works). */
+const GLOBAL_ROLES = new Set(['super_admin', 'staff', 'scanner']);
+
 /** Restrict a handler/controller to these roles (global roles OR the acting-org
     membership role). No decorator = this guard is a no-op for that route. */
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
@@ -81,9 +87,15 @@ export class RolesGuard implements CanActivate {
     const { global, org, hasIdentity } = effectiveRoles(req.session);
     if (required.some((r) => global.has(r) || org.has(r))) return true;
 
-    // Preserve the existing anon shape (OrganizerGuard/SessionGuard both 401 with
-    // this body); only a logged-in principal with the wrong role gets a 403.
-    if (!hasIdentity) throw new UnauthorizedException({ error: 'Not logged in' });
+    // ── Denial shape, chosen to be byte-identical to the guard this cooperates with:
+    // · No identity at all → 401 'Not logged in' (OrganizerGuard/SessionGuard anon).
+    // · A route requiring ONLY global roles (admin/kyc/platform) is co-guarded by the
+    //   admin SessionGuard, whose legacy answer to a logged-in NON-admin is also 401
+    //   'Not logged in' — preserve it (Prime Directive: no behaviour change).
+    // · An org-scoped role denial (owner/admin/finance/door/viewer) → 403 (FM4: a
+    //   viewer/door member IS logged in, just not permitted).
+    const requiresOnlyGlobal = required.every((r) => GLOBAL_ROLES.has(r));
+    if (!hasIdentity || requiresOnlyGlobal) throw new UnauthorizedException({ error: 'Not logged in' });
     throw new ForbiddenException({
       error: 'forbidden',
       message: 'You do not have permission to do that.',
