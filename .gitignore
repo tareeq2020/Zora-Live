@@ -27,4 +27,3 @@ apps/mobile/web-build/
 # OS
 .DS_Store
 .gstack/
-.git-commit-msg.txt
