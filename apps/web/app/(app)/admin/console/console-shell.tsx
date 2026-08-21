@@ -25,14 +25,16 @@ const NAV: CrNavItem[] = [
   { href: '/admin/console/events', label: 'Events-manager', icon: 'events-manager' },
   { href: '/admin/console/orders', label: 'Orders & carts', icon: 'orders' },
   { href: '/admin/console/broadcasts', label: 'Broadcasts', icon: 'broadcasts' },
-  // Sections other lanes own — deep-link into the legacy console for now.
-  { href: '/admin/dashboard#organizers', label: 'Organizers', icon: 'organizers' },
-  { href: '/admin/dashboard#verification', label: 'Verification', icon: 'verification' },
-  { href: '/admin/dashboard#payouts', label: 'Payouts', icon: 'payouts' },
-  { href: '/admin/dashboard#scanner', label: 'Scanner users', icon: 'scanner' },
-  { href: '/admin/dashboard#payments', label: 'Payments routing', icon: 'payments' },
-  { href: '/admin/dashboard#media', label: 'Media', icon: 'media' },
-  { href: '/admin/dashboard#access', label: 'Access', icon: 'access' },
+  // PR-BS89 — the remaining super-admin sections, ported onto the CR console.
+  // (Formerly deep-linked to /admin/dashboard#…; the legacy console stays
+  // in-tree as a strangler-fig fallback, linked from the footer.)
+  { href: '/admin/console/organizers', label: 'Organizers', icon: 'organizers' },
+  { href: '/admin/console/verification', label: 'Verification', icon: 'verification' },
+  { href: '/admin/console/payouts', label: 'Payouts', icon: 'payouts' },
+  { href: '/admin/console/scanner', label: 'Scanner users', icon: 'scanner' },
+  { href: '/admin/console/payments', label: 'Payments routing', icon: 'payments' },
+  { href: '/admin/console/media', label: 'Media', icon: 'media' },
+  { href: '/admin/console/access', label: 'Access', icon: 'access' },
 ];
 
 export type AdminConsoleShellProps = {
