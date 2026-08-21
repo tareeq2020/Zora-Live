@@ -56,7 +56,7 @@ import {
 // validation, live preview) is UNCHANGED — only the visual chrome is re-skinned.
 // (BS51 history: the surface previously carried its own fixed-dark palette.)
 const STYLE = `
-.zora-dropedit{--black:var(--cr-paper);--ink:var(--cr-card);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
+.zora-dropedit{--black:var(--cr-paper);--ink:var(--cr-card2);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
   --blue:var(--cr-blue);--orange:var(--cr-red);--teal:var(--cr-green);--amber:var(--cr-amber);
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
@@ -74,7 +74,20 @@ const STYLE = `
 @media(max-width:900px){.zora-dropedit .grid{grid-template-columns:1fr;gap:26px}}
 .zora-dropedit h1{font-size:27px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .zora-dropedit .sub{color:var(--mut);font-size:14px;margin-bottom:26px}
-.zora-dropedit .block{margin-bottom:34px}
+/* BS99 (#4): each form section is a real card (matching the console's .cr-panel),
+   so the editor reads as structured cards on the paper background instead of bare
+   floating fields. Inner fields sit on --cr-card2 (see --ink) so they stay legible
+   against the card. */
+.zora-dropedit .block{background:var(--cr-card);border:1px solid var(--cr-hair);border-radius:16px;padding:22px 24px;margin-bottom:20px}
+@media(max-width:620px){.zora-dropedit .block{padding:18px 16px}}
+/* BS99 (#3): TZS/USD pricing toggle. */
+.zora-dropedit .curmode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.zora-dropedit .curmode-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--mut)}
+.zora-dropedit .curmode-seg{display:inline-flex;border:1px solid var(--hair);border-radius:9px;overflow:hidden}
+.zora-dropedit .curmode-seg button{border:none;background:var(--cr-card2);color:var(--mut);font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:8px 16px;min-height:36px;cursor:pointer}
+.zora-dropedit .curmode-seg button + button{border-left:1px solid var(--hair)}
+.zora-dropedit .curmode-seg button.on{background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);font-weight:600}
+.zora-dropedit .curmode-hint{font-size:12px;color:var(--mut)}
 .zora-dropedit .block-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.24em;color:var(--mut);margin-bottom:16px;display:flex;align-items:center;gap:10px}
 .zora-dropedit .block-h .n{width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--black);display:flex;align-items:center;justify-content:center;font-size:10px}
 .zora-dropedit label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-bottom:8px}
@@ -597,6 +610,32 @@ export default function DropEditor(props: DropEditorProps) {
               Buyers pay these prices in full. Your payout is each price net of your{' '}
               {(commissionRate * 100).toFixed(1).replace(/\.0$/, '')}% Zora commission.
             </p>
+
+            {/* BS99 (#3): price this event in TZS (default) or USD. In USD mode the
+                buyer is charged TZS at the admin-controlled rate; in TZS mode the
+                price you type is the shilling price, charged as-is. */}
+            <div className="curmode" role="radiogroup" aria-label="Pricing currency">
+              <span className="curmode-lbl">PRICE IN</span>
+              <div className="curmode-seg">
+                {(['TZS', 'USD'] as const).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.priceCurrency === c}
+                    className={form.priceCurrency === c ? 'on' : undefined}
+                    onClick={() => set('priceCurrency', c)}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <span className="curmode-hint">
+                {form.priceCurrency === 'USD'
+                  ? `Charged in TZS at the current rate (1 USD ≈ ${fmt(usdRate)} TZS).`
+                  : 'Buyers are charged this exact shilling amount.'}
+              </span>
+            </div>
             {noneOnSale ? (
               <p className="tiers-hidden-note">
                 ⚠ Every tier is off, so this drop is hidden from your storefront. Turn at least one “On sale” back on to
@@ -620,16 +659,16 @@ export default function DropEditor(props: DropEditorProps) {
                       />
                     </div>
                     <div>
-                      <label>PRICE (USD)</label>
+                      <label>PRICE ({form.priceCurrency})</label>
                       <input
                         className="in"
                         type="number"
                         min={0}
                         value={t.price}
                         onChange={(e) => setTier(i, 'price', e.target.value)}
-                        placeholder="85"
+                        placeholder={form.priceCurrency === 'USD' ? '85' : '20000'}
                       />
-                      {Number(t.price) > 0 ? (
+                      {form.priceCurrency === 'USD' && Number(t.price) > 0 ? (
                         <p style={{ marginTop: 6, fontFamily: 'var(--cr-mono, monospace)', fontSize: 11, color: 'var(--cr-mut, #8A877E)' }}>
                           ≈ {fmt(Math.round(Number(t.price) * usdRate))} TZS charged
                         </p>

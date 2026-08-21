@@ -201,16 +201,20 @@ export function EventsListClient() {
             </Link>
           </div>
           {msg && <div className={`ev-msg ${msg.kind}`}>{msg.text}</div>}
-          <DataTable
-            columns={cols}
-            rows={rows ?? []}
-            rowKey={(e) => e.id}
-            loading={loading}
-            error={error ? 'Could not load your events.' : null}
-            onRetry={load}
-            emptyTitle="No events yet"
-            emptyBody="Create your first drop to start selling."
-          />
+          {/* BS99 (#4): the list sits in a card (.cr-panel), matching every other
+              console surface — it was rendering bare on the page background. */}
+          <section className="cr-panel">
+            <DataTable
+              columns={cols}
+              rows={rows ?? []}
+              rowKey={(e) => e.id}
+              loading={loading}
+              error={error ? 'Could not load your events.' : null}
+              onRetry={load}
+              emptyTitle="No events yet"
+              emptyBody="Create your first drop to start selling."
+            />
+          </section>
         </div>
       </CrShell>
     </>
