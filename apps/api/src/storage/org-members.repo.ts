@@ -79,6 +79,28 @@ export class OrgMembersRepo {
     return Number(rows[0]?.n ?? 0) > 0;
   }
 
+  /** BS96 (Phase 4, B): one aggregate pass over organizer_member for the admin
+      Organizers list — per org, its OWNER's email (the identity behind the org) and
+      a member count. Returns a map keyed by organizer_id; orgs with no members at
+      all are simply absent (the caller reads owner=null, memberCount=0). One query
+      for the whole list, so the list endpoint stays a single extra round-trip. */
+  async summariesByOrg(): Promise<Record<string, { ownerEmail: string | null; memberCount: number }>> {
+    const rows = await db()<
+      { organizer_id: string; member_count: number; owner_email: string | null }[]
+    >`
+      select m.organizer_id,
+             count(*)::int                                  as member_count,
+             max(u.email) filter (where m.role = 'owner')   as owner_email
+        from organizer_member m
+        join app_user u on u.id = m.user_id
+       group by m.organizer_id`;
+    const out: Record<string, { ownerEmail: string | null; memberCount: number }> = {};
+    for (const r of rows) {
+      out[r.organizer_id] = { ownerEmail: r.owner_email ?? null, memberCount: Number(r.member_count ?? 0) };
+    }
+    return out;
+  }
+
   /** BS95 (Phase 3.5): the user ids of every OWNER of an org — the ownership-transfer
       flow demotes each of these (except the incoming owner) to `admin`. */
   async ownerUserIds(organizerId: string): Promise<string[]> {
