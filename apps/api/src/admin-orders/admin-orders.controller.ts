@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AdminOrdersService } from './admin-orders.service';
 
 /* /api/admin/orders (BS43 / plan #3) — support's window into EVERY order.
@@ -13,6 +14,8 @@ import { AdminOrdersService } from './admin-orders.service';
      · a recent WINDOW is applied unless the caller opts out (PERF-1), because
        abandoned carts outnumber paid ones and grow fastest;
      · buyer contact on a never-paid cart is masked past the PII window (OV8). */
+/* BS93 (Phase 2, E4): /api/admin/* requires global super_admin (isAdmin maps to it). */
+@Roles('super_admin')
 @Controller('admin/orders')
 @UseGuards(SessionGuard)
 export class AdminOrdersController {

@@ -1,10 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Module, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Module, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo } from '../storage/organizer-repo';
+import { AuthUsersRepo } from '../storage/auth-users.repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
+import type { SessionMembership } from '../common/session-cookie';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
 
@@ -13,6 +15,7 @@ export class AuthController {
   constructor(
     private readonly entities: EntityStore,
     private readonly organizers: OrganizerRepo,
+    private readonly authUsers: AuthUsersRepo,
     private readonly sessions: SessionService,
   ) {}
 
@@ -36,21 +39,102 @@ export class AuthController {
   // the cross-subdomain impersonation handoff — the path-prefix phase is
   // same-origin with SameSite=Lax, an adequate baseline, and CSRF now would break
   // the curl-based e2e for no current benefit.
+  // ── POST /api/org/login — DUAL-PATH login (BS93 Phase 2, E3 / D1) ─────────────
+  // One "Email or handle" field (`identifier`; `handle` still accepted as an alias
+  // so the legacy body {handle,password} keeps working). Resolution order:
+  //   (a) email  → app_user by lower(email);
+  //   (b) handle → organizer.handle → owner membership → app_user;
+  //   (c) FALLBACK → the legacy organizer.password_hash, EXACTLY as before, when no
+  //       app_user exists yet (prod backfill not run). This is what stops a live
+  //       organizer being locked out mid-migration.
+  // On the user path the new session shape is set (userId + globalRoles +
+  // memberships + actingOrganizerId) AND organizerHandle is kept populated (= the
+  // acting org's handle) so every existing endpoint keeps working. Suspended orgs
+  // are still refused on every path.
   @Post('org/login')
   async orgLogin(@Body() body: any, @Res({ passthrough: true }) res: Response) {
-    const { handle, password } = body || {};
-    // BS35: one indexed row read instead of parsing the whole organizers blob.
-    const org = await this.organizers.byHandle(String(handle || ''));
+    const identifier = String(body?.identifier ?? body?.handle ?? '').trim();
+    const password = String(body?.password ?? '');
+    if (!identifier || !password) throw new UnauthorizedException({ error: 'Wrong handle or password' });
+    const isEmail = identifier.includes('@');
+
+    // ── (a)/(b) USER-based auth against the Phase-1 tables ────────────────────
+    let user = null as Awaited<ReturnType<AuthUsersRepo['byEmail']>>;
+    let handleOrg = null as Awaited<ReturnType<OrganizerRepo['byHandle']>>;
+    if (isEmail) {
+      user = await this.authUsers.byEmail(identifier);
+    } else {
+      handleOrg = await this.organizers.byHandle(identifier);
+      if (handleOrg) user = await this.authUsers.ownerUserByOrganizerId(handleOrg.id);
+    }
+
+    if (user && user.passwordHash && bcrypt.compareSync(password, user.passwordHash)) {
+      const [rows, globalRoles] = await Promise.all([
+        this.authUsers.membershipsOf(user.id),
+        this.authUsers.globalRolesOf(user.id),
+      ]);
+      const memberships: SessionMembership[] = rows.map((m) => ({
+        organizerId: m.organizerId,
+        organizerHandle: m.organizerHandle,
+        role: m.role,
+      }));
+      // Acting org = the handle they logged in with (b), else the first membership
+      // (owner-first ordered). A pure super_admin with no org has none — fine.
+      let acting = handleOrg ? rows.find((m) => m.organizerId === handleOrg!.id) ?? null : null;
+      if (!acting) acting = rows[0] ?? null;
+      if (acting && acting.status === 'suspended') throw new UnauthorizedException({ error: 'Account suspended' });
+
+      this.sessions.set(res, {
+        userId: user.id,
+        globalRoles,
+        memberships,
+        actingOrganizerId: acting ? acting.organizerId : undefined,
+        organizerHandle: acting ? acting.organizerHandle : undefined, // keep legacy field live
+        role: 'organizer',
+        kycStatus: acting ? acting.kycStatus ?? undefined : undefined,
+      });
+      return { ok: true };
+    }
+
+    // ── (c) LEGACY fallback: organizer.password_hash (backfill not run) ────────
+    // TODO(phase-2.5): the spec retires organizer.password_hash in Phase 2, but that
+    // is only safe AFTER the prod backfill has run and login parity is proven. This
+    // fallback DEPENDS on the column, so it stays until Phase 2.5.
+    const org = handleOrg ?? (isEmail ? await this.organizers.byEmail(identifier) : await this.organizers.byHandle(identifier));
     if (
       org &&
       org.status !== 'suspended' &&
       org.passwordHash &&
-      bcrypt.compareSync(password || '', org.passwordHash)
+      bcrypt.compareSync(password, org.passwordHash)
     ) {
       this.sessions.set(res, { organizerHandle: org.handle, role: 'organizer', kycStatus: org.kycStatus ?? undefined });
       return { ok: true };
     }
     throw new UnauthorizedException({ error: 'Wrong handle or password' });
+  }
+
+  // ── POST /api/me/acting-org — switch the acting organizer (BS93 Phase 2, E6) ──
+  // Validated against the caller's OWN memberships (from the session, never the
+  // body's authority): repoints actingOrganizerId + organizerHandle so every
+  // org-scoped read now resolves the chosen org. 403 if not a member.
+  @Post('me/acting-org')
+  async setActingOrg(@Req() req: Request, @Body() body: any, @Res({ passthrough: true }) res: Response) {
+    const s = req.session || {};
+    const organizerId = String(body?.organizerId ?? '').trim();
+    const memberships = Array.isArray(s.memberships) ? s.memberships : [];
+    if (!s.userId || memberships.length === 0) throw new UnauthorizedException({ error: 'Not logged in' });
+    const m = memberships.find((x) => x.organizerId === organizerId);
+    if (!m) throw new ForbiddenException({ error: 'not_a_member', message: 'You are not a member of that organizer.' });
+
+    const org = await this.organizers.byId(m.organizerId);
+    this.sessions.set(res, {
+      ...s,
+      actingOrganizerId: m.organizerId,
+      organizerHandle: m.organizerHandle,
+      role: 'organizer',
+      kycStatus: org?.kycStatus ?? undefined,
+    });
+    return { ok: true, actingOrganizerId: m.organizerId, organizerHandle: m.organizerHandle };
   }
 
   @Post('logout')
@@ -68,6 +152,12 @@ export class AuthController {
       role: s.role || (s.isAdmin ? 'admin' : null),
       organizerHandle: s.organizerHandle || null,
       impersonating: s.impersonating || null,
+      // BS93 (Phase 2) — additive: the switcher UI reads memberships to decide
+      // whether to render (only when >1). Empty/null for legacy + admin sessions.
+      userId: s.userId || null,
+      globalRoles: Array.isArray(s.globalRoles) ? s.globalRoles : [],
+      memberships: Array.isArray(s.memberships) ? s.memberships : [],
+      actingOrganizerId: s.actingOrganizerId || null,
     };
   }
 

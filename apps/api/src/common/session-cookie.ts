@@ -11,6 +11,16 @@ export const COOKIE_NAME = 'zora_session';
 // 8h session lifetime (mirrors cookie maxAge below); iat/exp are unix seconds.
 export const SESSION_LIFETIME_SEC = 60 * 60 * 8;
 
+/* BS93 (auth Phase 2, E1) — a membership carried in the session so the RBAC guard
+   can decide the acting-org role WITHOUT a DB read (session-derived, never
+   body-derived). organizerHandle is duplicated here so the switch endpoint can
+   repoint the legacy `organizerHandle` field from the chosen membership. */
+export interface SessionMembership {
+  organizerId: string;
+  organizerHandle: string;
+  role: string; // owner | admin | finance | door | viewer
+}
+
 export interface ZoraSession {
   isAdmin?: boolean;
   impersonating?: { id: string; name: string; handle: string; startedAt: string } | null;
@@ -20,6 +30,17 @@ export interface ZoraSession {
   organizerHandle?: string;
   role?: 'admin' | 'organizer';
   kycStatus?: string;
+  // ── BS93 (Phase 2, E1) — the USER + ROLES + MEMBERSHIPS layer, ADDED alongside
+  // the legacy fields, never replacing them. A user-based session carries the
+  // identity + its roles; `organizerHandle` STAYS populated (= the acting org's
+  // handle) so every endpoint that reads req.session.organizerHandle / actingHandle
+  // (OrganizerGuard, the org controllers) keeps working unchanged. Old sessions
+  // (organizerHandle only, no memberships) remain valid: the RBAC guard treats such
+  // a session as an implicit `owner` of that org (no lockout mid-migration).
+  userId?: string;
+  globalRoles?: string[];                 // super_admin | staff | scanner
+  memberships?: SessionMembership[];
+  actingOrganizerId?: string;             // the org the session is currently acting as
   // Signed-token clock: stamped by signSession, enforced by verifySession.
   iat?: number;
   exp?: number;

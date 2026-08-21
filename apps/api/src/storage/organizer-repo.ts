@@ -152,6 +152,18 @@ export class OrganizerRepo {
     return rows.length ? toRecord(rows[0]) : null;
   }
 
+  /** BS93 (Phase 2): resolve an organizer by its contact email, case-insensitively.
+      Used only by the LEGACY login fallback so an email login still works for an
+      org that has no app_user yet (prod backfill not run). Oldest row wins. */
+  async byEmail(email: string): Promise<OrganizerRecord | null> {
+    const e = String(email ?? '').trim().toLowerCase();
+    if (!e) return null;
+    const rows = await db()<Row[]>`
+      select ${db().unsafe(COLUMNS)} from organizer
+       where lower(email) = ${e} order by created_at asc, id asc limit 1`;
+    return rows.length ? toRecord(rows[0]) : null;
+  }
+
   /* ── BS41 (#4/#5): self-registration + the verification queue ──────────── */
 
   /** Is this handle free? Case-insensitive by construction (handles are stored

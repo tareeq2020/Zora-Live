@@ -4,6 +4,7 @@ import {
 import type { Request } from 'express';
 import { OrganizerRepo, verificationOrganizer } from '../storage/organizer-repo';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { KYC_REASONS } from '../common/defaults';
 
@@ -28,6 +29,10 @@ import { KYC_REASONS } from '../common/defaults';
      POST /api/kyc/organizers/:id/approve      → status 'active', kyc 'approved'
      POST /api/kyc/organizers/:id/reject       { code, note? } → kyc 'rejected'
 */
+/* BS93 (Phase 2, E4): /api/kyc/* requires global super_admin. RolesGuard maps the
+   legacy magic-admin session (isAdmin) to super_admin, so this cooperates with the
+   SessionGuard already here rather than replacing it. */
+@Roles('super_admin')
 @UseGuards(SessionGuard)
 @Controller('kyc/organizers')
 export class OrgVerificationController {

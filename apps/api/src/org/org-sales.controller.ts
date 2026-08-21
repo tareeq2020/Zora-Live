@@ -1,11 +1,14 @@
 import { Controller, Get, Post, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { OrganizerGuard } from '../common/organizer.guard';
+import { Roles } from '../common/roles.guard';
 import { OrgSalesService } from './org-sales.service';
 
 /* /api/org/summary + /api/org/orders (MT3) — the organizer sales/reporting
    surface. OrganizerGuard stamps req.actingHandle (real organizer OR admin
    impersonating); every read is scoped to it via OrgSalesService (C3). */
+/* BS93 (Phase 2, E4): sales/revenue reporting — owner/admin/finance. */
+@Roles('owner', 'admin', 'finance')
 @Controller('org')
 @UseGuards(OrganizerGuard)
 export class OrgSalesController {

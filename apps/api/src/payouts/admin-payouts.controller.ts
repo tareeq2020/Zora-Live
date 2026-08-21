@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { SessionGuard } from '../common/session.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { PayoutsService } from './payouts.service';
@@ -19,6 +20,8 @@ import { PayoutsService } from './payouts.service';
 
    Guarded by SessionGuard (admin session) and written to the audit trail, like
    every other money-moving admin action. */
+/* BS93 (Phase 2, E4): /api/admin/* requires global super_admin (isAdmin maps to it). */
+@Roles('super_admin')
 @Controller('admin/payouts')
 @UseGuards(SessionGuard)
 export class AdminPayoutsController {

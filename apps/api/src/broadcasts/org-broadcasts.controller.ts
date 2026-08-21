@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Q
 import type { Request } from 'express';
 import { smsUnitCost } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
+import { Roles } from '../common/roles.guard';
 import { AuditService } from '../audit/audit.module';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { BroadcastsService, defaultSenderIdFor, normalizeSenderId, type ScopeRequest } from './broadcasts.service';
@@ -19,6 +20,8 @@ import { BroadcastsService, defaultSenderIdFor, normalizeSenderId, type ScopeReq
    sender ID, and must fit inside the monthly SMS allowance. Composing is NOT
    gated — a pending org can write and preview, they just cannot send, and the
    response says exactly that. */
+/* BS93 (Phase 2, E4): messaging buyers is an owner/admin action. */
+@Roles('owner', 'admin')
 @Controller('org/broadcasts')
 @UseGuards(OrganizerGuard)
 export class OrgBroadcastsController {

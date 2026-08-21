@@ -16,6 +16,7 @@ import {
 import type { Request } from 'express';
 import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
+import { Roles } from '../common/roles.guard';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
 import { EVENT_CITY_IDS, DEFAULT_SETTINGS } from '../common/defaults';
@@ -67,6 +68,10 @@ function slugify(s: string): string {
   );
 }
 
+/* BS93 (Phase 2, E4): event CRUD (incl. publishing a sellable drop, I6) is an
+   owner/admin action. A door/viewer member is refused (403) by the global
+   RolesGuard; a legacy session (no memberships) is an implicit owner → unchanged. */
+@Roles('owner', 'admin')
 @UseGuards(OrganizerGuard)
 @Controller('org')
 export class OrgEventsController {
