@@ -220,7 +220,7 @@ export default function TeamCr() {
       brand={ORG_BRAND}
       topbarTitle="Team"
       topbarExtra={<span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>Your people, their access</span>}
-      footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a></>}
+      footer={<><a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORAPASS.COM</a></>}
     >
       <div className="cr-stack">
         <div>

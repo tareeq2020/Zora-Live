@@ -15,7 +15,7 @@ import { DiscoverApp } from './discover-app';
    marketing-chrome.tsx). */
 
 export const metadata: Metadata = {
-  title: 'ZORA — Find your night',
+  title: 'ZORA — Find your vibe',
   description:
     'Every event worth being at, near you. Concerts, festivals, nightlife and daytime.',
 };

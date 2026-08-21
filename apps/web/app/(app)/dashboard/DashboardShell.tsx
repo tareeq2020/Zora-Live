@@ -55,7 +55,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
           <p className="foot">
-            <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
+            <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORAPASS.COM</a>
           </p>
         </aside>
         <div className="dash-main">{children}</div>

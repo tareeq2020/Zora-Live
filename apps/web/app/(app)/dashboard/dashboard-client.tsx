@@ -338,7 +338,7 @@ export default function DashboardClient() {
               Help &amp; Support
             </Link>
             <p className="foot">
-              <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORA.COM</a>
+              <a href="/dashboard/onboarding">GET STARTED</a> &middot; <a href="/">ZORAPASS.COM</a>
               <br />
               <br />
               {orgName ? orgName.toUpperCase() : 'ORGANIZER DASHBOARD'}
