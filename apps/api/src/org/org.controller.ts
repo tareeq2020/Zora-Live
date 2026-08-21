@@ -34,10 +34,21 @@ export class OrgController {
     // req.actingHandle is stamped by OrganizerGuard (guaranteed non-null here).
     const handle = req.actingHandle as string;
     const org = await this.organizers.byHandle(handle); // BS35: relational row
+    // BS94 (Phase 3): the caller's org-scoped MEMBERSHIP role for the acting org
+    // (owner|admin|finance|door|viewer), derived from the session — the Team
+    // surface reads it to hide invite/remove from non-owner/admin members. A
+    // legacy session (no memberships) OR an admin impersonating is an implicit
+    // owner, matching the RBAC guard's rule (no lockout).
+    const memberships = Array.isArray(req.session.memberships) ? req.session.memberships : [];
+    const acting = req.session.actingOrganizerId;
+    const membership = memberships.find((m) => m.organizerId === acting) || null;
+    const memberRole = membership ? membership.role : (memberships.length ? null : 'owner');
     return {
       actingHandle: handle,
       name: org ? org.name : null,
       role: req.session.role || (req.actingViaImpersonation ? 'admin' : 'organizer'),
+      memberRole,
+      userId: req.session.userId ?? null,
       impersonating: req.actingViaImpersonation ? req.session.impersonating || null : null,
       // KYC status lives on the organizer record when present; the enforcement
       // gate (I6) lands in MT2. Falls back to the session claim, else null.
