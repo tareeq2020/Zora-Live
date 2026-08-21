@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Module, NotFoundException, 
 import type { Request, Response } from 'express';
 import * as crypto from 'crypto';
 import { EntityStore } from '../storage/entity-store';
+import { OrganizerRepo } from '../storage/organizer-repo';
 import { SessionGuard } from '../common/session.guard';
 import { AuditService } from '../audit/audit.module';
 import { KycService } from './kyc.service';
@@ -12,7 +13,12 @@ import { ID_TYPES, KYC_REASONS } from '../common/defaults';
    (.enc) live in the private Supabase Storage bucket via KycService. */
 @Controller()
 export class KycController {
-  constructor(private readonly entities: EntityStore, private readonly kyc: KycService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly entities: EntityStore,
+    private readonly kyc: KycService,
+    private readonly audit: AuditService,
+    private readonly organizers: OrganizerRepo,
+  ) {}
 
   // Step 1 — receive one document, encrypt, store privately, return an opaque docId.
   @Post('kyc/upload')
@@ -48,10 +54,17 @@ export class KycController {
     const prior = all.filter((v) => (v.fullName || '').toLowerCase() === name.toLowerCase()).length;
     const dn = String(docNumber || '').replace(/\s+/g, '');
     const now = new Date().toISOString();
+    // BS92 (E5) — the org LINK. An identity submission had no organizer reference,
+    // so approving it could not flip the submitting org's kyc_status (the payout +
+    // publish gate) — the divergence the rework fixes. The document is uploaded by
+    // a logged-in organizer, so stamp the acting handle from the SESSION (never the
+    // body — the acting-org invariant), and the approve path resolves it to the org.
+    const organizerHandle = req.session?.organizerHandle ?? null;
     const rec = {
       id: crypto.randomBytes(8).toString('hex'),
       ref: 'KYC-' + Date.now().toString(36).toUpperCase(),
       status: 'submitted',
+      organizerHandle,
       idType, country, fullName: name,
       docNumberMasked: dn ? dn.slice(0, 2) + '••••' + dn.slice(-2) : null,
       docNumberHash: dn ? crypto.createHash('sha256').update(dn).digest('hex') : null,
@@ -124,10 +137,36 @@ export class KycController {
     if (v.status !== 'approved') {
       v.status = 'approved'; v.reviewedAt = new Date().toISOString(); v.reviewedBy = 'admin'; v.rejection = null;
       this.kyc.event(v, 'admin', 'approved');
+      // BS92 (E5) — ONE verification gate. Route the org flip through the SAME
+      // transition the organizer queue uses (OrganizerRepo.recordVerification), so
+      // organizer.kyc_status — the field the payout + publish gates read — is the
+      // single source of truth. Without this, an admin approves the document but the
+      // org stays locked (the reported bug).
+      await this.flipOrganizerVerification(v, 'approve');
       await this.entities.write('kyc', all);
       await this.audit.record('kyc_approve', (v.fullName || v.ref) + ' · ' + v.idType + '/' + v.country, req.ip);
     }
     return this.kyc.public(v);
+  }
+
+  /** Resolve the KYC record's organizer (by the handle stamped at submit) and run
+      the shared verification transition. If a record predates the link, or the
+      handle no longer resolves, we FLAG it (audit + an event on the record) rather
+      than guess an org — the document decision still stands, but a human must link
+      the org. */
+  private async flipOrganizerVerification(v: any, decision: 'approve' | 'reject', reason?: string | null) {
+    const handle = v.organizerHandle ?? null;
+    const org = handle ? await this.organizers.byHandle(handle) : null;
+    if (!org) {
+      this.kyc.event(v, 'system', 'org_link_missing', handle || '(no organizer on record)');
+      await this.audit.record(
+        'kyc_org_link_missing',
+        `${v.fullName || v.ref}: could not resolve an organizer to ${decision} — kyc_status NOT changed (manual link needed)`,
+      );
+      return;
+    }
+    await this.organizers.recordVerification(org.id, decision, 'admin', reason ?? null);
+    this.kyc.event(v, 'system', decision === 'approve' ? 'org_verified' : 'org_unverified', `@${org.handle}`);
   }
 
   // Reject — requires a standardized reason; user is shown the mapped message.
@@ -142,6 +181,10 @@ export class KycController {
     v.status = 'rejected'; v.reviewedAt = new Date().toISOString(); v.reviewedBy = 'admin';
     v.rejection = { code, note: String(note || '').slice(0, 300) };
     this.kyc.event(v, 'admin', 'rejected', code);
+    // BS92 (E5) — same single gate: a rejected identity must not leave the org
+    // showing 'approved'. Flip the linked org through the shared transition too.
+    const reason = note ? `${code} · ${String(note).slice(0, 280)}` : code;
+    await this.flipOrganizerVerification(v, 'reject', reason);
     await this.entities.write('kyc', all);
     await this.audit.record('kyc_reject', (v.fullName || v.ref) + ' · ' + code, req.ip);
     return this.kyc.public(v);

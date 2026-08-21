@@ -48,6 +48,11 @@ export class KycService {
 
   // Shape sent to the admin queue — no raw storage internals, doc-number masked.
   public(v: any) {
+    // BS92 (E5): the org link (v.organizerHandle, stamped at submit) is used
+    // INTERNALLY by the approve/reject transition to flip organizer.kyc_status; it
+    // is deliberately NOT surfaced here so /api/kyc stays byte-identical to its
+    // golden fixture (pg-parity). The admin verified badge reads organizer.kyc_status
+    // (the org queue), never this record's status.
     return {
       id: v.id, ref: v.ref, status: v.status, idType: v.idType, country: v.country,
       fullName: v.fullName, docNumberMasked: v.docNumberMasked || null,
