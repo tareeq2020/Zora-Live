@@ -91,14 +91,21 @@ export type { HasOrganizerHandle } from './suspension';
 // advisory lock, so two concurrent requests cannot over-withdraw (ARCH-2).
 export {
   availableBalance, availableBalances, requestPayout, decidePayout, listPayouts, getPayout,
-  payoutErrorMessage, payoutMinimum, payoutLockKey,
+  payoutErrorMessage, payoutMinimum, payoutLockKey, validateDestination,
   PAYOUT_HOLDING_STATUSES, DEFAULT_PAYOUT_MINIMUM,
 } from './payouts';
 export type {
   PayoutStatus, PayoutErrorCode, PayoutDecisionErrorCode, PayoutRecord, PayoutBalance,
-  PayoutOrgContext, RequestPayoutInput, RequestPayoutResult,
+  PayoutOrgContext, RequestPayoutInput, RequestPayoutResult, PayoutDestination,
   DecidePayoutInput, DecidePayoutResult, ListPayoutsFilter,
 } from './payouts';
+// BS98 — the canonical payout-destination registry (mirrors x-bridge), used to
+// validate an organizer's chosen method/provider and to serve the form's lists.
+export {
+  CANONICAL_BANKS, CANONICAL_MNOS, bankByCode, mnoByCode, providerFor, fspCodeFor,
+  payoutDestinationCatalog,
+} from './fsp-registry';
+export type { PayoutMethod, CanonicalBank, CanonicalMno } from './fsp-registry';
 export { sendSms, smsConfigSummary, logSmsStartup, gsmSafe } from './sms';
 export { publicWebOrigin } from './origins';
 export type { SmsDriver, SmsResult } from './sms';

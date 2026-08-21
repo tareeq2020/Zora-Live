@@ -189,9 +189,9 @@ echo "   balance = 190000 TZS · firing 2 × 100000 IN PARALLEL (together 200000
 # Both requests read the balance and then write. Without the per-org advisory
 # lock + the pending-reservation, both see 190000, both pass, and the organizer
 # has withdrawn 200000 of money that does not exist.
-( pv_post "$SNAP/orgA" '{"amount":100000,"currency":"TZS","note":"race-1"}' "$SNAP/race1" > "$SNAP/race1.code" ) &
+( pv_post "$SNAP/orgA" '{"amount":100000,"currency":"TZS","note":"race-1","destination":{"method":"mobile_money","provider":"MPESA","providerName":"Vodacom (M-Pesa)","account":"255712345678"}}' "$SNAP/race1" > "$SNAP/race1.code" ) &
 P1=$!
-( pv_post "$SNAP/orgA" '{"amount":100000,"currency":"TZS","note":"race-2"}' "$SNAP/race2" > "$SNAP/race2.code" ) &
+( pv_post "$SNAP/orgA" '{"amount":100000,"currency":"TZS","note":"race-2","destination":{"method":"mobile_money","provider":"MPESA","providerName":"Vodacom (M-Pesa)","account":"255712345678"}}' "$SNAP/race2" > "$SNAP/race2.code" ) &
 P2=$!
 wait $P1 || true
 wait $P2 || true
@@ -284,7 +284,7 @@ t("available STILL 90000 — approving moves money from reserved to paid, it doe
 echo "$R6B"; echo "$R6B" | grep -q '✗' && fail=1
 
 # ── reject returns the amount to available ──
-CODE=$(pv_post "$SNAP/orgA" '{"amount":30000,"currency":"TZS"}' "$SNAP/r_req2"); REQ2=$(cat "$SNAP/r_req2")
+CODE=$(pv_post "$SNAP/orgA" '{"amount":30000,"currency":"TZS","destination":{"method":"mobile_money","provider":"MPESA","providerName":"Vodacom (M-Pesa)","account":"255712345678"}}' "$SNAP/r_req2"); REQ2=$(cat "$SNAP/r_req2")
 PID2=$(echo "$REQ2" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);process.stdout.write(o.payout?o.payout.id:"")})')
 echo "$(pv_get "$SNAP/orgA")" | grep -q '"available":60000' \
   && echo "  ✓ a fresh 30000 request drops available 90000 → 60000" \
@@ -394,7 +394,7 @@ echo "   available = 42500 TZS (post-refund) · firing 4 × 20000 IN PARALLEL (t
 # all four would see no pending row, and all four would be written.
 BURST_PIDS=""
 for i in 1 2 3 4; do
-  ( pv_post "$SNAP/orgA" '{"amount":20000,"currency":"TZS","note":"burst-'"$i"'"}' "$SNAP/burst$i" > "$SNAP/burst$i.code" ) &
+  ( pv_post "$SNAP/orgA" '{"amount":20000,"currency":"TZS","note":"burst-'"$i"'","destination":{"method":"mobile_money","provider":"MPESA","providerName":"Vodacom (M-Pesa)","account":"255712345678"}}' "$SNAP/burst$i" > "$SNAP/burst$i.code" ) &
   BURST_PIDS="$BURST_PIDS $!"
 done
 for p in $BURST_PIDS; do wait "$p" || true; done

@@ -27,6 +27,12 @@ type Payout = {
   reference: string | null; fxNote: string | null; note: string | null; reason: string | null;
 };
 type PayoutView = { balances: Balance[]; payouts: Payout[]; verified: boolean; commissionRate: number; pendingCount: number };
+type Method = 'mobile_money' | 'bank';
+type Catalog = {
+  methods: { id: Method; label: string }[];
+  banks: { code: string; name: string }[];
+  mnos: { code: string; name: string }[];
+};
 
 const fmt = (n: number) => (typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—');
 function fmtWhen(iso: string | null): string {
@@ -48,6 +54,35 @@ export default function PayoutsCr() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // BS98 — the structured destination: method → provider → account (+ name for bank).
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [method, setMethod] = useState<Method>('mobile_money');
+  const [provider, setProvider] = useState('');
+  const [account, setAccount] = useState('');
+  const [accountName, setAccountName] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/org/payouts/methods', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: Catalog | null) => {
+        if (alive && c) setCatalog(c);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The provider list for the chosen method; reset the selected provider whenever
+  // the method flips so a bank code can never linger under "mobile money".
+  const providerOptions = method === 'bank' ? catalog?.banks ?? [] : catalog?.mnos ?? [];
+  function chooseMethod(m: Method) {
+    setMethod(m);
+    setProvider('');
+    setAccountName('');
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +119,12 @@ export default function PayoutsCr() {
   const belowMinimum = !!selected && selected.available > 0 && selected.available < selected.minimum;
   const canRequest = verified && !pending && !!selected && selected.available >= selected.minimum;
 
+  // Destination completeness mirrors the server rule (core validateDestination):
+  // a provider, an account, and — for a bank — the account holder's name.
+  const accountDigits = account.replace(/[^0-9]/g, '').length;
+  const accountOk = method === 'mobile_money' ? accountDigits >= 9 && accountDigits <= 12 : accountDigits >= 6;
+  const destinationOk = !!provider && accountOk && (method !== 'bank' || accountName.trim().length > 0);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!selected || submitting) return;
@@ -91,11 +132,23 @@ export default function PayoutsCr() {
     setFormError(null);
     setSuccess(null);
     try {
+      const providerName = providerOptions.find((p) => p.code === provider)?.name ?? provider;
       const res = await fetch('/api/org/payouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
-        body: JSON.stringify({ amount: parsedAmount, currency: selected.currency, note: note || undefined }),
+        body: JSON.stringify({
+          amount: parsedAmount,
+          currency: selected.currency,
+          note: note || undefined,
+          destination: {
+            method,
+            provider,
+            providerName,
+            account: account.trim(),
+            accountName: method === 'bank' ? accountName.trim() : undefined,
+          },
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
       if (!res.ok) {
@@ -103,9 +156,11 @@ export default function PayoutsCr() {
         await load();
         return;
       }
-      setSuccess(`Requested ${fmt(parsedAmount)} ${selected.currency}. We'll transfer it and record the reference here — usually within 2 business days.`);
+      setSuccess(`Requested ${fmt(parsedAmount)} ${selected.currency} to your ${providerName} account. We'll transfer it and record the reference here — usually within 2 business days.`);
       setAmount('');
       setNote('');
+      setAccount('');
+      setAccountName('');
       await load();
     } catch {
       setFormError('We could not reach Zora just then. Check your connection and try again — nothing was requested.');
@@ -223,18 +278,87 @@ export default function PayoutsCr() {
                   <input id="po-amount" inputMode="numeric" autoComplete="off" className="mono" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={String(selected.available)} disabled={!canRequest || submitting} aria-describedby="po-amount-help" />
                   <p className="org-help" id="po-amount-help">Minimum {fmt(selected.minimum)} · maximum {fmt(selected.available)} {selected.currency}</p>
                 </div>
-                <div className="org-field">
-                  <label htmlFor="po-note">Where to send it (optional)</label>
-                  <input id="po-note" autoComplete="off" value={note} onChange={(e) => setNote(e.target.value)} placeholder="M-Pesa 0712 345 678 / CRDB 0150…" disabled={!canRequest || submitting} />
-                  <p className="org-help">Whatever helps our team pay the right account.</p>
+              </div>
+
+              {/* ── BS98: WHERE to send it — method → provider → account ── */}
+              <div className="org-field">
+                <label>How do you want to be paid?</label>
+                <div className="org-seg" role="radiogroup" aria-label="Payout method">
+                  {(catalog?.methods ?? [{ id: 'mobile_money', label: 'Mobile money' }, { id: 'bank', label: 'Bank account' }]).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={method === m.id}
+                      className={method === m.id ? 'on' : undefined}
+                      onClick={() => chooseMethod(m.id)}
+                      disabled={!canRequest || submitting}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              <div className="org-form-row">
+                <div className="org-field">
+                  <label htmlFor="po-provider">{method === 'bank' ? 'Bank' : 'Mobile-money operator'}</label>
+                  <select
+                    id="po-provider"
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    disabled={!canRequest || submitting || !catalog}
+                  >
+                    <option value="" disabled>{catalog ? `Select ${method === 'bank' ? 'a bank' : 'an operator'}` : 'Loading…'}</option>
+                    {providerOptions.map((p) => (
+                      <option key={p.code} value={p.code}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="org-field">
+                  <label htmlFor="po-account">{method === 'bank' ? 'Account number' : 'Mobile-money number'}</label>
+                  <input
+                    id="po-account"
+                    inputMode={method === 'bank' ? 'numeric' : 'tel'}
+                    autoComplete="off"
+                    className="mono"
+                    value={account}
+                    onChange={(e) => setAccount(e.target.value)}
+                    placeholder={method === 'bank' ? '0150 1234 5678' : '0712 345 678'}
+                    disabled={!canRequest || submitting}
+                  />
+                  <p className="org-help">{method === 'bank' ? 'The account the money settles into.' : 'The phone number registered for mobile money.'}</p>
+                </div>
+              </div>
+
+              {method === 'bank' ? (
+                <div className="org-field">
+                  <label htmlFor="po-account-name">Account holder name</label>
+                  <input
+                    id="po-account-name"
+                    autoComplete="off"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="As it appears on the bank account"
+                    disabled={!canRequest || submitting}
+                  />
+                  <p className="org-help">Banks require the beneficiary name to match the account.</p>
+                </div>
+              ) : null}
+
+              <div className="org-field">
+                <label htmlFor="po-note">Note for our team (optional)</label>
+                <input id="po-note" autoComplete="off" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything else that helps us pay the right account" disabled={!canRequest || submitting} />
+              </div>
+
               <div className="org-actions">
-                <button className="org-btn" type="submit" disabled={!canRequest || !amountOk || submitting}>
+                <button className="org-btn" type="submit" disabled={!canRequest || !amountOk || !destinationOk || submitting}>
                   {submitting ? 'REQUESTING…' : 'REQUEST WITHDRAWAL'}
                 </button>
                 {canRequest && amount && !amountOk ? (
                   <span className="org-inline-warn">Enter a whole amount between {fmt(selected.minimum)} and {fmt(selected.available)}.</span>
+                ) : canRequest && amountOk && !destinationOk ? (
+                  <span className="org-inline-warn">Choose a {method === 'bank' ? 'bank, account number and holder name' : 'provider and mobile-money number'} to continue.</span>
                 ) : null}
               </div>
               {formError ? <p className="org-alert err" role="alert">{formError}</p> : null}
