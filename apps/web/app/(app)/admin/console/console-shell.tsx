@@ -29,7 +29,7 @@ const NAV: CrNavItem[] = [
   { href: '/admin/console/organizers', label: 'Organizers', icon: 'organizers' },
   { href: '/admin/console/verification', label: 'Verification', icon: 'verification' },
   { href: '/admin/console/payouts', label: 'Payouts', icon: 'payouts' },
-  { href: '/admin/dashboard#scanner', label: 'Scanner users', icon: 'scanner' },
+  { href: '/admin/console/scanner', label: 'Scanner users', icon: 'scanner' },
   { href: '/admin/console/payments', label: 'Payments routing', icon: 'payments' },
   { href: '/admin/dashboard#media', label: 'Media', icon: 'media' },
   { href: '/admin/dashboard#access', label: 'Access', icon: 'access' },
