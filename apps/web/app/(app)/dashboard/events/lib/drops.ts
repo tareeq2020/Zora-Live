@@ -80,6 +80,8 @@ export type DropInput = {
 // added row has neither. `disabled` = BS23 on-sale toggle.
 export type TierRow = { tierId?: string; name: string; price: string; capacity: string; splitEnabled?: boolean; seats?: string; disabled?: boolean; sold?: number };
 
+export type PriceCurrency = 'TZS' | 'USD';
+
 export type DropForm = {
   name: string;
   dateLabel: string;
@@ -90,6 +92,10 @@ export type DropForm = {
   cover: string; // per-event hero image URL (CDN)
   seated: boolean;
   sellable: boolean;
+  // BS99 (#3): how the organizer enters tier prices FOR THIS EVENT. Default 'TZS'
+  // (enter the shilling price directly, usd anchor omitted). 'USD' opts in to the
+  // admin-rate conversion (the price field is USD; the buyer is charged usd×rate).
+  priceCurrency: PriceCurrency;
   tiers: TierRow[];
 };
 
@@ -105,17 +111,33 @@ export const emptyForm = (): DropForm => ({
   cover: '',
   seated: false,
   sellable: false,
+  priceCurrency: 'TZS', // BS99 (#3): TZS-direct is the default; USD is opt-in per event.
   tiers: [emptyTier()],
 });
 
 // Hydrate the editable form from a server event (edit route prefill).
 export function formFromEvent(ev: OrgEvent, rate: number): DropForm {
+  // BS99 (#3): the event's currency mode is inferred from its tiers — if ANY tier
+  // carries a `usd` anchor it was priced in USD; otherwise it's TZS-direct. New/
+  // legacy events with no usd anchor edit in TZS (the default), so opening an
+  // existing TZS event no longer silently divides its price by the USD rate.
+  const usesUsd = (ev.tiers || []).some((t) => t.usd != null);
+  const priceCurrency: PriceCurrency = usesUsd ? 'USD' : 'TZS';
   const tiers = (ev.tiers || []).map((t) => ({
     tierId: t.tierId, // preserved so edits match by id (not name) and delete/disable can target it
     name: t.name || '',
-    // BS87: the form price field is the USD anchor. Prefer the stored usd; for a
-    // legacy tier that only has a TZS unitPrice, derive USD at the current rate.
-    price: t.usd != null ? String(t.usd) : t.unitPrice != null ? String(Math.round(t.unitPrice / rate)) : '',
+    // The price field is in the event's currency: for USD, the stored anchor (or a
+    // legacy TZS tier's derived USD); for TZS, the shilling unitPrice verbatim.
+    price:
+      priceCurrency === 'USD'
+        ? t.usd != null
+          ? String(t.usd)
+          : t.unitPrice != null
+            ? String(Math.round(t.unitPrice / rate))
+            : ''
+        : t.unitPrice != null
+          ? String(t.unitPrice)
+          : '',
     capacity: t.capacity != null ? String(t.capacity) : '',
     splitEnabled: !!t.split,
     seats: t.seats != null ? String(t.seats) : '',
@@ -132,6 +154,7 @@ export function formFromEvent(ev: OrgEvent, rate: number): DropForm {
     cover: (ev as { cover?: string }).cover || '',
     seated: !!ev.seated,
     sellable: !!ev.sellable,
+    priceCurrency,
     tiers: tiers.length ? tiers : [emptyTier()],
   };
 }
@@ -179,18 +202,22 @@ export const hasErrors = (e: FieldErrors): boolean =>
 
 // Tiers that are complete enough to send (used for priceFrom + body).
 export function usableTiers(form: DropForm, rate: number): DropTierInput[] {
+  const usdMode = form.priceCurrency === 'USD';
   return form.tiers
     .filter((t) => t.name.trim() !== '' || t.price.trim() !== '' || t.capacity.trim() !== '')
     .map((t) => {
-      // BS87 (Option B): the price field is the USD anchor; the buyer is charged
-      // TZS = round(usd * rate). The server recomputes this authoritatively from the
-      // admin rate — `price` here is for the live preview and priceFrom.
-      const usd = Number(t.price) || 0;
+      // BS99 (#3): in USD mode the price field is the USD anchor and the buyer is
+      // charged TZS = round(usd × admin-rate) — `usd` rides along and the server
+      // recomputes the shilling price authoritatively. In TZS mode the field IS the
+      // shilling price: no anchor is sent, so the server takes it verbatim.
+      const entered = Number(t.price) || 0;
+      const usd = usdMode ? entered : undefined;
+      const price = usdMode ? Math.round(entered * rate) : entered;
       return {
         tierId: t.tierId,
         name: t.name.trim(),
-        usd,
-        price: Math.round(usd * rate),
+        ...(usd != null ? { usd } : {}),
+        price,
         capacity: Number(t.capacity) || 0,
         splitEnabled: !!t.splitEnabled,
         // BS30: people-per-table only rides along for split tiers (>=2); server defaults to 8.

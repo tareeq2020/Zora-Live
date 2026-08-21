@@ -42,6 +42,24 @@ function canonEvent(e) {
   return e && e.city != null ? { ...e, city: canonCity(e.city) } : e;
 }
 
+// BS99 (#2): the marketplace "FROM {price}" must be the lowest price a buyer can
+// ACTUALLY pay — i.e. the cheapest ON-SALE tier. `priceFrom` is a stored field
+// that is not recomputed when a tier is disabled, so an event whose cheapest tier
+// was taken off sale kept advertising that dead price (Apricot Crush showed
+// "from 1,000" for a disabled GA tier while the cheapest live tier was 20,000).
+// Derive it on read from the non-disabled webCheckout tiers; fall back to the
+// stored value only when there are no active tiers to speak for it.
+function deriveFrom(e) {
+  const tiers = e && e.webCheckout && Array.isArray(e.webCheckout.tiers) ? e.webCheckout.tiers : null;
+  if (!tiers || !tiers.length) return e;
+  const live = tiers
+    .filter((t) => t && !t.disabled && Number.isFinite(Number(t.unitPrice)))
+    .map((t) => Number(t.unitPrice));
+  if (!live.length) return e; // every tier disabled — leave the stored priceFrom
+  const from = Math.min(...live);
+  return from === e.priceFrom ? e : { ...e, priceFrom: from };
+}
+
 function byDate(a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }
 
 // C5: public-read status filter. Events gain status ∈ {draft,published,archived}
@@ -69,7 +87,7 @@ async function readAll() {
   const rows = await db()`select data from collection_store where name = 'events'`;
   // Canonicalise city on the way out (BS97) — the single choke point every public
   // read (list/get) and the upsert read-modify-write all flow through.
-  return rows.length ? JSON.parse(rows[0].data).map(canonEvent) : [];
+  return rows.length ? JSON.parse(rows[0].data).map(canonEvent).map(deriveFrom) : [];
 }
 async function writeAll(rows) {
   const text = JSON.stringify(rows);

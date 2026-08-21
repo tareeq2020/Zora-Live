@@ -3,6 +3,8 @@ import type { Request, Response } from 'express';
 import { SessionGuard } from '../common/session.guard';
 import { TenantService } from '../tenant/tenant.module';
 import { EntityStore } from '../storage/entity-store';
+import { AuditModule } from '../audit/audit.module';
+import { AdminEventsController } from './admin-events.controller';
 
 // Vendored events data-access (copied from lib/events.js): file store or Supabase.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -84,5 +86,5 @@ export class EventsController {
   }
 }
 
-@Module({ controllers: [EventsController] })
+@Module({ imports: [AuditModule], controllers: [EventsController, AdminEventsController] })
 export class EventsModule {}
