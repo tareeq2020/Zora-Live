@@ -182,6 +182,12 @@ export class OrgEventsController {
       for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
         if (body?.[k] !== undefined) ev[k] = String(body[k]);
       }
+      // BS101: structured start date — validated when present; an explicit blank clears it.
+      if (body?.date !== undefined) {
+        const d = this.parseEventDate(body);
+        if (d) ev.date = d;
+        else delete ev.date;
+      }
       if (body?.priceFrom !== undefined) ev.priceFrom = Number(body.priceFrom);
       if (body?.seated !== undefined) ev.seated = !!body.seated;
 
@@ -455,6 +461,7 @@ export class OrgEventsController {
       category: e.category ?? null,
       city: e.city ?? null,
       venue: e.venue ?? null,
+      date: e.date ?? null,
       dateLabel: e.dateLabel ?? null,
       time: e.time ?? null,
       priceFrom: e.priceFrom ?? null,
@@ -480,6 +487,19 @@ export class OrgEventsController {
     return id;
   }
 
+  /** BS101: the structured start date (ISO YYYY-MM-DD). The marketplace's
+      "This Weekend" filter + chronological sort read this, not the free-text label.
+      Optional + validated-when-present so existing callers that omit it still work;
+      a malformed value is a hard 400 rather than a silently unfiltered event. */
+  private parseEventDate(body: any): string | undefined {
+    const raw = typeof body?.date === 'string' ? body.date.trim() : '';
+    if (!raw) return undefined;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    const d = m ? new Date(`${raw}T00:00:00Z`) : null;
+    if (!m || !d || isNaN(d.getTime())) throw new BadRequestException({ error: 'date_invalid' });
+    return raw;
+  }
+
   private validateEventFields(body: any) {
     const req = (k: string) => {
       const v = body?.[k];
@@ -488,6 +508,7 @@ export class OrgEventsController {
     };
     const name = req('name');
     const dateLabel = req('dateLabel');
+    const date = this.parseEventDate(body);
     const city = req('city');
     if (!EVENT_CITY_IDS.includes(city)) throw new BadRequestException({ error: 'city_invalid' });
     const venue = req('venue');
@@ -497,7 +518,7 @@ export class OrgEventsController {
     if (typeof body?.seated !== 'boolean') throw new BadRequestException({ error: 'seated_required' });
     const time = typeof body?.time === 'string' ? body.time.trim() : undefined;
     const cover = typeof body?.cover === 'string' ? body.cover.trim() : undefined; // per-event hero image URL
-    return { name, dateLabel, city, venue, category, priceFrom, seated: body.seated, time, cover };
+    return { name, dateLabel, ...(date ? { date } : {}), city, venue, category, priceFrom, seated: body.seated, time, cover };
   }
 
   // A draft only requires a name. Every other field is optional and stored as
@@ -510,6 +531,8 @@ export class OrgEventsController {
     for (const k of ['dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
       if (typeof body?.[k] === 'string' && body[k].trim()) out[k] = body[k].trim();
     }
+    const date = this.parseEventDate(body); // BS101: ISO start date (validated when present)
+    if (date) out.date = date;
     const priceFrom = Number(body?.priceFrom);
     if (Number.isFinite(priceFrom) && priceFrom >= 0) out.priceFrom = priceFrom;
     if (typeof body?.seated === 'boolean') out.seated = body.seated;

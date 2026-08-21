@@ -41,6 +41,9 @@ export type OrgEvent = {
   category?: string;
   city?: string;
   venue?: string;
+  /** BS101: the structured start date (ISO YYYY-MM-DD) — the source of truth for
+      "this weekend" filtering and chronological sort. */
+  date?: string;
   dateLabel?: string;
   time?: string;
   priceFrom?: number;
@@ -58,6 +61,9 @@ export type DropTierInput = { tierId?: string; name: string; price: number; usd?
 
 export type DropInput = {
   name: string;
+  /** BS101: ISO YYYY-MM-DD start date (structured). `dateLabel` stays the human
+      display string; when blank the server/UI derives it from `date`. */
+  date: string;
   dateLabel: string;
   // NOTE: `time` is not listed in the finalized POST/PUT contract body, but GET
   // /api/org/events returns it, so we round-trip it here. Flagged as an
@@ -84,6 +90,8 @@ export type PriceCurrency = 'TZS' | 'USD';
 
 export type DropForm = {
   name: string;
+  /** BS101: ISO YYYY-MM-DD start date (from the date picker). */
+  date: string;
   dateLabel: string;
   time: string;
   city: string;
@@ -101,8 +109,22 @@ export type DropForm = {
 
 export const emptyTier = (): TierRow => ({ name: '', price: '', capacity: '', splitEnabled: false });
 
+// ── dates (BS101) ────────────────────────────────────────────────────────────
+
+/** Format an ISO YYYY-MM-DD as a short human label ("Sun 30 Aug"). Empty string
+    for a blank/invalid date. Parsed as a LOCAL date (no timezone shift) so the
+    day never slips to the one before. */
+export function formatDateLabel(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 export const emptyForm = (): DropForm => ({
   name: '',
+  date: '',
   dateLabel: '',
   time: '',
   city: '',
@@ -146,6 +168,7 @@ export function formFromEvent(ev: OrgEvent, rate: number): DropForm {
   }));
   return {
     name: ev.name || '',
+    date: ev.date || '',
     dateLabel: ev.dateLabel || '',
     time: ev.time || '',
     city: ev.city || '',
@@ -254,7 +277,10 @@ export function buildBody(form: DropForm, idempotencyKey: string, rate: number):
   const tiers = usableTiers(form, rate);
   return {
     name: form.name.trim(),
-    dateLabel: form.dateLabel.trim(),
+    date: form.date.trim(),
+    // When the organizer leaves the display label blank, derive it from the date
+    // so cards still read "Sun 30 Aug" rather than a raw ISO string.
+    dateLabel: form.dateLabel.trim() || formatDateLabel(form.date.trim()),
     time: form.time.trim(),
     city: form.city.trim(),
     venue: form.venue.trim(),
