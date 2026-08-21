@@ -122,6 +122,29 @@ export class AuthUsersRepo {
     await db()`update app_user set password_hash = ${passwordHash}, updated_at = now() where id = ${userId}`;
   }
 
+  /** BS96 (Phase 4, C): the identity for a userId — used by POST /api/me/password
+      (needs the current password_hash to verify) and GET /api/me (needs the email). */
+  async byId(userId: string): Promise<AuthUser | null> {
+    const id = String(userId ?? '');
+    if (!id) return null;
+    const rows = await db()<UserRow[]>`
+      select id, email, phone, password_hash from app_user where id = ${id} limit 1`;
+    return rows.length ? toUser(rows[0]) : null;
+  }
+
+  /** BS96 (Phase 4, C): the display profile for the account surface (email · phone ·
+      username). Separate from byId so the password-verify path never carries the
+      username, and the profile read never carries the password_hash. */
+  async profileById(userId: string): Promise<{ id: string; email: string | null; phone: string | null; username: string | null } | null> {
+    const id = String(userId ?? '');
+    if (!id) return null;
+    const rows = await db()<{ id: string; email: string | null; phone: string | null; username: string | null }[]>`
+      select id, email, phone, username from app_user where id = ${id} limit 1`;
+    if (!rows.length) return null;
+    const r = rows[0];
+    return { id: r.id, email: r.email, phone: r.phone, username: r.username ?? null };
+  }
+
   /** The user's GLOBAL platform roles (super_admin | staff | scanner). */
   async globalRolesOf(userId: string): Promise<string[]> {
     const id = String(userId ?? '');

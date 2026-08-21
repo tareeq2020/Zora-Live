@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { resolveCommissionRate, suspendedHandles } from '@zora/core';
 import { OrganizerRepo, publicOrganizer } from '../storage/organizer-repo';
+import { OrgMembersRepo } from '../storage/org-members.repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
@@ -19,6 +20,7 @@ export class OrganizersController {
     private readonly organizers: OrganizerRepo,
     private readonly audit: AuditService,
     private readonly sessions: SessionService,
+    private readonly members: OrgMembersRepo,
   ) {}
 
   @Roles('super_admin') // BS93 (Phase 2, E4): admin organizer CRUD = super_admin
@@ -29,8 +31,26 @@ export class OrganizersController {
     // the only way a record becomes a response body.
     // BS31: always surface a commissionRate so the admin UI can show/edit it, even
     // for records that predate the field (falls back to the platform default).
-    const orgs = await this.organizers.list();
-    return orgs.map((o) => publicOrganizer(o, resolveCommissionRate(null, o)));
+    const [orgs, summaries] = await Promise.all([
+      this.organizers.list(),
+      this.members.summariesByOrg(),
+    ]);
+    return orgs.map((o) => {
+      const s = summaries[o.id];
+      return {
+        ...publicOrganizer(o, resolveCommissionRate(null, o)),
+        // BS96 (Phase 4, A/B) — the admin sees TRUTH, not the mock: the real
+        // organizer.kyc_status (null included, so a seeded org's "not-yet-verified"
+        // shows honestly and can be approved), plus the OWNER identity behind the
+        // org (email of the `owner` membership, or null = no user yet) and a member
+        // count. publicOrganizer only emitted kycStatus when non-null; here it is
+        // always present so the Organizers console renders a status pill for every
+        // row and never hides an unverified org behind a missing field.
+        kycStatus: o.kycStatus ?? null,
+        owner: s?.ownerEmail ?? null,
+        memberCount: s?.memberCount ?? 0,
+      };
+    });
   }
 
   // BS31: set the platform commission taken from this organizer's payout. Does NOT

@@ -144,9 +144,21 @@ export class AuthController {
   }
 
   @Get('me')
-  me(@Req() req: Request) {
+  async me(@Req() req: Request) {
     // Role-aware superset of the legacy { isAdmin } shape (purely additive).
     const s = req.session || {};
+    // BS96 (Phase 4, C) — the account menu + page need the signed-in email/name.
+    // Read from app_user only for a user-based session; legacy/admin sessions carry
+    // no userId → email/name stay null (the menu shows a graceful label + Log out).
+    let email: string | null = null;
+    let name: string | null = null;
+    let phone: string | null = null;
+    if (s.userId) {
+      const profile = await this.authUsers.profileById(s.userId);
+      email = profile?.email ?? null;
+      name = profile?.username ?? null;
+      phone = profile?.phone ?? null;
+    }
     return {
       isAdmin: !!s.isAdmin,
       role: s.role || (s.isAdmin ? 'admin' : null),
@@ -158,7 +170,47 @@ export class AuthController {
       globalRoles: Array.isArray(s.globalRoles) ? s.globalRoles : [],
       memberships: Array.isArray(s.memberships) ? s.memberships : [],
       actingOrganizerId: s.actingOrganizerId || null,
+      // BS96 (Phase 4, C) — identity for the account surface (null for legacy/admin).
+      email,
+      name,
+      phone,
     };
+  }
+
+  // ── POST /api/me/password { currentPassword, newPassword } (BS96 Phase 4, C) ──
+  // Change the signed-in user's password. ANY authenticated session (no @Roles):
+  //   · verify currentPassword against the app_user (or, if there is no user yet,
+  //     the legacy organizer.password_hash of the acting org — the transition
+  //     fallback, so an org that predates the user backfill can still rotate);
+  //   · write the new hash to app_user.password_hash AND mirror it to the acting
+  //     organizer.password_hash, so BOTH the email/handle user login and the legacy
+  //     handle fallback stay consistent through the migration.
+  @Post('me/password')
+  async changePassword(@Req() req: Request, @Body() body: any) {
+    const s = req.session || {};
+    if (!s.userId && !s.organizerHandle) throw new UnauthorizedException({ error: 'Not logged in' });
+
+    const currentPassword = String(body?.currentPassword ?? '');
+    const newPassword = String(body?.newPassword ?? '');
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException({ error: 'weak_password', message: 'New password must be at least 8 characters.' });
+    }
+
+    const user = s.userId ? await this.authUsers.byId(s.userId) : null;
+    const org = s.organizerHandle ? await this.organizers.byHandle(s.organizerHandle) : null;
+
+    // Verify the current password: the app_user hash is authoritative; fall back to
+    // the acting organizer's legacy hash only when there is no user hash to check.
+    let verified = false;
+    if (user && user.passwordHash) verified = bcrypt.compareSync(currentPassword, user.passwordHash);
+    else if (org && org.passwordHash) verified = bcrypt.compareSync(currentPassword, org.passwordHash);
+    if (!verified) throw new UnauthorizedException({ error: 'wrong_password', message: 'Current password is wrong.' });
+
+    const hash = bcrypt.hashSync(newPassword, 10);
+    if (user) await this.authUsers.setPasswordForUser(user.id, hash);
+    // Mirror to the acting organizer so the legacy handle-login fallback matches.
+    if (org) await this.organizers.setPasswordHash(org.id, hash);
+    return { ok: true };
   }
 
   @UseGuards(SessionGuard)

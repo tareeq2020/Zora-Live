@@ -156,6 +156,37 @@ export class AdminOrganizersController {
     return { ok: true, owner: 'assigned', ownerUserId: target.id, demoted };
   }
 
+  // ── PUT /api/admin/organizers/:id/verification { decision, reason? } ─────────
+  // BS96 (Phase 4, A) — VERIFY ANY organizer, not just self-signups. The #5
+  // verification queue only lists source='self-signup' rows, so a seeded or
+  // admin-created org (thebrunchcity, kyc_status NULL) could never be approved and
+  // its payout/publish gates stayed locked forever. This routes through the SAME
+  // OrganizerRepo.recordVerification the self-signup queue uses — one transition,
+  // one field (organizer.kyc_status), so the two paths can never diverge.
+  // Idempotent: re-approving an approved org just re-writes the same state.
+  @Put(':id/verification')
+  async verify(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    const org = await this.organizers.byId(id);
+    if (!org) throw new NotFoundException({ error: 'not_found', message: 'Organizer not found.' });
+
+    const decision = String(body?.decision ?? '').trim();
+    if (decision !== 'approve' && decision !== 'reject') {
+      throw new BadRequestException({ error: 'invalid_decision', message: "Decision must be 'approve' or 'reject'." });
+    }
+    // Reject carries an optional reason (approve clears it — recordVerification does).
+    const reason = decision === 'reject' ? (String(body?.reason ?? '').trim() || null) : null;
+
+    const updated = await this.organizers.recordVerification(id, decision as 'approve' | 'reject', 'admin', reason);
+    if (!updated) throw new NotFoundException({ error: 'not_found', message: 'Organizer not found.' });
+
+    await this.audit.record(
+      'admin_verify_organizer',
+      `${updated.name} (${updated.handle}) → ${updated.kycStatus}${reason ? ` · ${reason}` : ''}`,
+      req.ip,
+    );
+    return { ok: true, kycStatus: updated.kycStatus, status: updated.status };
+  }
+
   /* ── helpers ─────────────────────────────────────────────────────────────── */
 
   /** Ensure an org has its owner: existing user → direct owner membership;
