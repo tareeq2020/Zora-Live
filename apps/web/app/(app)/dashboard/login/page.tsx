@@ -2,12 +2,16 @@
 
 /* PR-F6 — organizer (SELLER) sign-in. Faithful React port of the admin login
    card design, retargeted at the real ORGANIZER credential flow from PR-F-AUTH:
-   POST /api/org/login with { handle, password }. This route is the one path
-   under /dashboard that the middleware gate EXEMPTS (posting here is how an anon
-   organizer obtains the session the gate requires), so it must render without a
-   session. On success the API sets the organizer cookie and we send the seller
-   to /dashboard. Styles + fonts are page-scoped (scoped under .org-login) so the
-   bespoke control-room look never leaks into the rest of the app tree. */
+   POST /api/org/login. This route is the one path under /dashboard that the
+   middleware gate EXEMPTS (posting here is how an anon organizer obtains the
+   session the gate requires), so it must render without a session. On success the
+   API sets the organizer cookie and we send the seller to /dashboard. Styles +
+   fonts are page-scoped (scoped under .org-login) so the bespoke control-room look
+   never leaks into the rest of the app tree.
+
+   BS93 (Phase 2, T3 / D1): ONE "Email or handle" field. The API accepts an email
+   OR the legacy handle in the same `identifier` field (with `handle` still accepted
+   as an alias), so an org can sign in either way during the migration. */
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -40,7 +44,7 @@ const STYLES = `
 
 export default function OrganizerLoginPage() {
   const router = useRouter();
-  const [handle, setHandle] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,7 +57,8 @@ export default function OrganizerLoginPage() {
       const r = await fetch('/api/org/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle, password }),
+        // BS93: `identifier` = email OR legacy handle (one field).
+        body: JSON.stringify({ identifier, password }),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
@@ -81,13 +86,13 @@ export default function OrganizerLoginPage() {
           </p>
           <p className="sub">SELLER SIGN-IN</p>
           <form onSubmit={onSubmit}>
-            <label htmlFor="handle">ORGANIZER HANDLE</label>
+            <label htmlFor="identifier">EMAIL OR HANDLE</label>
             <input
-              id="handle"
+              id="identifier"
               autoComplete="username"
               required
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
             />
             <label htmlFor="password">PASSWORD</label>
             <input

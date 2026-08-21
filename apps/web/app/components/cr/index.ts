@@ -18,6 +18,7 @@ export { CrPromptBar } from './CrPromptBar';
 export { CrThemeProvider, useCrTheme, CR_THEME_KEY, CR_THEME_ATTR, CR_THEME_BOOT } from './theme';
 export type { CrTheme } from './theme';
 export { CrThemeToggle } from './ThemeToggle';
+export { CrOrgSwitcher } from './CrOrgSwitcher';
 
 export { KPITile, KPIRow } from './KpiTile';
 export type { KpiTileProps, KpiTint } from './KpiTile';
