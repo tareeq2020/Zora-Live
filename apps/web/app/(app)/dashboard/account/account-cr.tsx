@@ -58,6 +58,80 @@ export default function AccountCr() {
 
   const [switching, setSwitching] = useState<string | null>(null);
 
+  // ── BS102: change email (password + OTP to the new address) ──
+  const [emEmail, setEmEmail] = useState('');
+  const [emPassword, setEmPassword] = useState('');
+  const [emCode, setEmCode] = useState('');
+  const [emSent, setEmSent] = useState(false);
+  const [emBusy, setEmBusy] = useState(false);
+  const [emErr, setEmErr] = useState<string | null>(null);
+  const [emOk, setEmOk] = useState<string | null>(null);
+
+  // ── BS102: change phone (OTP by SMS to the new number) ──
+  const [phPhone, setPhPhone] = useState('');
+  const [phCode, setPhCode] = useState('');
+  const [phSent, setPhSent] = useState(false);
+  const [phBusy, setPhBusy] = useState(false);
+  const [phErr, setPhErr] = useState<string | null>(null);
+  const [phOk, setPhOk] = useState<string | null>(null);
+
+  async function post(path: string, body: unknown): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch(path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin', cache: 'no-store', body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: res.ok, message: data?.message };
+    } catch {
+      return { ok: false, message: 'We could not reach Zora just then. Nothing was changed.' };
+    }
+  }
+
+  async function requestEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (emBusy) return;
+    setEmErr(null); setEmOk(null); setEmBusy(true);
+    const r = await post('/api/me/email/request', { currentPassword: emPassword, newEmail: emEmail.trim() });
+    setEmBusy(false);
+    if (!r.ok) { setEmErr(r.message || 'Could not start the email change.'); return; }
+    setEmSent(true);
+    setEmOk(`We sent a 6-digit code to ${emEmail.trim()}. Enter it below to confirm.`);
+  }
+  async function confirmEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (emBusy) return;
+    setEmErr(null); setEmBusy(true);
+    const r = await post('/api/me/email/confirm', { newEmail: emEmail.trim(), code: emCode.trim() });
+    setEmBusy(false);
+    if (!r.ok) { setEmErr(r.message || 'That code was not accepted.'); return; }
+    setEmOk('Your sign-in email has been updated.');
+    setEmSent(false); setEmPassword(''); setEmCode(''); setEmEmail('');
+    await load();
+  }
+
+  async function requestPhone(e: React.FormEvent) {
+    e.preventDefault();
+    if (phBusy) return;
+    setPhErr(null); setPhOk(null); setPhBusy(true);
+    const r = await post('/api/me/phone/request', { phone: phPhone.trim() });
+    setPhBusy(false);
+    if (!r.ok) { setPhErr(r.message || 'Could not send the code.'); return; }
+    setPhSent(true);
+    setPhOk(`We texted a 6-digit code to ${phPhone.trim()}. Enter it below to confirm.`);
+  }
+  async function confirmPhone(e: React.FormEvent) {
+    e.preventDefault();
+    if (phBusy) return;
+    setPhErr(null); setPhBusy(true);
+    const r = await post('/api/me/phone/confirm', { phone: phPhone.trim(), code: phCode.trim() });
+    setPhBusy(false);
+    if (!r.ok) { setPhErr(r.message || 'That code was not accepted.'); return; }
+    setPhOk('Your phone number has been updated.');
+    setPhSent(false); setPhCode(''); setPhPhone('');
+    await load();
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -162,6 +236,82 @@ export default function AccountCr() {
             </p>
           ) : null}
         </section>
+
+        {/* ── Change email (BS102) ─────────────────────────────────────────── */}
+        {!loading && me?.userId ? (
+          <section className="cr-panel">
+            <div className="cr-panel-head"><h2 className="cr-section-h">Change email</h2></div>
+            <p className="org-sub" style={{ marginTop: -4 }}>
+              This is your sign-in email. We confirm your password, then send a code to the new address.
+            </p>
+            {!emSent ? (
+              <form onSubmit={requestEmail} style={{ display: 'grid', gap: 14, padding: '4px 2px', maxWidth: 420 }}>
+                <div className="org-field">
+                  <label htmlFor="em-new">New email</label>
+                  <input id="em-new" type="email" autoComplete="email" value={emEmail} onChange={(e) => setEmEmail(e.target.value)} disabled={emBusy} required placeholder="you@example.com" />
+                </div>
+                <div className="org-field">
+                  <label htmlFor="em-pw">Current password</label>
+                  <input id="em-pw" type="password" autoComplete="current-password" value={emPassword} onChange={(e) => setEmPassword(e.target.value)} disabled={emBusy} required />
+                </div>
+                {emErr ? <p className="org-alert err" role="alert">{emErr}</p> : null}
+                <div className="org-actions">
+                  <button type="submit" className="org-btn" disabled={emBusy || !emEmail || !emPassword}>{emBusy ? 'SENDING…' : 'SEND CODE'}</button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={confirmEmail} style={{ display: 'grid', gap: 14, padding: '4px 2px', maxWidth: 420 }}>
+                {emOk ? <p className="org-alert ok" role="status">{emOk}</p> : null}
+                <div className="org-field">
+                  <label htmlFor="em-code">6-digit code</label>
+                  <input id="em-code" inputMode="numeric" autoComplete="one-time-code" className="mono" value={emCode} onChange={(e) => setEmCode(e.target.value)} disabled={emBusy} required maxLength={6} placeholder="000000" />
+                </div>
+                {emErr ? <p className="org-alert err" role="alert">{emErr}</p> : null}
+                <div className="org-actions" style={{ display: 'inline-flex', gap: 8 }}>
+                  <button type="submit" className="org-btn" disabled={emBusy || emCode.length < 6}>{emBusy ? 'CONFIRMING…' : 'CONFIRM EMAIL'}</button>
+                  <button type="button" className="cr-btn" onClick={() => { setEmSent(false); setEmErr(null); setEmOk(null); setEmCode(''); }} disabled={emBusy}>Cancel</button>
+                </div>
+              </form>
+            )}
+            {!emSent && emOk ? <p className="org-alert ok" role="status" style={{ margin: '4px 2px' }}>{emOk}</p> : null}
+          </section>
+        ) : null}
+
+        {/* ── Change phone (BS102) ─────────────────────────────────────────── */}
+        {!loading && me?.userId ? (
+          <section className="cr-panel">
+            <div className="cr-panel-head"><h2 className="cr-section-h">Change phone</h2></div>
+            <p className="org-sub" style={{ marginTop: -4 }}>
+              We text a code to the new number to confirm it&apos;s yours.
+            </p>
+            {!phSent ? (
+              <form onSubmit={requestPhone} style={{ display: 'grid', gap: 14, padding: '4px 2px', maxWidth: 420 }}>
+                <div className="org-field">
+                  <label htmlFor="ph-new">New phone number</label>
+                  <input id="ph-new" type="tel" autoComplete="tel" className="mono" value={phPhone} onChange={(e) => setPhPhone(e.target.value)} disabled={phBusy} required placeholder="0712 345 678" />
+                </div>
+                {phErr ? <p className="org-alert err" role="alert">{phErr}</p> : null}
+                <div className="org-actions">
+                  <button type="submit" className="org-btn" disabled={phBusy || !phPhone}>{phBusy ? 'SENDING…' : 'SEND CODE'}</button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={confirmPhone} style={{ display: 'grid', gap: 14, padding: '4px 2px', maxWidth: 420 }}>
+                {phOk ? <p className="org-alert ok" role="status">{phOk}</p> : null}
+                <div className="org-field">
+                  <label htmlFor="ph-code">6-digit code</label>
+                  <input id="ph-code" inputMode="numeric" autoComplete="one-time-code" className="mono" value={phCode} onChange={(e) => setPhCode(e.target.value)} disabled={phBusy} required maxLength={6} placeholder="000000" />
+                </div>
+                {phErr ? <p className="org-alert err" role="alert">{phErr}</p> : null}
+                <div className="org-actions" style={{ display: 'inline-flex', gap: 8 }}>
+                  <button type="submit" className="org-btn" disabled={phBusy || phCode.length < 6}>{phBusy ? 'CONFIRMING…' : 'CONFIRM PHONE'}</button>
+                  <button type="button" className="cr-btn" onClick={() => { setPhSent(false); setPhErr(null); setPhOk(null); setPhCode(''); }} disabled={phBusy}>Cancel</button>
+                </div>
+              </form>
+            )}
+            {!phSent && phOk ? <p className="org-alert ok" role="status" style={{ margin: '4px 2px' }}>{phOk}</p> : null}
+          </section>
+        ) : null}
 
         {/* ── Organizations ────────────────────────────────────────────────── */}
         <section className="cr-panel">

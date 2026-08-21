@@ -122,6 +122,25 @@ export class AuthUsersRepo {
     await db()`update app_user set password_hash = ${passwordHash}, updated_at = now() where id = ${userId}`;
   }
 
+  /** BS102: change the signed-in user's email (after OTP proof of the new address).
+      Stored as given; uniqueness is enforced by app_user_email_lower_uq — a
+      collision throws, which the caller maps to a 409. Returns false if the row is
+      gone. */
+  async setEmail(userId: string, email: string): Promise<boolean> {
+    const rows = await db()`
+      update app_user set email = ${email.trim()}, updated_at = now()
+       where id = ${userId} returning id`;
+    return rows.length > 0;
+  }
+
+  /** BS102: change the signed-in user's phone (after OTP proof of the new number). */
+  async setPhone(userId: string, phone: string): Promise<boolean> {
+    const rows = await db()`
+      update app_user set phone = ${phone.trim()}, updated_at = now()
+       where id = ${userId} returning id`;
+    return rows.length > 0;
+  }
+
   /** BS96 (Phase 4, C): the identity for a userId — used by POST /api/me/password
       (needs the current password_hash to verify) and GET /api/me (needs the email). */
   async byId(userId: string): Promise<AuthUser | null> {

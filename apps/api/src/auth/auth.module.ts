@@ -1,14 +1,26 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Module, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, ConflictException, Body, Controller, ForbiddenException, Get, Module, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
+import { db, requestOtp, verifyOtp, sendSms, sendEmail } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { AuthUsersRepo } from '../storage/auth-users.repo';
 import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
+import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import type { SessionMembership } from '../common/session-cookie';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
+
+// BS102 — a pragmatic email check (one @, non-empty local + domain-with-dot).
+function isEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
+}
+// Namespaced OTP identifiers so an account-change challenge is disjoint from a
+// login/consumer OTP (which key on the raw phone) — a code minted for one flow
+// can never be replayed into another.
+const emailOtpId = (email: string) => `chg-email:${String(email || '').trim().toLowerCase()}`;
+const phoneOtpId = (phone: string) => `chg-phone:${String(phone || '').trim()}`;
 
 @Controller()
 export class AuthController {
@@ -211,6 +223,96 @@ export class AuthController {
     // Mirror to the acting organizer so the legacy handle-login fallback matches.
     if (org) await this.organizers.setPasswordHash(org.id, hash);
     return { ok: true };
+  }
+
+  // ── Change EMAIL — two steps, OTP to the NEW address (BS102) ────────────────
+  // Email is the login identity, so this is the strongest gate:
+  //   request: re-auth with the current password (identity) + confirm the new
+  //     address is free, then OTP the NEW email (proof the user owns it);
+  //   confirm: verify the code against the new email and write it.
+  // Only a real app_user session can do this (legacy handle → no identity to move).
+  // The OTP identifier is namespaced so a login/consumer OTP can never satisfy it.
+  @Post('me/email/request')
+  async emailChangeRequest(@Req() req: Request, @Body() body: any) {
+    const user = await this.requireUser(req);
+    const currentPassword = String(body?.currentPassword ?? '');
+    if (!user.passwordHash || !bcrypt.compareSync(currentPassword, user.passwordHash)) {
+      throw new UnauthorizedException({ error: 'wrong_password', message: 'Current password is wrong.' });
+    }
+    const newEmail = String(body?.newEmail ?? '').trim();
+    if (!isEmail(newEmail)) throw new BadRequestException({ error: 'invalid_email', message: 'Enter a valid email address.' });
+    if (newEmail.toLowerCase() === String(user.email ?? '').toLowerCase()) {
+      throw new BadRequestException({ error: 'same_email', message: "That's already your email." });
+    }
+    const taken = await this.authUsers.byEmail(newEmail);
+    if (taken && taken.id !== user.id) throw new ConflictException({ error: 'email_taken', message: 'That email is already in use.' });
+
+    const r = await requestOtp(db(), emailOtpId(newEmail));
+    if (!r.ok) throw new BadRequestException({ error: 'throttled', message: 'Too many codes requested. Wait a minute and try again.' });
+    try {
+      await sendEmail(
+        newEmail,
+        'Your Zora verification code',
+        `<p>Your Zora code is <b>${r.code}</b>. It expires in 5 minutes.</p><p>Enter it in Zora to confirm this as your new sign-in email. If you didn't request this, ignore this email.</p>`,
+      );
+    } catch (e) { console.error('email-change otp send failed', e); }
+    return { ok: true, expiresInSec: r.expiresInSec, ...(process.env.OTP_ECHO === 'true' ? { code: r.code } : {}) };
+  }
+
+  @Post('me/email/confirm')
+  async emailChangeConfirm(@Req() req: Request, @Body() body: any) {
+    const user = await this.requireUser(req);
+    const newEmail = String(body?.newEmail ?? '').trim();
+    const code = String(body?.code ?? '');
+    if (!isEmail(newEmail)) throw new BadRequestException({ error: 'invalid_email' });
+    const v = await verifyOtp(db(), emailOtpId(newEmail), code);
+    if (!v.ok) throw new UnauthorizedException({ error: v.reason, ...(v.attemptsLeft != null ? { attemptsLeft: v.attemptsLeft } : {}) });
+    // Re-check uniqueness at write time (someone may have taken it since request).
+    const taken = await this.authUsers.byEmail(newEmail);
+    if (taken && taken.id !== user.id) throw new ConflictException({ error: 'email_taken', message: 'That email was just taken. Try another.' });
+    try {
+      await this.authUsers.setEmail(user.id, newEmail);
+    } catch {
+      throw new ConflictException({ error: 'email_taken', message: 'That email is already in use.' });
+    }
+    return { ok: true, email: newEmail };
+  }
+
+  // ── Change PHONE — two steps, OTP by SMS to the NEW number (BS102) ───────────
+  // The phone is a contact field, not a login credential, so the live session is
+  // sufficient identity; OTP to the new number proves ownership.
+  @Post('me/phone/request')
+  async phoneChangeRequest(@Req() req: Request, @Body() body: any) {
+    await this.requireUser(req);
+    const phone = normalizeTzPhone(String(body?.phone ?? body?.newPhone ?? ''));
+    if (!isValidTzMsisdn(phone)) throw new BadRequestException({ error: 'phone_required', message: 'Enter a valid phone number.' });
+    const r = await requestOtp(db(), phoneOtpId(phone));
+    if (!r.ok) throw new BadRequestException({ error: 'throttled', message: 'Too many codes requested. Wait a minute and try again.' });
+    try { await sendSms(phone, `Your Zora code is ${r.code}. Expires in 5 min. Never share it.`); }
+    catch (e) { console.error('phone-change otp send failed', e); }
+    return { ok: true, expiresInSec: r.expiresInSec, ...(process.env.OTP_ECHO === 'true' ? { code: r.code } : {}) };
+  }
+
+  @Post('me/phone/confirm')
+  async phoneChangeConfirm(@Req() req: Request, @Body() body: any) {
+    const user = await this.requireUser(req);
+    const phone = normalizeTzPhone(String(body?.phone ?? body?.newPhone ?? ''));
+    const code = String(body?.code ?? '');
+    if (!isValidTzMsisdn(phone)) throw new BadRequestException({ error: 'phone_required' });
+    const v = await verifyOtp(db(), phoneOtpId(phone), code);
+    if (!v.ok) throw new UnauthorizedException({ error: v.reason, ...(v.attemptsLeft != null ? { attemptsLeft: v.attemptsLeft } : {}) });
+    await this.authUsers.setPhone(user.id, phone);
+    return { ok: true, phone };
+  }
+
+  /** BS102: the app_user behind the session, or a 400 for a legacy/anon session
+      (no identity row to change email/phone on). */
+  private async requireUser(req: Request) {
+    const s = req.session || {};
+    if (!s.userId) throw new BadRequestException({ error: 'no_identity', message: 'This account is on a legacy login. Ask a Zora admin to finish upgrading it before changing your email or phone.' });
+    const user = await this.authUsers.byId(s.userId);
+    if (!user) throw new UnauthorizedException({ error: 'not_logged_in', message: 'Sign in again to continue.' });
+    return user;
   }
 
   @UseGuards(SessionGuard)
