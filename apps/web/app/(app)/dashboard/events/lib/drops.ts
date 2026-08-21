@@ -228,8 +228,14 @@ export function usableTiers(form: DropForm, rate: number): DropTierInput[] {
 }
 
 export function priceFromOf(tiers: DropTierInput[]): number {
-  const priced = tiers.map((t) => t.price).filter((p) => Number.isFinite(p) && p >= 0);
-  return priced.length ? Math.min(...priced) : 0;
+  // BS99 (#2, editor parity): the "from" price is the cheapest ON-SALE tier —
+  // a disabled tier is not purchasable, so it must not set the floor. This mirrors
+  // the server's read-time derivation (vendor/events.js deriveFrom), so the live
+  // preview + the stored priceFrom match what the marketplace actually shows. Fall
+  // back to all tiers only when every tier is disabled (so the preview isn't 0).
+  const live = tiers.filter((t) => !t.disabled).map((t) => t.price).filter((p) => Number.isFinite(p) && p >= 0);
+  const pool = live.length ? live : tiers.map((t) => t.price).filter((p) => Number.isFinite(p) && p >= 0);
+  return pool.length ? Math.min(...pool) : 0;
 }
 
 // Stable client idempotency key for one form instance (dedupes double-submit
