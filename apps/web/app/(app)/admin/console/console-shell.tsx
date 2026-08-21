@@ -28,7 +28,7 @@ const NAV: CrNavItem[] = [
   // Sections other lanes own — deep-link into the legacy console for now.
   { href: '/admin/dashboard#organizers', label: 'Organizers', icon: 'organizers' },
   { href: '/admin/console/verification', label: 'Verification', icon: 'verification' },
-  { href: '/admin/dashboard#payouts', label: 'Payouts', icon: 'payouts' },
+  { href: '/admin/console/payouts', label: 'Payouts', icon: 'payouts' },
   { href: '/admin/dashboard#scanner', label: 'Scanner users', icon: 'scanner' },
   { href: '/admin/dashboard#payments', label: 'Payments routing', icon: 'payments' },
   { href: '/admin/dashboard#media', label: 'Media', icon: 'media' },
