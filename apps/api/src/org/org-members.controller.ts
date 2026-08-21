@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Req, UseGuards,
+  BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Post, Put, Req, UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import * as crypto from 'crypto';
@@ -68,7 +68,7 @@ export class OrgMembersController {
       throw new BadRequestException({ error: 'invalid_role', message: 'Pick a role: admin, finance, door or viewer.' });
     }
     if (await this.members.memberEmailExists(organizerId, email)) {
-      throw new BadRequestException({ error: 'already_member', message: 'That person is already a member of this organizer.' });
+      throw new ConflictException({ error: 'already_member', message: 'That person is already a member of this organizer.' });
     }
 
     // Refresh: drop any earlier pending invite for this email so only the newest
