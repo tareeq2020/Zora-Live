@@ -1,20 +1,15 @@
 'use client';
 
-/* BS71 · Lane B — Comps ★NEW (organizer console). Issue complimentary passes and
-   track their delivery. Per the plan's per-surface spec: ① issue form
-   (name · phone/email · event+tier · qty) → ② issued list → ③ delivery status
-   (email/SMS/WhatsApp) with delivered/pending/failed pills.
+/* BS71 · Lane B — Comps (organizer console). Issue complimentary passes and track
+   their delivery: ① issue form (name · phone/email · event+tier · qty) → ② issued
+   list → ③ delivery status (SMS/email) with delivered/failed pills + a re-send.
 
-   ┌──────────────────────── SEAM (comps backend) ────────────────────────┐
-   │ There is NO comps endpoint yet. The issue form + list run on a typed  │
-   │ seam (`useComps()`), which today keeps state in-memory and simulates  │
-   │ delivery. To go live, replace the seam body with:                     │
-   │   GET  /api/org/comps            → CompRow[]                           │
-   │   POST /api/org/comps            ← { name, contact, eventId, tier, qty }│
-   │ keeping the CompRow shape so the JSX below is untouched.              │
-   │ TODO(comps-backend): build those endpoints (str8up harvest).          │
-   └───────────────────────────────────────────────────────────────────────┘
-   The event/tier dropdowns DO read the real org endpoint (/api/org/events). */
+   BS104: wired to the REAL backend (the mock seam is gone). A comp is a $0 order
+   that draws down real capacity and delivers by SMS or email:
+     GET  /api/org/comps            → CompRow[]
+     POST /api/org/comps            ← { name, contact, eventId, tier, qty }
+     POST /api/org/comps/:id/resend → re-deliver
+   The channel is chosen from the contact (email if it has "@", else SMS). */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -25,7 +20,7 @@ import '../components/org-surfaces.css';
 const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 
 type EventMeta = { id: string; name: string; tiers?: { tierId?: string; name: string }[] };
-type Channel = 'sms' | 'email' | 'whatsapp';
+type Channel = 'sms' | 'email';
 type Delivery = 'delivered' | 'pending' | 'failed';
 type CompRow = {
   id: string;
@@ -45,11 +40,8 @@ function fmtWhen(iso: string): string {
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 }
-function channelFor(contact: string): Channel {
-  return contact.includes('@') ? 'email' : 'sms';
-}
-
-// ── SEAM: swap this hook for real /api/org/comps reads + writes ──────────────
+// BS104: real /api/org/comps reads + writes. Nothing is faked — the row returned
+// by POST carries the server's actual delivery result.
 function useComps() {
   const [rows, setRows] = useState<CompRow[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,40 +50,62 @@ function useComps() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // TODO(comps-backend): const res = await fetch('/api/org/comps', { cache: 'no-store' });
-    await new Promise((r) => setTimeout(r, 250));
-    setRows((prev) => prev ?? []); // fresh org → empty list (the common first-run state)
-    setLoading(false);
+    try {
+      const res = await fetch('/api/org/comps', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as CompRow[];
+      setRows(Array.isArray(data) ? data : []);
+    } catch {
+      setError('Could not load your comps.');
+      setRows(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const issue = useCallback(async (input: { name: string; contact: string; eventName: string; tier: string; qty: number }) => {
-    // TODO(comps-backend): POST /api/org/comps; optimistic insert until then.
-    const row: CompRow = {
-      id: 'comp_' + Math.random().toString(36).slice(2, 9),
-      name: input.name,
-      contact: input.contact,
-      channel: channelFor(input.contact),
-      eventName: input.eventName,
-      tier: input.tier,
-      qty: input.qty,
-      delivery: 'pending',
-      issuedAt: new Date().toISOString(),
-    };
-    setRows((prev) => [row, ...(prev ?? [])]);
-    // Simulate the async delivery result the real gateway would report.
-    setTimeout(() => {
-      setRows((prev) => (prev ?? []).map((r) => (r.id === row.id ? { ...r, delivery: 'delivered' } : r)));
-    }, 1400);
-    return row;
+  const issue = useCallback(async (input: { name: string; contact: string; eventId: string; tier: string; qty: number }) => {
+    const res = await fetch('/api/org/comps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json().catch(() => ({}))) as CompRow & { message?: string };
+    if (!res.ok) throw new Error(data?.message || 'Could not issue those comps.');
+    setRows((prev) => [data as CompRow, ...(prev ?? [])]);
+    return data as CompRow;
   }, []);
 
-  return { rows, loading, error, load, issue };
+  const resend = useCallback(async (id: string): Promise<Delivery> => {
+    const res = await fetch(`/api/org/comps/${encodeURIComponent(id)}/resend`, { method: 'POST', cache: 'no-store' });
+    const data = (await res.json().catch(() => ({}))) as { delivery?: Delivery; message?: string };
+    if (!res.ok) throw new Error(data?.message || 'Could not re-send that comp.');
+    const delivery = data.delivery ?? 'failed';
+    setRows((prev) => (prev ?? []).map((r) => (r.id === id ? { ...r, delivery } : r)));
+    return delivery;
+  }, []);
+
+  return { rows, loading, error, load, issue, resend };
 }
 
 export default function CompsClient() {
-  const { rows, loading, error, load, issue } = useComps();
+  const { rows, loading, error, load, issue, resend } = useComps();
+  const [resending, setResending] = useState<string | null>(null);
+
+  const onResend = async (r: CompRow) => {
+    if (resending) return;
+    setResending(r.id);
+    try {
+      const delivery = await resend(r.id);
+      setMsg({ kind: delivery === 'delivered' ? 'ok' : 'err', text: delivery === 'delivered' ? `Re-sent to ${r.name}.` : `Re-send to ${r.name} did not go through.` });
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Could not re-send.' });
+    } finally {
+      setResending(null);
+    }
+  };
 
   const [events, setEvents] = useState<EventMeta[]>([]);
   const [eventId, setEventId] = useState('');
@@ -120,14 +134,17 @@ export default function CompsClient() {
     setIssuing(true);
     setMsg(null);
     try {
-      const tierName = tierOptions.find((t) => (t.tierId ?? t.name) === tier)?.name ?? tier;
-      await issue({ name: name.trim(), contact: contact.trim(), eventName: selectedEvent.name, tier: tierName, qty: parsedQty });
-      setMsg({ kind: 'ok', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'} to ${name.trim()}.` });
+      const row = await issue({ name: name.trim(), contact: contact.trim(), eventId: selectedEvent.id, tier, qty: parsedQty });
+      setMsg(
+        row.delivery === 'delivered'
+          ? { kind: 'ok', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'} to ${name.trim()} — sent by ${row.channel === 'email' ? 'email' : 'SMS'}.` }
+          : { kind: 'err', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'}, but the ${row.channel === 'email' ? 'email' : 'SMS'} didn't go through. Use Re-send once the details are fixed.` },
+      );
       setName('');
       setContact('');
       setQty('1');
-    } catch {
-      setMsg({ kind: 'err', text: 'Could not issue those comps. Try again.' });
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Could not issue those comps. Try again.' });
     } finally {
       setIssuing(false);
     }
@@ -141,8 +158,17 @@ export default function CompsClient() {
       { key: 'channel', header: 'Channel', render: (r) => <span className="org-cred">{r.channel.toUpperCase()}</span> },
       { key: 'delivery', header: 'Delivery', render: (r) => <StatusPill tone={toneForStatus(r.delivery === 'delivered' ? 'paid' : r.delivery)} label={r.delivery} /> },
       { key: 'issued', header: 'Issued', render: (r) => <span className="org-muted">{fmtWhen(r.issuedAt)}</span> },
+      {
+        key: 'act',
+        header: '',
+        render: (r) => (
+          <button type="button" className="cr-btn" disabled={resending === r.id} onClick={() => onResend(r)}>
+            {resending === r.id ? 'Re-sending…' : 'Re-send'}
+          </button>
+        ),
+      },
     ],
-    [],
+    [resending],
   );
 
   return (
@@ -158,8 +184,8 @@ export default function CompsClient() {
           <p className="org-crumb"><Link href="/dashboard/overview">DASHBOARD</Link> / COMPS</p>
           <h1 className="org-h1">Comps</h1>
           <p className="org-sub">
-            Issue complimentary passes to guests, press and partners — delivered by SMS, WhatsApp or
-            email, and tracked here until they land.
+            Issue complimentary passes to guests, press and partners — delivered by SMS or email,
+            and tracked here until they land. Comps draw from the event&apos;s real capacity.
           </p>
         </div>
 

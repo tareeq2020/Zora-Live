@@ -26,6 +26,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OrgModule } from './org/org.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { CompsModule } from './comps/comps.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { SplitsModule } from './splits/splits.module';
 import { APP_GUARD } from '@nestjs/core';
@@ -60,6 +61,7 @@ import { RolesGuard } from './common/roles.guard';
     PaymentsModule,
     OrgModule,
     PayoutsModule,
+    CompsModule,
     ConsumerModule,
     SplitsModule,
   ],
