@@ -526,6 +526,93 @@ export async function resendOrderTickets(sql: Sql, orderId: string): Promise<
   return { ok: true, result };
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   BS104: COMPS — organizer-issued complimentary passes.
+   A comp is an ORDER at price 0, so it reuses the whole paid pipeline: it holds
+   then CONVERTS inventory (drawing down real capacity like any sold ticket),
+   issues signed credentials, and delivers via the same SMS+email path. It is
+   marked status='paid' so the BS59 resend works on it unchanged. Revenue is
+   untouched because unit_price = 0 and commission_rate = 0.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+export interface CreateCompInput {
+  tier: string;
+  quantity: number;
+  recipientName: string;
+  /** A real phone (SMS channel) — normalized by the caller. Null for email-only. */
+  phone?: string | null;
+  /** A real email (email channel). Null for phone-only. */
+  email?: string | null;
+}
+
+export type CreateCompResult =
+  | { ok: true; orderId: string; eventId: string; ticketCount: number; delivery: TicketDeliveryResult | null }
+  | { ok: false; reason: 'sold_out'; tier: string };
+
+/** Issue `quantity` comps of `tier` to one recipient. Draws down real inventory
+    (convertHolds), mints credentials, and delivers them (SMS/email). Sold-out is
+    a typed refusal (nothing is written); the seat really moves to SOLD. */
+export async function createComp(sql: Sql, input: CreateCompInput): Promise<CreateCompResult> {
+  const quantity = Math.max(1, Math.floor(Number(input.quantity) || 0));
+  const phone = input.phone ? String(input.phone).trim() : '';
+  const email = input.email ? String(input.email).trim() : '';
+  const name = String(input.recipientName || '').trim() || 'Guest';
+
+  let eventId = '';
+  try {
+    const orderId = await tx(async (t: Sql): Promise<string> => {
+      // Resolve the event from the tier (must exist + be on sale).
+      const pvRows = await t`
+        select pv.id as pv_id, pt.event_id from price_version pv
+          join product_tier pt on pt.id = pv.tier_id
+         where pv.tier_id = ${input.tier} and pv.effective_to is null and pt.disabled = false
+         order by pv.effective_from desc limit 1`;
+      if (!pvRows.length) throw new SoldOut(input.tier);
+      eventId = pvRows[0].event_id;
+      const priceVersionId = pvRows[0].pv_id;
+
+      // Customer keyed on phone (unique, NOT NULL). Email-only comps get a unique
+      // synthetic key so the row is valid and never collides with a real buyer.
+      const custPhone = phone || `comp:${generateCode()}`;
+      const custRows = await t`
+        insert into customer (phone, email, name) values (${custPhone}, ${email || null}, ${name})
+        on conflict (phone) do update set email = coalesce(excluded.email, customer.email), name = excluded.name
+        returning id`;
+      const customerId = custRows[0].id;
+
+      // The $0 comp order — already 'paid' + notified so no payment/notify path
+      // ever touches it, and commission_rate 0 keeps it out of earnings.
+      const ordRows = await t`
+        insert into "order" (customer_id, event_id, type, status, commission_rate, target_value, notified_at)
+        values (${customerId}, ${eventId}, 'comp', 'paid', 0, 0, now())
+        returning id`;
+      const orderId: string = ordRows[0].id;
+
+      // Hold then CONVERT → the seat is really sold, drawing down capacity.
+      const hold = await placeHold(t, input.tier, orderId, quantity, 300);
+      if (hold === null) throw new SoldOut(input.tier);
+      await t`
+        insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
+        values (${orderId}, ${input.tier}, ${priceVersionId}, ${quantity}, 0)`;
+      // convert_order_holds returns the number of HOLD ROWS converted (we place
+      // exactly one), so 0 means the hold lapsed → treat as sold out (rollback).
+      const converted = await convertHolds(t, orderId);
+      if (converted < 1) throw new SoldOut(input.tier);
+
+      return orderId;
+    }, sql);
+
+    // Credentials + delivery run after commit (issueCredentials is idempotent; the
+    // seat is already committed as sold).
+    await issueCredentials(sql, orderId);
+    const delivery = await deliverBuyerTickets(sql, orderId);
+    return { ok: true, orderId, eventId, ticketCount: quantity, delivery };
+  } catch (e) {
+    if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
+    throw e;
+  }
+}
+
 /** The organizer's "you got paid" nudge. Kept short — one SMS segment. */
 function organizerOrderSmsText(eventName: string, tickets: number, amount: number | null, currency: string | null): string {
   const money = amount && currency ? ` · ${amount.toLocaleString('en-US')} ${currency}` : '';
