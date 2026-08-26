@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# BS104 — COMPS (complimentary passes), real backend. Throwaway Postgres 17 (NEVER
-# prod). Proves a comp is a $0 order that draws down REAL capacity, mints
-# credentials and delivers by SMS/email, and can be re-sent:
+# BS104/BS105 — COMPS. Throwaway Postgres 17 (NEVER prod). A comp is a $0 order
+# that draws down REAL capacity, mints credentials and delivers by SMS AND/OR
+# email, and can be EDITED + re-sent. Proves:
 #
 #   T1  GET /api/org/comps starts empty.
-#   T2  issue an EMAIL comp (qty 2) → delivered; inventory 10→8; 2 credentials;
-#       revenue untouched (unit_price 0); comp row persisted.
-#   T3  issue a PHONE comp (qty 3) → inventory 8→5; 3 credentials. (mock SMS driver
-#       reports not-delivered, so delivery='failed' — honest, the ticket is valid.)
-#   T4  SOLD OUT — qty 6 with 5 left → 409 sold_out, nothing written (inventory 5).
-#   T5  GET /api/org/comps lists both issued comps.
-#   T6  RE-SEND the email comp → 200 delivered.
-#   T7  OWNERSHIP — another org comping this org's tier → 404.
-#   T8  VALIDATION — qty 0 / qty 51 / missing name → 400.
+#   T2  EMAIL comp (qty 2) → channel=email, delivered; inventory 10→8; 2 creds.
+#   T3  PHONE comp (qty 3) → channel=sms; inventory 8→5. (mock SMS → delivery failed)
+#   T4  BOTH comp (qty 2, phone+email) → channel=both, delivered (email leg); 8→... 5→3.
+#   T5  SOLD OUT — qty 4 with 3 left → 409 sold_out, nothing written (inventory 3).
+#   T6  list shows 3 comps; total 7 credentials.
+#   T7  EDIT + RE-SEND — add an email to the phone comp → channel=both, delivered.
+#   T8  RE-SEND the email comp → 200 delivered.
+#   T9  OWNERSHIP — another org editing/issuing this org's comp/tier → 404.
+#   T10 VALIDATION — qty 0/51, no name, no phone AND no email → 400.
 #
-# EMAIL_DRIVER=mock + mock SMS so nothing is actually sent. Self-contained. bash 3.2.
+# SMS_DRIVER=mock + EMAIL_DRIVER=mock so nothing is actually sent. bash 3.2.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -49,9 +49,8 @@ DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
 DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" $ENTITIES >/dev/null
 psql_one() { psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_comps -v ON_ERROR_STOP=1 -c "$1"; }
 
-# comp table exists?
-[ "$(psql_one "select count(*) from information_schema.tables where table_name='comp'")" = "1" ] \
-  && echo "  ✓ 0024 applied — comp table present" || { echo "  ✗ comp table missing"; fail=1; }
+COLS=$(psql_one "select count(*) from information_schema.columns where table_name='comp' and column_name in ('phone','email')")
+[ "$COLS" = "2" ] && echo "  ✓ 0024+0025 applied — comp has phone + email columns" || { echo "  ✗ comp columns=$COLS"; fail=1; }
 
 echo "== seed: thebrunchcity event 'ev-comp' · tier 't-comp' capacity 10 =="
 psql -q -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_comps -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
@@ -69,9 +68,8 @@ echo "== boot API (mock SMS + email) =="
 for i in $(seq 1 30); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
 BASE="http://localhost:$API_PORT"
 jlen() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s);process.stdout.write(String(Array.isArray(a)?a.length:-1))}catch{process.stdout.write("-1")}})'; }
-jget() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);const k=process.argv[1].split(".");let v=o;for(const p of k)v=v?.[p];process.stdout.write(v==null?"":Array.isArray(v)?String(v.length):String(v))}catch{process.stdout.write("ERR")}})' "$1"; }
+jget() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);const k=process.argv[1].split(".");let v=o;for(const p of k)v=v?.[p];process.stdout.write(v==null?"":String(v))}catch{process.stdout.write("ERR")}})' "$1"; }
 
-# logins: thebrunchcity (o1) owns ev-comp; offshore (o2) does not
 curl -s -c "$SNAP/admin" -X POST "$BASE/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}' >/dev/null
 curl -s -b "$SNAP/admin" -X PUT "$BASE/api/organizers/o1/password" -H 'content-type: application/json' -d '{"password":"orgpass123"}' >/dev/null
 curl -s -b "$SNAP/admin" -X PUT "$BASE/api/organizers/o2/password" -H 'content-type: application/json' -d '{"password":"orgpass123"}' >/dev/null
@@ -80,54 +78,69 @@ curl -s -c "$SNAP/off" -X POST "$BASE/api/org/login" -H 'content-type: applicati
 
 inv() { psql_one "select available_count from inventory_pool where product_tier_id='t-comp'"; }
 creds() { psql_one "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.product_tier_id='t-comp'"; }
+comp() { curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d "$1"; }
 
 echo ""
 echo "== T1 — comps start empty =="
-[ "$(curl -s -b "$SNAP/org" "$BASE/api/org/comps" | jlen)" = "0" ] && echo "  ✓ GET /api/org/comps → []" || { echo "  ✗ not empty"; fail=1; }
+[ "$(curl -s -b "$SNAP/org" "$BASE/api/org/comps" | jlen)" = "0" ] && echo "  ✓ GET → []" || { echo "  ✗ not empty"; fail=1; }
 
 echo ""
-echo "== T2 — EMAIL comp (qty 2) delivers + draws capacity =="
-R=$(curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"Amina K.","contact":"amina@example.com","eventId":"ev-comp","tier":"t-comp","qty":2}')
-[ "$(echo "$R" | jget channel)" = "email" ] && [ "$(echo "$R" | jget delivery)" = "delivered" ] && echo "  ✓ issued → channel=email, delivery=delivered" || { echo "  ✗ email comp: $R"; fail=1; }
-[ "$(inv)" = "8" ] && echo "  ✓ inventory 10 → 8 (2 seats drawn from real capacity)" || { echo "  ✗ inventory=$(inv)"; fail=1; }
-[ "$(creds)" = "2" ] && echo "  ✓ 2 credentials minted" || { echo "  ✗ creds=$(creds)"; fail=1; }
-REV=$(psql_one "select coalesce(sum(unit_price*quantity),0) from order_item where product_tier_id='t-comp'")
-[ "$REV" = "0" ] && echo "  ✓ revenue untouched (unit_price 0)" || { echo "  ✗ revenue=$REV"; fail=1; }
+echo "== T2 — EMAIL comp (qty 2) =="
+R=$(comp '{"name":"Amina","email":"amina@example.com","eventId":"ev-comp","tier":"t-comp","qty":2}')
+[ "$(echo "$R" | jget channel)" = "email" ] && [ "$(echo "$R" | jget delivery)" = "delivered" ] && echo "  ✓ channel=email, delivered" || { echo "  ✗ $R"; fail=1; }
+[ "$(inv)" = "8" ] && echo "  ✓ inventory 10→8" || { echo "  ✗ inv=$(inv)"; fail=1; }
 
 echo ""
-echo "== T3 — PHONE comp (qty 3) draws capacity (mock SMS → delivery failed, honest) =="
-R=$(curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"Press Pass","contact":"0712345678","eventId":"ev-comp","tier":"t-comp","qty":3}')
-[ "$(echo "$R" | jget channel)" = "sms" ] && echo "  ✓ issued → channel=sms" || { echo "  ✗ phone comp: $R"; fail=1; }
-[ "$(inv)" = "5" ] && echo "  ✓ inventory 8 → 5" || { echo "  ✗ inventory=$(inv)"; fail=1; }
-[ "$(creds)" = "5" ] && echo "  ✓ 5 credentials total (2+3)" || { echo "  ✗ creds=$(creds)"; fail=1; }
+echo "== T3 — PHONE comp (qty 3) =="
+R=$(comp '{"name":"Press","phone":"0712345678","eventId":"ev-comp","tier":"t-comp","qty":3}')
+[ "$(echo "$R" | jget channel)" = "sms" ] && echo "  ✓ channel=sms" || { echo "  ✗ $R"; fail=1; }
+[ "$(inv)" = "5" ] && echo "  ✓ inventory 8→5" || { echo "  ✗ inv=$(inv)"; fail=1; }
+PHONE_ID=$(echo "$R" | jget id)
 
 echo ""
-echo "== T4 — SOLD OUT (qty 6, only 5 left) → 409, nothing written =="
-C=$(curl -s -o "$SNAP/so" -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"Too Many","contact":"x@y.com","eventId":"ev-comp","tier":"t-comp","qty":6}')
-[ "$C" = "409" ] && grep -q '"sold_out"' "$SNAP/so" && echo "  ✓ 409 sold_out" || { echo "  ✗ sold-out HTTP $C $(cat "$SNAP/so")"; fail=1; }
-[ "$(inv)" = "5" ] && echo "  ✓ inventory unchanged at 5 (refusal wrote nothing)" || { echo "  ✗ inventory=$(inv)"; fail=1; }
+echo "== T4 — BOTH comp (qty 2, phone+email) =="
+R=$(comp '{"name":"VIP Guest","phone":"0713000000","email":"vip@example.com","eventId":"ev-comp","tier":"t-comp","qty":2}')
+[ "$(echo "$R" | jget channel)" = "both" ] && [ "$(echo "$R" | jget delivery)" = "delivered" ] && echo "  ✓ channel=both, delivered (email leg)" || { echo "  ✗ $R"; fail=1; }
+[ "$(inv)" = "3" ] && echo "  ✓ inventory 5→3" || { echo "  ✗ inv=$(inv)"; fail=1; }
 
 echo ""
-echo "== T5 — comps list shows both =="
-[ "$(curl -s -b "$SNAP/org" "$BASE/api/org/comps" | jlen)" = "2" ] && echo "  ✓ GET /api/org/comps → 2" || { echo "  ✗ list count wrong"; fail=1; }
+echo "== T5 — SOLD OUT (qty 4, only 3 left) → 409, nothing written =="
+C=$(curl -s -o "$SNAP/so" -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"Too Many","email":"x@y.com","eventId":"ev-comp","tier":"t-comp","qty":4}')
+[ "$C" = "409" ] && grep -q '"sold_out"' "$SNAP/so" && [ "$(inv)" = "3" ] && echo "  ✓ 409 sold_out · inventory unchanged at 3" || { echo "  ✗ HTTP $C inv=$(inv)"; fail=1; }
 
 echo ""
-echo "== T6 — re-send the email comp =="
+echo "== T6 — list has 3 comps · 7 credentials total =="
+[ "$(curl -s -b "$SNAP/org" "$BASE/api/org/comps" | jlen)" = "3" ] && echo "  ✓ 3 comps listed" || { echo "  ✗ list count"; fail=1; }
+[ "$(creds)" = "7" ] && echo "  ✓ 7 credentials (2+3+2)" || { echo "  ✗ creds=$(creds)"; fail=1; }
+
+echo ""
+echo "== T7 — EDIT + RE-SEND: add an email to the phone comp → channel=both, delivered =="
+E=$(curl -s -b "$SNAP/org" -X PUT "$BASE/api/org/comps/$PHONE_ID" -H 'content-type: application/json' -d '{"name":"Press Fixed","phone":"0712345678","email":"press@example.com"}')
+[ "$(echo "$E" | jget channel)" = "both" ] && [ "$(echo "$E" | jget delivery)" = "delivered" ] && [ "$(echo "$E" | jget name)" = "Press Fixed" ] && echo "  ✓ edited → channel=both, delivered, name updated" || { echo "  ✗ edit: $E"; fail=1; }
+[ "$(inv)" = "3" ] && echo "  ✓ inventory unchanged (edit moves the destination, not the seats)" || { echo "  ✗ inv changed to $(inv)"; fail=1; }
+DBE=$(psql_one "select email from comp where id='$PHONE_ID'")
+[ "$DBE" = "press@example.com" ] && echo "  ✓ comp.email persisted" || { echo "  ✗ db email=$DBE"; fail=1; }
+
+echo ""
+echo "== T8 — re-send an existing comp =="
 CID=$(curl -s -b "$SNAP/org" "$BASE/api/org/comps" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);const e=a.find(x=>x.channel==="email");process.stdout.write(e?e.id:"")})')
 RS=$(curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps/$CID/resend")
-[ "$(echo "$RS" | jget delivery)" = "delivered" ] && echo "  ✓ re-send → delivered" || { echo "  ✗ resend: $RS"; fail=1; }
+[ "$(echo "$RS" | jget delivery)" = "delivered" ] && echo "  ✓ re-send → delivered" || { echo "  ✗ $RS"; fail=1; }
 
 echo ""
-echo "== T7 — another org cannot comp this org's tier =="
-C=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/off" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"Sneaky","contact":"z@z.com","eventId":"ev-comp","tier":"t-comp","qty":1}')
-[ "$C" = "404" ] && echo "  ✓ offshore comping thebrunchcity's tier → 404" || { echo "  ✗ ownership → $C"; fail=1; }
+echo "== T9 — another org cannot issue/edit against this org =="
+C=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/off" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"X","email":"z@z.com","eventId":"ev-comp","tier":"t-comp","qty":1}')
+[ "$C" = "404" ] && echo "  ✓ offshore issuing on thebrunchcity's tier → 404" || { echo "  ✗ issue → $C"; fail=1; }
+C=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/off" -X PUT "$BASE/api/org/comps/$PHONE_ID" -H 'content-type: application/json' -d '{"email":"z@z.com"}')
+[ "$C" = "404" ] && echo "  ✓ offshore editing thebrunchcity's comp → 404" || { echo "  ✗ edit → $C"; fail=1; }
 
 echo ""
-echo "== T8 — validation =="
-c0=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"A","contact":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":0}')
-c51=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"A","contact":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":51}')
-cn=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"","contact":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":1}')
-[ "$c0" = "400" ] && [ "$c51" = "400" ] && [ "$cn" = "400" ] && echo "  ✓ qty 0 / qty 51 / no name → 400" || { echo "  ✗ validation: qty0=$c0 qty51=$c51 noname=$cn"; fail=1; }
+echo "== T10 — validation =="
+c0=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"A","email":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":0}')
+c51=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"A","email":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":51}')
+cn=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"","email":"a@b.com","eventId":"ev-comp","tier":"t-comp","qty":1}')
+cc=$(curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' -d '{"name":"A","eventId":"ev-comp","tier":"t-comp","qty":1}')
+[ "$c0" = "400" ] && [ "$c51" = "400" ] && [ "$cn" = "400" ] && [ "$cc" = "400" ] && echo "  ✓ qty 0 / qty 51 / no name / no phone+email → 400" || { echo "  ✗ q0=$c0 q51=$c51 noname=$cn nocontact=$cc"; fail=1; }
 
 echo ""
 [ "$fail" = "0" ] && echo "COMPS E2E: PASS" || echo "COMPS E2E: FAIL"

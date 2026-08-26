@@ -426,12 +426,22 @@ export interface TicketDeliveryResult {
   currency: string | null;
 }
 
+/** Where to deliver an order's tickets when NOT the order's own customer — comps
+    carry their own editable phone/email so a wrong contact can be fixed + re-sent
+    without touching a shared buyer record (BS105). */
+export interface DeliveryTarget {
+  phone?: string | null;
+  email?: string | null;
+  name?: string | null;
+}
+
 /** Deliver a paid order's tickets to the BUYER (SMS + email with QR). Shared by
     the once-only confirmation (notifyOrderPaid) and the manual resend
     (resendOrderTickets). Best-effort per channel: a gateway failure never throws,
     the ticket is already valid. Does NOT touch notified_at and does NOT notify the
-    organizer — those belong to the callers. Returns null if the order is unknown. */
-async function deliverBuyerTickets(sql: Sql, orderId: string): Promise<TicketDeliveryResult | null> {
+    organizer — those belong to the callers. Returns null if the order is unknown.
+    `target` overrides the destination (comps deliver to their own contacts). */
+async function deliverBuyerTickets(sql: Sql, orderId: string, target?: DeliveryTarget): Promise<TicketDeliveryResult | null> {
   const [row] = await sql`
     select c.phone, c.email, c.name,
            e.id as event_id, e.name as event_name,
@@ -463,17 +473,22 @@ async function deliverBuyerTickets(sql: Sql, orderId: string): Promise<TicketDel
     tickets.push({ publicRef: c.public_ref ?? '', tier: c.tier_id, qrPng });
   }
 
+  // Deliver to the override target when given (comps), else the order's customer.
+  const toPhone = target ? (target.phone ?? null) : row.phone;
+  const toEmail = target ? (target.email ?? null) : row.email;
+  const toName = (target?.name ?? row.name) ?? 'there';
+
   let sms: TicketDeliveryResult['sms'] = 'skipped';
   try {
-    if (row.phone) {
-      const r = await sendSms(row.phone, ticketSmsText(refs, row.event_name));
+    if (toPhone) {
+      const r = await sendSms(toPhone, ticketSmsText(refs, row.event_name));
       sms = r.delivered ? 'sent' : 'dev';
     }
   } catch (e) { console.error('confirm SMS failed', e); sms = 'skipped'; }
   let email: TicketDeliveryResult['email'] = 'skipped';
   try {
-    if (row.email) {
-      await sendCredentialEmail(row.email, { buyerName: row.name ?? 'there', eventName: row.event_name, tickets });
+    if (toEmail) {
+      await sendCredentialEmail(toEmail, { buyerName: toName, eventName: row.event_name, tickets });
       email = 'sent';
     }
   } catch (e) { console.error('confirm email failed', e); email = 'skipped'; }
@@ -514,14 +529,14 @@ export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> 
     confirmation path this bypasses the notified_at once-latch (it's an explicit
     organizer action), and does not re-alert the organizer. Refuses anything that
     is not currently a paid order (a refunded/expired order has no live ticket). */
-export async function resendOrderTickets(sql: Sql, orderId: string): Promise<
+export async function resendOrderTickets(sql: Sql, orderId: string, target?: DeliveryTarget): Promise<
   | { ok: true; result: TicketDeliveryResult }
   | { ok: false; reason: 'not_found' | 'not_paid' }
 > {
   const [ord] = await sql`select status from "order" where id = ${orderId}`;
   if (!ord) return { ok: false, reason: 'not_found' };
   if (ord.status !== 'paid') return { ok: false, reason: 'not_paid' };
-  const result = await deliverBuyerTickets(sql, orderId);
+  const result = await deliverBuyerTickets(sql, orderId, target);
   if (!result) return { ok: false, reason: 'not_found' };
   return { ok: true, result };
 }
@@ -539,9 +554,9 @@ export interface CreateCompInput {
   tier: string;
   quantity: number;
   recipientName: string;
-  /** A real phone (SMS channel) — normalized by the caller. Null for email-only. */
+  /** SMS destination (normalized by the caller). At least one of phone/email. */
   phone?: string | null;
-  /** A real email (email channel). Null for phone-only. */
+  /** Email destination. Delivered to BOTH when both are given (BS105). */
   email?: string | null;
 }
 
@@ -571,12 +586,12 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
       eventId = pvRows[0].event_id;
       const priceVersionId = pvRows[0].pv_id;
 
-      // Customer keyed on phone (unique, NOT NULL). Email-only comps get a unique
-      // synthetic key so the row is valid and never collides with a real buyer.
-      const custPhone = phone || `comp:${generateCode()}`;
+      // BS105: a comp gets its OWN dedicated customer (a unique synthetic phone
+      // key, never a real one), so it never shares — or edits — a real buyer's
+      // record. Delivery targets the comp's own phone/email via the override
+      // below, so the synthetic key is never texted.
       const custRows = await t`
-        insert into customer (phone, email, name) values (${custPhone}, ${email || null}, ${name})
-        on conflict (phone) do update set email = coalesce(excluded.email, customer.email), name = excluded.name
+        insert into customer (phone, email, name) values (${`comp:${generateCode()}`}, ${email || null}, ${name})
         returning id`;
       const customerId = custRows[0].id;
 
@@ -603,9 +618,9 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
     }, sql);
 
     // Credentials + delivery run after commit (issueCredentials is idempotent; the
-    // seat is already committed as sold).
+    // seat is already committed as sold). Deliver to the comp's OWN phone+email.
     await issueCredentials(sql, orderId);
-    const delivery = await deliverBuyerTickets(sql, orderId);
+    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name });
     return { ok: true, orderId, eventId, ticketCount: quantity, delivery };
   } catch (e) {
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
