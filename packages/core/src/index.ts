@@ -12,7 +12,7 @@ export {
 } from './credentials';
 export type { CredentialClaims } from './credentials';
 export { createGaVipOrder, issueCredentials, createComp, SoldOut } from './payments/service';
-export type { CreateCompInput, CreateCompResult } from './payments/service';
+export type { CreateCompInput, CreateCompResult, DeliveryTarget, TicketDeliveryResult } from './payments/service';
 export type {
   CartLine, CreateGaVipOrderInput, CreateGaVipOrderResult,
 } from './payments/service';

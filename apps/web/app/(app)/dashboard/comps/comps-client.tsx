@@ -20,11 +20,13 @@ import '../components/org-surfaces.css';
 const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 
 type EventMeta = { id: string; name: string; tiers?: { tierId?: string; name: string }[] };
-type Channel = 'sms' | 'email';
+type Channel = 'sms' | 'email' | 'both';
 type Delivery = 'delivered' | 'pending' | 'failed';
 type CompRow = {
   id: string;
   name: string;
+  phone: string | null;
+  email: string | null;
   contact: string;
   channel: Channel;
   eventName: string;
@@ -35,6 +37,7 @@ type CompRow = {
 };
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+const channelLabel = (c: Channel): string => (c === 'both' ? 'SMS + email' : c === 'email' ? 'email' : 'SMS');
 function fmtWhen(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
@@ -65,7 +68,7 @@ function useComps() {
 
   useEffect(() => { load(); }, [load]);
 
-  const issue = useCallback(async (input: { name: string; contact: string; eventId: string; tier: string; qty: number }) => {
+  const issue = useCallback(async (input: { name: string; phone: string; email: string; eventId: string; tier: string; qty: number }) => {
     const res = await fetch('/api/org/comps', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,19 +90,51 @@ function useComps() {
     return delivery;
   }, []);
 
-  return { rows, loading, error, load, issue, resend };
+  // BS105: fix a comp's details and re-send (name/phone/email). Returns the
+  // updated row (with the fresh delivery result).
+  const edit = useCallback(async (id: string, input: { name: string; phone: string; email: string }) => {
+    const res = await fetch(`/api/org/comps/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json().catch(() => ({}))) as CompRow & { message?: string };
+    if (!res.ok) throw new Error(data?.message || 'Could not update that comp.');
+    setRows((prev) => (prev ?? []).map((r) => (r.id === id ? (data as CompRow) : r)));
+    return data as CompRow;
+  }, []);
+
+  return { rows, loading, error, load, issue, resend, edit };
 }
 
 export default function CompsClient() {
-  const { rows, loading, error, load, issue, resend } = useComps();
+  const { rows, loading, error, load, issue, resend, edit } = useComps();
   const [resending, setResending] = useState<string | null>(null);
+
+  const [events, setEvents] = useState<EventMeta[]>([]);
+  const [eventId, setEventId] = useState('');
+  const [tier, setTier] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [qty, setQty] = useState('1');
+  const [issuing, setIssuing] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // BS105: edit-and-resend an existing comp.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [edName, setEdName] = useState('');
+  const [edPhone, setEdPhone] = useState('');
+  const [edEmail, setEdEmail] = useState('');
+  const [edBusy, setEdBusy] = useState(false);
 
   const onResend = async (r: CompRow) => {
     if (resending) return;
     setResending(r.id);
     try {
       const delivery = await resend(r.id);
-      setMsg({ kind: delivery === 'delivered' ? 'ok' : 'err', text: delivery === 'delivered' ? `Re-sent to ${r.name}.` : `Re-send to ${r.name} did not go through.` });
+      setMsg({ kind: delivery === 'delivered' ? 'ok' : 'err', text: delivery === 'delivered' ? `Re-sent to ${r.name}.` : `Re-send to ${r.name} did not go through — check the contact details.` });
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Could not re-send.' });
     } finally {
@@ -107,14 +142,28 @@ export default function CompsClient() {
     }
   };
 
-  const [events, setEvents] = useState<EventMeta[]>([]);
-  const [eventId, setEventId] = useState('');
-  const [tier, setTier] = useState('');
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
-  const [qty, setQty] = useState('1');
-  const [issuing, setIssuing] = useState(false);
-  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  function openEdit(r: CompRow) {
+    setEditId(r.id);
+    setEdName(r.name);
+    setEdPhone(r.phone ?? '');
+    setEdEmail(r.email ?? '');
+    setMsg(null);
+  }
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId || edBusy) return;
+    if (!edPhone.trim() && !edEmail.trim()) { setMsg({ kind: 'err', text: 'Enter a phone, an email, or both.' }); return; }
+    setEdBusy(true);
+    try {
+      const row = await edit(editId, { name: edName.trim(), phone: edPhone.trim(), email: edEmail.trim() });
+      setMsg({ kind: row.delivery === 'delivered' ? 'ok' : 'err', text: row.delivery === 'delivered' ? `Updated and re-sent to ${row.name}.` : `Saved, but the re-send to ${row.name} didn't go through.` });
+      setEditId(null);
+    } catch (err) {
+      setMsg({ kind: 'err', text: err instanceof Error ? err.message : 'Could not update.' });
+    } finally {
+      setEdBusy(false);
+    }
+  }
 
   useEffect(() => {
     fetch('/api/org/events', { cache: 'no-store' })
@@ -126,7 +175,7 @@ export default function CompsClient() {
   const selectedEvent = eventId ? events.find((e) => e.id === eventId) : null;
   const tierOptions = selectedEvent?.tiers ?? [];
   const parsedQty = Math.max(1, Math.min(50, Number(qty) || 0));
-  const canIssue = !!name.trim() && !!contact.trim() && !!selectedEvent && !!tier && parsedQty >= 1 && !issuing;
+  const canIssue = !!name.trim() && (!!phone.trim() || !!email.trim()) && !!selectedEvent && !!tier && parsedQty >= 1 && !issuing;
 
   async function onIssue(e: React.FormEvent) {
     e.preventDefault();
@@ -134,14 +183,16 @@ export default function CompsClient() {
     setIssuing(true);
     setMsg(null);
     try {
-      const row = await issue({ name: name.trim(), contact: contact.trim(), eventId: selectedEvent.id, tier, qty: parsedQty });
+      const row = await issue({ name: name.trim(), phone: phone.trim(), email: email.trim(), eventId: selectedEvent.id, tier, qty: parsedQty });
+      const via = channelLabel(row.channel);
       setMsg(
         row.delivery === 'delivered'
-          ? { kind: 'ok', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'} to ${name.trim()} — sent by ${row.channel === 'email' ? 'email' : 'SMS'}.` }
-          : { kind: 'err', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'}, but the ${row.channel === 'email' ? 'email' : 'SMS'} didn't go through. Use Re-send once the details are fixed.` },
+          ? { kind: 'ok', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'} to ${name.trim()} — sent by ${via}.` }
+          : { kind: 'err', text: `Issued ${parsedQty} comp${parsedQty === 1 ? '' : 's'}, but the ${via} didn't go through. Fix the details with Edit and re-send.` },
       );
       setName('');
-      setContact('');
+      setPhone('');
+      setEmail('');
       setQty('1');
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Could not issue those comps. Try again.' });
@@ -155,20 +206,23 @@ export default function CompsClient() {
       { key: 'name', header: 'Recipient', primary: true, render: (r) => <span><b>{r.name}</b> <span className="org-muted">{r.contact}</span></span> },
       { key: 'event', header: 'Event', render: (r) => r.eventName },
       { key: 'tier', header: 'Tier × Qty', render: (r) => `${r.tier} × ${fmt(r.qty)}` },
-      { key: 'channel', header: 'Channel', render: (r) => <span className="org-cred">{r.channel.toUpperCase()}</span> },
+      { key: 'channel', header: 'Channel', render: (r) => <span className="org-cred">{channelLabel(r.channel)}</span> },
       { key: 'delivery', header: 'Delivery', render: (r) => <StatusPill tone={toneForStatus(r.delivery === 'delivered' ? 'paid' : r.delivery)} label={r.delivery} /> },
       { key: 'issued', header: 'Issued', render: (r) => <span className="org-muted">{fmtWhen(r.issuedAt)}</span> },
       {
         key: 'act',
         header: '',
         render: (r) => (
-          <button type="button" className="cr-btn" disabled={resending === r.id} onClick={() => onResend(r)}>
-            {resending === r.id ? 'Re-sending…' : 'Re-send'}
-          </button>
+          <span style={{ display: 'inline-flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" className="cr-btn" disabled={edBusy || resending === r.id} onClick={() => openEdit(r)}>Edit</button>
+            <button type="button" className="cr-btn" disabled={resending === r.id || edBusy} onClick={() => onResend(r)}>
+              {resending === r.id ? 'Re-sending…' : 'Re-send'}
+            </button>
+          </span>
         ),
       },
     ],
-    [resending],
+    [resending, edBusy],
   );
 
   return (
@@ -184,8 +238,9 @@ export default function CompsClient() {
           <p className="org-crumb"><Link href="/dashboard/overview">DASHBOARD</Link> / COMPS</p>
           <h1 className="org-h1">Comps</h1>
           <p className="org-sub">
-            Issue complimentary passes to guests, press and partners — delivered by SMS or email,
-            and tracked here until they land. Comps draw from the event&apos;s real capacity.
+            Issue complimentary passes to guests, press and partners — delivered by SMS, email, or both,
+            and tracked here until they land. Got a detail wrong? Edit and re-send. Comps draw from the
+            event&apos;s real capacity.
           </p>
         </div>
 
@@ -199,8 +254,12 @@ export default function CompsClient() {
                 <input id="comp-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Amina K." autoComplete="off" />
               </div>
               <div className="org-field">
-                <label htmlFor="comp-contact">Phone or email</label>
-                <input id="comp-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="0712 345 678 / name@email.com" autoComplete="off" />
+                <label htmlFor="comp-phone">Phone <span className="org-muted">(optional)</span></label>
+                <input id="comp-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" autoComplete="off" />
+              </div>
+              <div className="org-field">
+                <label htmlFor="comp-email">Email <span className="org-muted">(optional)</span></label>
+                <input id="comp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" autoComplete="off" />
               </div>
               <div className="org-field">
                 <label htmlFor="comp-event">Event</label>
@@ -228,6 +287,36 @@ export default function CompsClient() {
             {msg ? <p className={'org-alert ' + (msg.kind === 'ok' ? 'ok' : 'err')}>{msg.text}</p> : null}
           </form>
         </section>
+
+        {/* ②a edit-and-resend (BS105) — fix a wrong number/email and re-send */}
+        {editId ? (
+          <section className="cr-panel">
+            <div className="cr-panel-head"><h2 className="cr-section-h">Fix &amp; re-send</h2></div>
+            <p className="org-sub" style={{ marginTop: -4 }}>
+              Correct the contact details and we&apos;ll re-send the same tickets. The seats and codes don&apos;t change.
+            </p>
+            <form onSubmit={saveEdit}>
+              <div className="org-form-row">
+                <div className="org-field">
+                  <label htmlFor="ed-name">Recipient name</label>
+                  <input id="ed-name" value={edName} onChange={(e) => setEdName(e.target.value)} autoComplete="off" />
+                </div>
+                <div className="org-field">
+                  <label htmlFor="ed-phone">Phone <span className="org-muted">(optional)</span></label>
+                  <input id="ed-phone" type="tel" value={edPhone} onChange={(e) => setEdPhone(e.target.value)} placeholder="0712 345 678" autoComplete="off" />
+                </div>
+                <div className="org-field">
+                  <label htmlFor="ed-email">Email <span className="org-muted">(optional)</span></label>
+                  <input id="ed-email" type="email" value={edEmail} onChange={(e) => setEdEmail(e.target.value)} placeholder="name@email.com" autoComplete="off" />
+                </div>
+              </div>
+              <div className="org-actions" style={{ display: 'inline-flex', gap: 8 }}>
+                <button className="org-btn" type="submit" disabled={edBusy || (!edPhone.trim() && !edEmail.trim())}>{edBusy ? 'SAVING…' : 'SAVE & RE-SEND'}</button>
+                <button className="cr-btn" type="button" onClick={() => setEditId(null)} disabled={edBusy}>Cancel</button>
+              </div>
+            </form>
+          </section>
+        ) : null}
 
         {/* ② issued list + ③ delivery status */}
         <section className="cr-panel">
