@@ -116,7 +116,7 @@ export class ScanController {
     return {
       token,
       expiresAt,
-      scanner: { id: u.id, name: u.name, role: u.role, eventScope: u.eventScope },
+      scanner: { id: u.id, name: u.name, role: u.role, eventScope: u.eventScope, canSell: u.canSell },
     };
   }
 

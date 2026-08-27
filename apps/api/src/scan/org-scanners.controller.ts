@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import type { ScannerRole } from '@zora/core';
+import { db, type ScannerRole } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { Roles } from '../common/roles.guard';
 import { OrgScopeService } from '../org/org-scope.service';
@@ -37,6 +37,34 @@ export class OrgScannersController {
     return (await this.scanners.listByOrganizer(handle)).map(publicScannerUser);
   }
 
+  /** GET /api/org/scanners/sales (BS107) — per-seller gate-sales reconciliation:
+      how much CASH each door person took (owes the org) plus their mobile total.
+      Scoped to THIS org's scanners; cash is the number that matters at settlement. */
+  @Get('sales')
+  async sales(@Req() req: Request) {
+    const handle = req.actingHandle as string;
+    const mine = await this.scanners.listByOrganizer(handle);
+    const nameById = new Map(mine.map((s) => [s.id, s.name]));
+    const ids = mine.map((s) => s.id);
+    if (ids.length === 0) return { sellers: [], totals: { cash: 0, mobile: 0 } };
+
+    const rows = await db()`
+      select o.sold_by,
+             sum(case when o.channel = 'gate_cash'   then oi.amt else 0 end)::bigint as cash,
+             sum(case when o.channel = 'gate_mobile' then oi.amt else 0 end)::bigint as mobile,
+             count(*)::int as orders
+        from "order" o
+        join (select order_id, sum(unit_price * quantity) as amt from order_item group by order_id) oi on oi.order_id = o.id
+       where o.status = 'paid' and o.channel in ('gate_cash','gate_mobile') and o.sold_by = any(${ids})
+       group by o.sold_by`;
+    let cash = 0, mobile = 0;
+    const sellers = rows.map((r: any) => {
+      cash += Number(r.cash || 0); mobile += Number(r.mobile || 0);
+      return { sellerId: r.sold_by, name: nameById.get(r.sold_by) ?? r.sold_by, cash: Number(r.cash || 0), mobile: Number(r.mobile || 0), orders: Number(r.orders || 0) };
+    });
+    return { sellers, totals: { cash, mobile } };
+  }
+
   /** POST /api/org/scanners { name, contact, eventId, role } — create + pin to an owned event. */
   @Post()
   async create(@Req() req: Request, @Body() body: any) {
@@ -49,9 +77,10 @@ export class OrgScannersController {
     if (!eventId) throw new BadRequestException({ error: 'event_required', message: 'Pick which event this scanner works.' });
     const role = this.parseRole(body?.role);
 
+    const canSell = body?.canSell === true;
     await this.scope.assertOwnsEvent(handle, eventId); // 404 if not owned
-    const user = await this.scanners.create({ name, contact, role, eventScope: eventId, organizerHandle: handle });
-    await this.audit.record('org.scanner.create', `${user.name} (${user.role} @ ${eventId})`, req.ip, handle);
+    const user = await this.scanners.create({ name, contact, role, eventScope: eventId, organizerHandle: handle, canSell });
+    await this.audit.record('org.scanner.create', `${user.name} (${user.role}${canSell ? '+seller' : ''} @ ${eventId})`, req.ip, handle);
     return publicScannerUser(user);
   }
 
@@ -65,6 +94,9 @@ export class OrgScannersController {
 
     if (body?.role !== undefined) {
       user = (await this.scanners.setRole(id, this.parseRole(body.role))) ?? user;
+    }
+    if (body?.canSell !== undefined) {
+      user = (await this.scanners.setCanSell(id, body.canSell === true)) ?? user;
     }
     if (body?.eventId !== undefined) {
       const eventId = String(body.eventId ?? '').trim();

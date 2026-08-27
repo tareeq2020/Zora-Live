@@ -20,7 +20,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Role = 'agent' | 'supervisor';
-type Scanner = { id: string; name: string; role: Role; eventScope: string | null };
+type Scanner = { id: string; name: string; role: Role; eventScope: string | null; canSell?: boolean };
+type SellTier = { tierId: string; name: string; price: number; available: number };
 type Pass = {
   credentialId: string;
   publicRef: string | null;
@@ -66,6 +67,7 @@ export function ScanClient() {
   const [token, setToken] = useState<string | null>(null);
   const [scanner, setScanner] = useState<Scanner | null>(null);
   const [online, setOnline] = useState(true);
+  const [mode, setMode] = useState<'scan' | 'sell'>('scan');
 
   // restore a shift already in progress (a door phone gets locked and re-opened)
   useEffect(() => {
@@ -122,14 +124,118 @@ export function ScanClient() {
             setScanner(s);
           }}
         />
-      ) : scanner.role === 'supervisor' ? (
-        <SupervisorQueue token={token} onOut={signOut} />
       ) : (
-        <AgentScan token={token} online={online} onOut={signOut} />
+        <>
+          {scanner.canSell ? (
+            <div className="sell-modebar" role="tablist" aria-label="Door mode">
+              <button type="button" role="tab" aria-selected={mode === 'scan'} className={'sell-modebtn' + (mode === 'scan' ? ' on' : '')} onClick={() => setMode('scan')}>Scan</button>
+              <button type="button" role="tab" aria-selected={mode === 'sell'} className={'sell-modebtn' + (mode === 'sell' ? ' on' : '')} onClick={() => setMode('sell')}>Sell</button>
+            </div>
+          ) : null}
+          {mode === 'sell' && scanner.canSell ? (
+            <SellView token={token} onOut={signOut} />
+          ) : scanner.role === 'supervisor' ? (
+            <SupervisorQueue token={token} onOut={signOut} />
+          ) : (
+            <AgentScan token={token} online={online} onOut={signOut} />
+          )}
+        </>
       )}
     </div>
   );
 }
+
+/* ── seller: on-site cash / mobile selling (BS107 #184) ─────────────────────── */
+function SellView({ token, onOut }: { token: string; onOut: () => void }) {
+  const [tiers, setTiers] = useState<SellTier[]>([]);
+  const [tier, setTier] = useState<SellTier | null>(null);
+  const [qty, setQty] = useState(1);
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ kind: 'ok' | 'err' | 'wait'; text: string } | null>(null);
+  const [lastCash, setLastCash] = useState<{ orderId: string; label: string } | null>(null);
+
+  const loadCatalog = useCallback(async () => {
+    const r = await api('/api/scan/sell/catalog', undefined, token);
+    const d = r.data as { tiers?: SellTier[] };
+    if (r.ok && Array.isArray(d?.tiers)) {
+      const list = d.tiers;
+      setTiers(list);
+      setTier((prev) => prev ?? list[0] ?? null);
+    }
+  }, [token]);
+  useEffect(() => { loadCatalog(); }, [loadCatalog]);
+
+  const total = tier ? tier.price * qty : 0;
+
+  async function sell(method: 'cash' | 'mobile') {
+    if (!tier || busy) return;
+    if (method === 'mobile' && !phone.trim()) { setNote({ kind: 'err', text: 'Enter the buyer’s phone for the mobile prompt.' }); return; }
+    setBusy(true); setNote(null);
+    const r = await api('/api/scan/sell', { tier: tier.tierId, qty, method, buyerPhone: phone.trim() || undefined }, token);
+    setBusy(false);
+    const d = r.data as { orderId?: string; amount?: number; message?: string };
+    if (!r.ok) { setNote({ kind: 'err', text: d?.message || 'That sale did not go through.' }); return; }
+    if (method === 'cash') {
+      setLastCash({ orderId: String(d.orderId), label: `${qty}× ${tier.name}` });
+      setNote({ kind: 'ok', text: `Collect ${fmtN(total)} TZS cash — ${qty}× ${tier.name} issued.` });
+      setPhone('');
+      await loadCatalog();
+    } else {
+      setNote({ kind: 'wait', text: `STK sent to ${phone.trim()} for ${fmtN(d.amount ?? total)} TZS. They approve on their phone; the ticket sends automatically.` });
+      setLastCash(null);
+      setPhone('');
+      await loadCatalog();
+    }
+  }
+
+  async function voidLast() {
+    if (!lastCash || busy) return;
+    setBusy(true);
+    const r = await api(`/api/scan/sell/${encodeURIComponent(lastCash.orderId)}/void`, {}, token);
+    setBusy(false);
+    if (!r.ok) { setNote({ kind: 'err', text: (r.data as { message?: string })?.message || 'Could not void that sale.' }); return; }
+    setNote({ kind: 'ok', text: `Voided ${lastCash.label} — seat returned.` });
+    setLastCash(null);
+    await loadCatalog();
+  }
+
+  return (
+    <div className="view sell">
+      <div className="sell-tiers">
+        {tiers.map((t) => (
+          <button key={t.tierId} type="button" className={'sell-tier' + (tier?.tierId === t.tierId ? ' on' : '')} onClick={() => setTier(t)} disabled={t.available <= 0}>
+            <span className="sell-tier-n">{t.name}</span>
+            <span className="sell-tier-p">{fmtN(t.price)} TZS</span>
+            <span className="sell-tier-a">{t.available > 0 ? `${fmtN(t.available)} left` : 'Sold out'}</span>
+          </button>
+        ))}
+        {tiers.length === 0 ? <p className="sell-empty">No tiers on sale for this event.</p> : null}
+      </div>
+
+      <div className="sell-qty">
+        <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={busy}>−</button>
+        <span>{qty}</span>
+        <button type="button" onClick={() => setQty((q) => Math.min(50, q + 1))} disabled={busy}>+</button>
+        <span className="sell-total">{fmtN(total)} TZS</span>
+      </div>
+
+      <input className="sell-phone" inputMode="tel" placeholder="Buyer phone (required for mobile, optional for cash)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+
+      <div className="sell-actions">
+        <button type="button" className="btn" onClick={() => sell('cash')} disabled={busy || !tier}>Cash</button>
+        <button type="button" className="btn aura" onClick={() => sell('mobile')} disabled={busy || !tier}>Mobile (STK)</button>
+      </div>
+
+      {note ? <p className={'sell-note ' + note.kind}>{note.text}</p> : null}
+      {lastCash ? <button type="button" className="sell-void" onClick={voidLast} disabled={busy}>Void last sale ({lastCash.label})</button> : null}
+
+      <button type="button" className="sell-signout" onClick={onOut}>Sign out</button>
+    </div>
+  );
+}
+
+const fmtN = (n: number) => (Number(n) || 0).toLocaleString('en-US');
 
 /* ── sign-in: the 6-digit code the admin panel issued ───────────────────────── */
 function SignIn({ onIn }: { onIn: (t: string, s: Scanner) => void }) {

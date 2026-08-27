@@ -11,8 +11,8 @@ export {
   renderQrPng,
 } from './credentials';
 export type { CredentialClaims } from './credentials';
-export { createGaVipOrder, issueCredentials, createComp, SoldOut } from './payments/service';
-export type { CreateCompInput, CreateCompResult, DeliveryTarget, TicketDeliveryResult } from './payments/service';
+export { createGaVipOrder, issueCredentials, createComp, sellGateCash, voidGateSale, SoldOut } from './payments/service';
+export type { CreateCompInput, CreateCompResult, DeliveryTarget, TicketDeliveryResult, SellGateCashInput, SellGateCashResult, VoidGateSaleResult } from './payments/service';
 export type {
   CartLine, CreateGaVipOrderInput, CreateGaVipOrderResult,
 } from './payments/service';

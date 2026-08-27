@@ -185,6 +185,32 @@ export const SCAN_STYLE = `
   display:block;margin-top:3px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
   color:var(--text3);text-transform:uppercase}
 
+/* ── BS107 (#184): the seller (cash / mobile at the gate) ─────────────────── */
+.zscan .sell-modebar{display:flex;gap:8px;padding:12px 16px 0}
+.zscan .sell-modebtn{flex:1;min-height:40px;border:1px solid var(--hair2);border-radius:10px;background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.zscan .sell-modebtn.on{background:var(--surface2);color:var(--text);border-color:var(--blue)}
+.zscan .view.sell{display:flex;flex-direction:column;gap:14px;padding:16px}
+.zscan .sell-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.zscan .sell-tier{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border:1px solid var(--hair2);border-radius:12px;background:var(--surface);color:var(--text);cursor:pointer;text-align:left}
+.zscan .sell-tier.on{border-color:var(--blue);background:var(--surface2)}
+.zscan .sell-tier:disabled{opacity:.45;cursor:not-allowed}
+.zscan .sell-tier-n{font-family:var(--sans);font-size:15px;font-weight:600}
+.zscan .sell-tier-p{font-family:var(--mono);font-size:13px;color:var(--text)}
+.zscan .sell-tier-a{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--text3);text-transform:uppercase}
+.zscan .sell-empty{grid-column:1/-1;color:var(--text3);font-size:13px}
+.zscan .sell-qty{display:flex;align-items:center;gap:14px}
+.zscan .sell-qty button{width:44px;height:44px;border-radius:10px;border:1px solid var(--hair2);background:var(--surface);color:var(--text);font-size:22px;cursor:pointer}
+.zscan .sell-qty>span{font-family:var(--mono);font-size:18px;min-width:24px;text-align:center}
+.zscan .sell-total{margin-left:auto;font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text)}
+.zscan .sell-phone{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--hair2);border-radius:10px;background:var(--surface);color:var(--text);font-family:var(--sans);font-size:15px}
+.zscan .sell-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.zscan .sell-note{font-family:var(--sans);font-size:13.5px;line-height:1.5;padding:11px 14px;border-radius:10px;border:1px solid var(--hair2)}
+.zscan .sell-note.ok{color:var(--go);border-color:var(--go)}
+.zscan .sell-note.err{color:var(--stop);border-color:var(--stop)}
+.zscan .sell-note.wait{color:var(--amber);border-color:var(--amber)}
+.zscan .sell-void{align-self:flex-start;background:none;border:1px solid var(--hair2);border-radius:9px;color:var(--stop);font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:9px 14px;cursor:pointer}
+.zscan .sell-signout{margin-top:6px;background:none;border:none;color:var(--text3);font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;align-self:center}
+
 /* ── reduced motion: the slam-in is the only animation, and it goes too ───── */
 @media (prefers-reduced-motion: reduce){
   .zscan .take{animation:none}
