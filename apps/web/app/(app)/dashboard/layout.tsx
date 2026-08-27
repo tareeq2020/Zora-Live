@@ -23,6 +23,7 @@ const OWN_CHROME = [
   '/dashboard/sales',
   '/dashboard/payouts',
   '/dashboard/comps',
+  '/dashboard/scanners', // BS106 — Door staff renders its own Control-Room v2 <CrShell>
   '/dashboard/events', // BS75 — the event editor renders its own Control-Room v2 <CrShell>
   '/dashboard/team', // BS94 — the Team surface renders its own Control-Room v2 <CrShell>
   '/dashboard/account', // BS96 — the Account surface renders its own Control-Room v2 <CrShell>

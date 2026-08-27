@@ -11,6 +11,7 @@ export const ORG_NAV: CrNavItem[] = [
   { href: '/dashboard/events', label: 'Events', icon: 'events' },
   { href: '/dashboard/payouts', label: 'Payouts', icon: 'payouts' },
   { href: '/dashboard/comps', label: 'Comps', icon: 'comps' },
+  { href: '/dashboard/scanners', label: 'Door', icon: 'scanner' },
   { href: '/dashboard/storefront/studio', label: 'Storefront', icon: 'storefront' },
   { href: '/dashboard/team', label: 'Team', icon: 'organizers' },
   { href: '/dashboard/help', label: 'Help & Support', icon: 'help' },

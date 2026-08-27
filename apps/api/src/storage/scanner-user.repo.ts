@@ -34,6 +34,7 @@ export function publicScannerUser(u: ScannerUser) {
     role: u.role,
     code: u.code,
     status: u.status,
+    organizerHandle: u.organizerHandle,
     createdAt: u.createdAt,
     expiresAt: u.expiresAt,
     lastSeenAt: u.lastSeenAt,
@@ -46,6 +47,8 @@ export interface CreateScannerUserInput {
   role?: ScannerRole;
   /** event.id, or null / 'All events' for unscoped. */
   eventScope?: string | null;
+  /** BS106: the owning organizer (acting handle) — null for admin-provisioned. */
+  organizerHandle?: string | null;
 }
 
 @Injectable()
@@ -77,20 +80,37 @@ export class ScannerUserRepo {
     const role: ScannerRole = input.role === 'supervisor' ? 'supervisor' : 'agent';
     const contact = String(input.contact ?? '').trim();
     const scope = ScannerUserRepo.normalizeScope(input.eventScope);
+    const organizerHandle = input.organizerHandle ? String(input.organizerHandle).trim() : null;
     const expiresAt = new Date(Date.now() + THREE_DAYS_MS).toISOString();
 
     for (let attempt = 0; attempt < 8; attempt++) {
       const id = Date.now().toString(36) + attempt.toString(36);
       const code = generateScannerCode();
       const rows = await db()<ScannerUserRow[]>`
-        insert into scanner_user (id, name, contact, via, role, event_scope, code, status, expires_at)
+        insert into scanner_user (id, name, contact, via, role, event_scope, code, status, organizer_handle, expires_at)
         values (${id}, ${String(input.name ?? '').slice(0, 80)}, ${contact.slice(0, 120)},
-                ${/@/.test(contact) ? 'email' : 'phone'}, ${role}, ${scope}, ${code}, 'active', ${expiresAt})
+                ${/@/.test(contact) ? 'email' : 'phone'}, ${role}, ${scope}, ${code}, 'active', ${organizerHandle}, ${expiresAt})
         on conflict do nothing
         returning ${db().unsafe(SCANNER_USER_COLUMNS)}`;
       if (rows.length) return toScannerUser(rows[0]);
     }
     throw new Error('could not allocate a free scanner code');
+  }
+
+  /** BS106: an organizer's own scanners (never another org's, never admin ones). */
+  async listByOrganizer(handle: string): Promise<ScannerUser[]> {
+    const rows = await db()<ScannerUserRow[]>`
+      select ${db().unsafe(SCANNER_USER_COLUMNS)} from scanner_user
+       where organizer_handle = ${handle} order by created_at asc, id asc`;
+    return rows.map(toScannerUser);
+  }
+
+  /** The scanner IF it belongs to this org — used to gate every org-side mutation. */
+  async byIdOwned(id: string, handle: string): Promise<ScannerUser | null> {
+    const rows = await db()<ScannerUserRow[]>`
+      select ${db().unsafe(SCANNER_USER_COLUMNS)} from scanner_user
+       where id = ${id} and organizer_handle = ${handle}`;
+    return rows.length ? toScannerUser(rows[0]) : null;
   }
 
   /** NEW CODE. Also bumps `code_rotated_at`, which invalidates any live session
