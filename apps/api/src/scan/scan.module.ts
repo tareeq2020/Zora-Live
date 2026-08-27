@@ -3,6 +3,7 @@ import { OrgModule } from '../org/org.module';
 import { ScanController } from './scan.controller';
 import { ScannerAdminController } from './scanner-admin.controller';
 import { OrgScannersController } from './org-scanners.controller';
+import { SellController } from './sell.controller';
 import { ScanGuard } from './scan.guard';
 
 /* BS42 (#1) — the door.
@@ -12,7 +13,7 @@ import { ScanGuard } from './scan.guard';
    ScannerUserRepo comes from the @Global StorageModule. */
 @Module({
   imports: [OrgModule], // BS106: OrgScopeService for org-provisioned scanners
-  controllers: [ScanController, ScannerAdminController, OrgScannersController],
+  controllers: [ScanController, ScannerAdminController, OrgScannersController, SellController],
   providers: [ScanGuard],
 })
 export class ScanModule {}

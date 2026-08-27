@@ -25,6 +25,7 @@ type ScannerRow = {
   name: string;
   contact: string;
   role: Role;
+  canSell: boolean;
   event: string;        // display label ('All events' or event id)
   eventScope: string | null;
   code: string;
@@ -50,6 +51,7 @@ export default function ScannersClient() {
   const [contact, setContact] = useState('');
   const [eventId, setEventId] = useState('');
   const [role, setRole] = useState<Role>('agent');
+  const [canSell, setCanSell] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -92,12 +94,12 @@ export default function ScannersClient() {
     try {
       const res = await fetch('/api/org/scanners', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
-        body: JSON.stringify({ name: name.trim(), contact: contact.trim(), eventId, role }),
+        body: JSON.stringify({ name: name.trim(), contact: contact.trim(), eventId, role, canSell }),
       });
       const data = (await res.json().catch(() => ({}))) as ScannerRow & { message?: string };
       if (!res.ok) { setMsg({ kind: 'err', text: data?.message || 'Could not create that scanner.' }); return; }
       setMsg({ kind: 'ok', text: `Added ${name.trim()} — share code ${data.code} for /scan.` });
-      setName(''); setContact(''); setRole('agent');
+      setName(''); setContact(''); setRole('agent'); setCanSell(false);
       await load();
     } catch {
       setMsg({ kind: 'err', text: 'We could not reach Zora just then. Nothing was created.' });
@@ -127,7 +129,7 @@ export default function ScannersClient() {
   const cols: Column<ScannerRow>[] = useMemo(() => [
     { key: 'name', header: 'Door person', primary: true, render: (r) => <span><b>{r.name}</b> <span className="org-muted">{r.contact}</span></span> },
     { key: 'event', header: 'Event', render: (r) => eventName(r.eventScope) },
-    { key: 'role', header: 'Role', render: (r) => <StatusPill tone={roleTone(r.role)} label={ROLE_LABEL[r.role] ?? r.role} /> },
+    { key: 'role', header: 'Role', render: (r) => <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><StatusPill tone={roleTone(r.role)} label={ROLE_LABEL[r.role] ?? r.role} />{r.canSell ? <StatusPill tone="live" label="Sells" /> : null}</span> },
     { key: 'code', header: 'Code', render: (r) => (r.status === 'active' ? <span className="cr-num" style={{ letterSpacing: '.14em' }}>{r.code}</span> : <span className="org-muted">revoked</span>) },
     { key: 'seen', header: 'Last seen', render: (r) => <span className="org-muted">{fmtWhen(r.lastSeenAt)}</span> },
     {
@@ -190,6 +192,13 @@ export default function ScannersClient() {
                   <option value="agent">Agent (scans)</option>
                   <option value="supervisor">Supervisor (scans + confirms tables/splits)</option>
                 </select>
+              </div>
+              <div className="org-field">
+                <label htmlFor="sc-sell">Can sell at the door</label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}>
+                  <input id="sc-sell" type="checkbox" checked={canSell} onChange={(e) => setCanSell(e.target.checked)} />
+                  <span className="org-muted" style={{ fontSize: 13 }}>Sell tickets on-site (cash / mobile)</span>
+                </label>
               </div>
             </div>
             <div className="org-actions">

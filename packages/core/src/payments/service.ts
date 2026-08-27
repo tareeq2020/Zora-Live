@@ -10,7 +10,7 @@
    - unit_price + price_version_id are snapshotted per line, so a later re-price
      never mutates a placed order. */
 import { tx } from '../db';
-import { placeHold, convertHolds, convertReservation, releaseHolds, tryReacquire, tryRehold } from '../inventory';
+import { placeHold, convertHolds, convertReservation, releaseHolds, tryReacquire, tryRehold, releaseOrderInventory } from '../inventory';
 import { generateCode, signCredential, generatePublicRef, ticketSigningKeys, qrPayload, renderQrPng } from '../credentials';
 import {
   collectMobile, collectBillPay, collectCard, cardCheckoutUrl, collectionStatus, normalizeMsisdn,
@@ -53,6 +53,10 @@ export interface CreateGaVipOrderInput {
       rewrite this order's earnings. Null/omitted leaves the stamp empty and the
       order reads as the platform default. */
   commissionRate?: number | null;
+  /** BS107: gate-sale attribution — the selling scanner_user.id and the sales
+      channel ('gate_mobile'). Omitted for online self-serve (channel='online'). */
+  soldBy?: string | null;
+  channel?: string | null;
 }
 
 export type CreateGaVipOrderResult =
@@ -82,9 +86,11 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       const evRows = await t`select event_id from product_tier where id = ${cart[0].tier}`;
       if (!evRows.length) throw new SoldOut(cart[0].tier);
       const eventId = evRows[0].event_id;
+      const soldBy = input.soldBy ? String(input.soldBy) : null;
+      const channel = input.channel ? String(input.channel) : 'online';
       const ordRows = await t`
-        insert into "order" (customer_id, event_id, type, status, commission_rate)
-        values (${customerId}, ${eventId}, 'ga_vip', 'pending', ${commissionRate})
+        insert into "order" (customer_id, event_id, type, status, commission_rate, sold_by, channel)
+        values (${customerId}, ${eventId}, 'ga_vip', 'pending', ${commissionRate}, ${soldBy}, ${channel})
         returning id`;
       const orderId: string = ordRows[0].id;
 
@@ -626,6 +632,115 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
     throw e;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BS107 (#184): EVENT-DAY (gate/box-office) SELLING.
+   A gate seller (a scanner_user with can_sell) sells a walk-up a ticket at the
+   REAL price. Cash settles immediately here; mobile goes through the unchanged
+   createGaVipOrder → initiatePayment (STK) → webhook path (with soldBy/channel
+   stamped). Both draw real inventory and mint real credentials — a gate sale is
+   real revenue, attributed to the seller for reconciliation.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+export interface SellGateCashInput {
+  tier: string;
+  quantity: number;
+  /** scanner_user.id of the selling door person. */
+  sellerId: string;
+  /** Optional buyer contacts — the QR is delivered to them; a walk-up may give none. */
+  buyerPhone?: string | null;
+  buyerEmail?: string | null;
+  buyerName?: string | null;
+  /** Platform commission for this sale (resolved by the caller); null = default. */
+  commissionRate?: number | null;
+}
+
+export type SellGateCashResult =
+  | { ok: true; orderId: string; ticketCount: number; amount: number; delivery: TicketDeliveryResult | null }
+  | { ok: false; reason: 'sold_out'; tier: string };
+
+/** Cash gate sale: create a PAID order at the tier's real price, draw inventory,
+    mint credentials, and deliver to the buyer if a contact was given. */
+export async function sellGateCash(sql: Sql, input: SellGateCashInput): Promise<SellGateCashResult> {
+  const quantity = Math.max(1, Math.floor(Number(input.quantity) || 0));
+  const phone = input.buyerPhone ? String(input.buyerPhone).trim() : '';
+  const email = input.buyerEmail ? String(input.buyerEmail).trim() : '';
+  const name = String(input.buyerName || '').trim() || 'Guest';
+  const commissionRate = isCommissionRate(input.commissionRate) ? input.commissionRate : null;
+
+  let amount = 0;
+  try {
+    const orderId = await tx(async (t: Sql): Promise<string> => {
+      const pvRows = await t`
+        select pv.id as pv_id, pv.price, pt.event_id from price_version pv
+          join product_tier pt on pt.id = pv.tier_id
+         where pv.tier_id = ${input.tier} and pv.effective_to is null and pt.disabled = false
+         order by pv.effective_from desc limit 1`;
+      if (!pvRows.length) throw new SoldOut(input.tier);
+      const eventId = pvRows[0].event_id;
+      const priceVersionId = pvRows[0].pv_id;
+      const unitPrice = Number(pvRows[0].price) || 0;
+      amount = unitPrice * quantity;
+
+      // Dedicated customer (synthetic phone key so it's never shared); delivery
+      // targets the buyer's own phone/email via the override below.
+      const custRows = await t`
+        insert into customer (phone, email, name) values (${`gate:${generateCode()}`}, ${email || null}, ${name})
+        returning id`;
+      const customerId = custRows[0].id;
+
+      const ordRows = await t`
+        insert into "order" (customer_id, event_id, type, status, commission_rate, target_value, sold_by, channel, notified_at)
+        values (${customerId}, ${eventId}, 'ga_vip', 'paid', ${commissionRate}, ${amount}, ${input.sellerId}, 'gate_cash', now())
+        returning id`;
+      const orderId: string = ordRows[0].id;
+
+      const hold = await placeHold(t, input.tier, orderId, quantity, 300);
+      if (hold === null) throw new SoldOut(input.tier);
+      await t`
+        insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
+        values (${orderId}, ${input.tier}, ${priceVersionId}, ${quantity}, ${unitPrice})`;
+      const converted = await convertHolds(t, orderId);
+      if (converted < 1) throw new SoldOut(input.tier);
+      return orderId;
+    }, sql);
+
+    await issueCredentials(sql, orderId);
+    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name });
+    return { ok: true, orderId, ticketCount: quantity, amount, delivery };
+  } catch (e) {
+    if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
+    throw e;
+  }
+}
+
+export type VoidGateSaleResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' | 'not_void_able' | 'already_scanned' };
+
+/** Void a gate sale BEFORE any of its credentials has been scanned — a cashier
+    fat-fingered the tier/qty. Returns the seat to inventory (sold → available),
+    revokes the credentials, and cancels the order. Refused once anyone is in. */
+export async function voidGateSale(sql: Sql, orderId: string, sellerId: string): Promise<VoidGateSaleResult> {
+  return tx(async (t: Sql): Promise<VoidGateSaleResult> => {
+    const [ord] = await t`
+      select o.id, o.status, o.channel from "order" o
+       where o.id = ${orderId} and o.sold_by = ${sellerId} for update`;
+    if (!ord) return { ok: false, reason: 'not_found' };
+    if (ord.status !== 'paid' || !String(ord.channel || '').startsWith('gate_')) return { ok: false, reason: 'not_void_able' };
+
+    const inUse = await t`
+      select 1 from credential c join order_item oi on oi.id = c.order_item_id
+       where oi.order_id = ${orderId} and c.state <> 'issued' limit 1`;
+    if (inUse.length) return { ok: false, reason: 'already_scanned' };
+
+    await t`update credential set state = 'revoked'
+             where order_item_id in (select id from order_item where order_id = ${orderId})`;
+    await releaseOrderInventory(t, orderId); // sold → available
+    await t`update "order" set status = 'cancelled' where id = ${orderId}`;
+    return { ok: true };
+  }, sql);
 }
 
 /** The organizer's "you got paid" nudge. Kept short — one SMS segment. */

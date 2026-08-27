@@ -216,6 +216,7 @@ const RESERVED_TOP = new Set([
   'about', 'admin', 'brand', 'commission', 'dashboard', 'discover', 'events', 'help',
   'join', 'split', 'storefront', 't', 'login', 'signup', 'studio', 'seatmap',
   'create-event', 'api', '_next', 'assets', 'tickets', 'account', 'favicon', 'placeholder',
+  'scan',
 ]);
 
 // Run on everything except Next internals and the /api proxy. A narrow matcher

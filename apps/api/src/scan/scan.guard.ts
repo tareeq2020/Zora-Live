@@ -31,6 +31,7 @@ export interface ScanPrincipal {
   name: string;
   role: ScannerRole;
   eventScope: string | null;
+  canSell: boolean;
 }
 
 declare module 'express' {
@@ -64,7 +65,7 @@ export class ScanGuard implements CanActivate {
     // Role and scope come from the ROW, not the token: an admin who demotes a
     // supervisor mid-shift must not have to wait for a token to expire.
     const principal: ScanPrincipal = {
-      id: user.id, name: user.name, role: user.role, eventScope: user.eventScope,
+      id: user.id, name: user.name, role: user.role, eventScope: user.eventScope, canSell: user.canSell,
     };
     req.scanner = principal;
     req.scanSession = session;

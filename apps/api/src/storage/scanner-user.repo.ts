@@ -35,6 +35,7 @@ export function publicScannerUser(u: ScannerUser) {
     code: u.code,
     status: u.status,
     organizerHandle: u.organizerHandle,
+    canSell: u.canSell,
     createdAt: u.createdAt,
     expiresAt: u.expiresAt,
     lastSeenAt: u.lastSeenAt,
@@ -49,6 +50,8 @@ export interface CreateScannerUserInput {
   eventScope?: string | null;
   /** BS106: the owning organizer (acting handle) — null for admin-provisioned. */
   organizerHandle?: string | null;
+  /** BS107: may also sell at the gate. */
+  canSell?: boolean;
 }
 
 @Injectable()
@@ -81,20 +84,29 @@ export class ScannerUserRepo {
     const contact = String(input.contact ?? '').trim();
     const scope = ScannerUserRepo.normalizeScope(input.eventScope);
     const organizerHandle = input.organizerHandle ? String(input.organizerHandle).trim() : null;
+    const canSell = !!input.canSell;
     const expiresAt = new Date(Date.now() + THREE_DAYS_MS).toISOString();
 
     for (let attempt = 0; attempt < 8; attempt++) {
       const id = Date.now().toString(36) + attempt.toString(36);
       const code = generateScannerCode();
       const rows = await db()<ScannerUserRow[]>`
-        insert into scanner_user (id, name, contact, via, role, event_scope, code, status, organizer_handle, expires_at)
+        insert into scanner_user (id, name, contact, via, role, event_scope, code, status, organizer_handle, can_sell, expires_at)
         values (${id}, ${String(input.name ?? '').slice(0, 80)}, ${contact.slice(0, 120)},
-                ${/@/.test(contact) ? 'email' : 'phone'}, ${role}, ${scope}, ${code}, 'active', ${organizerHandle}, ${expiresAt})
+                ${/@/.test(contact) ? 'email' : 'phone'}, ${role}, ${scope}, ${code}, 'active', ${organizerHandle}, ${canSell}, ${expiresAt})
         on conflict do nothing
         returning ${db().unsafe(SCANNER_USER_COLUMNS)}`;
       if (rows.length) return toScannerUser(rows[0]);
     }
     throw new Error('could not allocate a free scanner code');
+  }
+
+  /** BS107: toggle the gate-selling capability. */
+  async setCanSell(id: string, canSell: boolean): Promise<ScannerUser | null> {
+    const rows = await db()<ScannerUserRow[]>`
+      update scanner_user set can_sell = ${!!canSell}
+       where id = ${id} returning ${db().unsafe(SCANNER_USER_COLUMNS)}`;
+    return rows.length ? toScannerUser(rows[0]) : null;
   }
 
   /** BS106: an organizer's own scanners (never another org's, never admin ones). */

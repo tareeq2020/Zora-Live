@@ -62,6 +62,8 @@ export interface ScannerUser {
   /** BS106: the organizer that owns this scanner (their acting handle), or null
       for platform/admin-provisioned scanners (legacy). */
   organizerHandle: string | null;
+  /** BS107: this scanner may also SELL at the gate (orthogonal to role). */
+  canSell: boolean;
   createdAt: string;
   expiresAt: string | null;
   codeRotatedAt: string;
@@ -71,7 +73,7 @@ export interface ScannerUser {
 export type ScannerUserRow = {
   id: string; name: string; contact: string | null; via: string | null;
   role: string; event_scope: string | null; code: string; status: string;
-  organizer_handle: string | null;
+  organizer_handle: string | null; can_sell: boolean | null;
   created_at: Date | string; expires_at: Date | string | null;
   code_rotated_at: Date | string; last_seen_at: Date | string | null;
 };
@@ -90,6 +92,7 @@ export function toScannerUser(r: ScannerUserRow): ScannerUser {
     code: r.code,
     status: r.status === 'revoked' ? 'revoked' : 'active',
     organizerHandle: r.organizer_handle ?? null,
+    canSell: !!r.can_sell,
     createdAt: iso(r.created_at) as string,
     expiresAt: iso(r.expires_at),
     codeRotatedAt: iso(r.code_rotated_at) as string,
@@ -98,7 +101,7 @@ export function toScannerUser(r: ScannerUserRow): ScannerUser {
 }
 
 export const SCANNER_USER_COLUMNS = `id, name, contact, via, role, event_scope, code,
-                                     status, organizer_handle, created_at, expires_at, code_rotated_at, last_seen_at`;
+                                     status, organizer_handle, can_sell, created_at, expires_at, code_rotated_at, last_seen_at`;
 
 // ── codes ────────────────────────────────────────────────────────────────────
 
