@@ -405,14 +405,21 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
         </div>
       ) : null}
 
-      {cam === 'live' ? (
-        <div className="view">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video ref={videoRef} playsInline muted />
-          <div className="reticle"><i /><i /><i /><i /></div>
-          <p className="hint">Point at the pass</p>
-        </div>
-      ) : (
+      {/* The <video> and offscreen <canvas> must stay mounted from the first
+          render: the camera effect reads videoRef.current and only THEN flips
+          cam→'live'. If the element mounted on cam==='live' it would never
+          exist when the effect runs (ref null → early return → stuck on boot),
+          and the decode loop needs canvasRef too. So keep them mounted and hide
+          the viewfinder with CSS until the stream is live. */}
+      <div className="view" style={cam === 'live' ? undefined : { display: 'none' }}>
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video ref={videoRef} playsInline muted />
+        <canvas ref={canvasRef} hidden />
+        <div className="reticle"><i /><i /><i /><i /></div>
+        <p className="hint">Point at the pass</p>
+      </div>
+
+      {cam !== 'live' ? (
         <div className="body">
           <div className="pad">
             {cam === 'boot' ? (
@@ -440,7 +447,7 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="foot">
         {cam !== 'live' ? (
