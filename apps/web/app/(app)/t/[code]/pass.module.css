@@ -60,6 +60,11 @@
 
 /* web-pass fallback panel — the rendered pass image from /api/tickets/:code.svg */
 .pass { margin-top: 24px; }
+.passLabel {
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 11px; letter-spacing: .12em; color: var(--c-text2);
+  text-transform: uppercase; margin-bottom: 10px;
+}
 .passImg {
   width: 100%; max-width: 340px; height: auto; margin: 0 auto; display: block;
   border-radius: 14px; border: 1px solid var(--c-line); background: var(--c-bg);
