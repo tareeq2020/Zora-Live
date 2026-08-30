@@ -103,12 +103,24 @@ export const SCAN_STYLE = `
   text-transform:uppercase;color:inherit;margin-bottom:5px}
 
 /* ── viewfinder ───────────────────────────────────────────────────────────── */
-.zscan .view{flex:1;min-height:0;position:relative;background:#05060A;overflow:hidden}
+/* Bounded to the TOP of the screen (below the tally) so the pass-reference field
+   sits right under it, always reachable (XBR-345). Flexes to fill the space
+   above the field but never taller than 56vh. */
+.zscan .view{flex:1 1 auto;min-height:160px;max-height:56vh;position:relative;background:#05060A;overflow:hidden}
 .zscan .view video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .zscan .reticle{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:min(68vw,290px);aspect-ratio:1;border-radius:20px;
+  width:min(60vw,230px);aspect-ratio:1;border-radius:20px;
   box-shadow:0 0 0 100vmax rgba(5,6,10,.55);pointer-events:none}
+/* Camera-off placeholder shown inside the (still bounded) viewfinder box. */
+.zscan .camidle{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:22px;gap:7px}
+.zscan .camidle-h{font-family:var(--disp);font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.zscan .camidle .lede{margin-top:0}
+/* Always-on manual pass-reference entry, directly under the camera (XBR-345). */
+.zscan .manual{flex:0 0 auto;padding:15px 20px 6px;display:grid;gap:10px;background:var(--bg)}
+.zscan .manual .label{margin-bottom:0}
 .zscan .reticle i{position:absolute;width:30px;height:30px;border:2.5px solid var(--ice)}
 .zscan .reticle i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
 .zscan .reticle i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0;border-radius:0 14px 0 0}

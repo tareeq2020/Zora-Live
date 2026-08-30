@@ -34,15 +34,19 @@ type Pass = {
   scannedAt: string | null;
   scannedByName: string | null;
 };
-type Outcome = 'valid' | 'needs_supervisor' | 'already_scanned' | 'wrong_event' | 'not_found' | 'invalid';
+// The vocabulary the API actually emits (scan.controller verify): it collapses
+// every failure code to `already_used` (already_scanned | already_confirmed) or
+// `invalid` (not_found | wrong_event | revoked | bad signature), with the human
+// reason in `message`. The takeover word must key off THESE, not the raw
+// core codes — keying off `already_scanned` (which never arrives) is why a used
+// pass rendered as "Not valid" instead of "Already used".
+type Outcome = 'valid' | 'needs_supervisor' | 'already_used' | 'invalid';
 type Shot = { outcome: Outcome; pass: Pass | null; why: string; priorActor?: string | null; priorAt?: string | null };
 
 const TAKE: Record<Outcome, { cls: 'go' | 'stop' | 'esc'; glyph: string; word: string }> = {
   valid:            { cls: 'go',   glyph: '✓', word: 'Let them in' },
   needs_supervisor: { cls: 'esc',  glyph: '!', word: 'Get a supervisor' },
-  already_scanned:  { cls: 'stop', glyph: '✕', word: 'Already used' },
-  wrong_event:      { cls: 'stop', glyph: '✕', word: 'Wrong event' },
-  not_found:        { cls: 'stop', glyph: '✕', word: 'Not a pass' },
+  already_used:     { cls: 'stop', glyph: '✕', word: 'Already used' },
   invalid:          { cls: 'stop', glyph: '✕', word: 'Not valid' },
 };
 
@@ -304,24 +308,38 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const busyRef = useRef(false);
   const lastRef = useRef<{ qr: string; at: number }>({ qr: '', at: 0 });
+  // Mirrors `shot` for the decode loop: while a result is on screen the scanner
+  // must acknowledge it (tap Done, XBR-344), so we PAUSE scanning — a lingering
+  // QR in frame must not silently overwrite the result the operator is reading.
+  const shotRef = useRef<Shot | null>(null);
 
   const [cam, setCam] = useState<'boot' | 'live' | 'denied' | 'nocam'>('boot');
   const [shot, setShot] = useState<Shot | null>(null);
   const [manual, setManual] = useState('');
   const [tally, setTally] = useState<{ scanned: number; wristbands: number; pending: number } | null>(null);
 
-  const submit = useCallback(
-    async (qr: string) => {
-      if (busyRef.current || !qr) return;
+  // Show a result and hold it until acknowledged (no auto-dismiss).
+  const show = useCallback((s: Shot) => { shotRef.current = s; setShot(s); }, []);
+  const dismiss = useCallback(() => {
+    // Refresh the debounce so the pass just handled — if it's still sitting in
+    // frame — doesn't instantly re-scan the moment the result clears.
+    lastRef.current.at = Date.now();
+    shotRef.current = null;
+    setShot(null);
+  }, []);
+
+  const verify = useCallback(
+    async (body: { qr: string } | { ref: string }) => {
+      if (busyRef.current || shotRef.current) return;
       busyRef.current = true;
-      const r = await api('/api/scan/verify', { qr }, token);
+      const r = await api('/api/scan/verify', body, token);
       busyRef.current = false;
       if (!online && !r.ok) {
-        setShot({ outcome: 'invalid', pass: null, why: 'No signal — the pass could not be checked. Try again in a moment.' });
+        show({ outcome: 'invalid', pass: null, why: 'No signal — the pass could not be checked. Try again in a moment.' });
         return;
       }
       const outcome = (r.data.outcome as Outcome) || (r.ok ? 'valid' : 'invalid');
-      setShot({
+      show({
         outcome,
         pass: (r.data.pass as Pass) ?? null,
         why: String(r.data.message || ''),
@@ -333,8 +351,14 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
         if (m.ok && m.data.totals) setTally(m.data.totals as { scanned: number; wristbands: number; pending: number });
       });
     },
-    [token, online],
+    [token, online, show],
   );
+  // Camera decode sends the signed QR payload (`zora:code:sig`). Manual entry
+  // sends the printed HUMAN ref — the camera-denied fallback the API verifies by
+  // public_ref without a signature. Sending a typed ref as `qr` (the old bug)
+  // never parsed → "Not valid", so the input field was effectively dead (XBR-345).
+  const submit = useCallback((qr: string) => { if (qr) verify({ qr }); }, [verify]);
+  const submitRef = useCallback((ref: string) => { if (ref) verify({ ref }); }, [verify]);
 
   // camera + decode loop (jsQR — one predictable path on every phone)
   useEffect(() => {
@@ -405,76 +429,77 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
         </div>
       ) : null}
 
-      {/* The <video> and offscreen <canvas> must stay mounted from the first
-          render: the camera effect reads videoRef.current and only THEN flips
-          cam→'live'. If the element mounted on cam==='live' it would never
-          exist when the effect runs (ref null → early return → stuck on boot),
-          and the decode loop needs canvasRef too. So keep them mounted and hide
-          the viewfinder with CSS until the stream is live. */}
-      <div className="view" style={cam === 'live' ? undefined : { display: 'none' }}>
+      {/* Camera occupies the TOP (bounded, below the tally) with the manual ref
+          field always visible right below it (XBR-345). The <video> + offscreen
+          <canvas> stay mounted from the first render: the camera effect reads
+          videoRef.current and only THEN flips cam→'live', so a conditional mount
+          would strand the effect (null ref → stuck on boot); the decode loop
+          needs canvasRef too. The video is just hidden until the stream is live. */}
+      <div className="view">
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video ref={videoRef} playsInline muted />
+        <video ref={videoRef} playsInline muted style={cam === 'live' ? undefined : { display: 'none' }} />
         <canvas ref={canvasRef} hidden />
-        <div className="reticle"><i /><i /><i /><i /></div>
-        <p className="hint">Point at the pass</p>
-      </div>
-
-      {cam !== 'live' ? (
-        <div className="body">
-          <div className="pad">
+        {cam === 'live' ? (
+          <>
+            <div className="reticle"><i /><i /><i /><i /></div>
+            <p className="hint">Point at the pass</p>
+          </>
+        ) : (
+          <div className="camidle">
             {cam === 'boot' ? (
               <p className="lede">Starting the camera…</p>
             ) : (
               <>
-                <h1>{cam === 'denied' ? 'Camera is blocked' : 'No camera here'}</h1>
+                <p className="camidle-h">{cam === 'denied' ? 'Camera blocked' : 'No camera'}</p>
                 <p className="lede">
                   {cam === 'denied'
-                    ? 'Allow camera access in your browser settings, or type the pass reference below.'
-                    : 'This device has no camera. Type the pass reference below.'}
+                    ? 'Allow camera access, or type the pass reference below.'
+                    : 'Type the pass reference below.'}
                 </p>
               </>
             )}
-            <div style={{ marginTop: 22 }}>
-              <label className="label" htmlFor="mr">Pass reference</label>
-              <input
-                id="mr"
-                className="wide"
-                placeholder="ZORA-…"
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit(manual.trim())}
-              />
-            </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
+
+      {/* Always-on manual entry — the QR fallback for a damaged / screenshot /
+          glare-blocked pass, available even while the camera is live (XBR-345). */}
+      <div className="manual">
+        <label className="label" htmlFor="mr">Pass reference</label>
+        <input
+          id="mr"
+          className="wide"
+          placeholder="ZORA-…"
+          autoComplete="off"
+          autoCapitalize="characters"
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submitRef(manual.trim())}
+        />
+        <button className="btn aura" onClick={() => submitRef(manual.trim())} disabled={!manual.trim()}>
+          Check pass
+        </button>
+      </div>
 
       <div className="foot">
-        {cam !== 'live' ? (
-          <button className="btn aura" onClick={() => submit(manual.trim())} disabled={!manual.trim()}>
-            Check pass
-          </button>
-        ) : null}
         <button className="btn ghost tiny" onClick={onOut}>End shift</button>
       </div>
 
-      {shot ? <Takeover shot={shot} onClose={() => setShot(null)} /> : null}
+      {shot ? <Takeover shot={shot} onClose={dismiss} /> : null}
     </>
   );
 }
 
-/* ── the full-screen result: readable across a crowd, gone in two seconds ───── */
+/* ── the full-screen result: readable across a crowd, held until acknowledged ──
+   XBR-344: this used to auto-dismiss after ~2s, so at a busy gate the operator
+   saw nothing but the counter tick up (and the "already used" flash was too fast
+   to read). It now STAYS until they tap Done — one deliberate acknowledgement per
+   scan, for both "let them in" and "already used". */
 function Takeover({ shot, onClose }: { shot: Shot; onClose: () => void }) {
   const t = TAKE[shot.outcome] ?? TAKE.invalid;
-  useEffect(() => {
-    const id = window.setTimeout(onClose, shot.outcome === 'valid' ? 1800 : 3200);
-    return () => window.clearTimeout(id);
-  }, [shot, onClose]);
-
   const p = shot.pass;
   return (
-    <div className={'take ' + t.cls} onClick={onClose} role="button" tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onClose()}>
+    <div className={'take ' + t.cls}>
       <span className="glyph">{t.glyph}</span>
       <span className="word">{t.word}</span>
       {shot.why ? <p className="why">{shot.why}</p> : null}
@@ -485,12 +510,12 @@ function Takeover({ shot, onClose }: { shot: Shot; onClose: () => void }) {
           {p.publicRef ? <span>{p.publicRef}</span> : null}
         </div>
       ) : null}
-      {shot.outcome === 'already_scanned' && (shot.priorAt || shot.priorActor) ? (
+      {shot.outcome === 'already_used' && (shot.priorAt || shot.priorActor) ? (
         <p className="prior">
           Scanned {clock(shot.priorAt)}{shot.priorActor ? ` · ${shot.priorActor}` : ''}
         </p>
       ) : null}
-      <span className="tap">Tap to continue</span>
+      <button type="button" className="act" autoFocus onClick={onClose}>Done</button>
     </div>
   );
 }
