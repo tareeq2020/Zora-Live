@@ -51,7 +51,7 @@ insert into event (id,name,city,status) values ('ev-A','Brunch A','dar','publish
 insert into product_tier (id,event_id,name,capacity) values ('t-ga','ev-A','GA',10) on conflict do nothing;
 insert into price_version (tier_id,price,currency) select 't-ga',20000,'TZS' where not exists (select 1 from price_version where tier_id='t-ga');
 insert into inventory_pool (product_tier_id,capacity,available_count) values ('t-ga',10,10) on conflict do nothing;
-update collection_store set data='[{"id":"ev-A","name":"Brunch A","city":"dar","status":"published","organizerHandle":"thebrunchcity"}]' where name='events';
+update collection_store set data='[{"id":"ev-A","name":"Brunch A","city":"dar","status":"published","organizerHandle":"thebrunchcity","dateLabel":"Sat, 6 Sep","venue":"The Slipway, Msasani"}]' where name='events';
 SQL
 
 echo "== boot API (XBRIDGE_MOCK, mock SMS/email) =="
@@ -99,4 +99,18 @@ OUT=$(curl -s -H "authorization: Bearer $STOKEN" -H 'content-type: application/j
 [ "$(echo "$OUT" | jget outcome)" = "invalid" ] && echo "  ✓ zora://t/<ref> → invalid (unscannable — the bug we fixed)" || { echo "  ✗ expected invalid, got $OUT"; fail=1; }
 
 echo ""
-[ "$fail" = "0" ] && echo "TICKET QR E2E: PASS (web pass carries the signed, scannable QR)" || { echo "TICKET QR E2E: FAIL"; exit 1; }
+echo "== T4 — the pass shows the REAL event details, not the placeholders (XBR-348) =="
+# the SVG carries event/date/venue/tier as literal <text>; assert they're the
+# seeded values and that none of the vendor placeholders leaked through.
+SVG="$SNAP/pass.svg"
+d4=0
+for want in "Brunch A" "Sat, 6 Sep" "The Slipway" "$REF"; do
+  grep -qF "$want" "$SVG" || { echo "  ✗ missing on pass: $want"; d4=1; }
+done
+for bad in "Untitled Event" "Date TBA" "Venue TBA"; do
+  grep -qF "$bad" "$SVG" && { echo "  ✗ placeholder leaked: $bad"; d4=1; }
+done
+[ "$d4" = "0" ] && echo "  ✓ pass shows event name, date, venue + ref (no Untitled/TBA placeholders)" || fail=1
+
+echo ""
+[ "$fail" = "0" ] && echo "TICKET QR E2E: PASS (web pass carries the signed, scannable QR + real event details)" || { echo "TICKET QR E2E: FAIL"; exit 1; }

@@ -53,6 +53,18 @@ const TAKE: Record<Outcome, { cls: 'go' | 'stop' | 'esc'; glyph: string; word: s
 const clock = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
+// Auto-format a typed pass reference into ZORA-XXXX-XXXX so a scanner never has
+// to punch the hyphens or the prefix (XBR-349). Every public_ref is ZORA + two
+// 4-char groups, so we keep the 8 body chars and re-insert the dashes as they
+// type. Pasting a full "ZORA-8SAF-9RJA" round-trips cleanly.
+function formatRef(raw: string): string {
+  let s = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (s.startsWith('ZORA')) s = s.slice(4);
+  s = s.slice(0, 8);
+  if (!s) return '';
+  return ['ZORA', s.slice(0, 4), s.slice(4, 8)].filter(Boolean).join('-');
+}
+
 async function api(path: string, body?: unknown, token?: string | null) {
   const res = await fetch(path, {
     method: body === undefined ? 'GET' : 'POST',
@@ -473,7 +485,7 @@ function AgentScan({ token, online, onOut }: { token: string; online: boolean; o
           autoComplete="off"
           autoCapitalize="characters"
           value={manual}
-          onChange={(e) => setManual(e.target.value)}
+          onChange={(e) => setManual(formatRef(e.target.value))}
           onKeyDown={(e) => e.key === 'Enter' && submitRef(manual.trim())}
         />
         <button className="btn aura" onClick={() => submitRef(manual.trim())} disabled={!manual.trim()}>
