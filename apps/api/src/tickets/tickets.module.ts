@@ -22,23 +22,48 @@ export class TicketsController {
     TICKET_FIELDS.forEach((f) => {
       if (query[f] != null && query[f] !== '') data[f] = query[f];
     });
-    // The QR must carry the SIGNED credential payload (`zora:<code>:<signature>`)
-    // so the gate scanner can parse AND verify it. Without this the renderer
-    // defaults to the app deep link `zora://t/<ref>` (vendor/ticket.js), which
-    // parseQrPayload rejects → every web pass scans as "not valid" (the app
-    // that deep link targets doesn't exist yet). Look the pass up by its human
-    // ref (or code) and, when it's a real credential, embed the signable QR.
-    // Studio previews pass an arbitrary code that matches no credential and keep
-    // the default. An explicit ?qr= override (studio) always wins.
-    if (code && (query.qr == null || query.qr === '')) {
+    // When :code is a REAL credential, fill the pass from it: the SIGNED QR
+    // (`zora:<code>:<signature>`, so the gate scanner can parse AND verify it —
+    // otherwise vendor/ticket.js defaults to the unscannable `zora://t/<ref>`
+    // deep link), AND the event / tier / guest details — otherwise the renderer
+    // falls back to its "Untitled Event / Date TBA / Venue TBA" placeholders,
+    // which is exactly what a delivered pass showed (XBR-348). Anything already
+    // set by an explicit query field (studio preview) or the tickets store wins;
+    // an unknown code keeps the vendor defaults.
+    if (code) {
       try {
         const [cred] = (await db()`
-          select code, signature from credential
-           where upper(public_ref) = upper(${code}) or code = ${code}
-           limit 1`) as { code: string; signature: string }[];
-        if (cred?.code && cred?.signature) data.qr = qrPayload(cred.code, cred.signature);
+          select c.code, c.signature, c.public_ref, c.event_id, c.tier_id,
+                 c.holder_name, pt.name as tier_name
+            from credential c
+            left join product_tier pt on pt.id = c.tier_id
+           where upper(c.public_ref) = upper(${code}) or c.code = ${code}
+           limit 1`) as {
+          code: string; signature: string; public_ref: string | null;
+          event_id: string | null; holder_name: string | null; tier_name: string | null;
+        }[];
+        if (cred) {
+          if ((query.qr == null || query.qr === '') && cred.code && cred.signature) {
+            data.qr = qrPayload(cred.code, cred.signature);
+          }
+          const setIfEmpty = (k: string, v: unknown) => {
+            if (v != null && v !== '' && (data[k] == null || data[k] === '')) data[k] = v;
+          };
+          let ev: Record<string, any> | undefined;
+          if (cred.event_id) {
+            const events = await this.entities.read<any[]>('events', []);
+            ev = Array.isArray(events) ? events.find((e) => e && e.id === cred.event_id) : undefined;
+          }
+          setIfEmpty('event', ev?.name);
+          setIfEmpty('dateLabel', ev?.dateLabel);
+          setIfEmpty('venue', ev?.venue);
+          setIfEmpty('tableName', cred.tier_name);
+          setIfEmpty('tier', cred.tier_name);
+          setIfEmpty('guest', cred.holder_name);
+          if (cred.public_ref) setIfEmpty('ticketId', cred.public_ref);
+        }
       } catch {
-        // DB hiccup: fall back to the default QR rather than fail the image.
+        // DB hiccup: fall back to defaults rather than fail the image.
       }
     }
     return data;
