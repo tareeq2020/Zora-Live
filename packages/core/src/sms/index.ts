@@ -10,6 +10,12 @@
      • REAL SEND FAILURE (creds present, gateway rejects) → throws, so the
        caller can retry / surface it. */
 
+// The SAME MSISDN normaliser the payment gateway uses (+255…). Nothing on the
+// SMS path applied it, so a gate-cash buyer's locally-typed "0712…" went to the
+// gateway unnormalised and never delivered (XBR-347). Reuse the one canonical
+// normaliser so payments and SMS agree on the number format.
+import { normalizeMsisdn } from '../payments/xbridge';
+
 export type SmsDriver = 'at' | 'beem' | 'mock';
 
 export interface SmsResult {
@@ -150,14 +156,15 @@ export async function sendSms(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<SmsResult> {
   const driver = resolveDriver(env);
+  const dest = normalizeMsisdn(to);
   switch (driver) {
     case 'at':
-      return sendViaAt(to, message, env);
+      return sendViaAt(dest, message, env);
     case 'beem':
-      return sendViaBeem(to, message, env);
+      return sendViaBeem(dest, message, env);
     case 'mock':
     default:
-      console.log(`[sms:mock] to=${to} message=${JSON.stringify(message)}`);
+      console.log(`[sms:mock] to=${dest} message=${JSON.stringify(message)}`);
       return { delivered: false, dev: true };
   }
 }
