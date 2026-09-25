@@ -272,61 +272,61 @@ export default function StorefrontClient(props: StorefrontProps) {
             {events.length === 0 ? (
               <p className="empty">No upcoming events right now — check back soon.</p>
             ) : (
-              events.map((ev) => {
-                const evCur = CUR[ev.city || ''] || 'TZS';
-                // BS26: the headline "FROM" must reflect what's actually on sale — the
-                // cheapest ENABLED tier — not the stale priceFrom scalar (which still
-                // points at a switched-off tier). Falls back to priceFrom for app-claim
-                // events (no web catalog).
-                const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
-                const cheapest = onSaleTiers.length
-                  ? onSaleTiers.reduce((a, b) => (b.unitPrice < a.unitPrice ? b : a))
-                  : null;
-                const fromPrice = cheapest ? cheapest.unitPrice : ev.priceFrom || 0;
-                const fromUsd = cheapest?.usd; // BS65: show the USD price in brackets
-                return (
-                  <div className="event" key={ev.id}>
-                    {ev.cover ? (
-                      <Link href={`/@${handle}/events/${encodeURIComponent(ev.id)}`} aria-label={ev.name}>
-                        <Poster src={ev.cover} variant="cover" />
+              <div className="event-grid">
+                {events.map((ev) => {
+                  const evCur = CUR[ev.city || ''] || 'TZS';
+                  // BS26: the headline "FROM" must reflect what's actually on sale — the
+                  // cheapest ENABLED tier — not the stale priceFrom scalar (which still
+                  // points at a switched-off tier). Falls back to priceFrom for app-claim
+                  // events (no web catalog).
+                  const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
+                  const cheapest = onSaleTiers.length
+                    ? onSaleTiers.reduce((a, b) => (b.unitPrice < a.unitPrice ? b : a))
+                    : null;
+                  const fromPrice = cheapest ? cheapest.unitPrice : ev.priceFrom || 0;
+                  const fromUsd = cheapest?.usd; // BS65: show the USD price in brackets
+                  return (
+                    <article className="event" key={ev.id}>
+                      <Link className="event-cover" href={`/@${handle}/events/${encodeURIComponent(ev.id)}`} aria-label={ev.name}>
+                        {ev.cover ? <Poster src={ev.cover} variant="cover" /> : <div className="poster cover no-cover">{ev.name}</div>}
+                        <span className="status-chip">ON SALE</span>
                       </Link>
-                    ) : null}
-                    <div className="event-top">
-                      <div>
-                        <p className="name">{ev.name}</p>
-                        <p className="meta">
-                          <b>
+                      <div className="event-top">
+                        <div>
+                          <p className="meta date">
                             {(ev.dateLabel || 'TBA').toUpperCase()}
                             {ev.time ? ` · ${ev.time}` : ''}
-                          </b>
-                          <br />
-                          {(ev.venue || 'VENUE TBA').toUpperCase()}
-                          <br />
-                          {(ev.category || 'EVENT').toUpperCase()}
-                          {ev.seated ? ' · SEATED' : ' · GENERAL ADMISSION'}
-                        </p>
-                        <Countdown ev={ev} />
+                          </p>
+                          <p className="name">{ev.name}</p>
+                          <p className="meta">
+                            {(ev.venue || 'VENUE TBA').toUpperCase()}
+                            <br />
+                            {(ev.category || 'EVENT').toUpperCase()}
+                            {ev.seated ? ' · SEATED' : ' · GENERAL ADMISSION'}
+                          </p>
+                          <Countdown ev={ev} />
+                        </div>
+                        <div className="right">
+                          <p className="from">FROM</p>
+                          <p className="price">
+                            {fmt(fromPrice)}
+                            <span> {evCur}</span>
+                            {fromUsd ? <small> (${fmt(fromUsd)})</small> : null}
+                          </p>
+                        </div>
                       </div>
-                      <div className="right">
-                        <p className="from">FROM</p>
-                        <p className="price">
-                          {fmt(fromPrice)}
-                          <span style={{ fontSize: 15 }}> {evCur}</span>
-                          {fromUsd ? <span style={{ fontSize: 13, color: 'var(--mut)' }}> (${fmt(fromUsd)})</span> : null}
-                        </p>
+                      <div className="event-bar">
+                        <Link className="details" href={`/@${handle}/events/${encodeURIComponent(ev.id)}`}>
+                          VIEW DETAILS
+                        </Link>
+                        <button className="get" onClick={() => openCheckout(ev)}>
+                          GET PASSES →
+                        </button>
                       </div>
-                    </div>
-                    <div className="event-bar">
-                      <Link className="details" href={`/@${handle}/events/${encodeURIComponent(ev.id)}`}>
-                        VIEW DETAILS →
-                      </Link>
-                      <button className="get" onClick={() => openCheckout(ev)}>
-                        GET PASSES
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </div>
         </section>
@@ -484,11 +484,13 @@ export default function StorefrontClient(props: StorefrontProps) {
 }
 
 const STYLE = `
-.zora-sf{--z-black:#0A0A0B;--z-bone:#F4F1EA;--z-blue:var(--accent);--z-hair:#222226;--z-mut:#8A877E;--ink:#EDEFF7;--mut:#9BA3C4;--hair:rgba(255,255,255,.12);--mono:'IBM Plex Mono',monospace;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-sf{--z-black:var(--zp-color-board-black);--z-bone:var(--zp-color-bone);--z-blue:var(--zp-color-signal-yellow);--z-hair:var(--zp-color-line-light);--z-mut:var(--zp-color-ink-500);--ink:var(--zp-color-board-black);--mut:var(--zp-color-ink-500);--hair:var(--zp-color-line-light);--mono:var(--zp-font-mono);--display:var(--zp-font-display);--body:var(--zp-font-sans);background:var(--zp-color-bone);color:var(--zp-color-board-black);font-family:var(--zp-font-sans);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sf *{margin:0;padding:0;box-sizing:border-box}
 .zora-sf a{color:inherit;text-decoration:none}
 .zora-sf ::selection{background-color:var(--accent);color:#fff}
-.zora-sf .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+.zora-sf .wrap{max-width:var(--zp-layout-container-max);margin:0 auto;padding:0 var(--zp-layout-gutter-mobile)}
+@media(min-width:768px){.zora-sf .wrap{padding:0 var(--zp-layout-gutter-tablet)}}
+@media(min-width:1100px){.zora-sf .wrap{padding:0 var(--zp-layout-gutter-desktop)}}
 
 .zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:var(--nav-bg);backdrop-filter:blur(10px);z-index:40}
 .zora-sf .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
@@ -501,49 +503,54 @@ const STYLE = `
    (STOREFRONT-BRAND-SPEC D6). zora-tokens.css forces .nav-cta to the aura with
    !important, so this scoped rule (higher specificity) must also be !important to
    win — otherwise GET PASSES renders magenta on every branded store. */
-.zora-sf .nav-cta{font-family:var(--mono);font-size:12px;letter-spacing:.08em;background:var(--accent) !important;background-image:none !important;color:#fff !important;padding:11px 20px;border-radius:99px;transition:background .2s}
-.zora-sf .nav-cta:hover{background:var(--accent-deep) !important}
+.zora-sf .nav-cta{font-family:var(--zp-font-display);font-size:12px;letter-spacing:0;background:var(--zp-color-board-black) !important;background-image:none !important;color:var(--zp-color-signal-yellow) !important;padding:13px 20px;border-radius:var(--zp-radius-lg);transition:background .2s,transform .2s}
+.zora-sf .nav-cta:hover{background:var(--zp-color-ink-800) !important;transform:translateY(-1px)}
 
-.zora-sf header{padding:90px 0 70px;border-bottom:1px solid var(--hair)}
+.zora-sf header{padding:80px 0 56px;border-bottom:1px solid var(--hair);background:var(--zp-surface-brand);color:var(--zp-color-board-black)}
 /* Poster tile — full flyer visible (contain) over a blurred fill of itself, so
    nothing (incl. baked-in sponsor logos) is ever cropped. Border + load fade-in
    + hover lift. */
-.zora-sf .poster{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--hair);background:var(--card);animation:posterIn .55s ease both;transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s}
-.zora-sf .poster-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(30px) brightness(.5) saturate(1.25);transform:scale(1.25)}
+.zora-sf .poster{position:relative;overflow:hidden;border-radius:var(--zp-radius-lg);border:1px solid var(--hair);background:var(--zp-color-white);animation:posterIn .55s ease both;transition:transform .24s var(--zp-motion-easing-standard),border-color .24s var(--zp-motion-easing-standard)}
+.zora-sf .poster-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(18px) brightness(.92) saturate(1.05);transform:scale(1.18);opacity:.55}
 .zora-sf .poster-img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain}
 .zora-sf .poster.hero{width:min(440px,86%);aspect-ratio:4/5;margin:0 auto 34px}
-.zora-sf .poster.hero:hover{transform:translateY(-4px);box-shadow:0 20px 46px -20px color-mix(in srgb,var(--accent) 60%,transparent),0 6px 18px rgba(0,0,0,.10);border-color:color-mix(in srgb,var(--accent) 45%,var(--hair))}
-.zora-sf .poster.cover{height:420px;border-radius:0;border:none;border-bottom:1px solid var(--hair)}
+.zora-sf .poster.hero:hover{transform:translateY(-4px);border-color:var(--zp-border-strong)}
+.zora-sf .poster.cover{height:auto;aspect-ratio:4/5;border-radius:var(--zp-radius-md);border:1px solid var(--hair);margin:8px;background:var(--zp-color-board-black)}
 .zora-sf .poster.cover .poster-img{transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-@media(max-width:680px){.zora-sf .poster.cover{height:320px}}
+.zora-sf .poster.no-cover{display:flex;align-items:flex-end;padding:18px;font-family:var(--zp-font-display);font-size:26px;line-height:1;text-transform:uppercase;color:var(--zp-color-signal-yellow)}
 @keyframes posterIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.zora-sf .poster{animation:none}.zora-sf .poster.hero:hover,.zora-sf .poster.cover .poster-img{transform:none}}
-.zora-sf .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.28em;color:var(--secondary);margin-bottom:22px}
-.zora-sf h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,7vw,78px);line-height:1.02;letter-spacing:-.02em;max-width:16ch}
-.zora-sf h1 em{font-style:italic;color:var(--accent)}
-.zora-sf .lede{font-size:clamp(16px,2vw,19px);color:var(--mut);max-width:52ch;margin-top:26px;line-height:1.65}
+.zora-sf .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-600);margin-bottom:22px;text-transform:uppercase}
+.zora-sf h1{font-family:var(--zp-font-display);font-weight:400;font-size:clamp(42px,8vw,72px);line-height:.95;letter-spacing:0;max-width:14ch;text-transform:uppercase}
+.zora-sf h1 em{font-style:normal;color:inherit}
+.zora-sf .lede{font-size:clamp(16px,2vw,19px);color:var(--zp-color-ink-700);max-width:52ch;margin-top:26px;line-height:1.5}
 
 .zora-sf section{padding:70px 0}
 .zora-sf .sec-h{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut);margin-bottom:30px}
 .zora-sf .empty{color:var(--mut);font-family:var(--mono);font-size:13px;letter-spacing:.04em}
-.zora-sf .event{background:var(--card);border:1px solid var(--hair);border-radius:16px;overflow:hidden;margin-bottom:22px;transition:border-color .3s,box-shadow .3s}
-.zora-sf .event:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--hair));box-shadow:0 14px 40px -22px color-mix(in srgb,var(--accent) 55%,transparent)}
+.zora-sf .event-grid{display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:680px){.zora-sf .event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1040px){.zora-sf .event-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}}
+.zora-sf .event{background:var(--zp-color-white);border:1px solid var(--hair);border-radius:var(--zp-radius-lg);overflow:hidden;display:flex;flex-direction:column;min-height:100%;transition:border-color .24s var(--zp-motion-easing-standard),transform .24s var(--zp-motion-easing-standard)}
+.zora-sf .event:hover{border-color:var(--zp-border-strong);transform:translateY(-2px)}
 .zora-sf .event:hover .poster.cover .poster-img{transform:scale(1.035)}
-.zora-sf .event-top{padding:30px 32px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start}
-@media(max-width:680px){.zora-sf .event-top{grid-template-columns:1fr}}
-.zora-sf .event .name{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.5vw,34px);letter-spacing:-.01em;line-height:1.05}
-.zora-sf .event .meta{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--mut);margin-top:12px;line-height:1.9}
+.zora-sf .event-cover{position:relative;display:block}
+.zora-sf .status-chip{position:absolute;left:20px;top:20px;z-index:5;display:inline-flex;align-items:center;min-height:30px;padding:0 12px;border-radius:var(--zp-radius-pill);border:2px solid var(--zp-color-board-black);background:var(--zp-color-signal-yellow);color:var(--zp-color-board-black);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.12em}
+.zora-sf .event-top{padding:20px;display:grid;grid-template-columns:1fr;gap:18px;align-items:start;flex:1}
+.zora-sf .event .name{font-family:var(--zp-font-sans);font-weight:800;font-size:clamp(21px,2.2vw,26px);letter-spacing:-.02em;line-height:1.05;margin-top:8px}
+.zora-sf .event .meta{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--mut);margin-top:10px;line-height:1.65}
+.zora-sf .event .meta.date{margin-top:0;color:var(--zp-color-board-black)}
 .zora-sf .event .meta b{color:var(--ink);font-weight:500}
-.zora-sf .event .right{text-align:right}
-@media(max-width:680px){.zora-sf .event .right{text-align:left}}
+.zora-sf .event .right{text-align:left;margin-top:auto}
 .zora-sf .event .from{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.06em}
-.zora-sf .event .price{font-family:var(--display);font-weight:600;font-size:30px;margin-top:4px}
-.zora-sf .countdown{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--accent);margin-top:14px}
-.zora-sf .event-bar{border-top:1px solid var(--hair);padding:18px 32px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.zora-sf .event .price{font-family:var(--mono);font-weight:600;font-size:20px;margin-top:4px}
+.zora-sf .event .price span{font-size:13px}.zora-sf .event .price small{font-size:12px;color:var(--mut)}
+.zora-sf .countdown{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--zp-color-ink-700);margin-top:14px}
+.zora-sf .event-bar{border-top:1px solid var(--hair);padding:16px 20px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .zora-sf .details{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut);transition:color .2s}
 .zora-sf .details:hover{color:var(--ink)}
-.zora-sf .get{font-family:var(--mono);font-size:12px;letter-spacing:.12em;background-color:var(--accent);color:#fff;border:none;padding:14px 30px;border-radius:99px;cursor:pointer;transition:background .2s}
-.zora-sf .get:hover{background-color:var(--accent-deep)}
+.zora-sf .get{font-family:var(--zp-font-display);font-size:12px;letter-spacing:0;background-color:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;min-height:44px;padding:0 18px;border-radius:var(--zp-radius-lg);cursor:pointer;transition:background .2s,transform .2s}
+.zora-sf .get:hover{background-color:var(--zp-color-ink-800);transform:translateY(-1px)}
 
 .zora-sf .about{background:var(--card);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
 .zora-sf .about .wrap{padding:64px 24px}

@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "ZORA",
+    "name": "ZoraPass",
     "slug": "zora",
     "scheme": "zora",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0A0B",
+    "backgroundColor": "#111111",
     "splash": {
-      "backgroundColor": "#0A0A0B",
+      "backgroundColor": "#111111",
       "resizeMode": "contain"
     },
     "assetBundlePatterns": [
@@ -18,13 +18,13 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "ZORA uses your contacts so you can invite friends to split a table."
+          "contactsPermission": "ZoraPass uses your contacts so you can invite friends to split a table."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "ZORA uses the camera to scan tickets at the gate."
+          "cameraPermission": "ZoraPass uses the camera to scan passes at the gate."
         }
       ],
       "expo-font",

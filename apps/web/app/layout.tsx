@@ -6,14 +6,16 @@ import type { Metadata } from 'next';
 // from public/ for the not-yet-converted *.html pages; importing it here does
 // not change that.
 import '../public/zora-tokens.css';
+import '../public/brand/design-tokens/fonts.css';
+import '../public/brand/design-tokens/zorapass.css';
 import { ThemeProvider } from './components/theme-provider';
 
-// Favicon: replicates zora-theme.js, which stripped page <link rel="icon"> tags
-// and injected the real ZORA icon site-wide. Next emits the equivalent
-// <link rel="icon" type="image/png" href="/assets/zora-icon.png"> for React routes.
+// Favicon/title: ZoraPass is the current product brand system. The legacy ZORA
+// token sheet still loads for older surfaces, while the ZoraPass tokens above
+// are the source of truth for newly converted product UI.
 export const metadata: Metadata = {
-  title: 'ZORA',
-  icons: { icon: { url: '/assets/zora-icon.png', type: 'image/png' } },
+  title: 'ZoraPass',
+  icons: { icon: { url: '/brand/logo/svg/zorapass-favicon.svg', type: 'image/svg+xml' } },
 };
 
 // No-flash theme boot — runs at <head> parse, before first paint, mirroring the

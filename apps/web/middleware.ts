@@ -68,13 +68,11 @@ export async function middleware(req: NextRequest) {
     url.pathname = `/storefront/${tenant}`;
     return NextResponse.rewrite(url);
   }
-  // BS24: the apex landing is a deliberate PLACEHOLDER while the marketplace home is
-  // still being built (was → /discover). Discovery stays reachable directly at
-  // /discover, so restoring it as home is a one-line revert here. Rewrite keeps the
-  // URL clean; runs before next.config's '/' handling; tenant '/' is handled above.
+  // ZoraPass product direction: the apex is the discovery surface, not a
+  // placeholder. Keep the URL clean while serving the marketplace home.
   if (!tenant && pathname === '/') {
     const url = req.nextUrl.clone();
-    url.pathname = '/placeholder';
+    url.pathname = '/discover';
     return NextResponse.rewrite(url);
   }
   const storefrontRoot = pathname.match(/^\/@([^/]+)$/);

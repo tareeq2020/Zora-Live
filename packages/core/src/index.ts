@@ -114,6 +114,13 @@ export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
+export {
+  normalizeSeatMapAvailability, normalizeSeatMapZoneKind, normalizeSeatMapPlan, zoneCapacity,
+} from './seatmap';
+export type {
+  SeatMapAvailability, SeatMapHold, SeatMapPlan, SeatMapPoint, SeatMapSeat,
+  SeatMapSelection, SeatMapSpace, SeatMapStage, SeatMapTable, SeatMapZone, SeatMapZoneKind,
+} from './seatmap';
 // BS42 (#1): the door. The two-step scan lifecycle rides the EXISTING
 // credential.state (OV4); the agent scan is the gate and the supervisor confirm
 // is selective (OV6). Row-locked, so a replayed QR can never win twice.
