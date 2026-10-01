@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const DEFAULT_API_URL = 'http://localhost:4101';
 const SESSION_COOKIE_KEY = 'zora.mobile.sessionCookie';
+const CONSUMER_COOKIE_KEY = 'zora.mobile.consumerCookie';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 
@@ -18,17 +19,21 @@ export class ApiError extends Error {
 type ApiOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
   timeoutMs?: number;
-  auth?: boolean;
+  auth?: boolean | 'organizer' | 'consumer';
 };
 
 export const getSessionCookie = () => SecureStore.getItemAsync(SESSION_COOKIE_KEY);
 export const saveSessionCookie = (cookie: string) => SecureStore.setItemAsync(SESSION_COOKIE_KEY, cookie);
 export const clearSessionCookie = () => SecureStore.deleteItemAsync(SESSION_COOKIE_KEY);
+export const getConsumerCookie = () => SecureStore.getItemAsync(CONSUMER_COOKIE_KEY);
+export const saveConsumerCookie = (cookie: string) => SecureStore.setItemAsync(CONSUMER_COOKIE_KEY, cookie);
+export const clearConsumerCookie = () => SecureStore.deleteItemAsync(CONSUMER_COOKIE_KEY);
+export const clearApiCookies = () => Promise.all([clearSessionCookie(), clearConsumerCookie()]);
 
-function extractSessionCookie(headers: Headers): string | null {
+function extractCookie(headers: Headers, name: string): string | null {
   const raw = headers.get('set-cookie');
   if (!raw) return null;
-  const match = raw.match(/zora_session=[^;,]+/);
+  const match = raw.match(new RegExp(`${name}=[^;,]+`));
   return match ? match[0] : null;
 }
 
@@ -42,7 +47,7 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   }
 
   if (options.auth !== false && !headers.has('Cookie')) {
-    const cookie = await getSessionCookie();
+    const cookie = options.auth === 'consumer' ? await getConsumerCookie() : await getSessionCookie();
     if (cookie) headers.set('Cookie', cookie);
   }
 
@@ -55,8 +60,10 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
       credentials: 'include',
     });
 
-    const sessionCookie = extractSessionCookie(res.headers);
+    const sessionCookie = extractCookie(res.headers, 'zora_session');
+    const consumerCookie = extractCookie(res.headers, 'zora_buyer');
     if (sessionCookie) await saveSessionCookie(sessionCookie);
+    if (consumerCookie) await saveConsumerCookie(consumerCookie);
 
     if (!res.ok) {
       let message = `API responded ${res.status}`;

@@ -7,7 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 import ZoraLogo from '../../components/ZoraLogo';
 import { useZ } from '../../theme';
 
-interface Pass { n: string; d: string; tier: string; seat: string; holder: string; code: string }
+interface Pass { n: string; d: string; tier: string; seat: string; holder: string; code: string; qr?: string }
 
 function Field({ k, v }: { k: string; v: string }) {
   const z = useZ();
@@ -25,7 +25,7 @@ export default function TicketDetailScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const t: Pass = route.params?.pass ?? { n: 'OFFSHORE', d: 'Sat 25 Jul · 14:00', tier: 'Cabana', seat: 'Table T3', holder: 'Tareeq', code: 'Z001-0417' };
-  const qrValue = `zora://t/${t.code}`;
+  const qrValue = t.qr || `zora://t/${t.code}`;
 
   return (
     <View style={{ flex: 1, backgroundColor: z.bg }}>

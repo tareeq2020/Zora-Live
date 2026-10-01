@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '../../session/store';
 import { verifyTicket, clearAgentToken } from '../../lib/agent';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { z } from '../../theme';
 
 type Result = { ok: boolean; title: string; sub: string } | null;
@@ -42,10 +43,12 @@ export default function ScannerScreen() {
     busy.current = true;
     try {
       const r = await verifyTicket(data); // verified against the Gate with the scoped agent token
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: r.ok ? 'valid' : r.result });
       if (r.ok) { setHead((h) => h + 1); flash({ ok: true, title: 'Valid', sub: shorten(r.ticket) }, true); }
       else flash({ ok: false, title: 'Already in', sub: shorten(r.ticket) + ' · scanned earlier' }, false);
     } catch (e: any) {
       if (e?.message === 'session_ended') { await clearAgentToken(); signOut(); return; } // token expired/revoked → back to code entry
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: 'network_error' });
       flash({ ok: false, title: 'Not valid', sub: 'Verification failed' }, false);
     }
   };

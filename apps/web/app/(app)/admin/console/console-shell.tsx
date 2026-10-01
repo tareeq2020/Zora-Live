@@ -50,11 +50,7 @@ export function AdminConsoleShell({ title, breadcrumb, children }: AdminConsoleS
     <CrShell
       nav={NAV}
       brand={{
-        name: (
-          <>
-            z<span className="cr-o">o</span>ra
-          </>
-        ),
+        name: 'ZoraPass',
         sublabel: 'Super-Admin',
       }}
       topbarTitle={title}

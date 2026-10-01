@@ -11,6 +11,7 @@ import ZoraButton from '../components/ZoraButton';
 import ThemeToggle from '../components/ThemeToggle';
 import { signInEmail, signUpEmail, signInGoogle, signInOrganizer } from '../lib/auth';
 import { supabaseReady } from '../lib/supabase';
+import { trackProductEvent } from '../lib/productAnalytics';
 import { useZ } from '../theme';
 
 const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
@@ -53,7 +54,9 @@ export default function RolePickerScreen() {
       setBusy(true);
       try {
         await signInOrganizer(email, pw);
+        trackProductEvent('mobile_organizer_login_succeeded', { role: 'organizer' });
       } catch (e: any) {
+        trackProductEvent('mobile_organizer_login_failed', { role: 'organizer', errorType: 'auth_failed' });
         setErr(e?.message ?? 'Could not sign in. Check your organizer credentials.');
       } finally {
         setBusy(false);

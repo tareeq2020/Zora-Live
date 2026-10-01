@@ -1,12 +1,13 @@
 // Booking flow with the interactive seat map — now event-aware. Reads the event
 // id from route params and loads that event's own floor plan, name and currency.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import SeatMap from '../../seatmap/SeatMap';
 import type { FloorPlan, Seat, SeatStatus } from '../../seatmap/types';
 import { getBooking } from '../../data/floorPlans';
+import { getMobileBooking, type MobileBooking } from '../../api/booking';
 import { useRealtime } from '../../realtime/useRealtime';
 import { useZ } from '../../theme';
 
@@ -26,11 +27,32 @@ export default function TableBookingScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
   const route = useRoute<any>();
-  const booking = getBooking(route.params?.eventId);
+  const eventId = route.params?.eventId as string | undefined;
+  const fallback = getBooking(eventId);
+  const [booking, setBooking] = useState<MobileBooking>({ ...fallback, tiers: [] });
   const money = (minor: number) => `${booking.currency} ${Math.round(minor / 100).toLocaleString()}`;
 
   const [plan, setPlan] = useState<FloorPlan>(booking.plan);
   const [selected, setSelected] = useState<Seat | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setSelected(null);
+    setBooking({ ...fallback, tiers: [] });
+    setPlan(fallback.plan);
+    getMobileBooking(eventId)
+      .then((next) => {
+        if (!alive) return;
+        setBooking(next);
+        setPlan(next.plan);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setBooking({ ...fallback, tiers: [] });
+        setPlan(fallback.plan);
+      });
+    return () => { alive = false; };
+  }, [eventId, fallback]);
 
   // Live availability for this specific event.
   useRealtime(`wss://gate.zora.app/events/${booking.id}/seats`, (m: { id: string; status: SeatStatus }) =>
@@ -77,8 +99,10 @@ export default function TableBookingScreen() {
           <Pressable
             onPress={() => nav.navigate('Checkout', {
               table: { id: selected.id, label: selected.label, price: selected.price, capacity: selected.capacity },
+              eventId: booking.id,
               eventName: booking.name,
               currency: booking.currency,
+              tierId: selected.sectionId,
             })}
             style={{ backgroundColor: z.ultra, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}
           >

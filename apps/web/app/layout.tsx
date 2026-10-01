@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import type { Metadata } from 'next';
 // Global design tokens — the same stylesheet the static pages load via
 // <link href="/zora-tokens.css">, now bundled into the React tree so every
@@ -9,6 +9,7 @@ import '../public/zora-tokens.css';
 import '../public/brand/design-tokens/fonts.css';
 import '../public/brand/design-tokens/zorapass.css';
 import { ThemeProvider } from './components/theme-provider';
+import ProductAnalytics from './components/product-analytics';
 
 // Favicon/title: ZoraPass is the current product brand system. The legacy ZORA
 // token sheet still loads for older surfaces, while the ZoraPass tokens above
@@ -40,7 +41,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_CR_THEME }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <ProductAnalytics />
+          </Suspense>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

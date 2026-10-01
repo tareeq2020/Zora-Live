@@ -28,6 +28,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
+import { trackProductEvent } from './product-analytics';
 
 export type CheckoutTier = {
   tierId: string;
@@ -126,6 +127,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   // ── reset every time the sheet opens ──
   useEffect(() => {
     if (!open) return;
+    trackProductEvent('web_checkout_opened', { eventName, count: tiers.length, source: 'checkout_flow' });
     setStep('cart');
     setQty(tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
     setOrder(null);
@@ -232,6 +234,13 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
       if (res.status === 200) {
         const d = (await res.json()) as Order;
         setOrder({ orderId: d.orderId, total: d.total });
+        trackProductEvent('web_checkout_started', {
+          eventName,
+          count: cartLines.reduce((n, l) => n + l.q, 0),
+          amount: d.total,
+          currency,
+          method,
+        });
         setPayerName('');
         setStep('pay');
         return;
@@ -296,6 +305,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
         return;
       }
       const d = await res.json();
+      trackProductEvent('web_payment_started', { eventName, amount: order.total, currency, method });
       setBillPayNumber(d.billPayNumber || null);
       setRedirectUrl(d.redirectUrl || null);
       if (method === 'card' && d.redirectUrl) {

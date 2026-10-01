@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import { supabase } from './supabase';
 import { useSession, type Role } from '../session/store';
-import { apiFetch, clearSessionCookie } from '../api/client';
+import { apiFetch, clearApiCookies } from '../api/client';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -81,7 +81,7 @@ export async function signOutNest() {
   } catch {
     /* local sign-out still clears the app */
   }
-  await clearSessionCookie();
+  await clearApiCookies();
   useSession.getState().signOut();
 }
 

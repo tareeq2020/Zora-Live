@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════
-   ZORA — Control-Room v2 tokens  (Lane A · BS69)
+   ZoraPass — Control-Room v2 tokens  (Lane A · BS69)
    ONE token set for the organizer + admin control-room. Flips on an html
    attribute `data-cr-theme` ("light" default · "dark" alternate). Values are
    verbatim from DESIGN.md → "Control-Room v2 — data-forward dashboards".
@@ -21,19 +21,19 @@
 /* ── LIGHT (default) ── */
 :root,
 :root[data-cr-theme='light'] {
-  --cr-paper: #F4F1EA;
+  --cr-paper: var(--zp-bone, #F6F0E6);
   --cr-card: #FFFFFF;
   --cr-card2: #FBF9F4;
-  --cr-ink: #14161C;
+  --cr-ink: var(--zp-board, #111111);
   --cr-ink2: #5B6270;
   --cr-mut: #8A8778;
   --cr-hair: #E7E2D5;
 
   /* semantic (shared across both themes) */
-  --cr-blue: #3D5AFE;
-  --cr-green: #1D9E75;
+  --cr-blue: var(--zp-signal, #FFD21F);
+  --cr-green: var(--zp-go, #17B368);
   --cr-amber: #C98A12;
-  --cr-red: #D85A30;
+  --cr-red: var(--zp-heat, #FF5A1F);
   --cr-cyan: #0E8FB0;
 
   /* KPI-tile washes — solid pastels on light */
@@ -44,7 +44,7 @@
   --cr-wash-red: #FBE6DC;
 
   /* on-wash ink for the label chip (kept ≥ AA on the pastel) */
-  --cr-on-wash-blue: #2436B8;
+  --cr-on-wash-blue: #111111;
   --cr-on-wash-green: #12664B;
   --cr-on-wash-amber: #7A530A;
   --cr-on-wash-cyan: #0A5E75;
@@ -60,15 +60,15 @@
 
 /* ── DARK (alternate) ── */
 :root[data-cr-theme='dark'] {
-  --cr-paper: #0A0A0B;
+  --cr-paper: var(--zp-board, #111111);
   --cr-card: #141416;
   --cr-card2: #101012;
-  --cr-ink: #F4F1EA;
+  --cr-ink: var(--zp-bone, #F6F0E6);
   --cr-ink2: #B4B1A8;
   --cr-mut: #8A877E;
   --cr-hair: #222226;
 
-  --cr-blue: #5B72FF; /* lifted for contrast on near-black */
+  --cr-blue: var(--zp-signal, #FFD21F);
   --cr-green: #35C495;
   --cr-amber: #E0A63A;
   --cr-red: #E87A54;
@@ -81,7 +81,7 @@
   --cr-wash-cyan: rgba(14, 143, 176, 0.18);
   --cr-wash-red: rgba(216, 90, 48, 0.18);
 
-  --cr-on-wash-blue: #AEBBFF;
+  --cr-on-wash-blue: var(--zp-signal, #FFD21F);
   --cr-on-wash-green: #7FE0C0;
   --cr-on-wash-amber: #ECC981;
   --cr-on-wash-cyan: #8FD9EC;

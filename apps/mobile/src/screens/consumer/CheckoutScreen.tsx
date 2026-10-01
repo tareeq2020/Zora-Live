@@ -1,12 +1,14 @@
 // Checkout / payment overview. Segmented toggle: Pay in full vs Split with crew.
 // The "You pay" summary updates live with the chosen option and crew size.
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import SegmentedControl from '../../components/SegmentedControl';
 import ContactPickerModal, { type PickedContact } from '../../components/ContactPickerModal';
 import ZoraButton from '../../components/ZoraButton';
+import { createCheckout, startCheckoutPayment } from '../../api/checkout';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 interface CrewMember { id: string; name: string; phone: string; host?: boolean }
@@ -20,14 +22,19 @@ export default function CheckoutScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const table = (route.params?.table ?? { id: 'T?', label: 'T?', price: 0, capacity: 6 }) as TableParam;
+  const eventId = (route.params?.eventId as string | undefined) ?? 'unknown';
   const eventName = (route.params?.eventName as string) ?? 'OFFSHORE';
   const currency = (route.params?.currency as string) ?? 'TZS';
+  const tierId = route.params?.tierId as string | undefined;
   const money = (minor: number) => `${currency} ${Math.round(minor / 100).toLocaleString()}`;
 
   const [mode, setMode] = useState<'full' | 'split'>('full');
   const [crew, setCrew] = useState<CrewMember[]>([{ id: 'you', name: 'You', phone: 'host', host: true }]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [done, setDone] = useState<null | 'paid' | 'locked'>(null);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const perPerson = useMemo(() => Math.round(table.price / Math.max(1, crew.length)), [table.price, crew.length]);
   const youPay = mode === 'full' ? table.price : perPerson;
@@ -40,11 +47,28 @@ export default function CheckoutScreen() {
   };
   const remove = (id: string) => setCrew((c) => c.filter((m) => m.host || m.id !== id));
 
-  const payInFull = () =>
-    Alert.alert('Pay in full', `Charge ${money(table.price)} to M-Pesa •••• 4471?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Pay', onPress: () => setDone('paid') },
-    ]);
+  const payInFull = async () => {
+    if (!tierId) {
+      Alert.alert('Ticket tier missing', 'This table is not linked to a sellable ticket tier yet.');
+      return;
+    }
+    if (!phone.trim() || !email.trim()) {
+      Alert.alert('Add your details', 'Enter your phone and email to send the payment request.');
+      return;
+    }
+    setBusy(true);
+    try {
+      trackProductEvent('mobile_attendee_checkout_started', { role: 'consumer', eventId, eventName, method: 'mobile', amount: table.price, currency, count: 1 });
+      const order = await createCheckout({ phone: phone.trim(), email: email.trim(), tierId, quantity: 1 });
+      trackProductEvent('mobile_attendee_payment_started', { role: 'consumer', eventId, eventName, method: 'mobile', amount: order.total, currency, count: 1 });
+      await startCheckoutPayment(order.orderId, { method: 'mobile', phone: phone.trim() });
+      setDone('paid');
+    } catch (e: any) {
+      Alert.alert('Payment could not start', e?.message ?? 'Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const lockAndSend = () => {
     if (crew.length < 2) { Alert.alert('Add your crew', 'Invite at least one friend to split the table.'); return; }
@@ -108,6 +132,29 @@ export default function CheckoutScreen() {
           </Text>
         </View>
 
+        {mode === 'full' && (
+          <View>
+            <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 22, marginBottom: 10 }}>PAYMENT DETAILS</Text>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+255 712 345 678"
+              placeholderTextColor={z.mut2}
+              keyboardType="phone-pad"
+              style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14, marginBottom: 10 }}
+            />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@email.com"
+              placeholderTextColor={z.mut2}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14 }}
+            />
+          </View>
+        )}
+
         {mode === 'split' && (
           <View>
             <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 22, marginBottom: 6 }}>
@@ -140,6 +187,7 @@ export default function CheckoutScreen() {
         <ZoraButton
           variant="gradient"
           onPress={mode === 'full' ? payInFull : lockAndSend}
+          disabled={busy}
           label={mode === 'full' ? `Pay ${money(table.price)}` : 'Lock table & send payment links'}
         />
       </View>

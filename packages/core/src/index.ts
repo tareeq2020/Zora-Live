@@ -80,6 +80,8 @@ export type {
   AnalyticsRange, AnalyticsOrder, AnalyticsInput, AnalyticsResult,
   AnalyticsKpis, RevenuePoint,
 } from './analytics';
+export { sanitizeProductAnalyticsProperties } from './product-analytics';
+export type { ProductAnalyticsEvent, ProductAnalyticsProperties } from './product-analytics';
 // BS70 (dashboard #6): the suspended-organizer cascade — a cached suspended-handle
 // set filtered on every public event read, refreshed synchronously on a status flip.
 export {

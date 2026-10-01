@@ -9,6 +9,7 @@
     "ios": "expo start --ios"
   },
   "dependencies": {
+    "@babel/runtime": "^7.29.7",
     "@expo-google-fonts/anton": "^0.4.2",
     "@expo-google-fonts/michroma": "^0.4.2",
     "@expo-google-fonts/space-mono": "^0.4.2",

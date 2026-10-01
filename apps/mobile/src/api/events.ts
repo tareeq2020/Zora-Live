@@ -25,6 +25,17 @@ export interface RemoteEvent {
   status: string;
   cover: string | null;
   props: EventProps;
+  webCheckout?: {
+    tiers?: {
+      tierId?: string;
+      name?: string;
+      unitPrice?: number;
+      price?: number;
+      currency?: string;
+      seats?: number;
+      disabled?: boolean;
+    }[];
+  };
 }
 
 function normalizeEvent(e: any): RemoteEvent {
@@ -50,6 +61,7 @@ function normalizeEvent(e: any): RemoteEvent {
     status: String(e?.status ?? 'published'),
     cover: e?.cover ?? e?.theme?.posterColor ?? null,
     props,
+    webCheckout: e?.webCheckout,
   };
 };
 
