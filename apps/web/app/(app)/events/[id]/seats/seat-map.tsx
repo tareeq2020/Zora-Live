@@ -176,7 +176,7 @@ const BODY = `
       <div class="totrow"><span class="tl">Total</span><span class="tv" id="rev-total">0 TZS</span></div>
       <div id="split-block" style="display:none;margin-top:16px;border-top:1px solid var(--hair);padding-top:16px">
         <div style="display:flex;align-items:center;gap:12px">
-          <span style="flex:1;font-size:14px">Split the bill with friends?<br><span style="font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.03em">Everyone pays their own share. Your table is held until all pay.</span></span>
+          <span style="flex:1;font-size:14px">Split the bill with friends?<br><span style="font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.03em">Preview only for now. Exact table holds and split links are the next seat-map phase.</span></span>
           <span class="split-switch" id="split-switch"></span>
         </div>
         <div id="split-panel" style="display:none;margin-top:16px">
@@ -200,7 +200,7 @@ const BODY = `
         <label>EMAIL FOR RECEIPT<input id="buyer-email" inputmode="email" autocomplete="email" placeholder="you@email.com"></label>
         <label class="age-row"><input id="buyer-age" type="checkbox"> I confirm I am 18 or older and can purchase this pass.</label>
       </div>
-      <button class="pay" id="rev-pay">LOCK SEATS &amp; CHECKOUT</button>
+      <button class="pay" id="rev-pay">START CHECKOUT</button>
     </div>
   </div>
 </div>
@@ -208,9 +208,9 @@ const BODY = `
   <div class="card">
     <div class="done">
       <div class="tick">&checkmark;</div>
-      <h3>Seats locked.</h3>
+      <h3>Checkout started.</h3>
       <p id="done-list"></p>
-      <p>Your passes are <b>waiting in the Zora app</b>.<br>Nobody else can take these seats now.</p>
+      <p>The payment request has started.<br>Your confirmed passes will appear after payment completes.</p>
       <button class="pay" id="done-close" style="max-width:260px;margin:22px auto 0">DONE</button>
     </div>
   </div>
@@ -284,9 +284,9 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   let holdT: any = null, holdLeft = 0;
   function startHold() { if (holdT) return; holdLeft = 8 * 60; tickHold(); holdT = setInterval(tickHold, 1000); }
   function tickHold() {
-    if (holdLeft <= 0) { stopHold(); cart.seats = []; cart.ga = {}; cart.tables = []; updateCartBar(); redraw(); toast('Hold expired — selection released'); return; }
+    if (holdLeft <= 0) { stopHold(); cart.seats = []; cart.ga = {}; cart.tables = []; updateCartBar(); redraw(); toast('Checkout window expired — selection cleared'); return; }
     const m = Math.floor(holdLeft / 60), s = holdLeft % 60;
-    $('hold').textContent = '· held ' + m + ':' + String(s).padStart(2, '0');
+    $('hold').textContent = '· checkout ' + m + ':' + String(s).padStart(2, '0');
     holdLeft--;
   }
   function stopHold() { if (holdT) { clearInterval(holdT); holdT = null; } $('hold').textContent = ''; }
@@ -452,7 +452,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
     } else {
       if (cartCount() >= 8) { toast('Up to 8 items per order'); return; }
       t.state = 'selected'; cart.tables.push({ id, label: z.name + ' · Table ' + t.num, zone: z.id, tierId: z.tierId, tierName: z.tierName || z.name, price: z.price, seats: z.perTable });
-      toast('Table ' + t.num + ' held — seats ' + z.perTable);
+      toast('Table ' + t.num + ' selected — seats ' + z.perTable);
     }
     track('web_seatmap_selection_changed', { count: cartCount(), tierId: z.tierId || 'unmapped', tierName: z.tierName || z.name });
     renderTables(z); updateCartBar();
@@ -515,7 +515,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
     $('split-share').textContent = money(splitShare());
     $('rev-pay').textContent = (splitOn && cart.tables.length)
       ? 'PAY MY SHARE · ' + money(splitShare())
-      : 'LOCK & PAY · ' + money(cartTotal());
+      : 'START PAYMENT · ' + money(cartTotal());
   }
   $('split-switch').onclick = () => { splitOn = !splitOn; $('split-switch').classList.toggle('on', splitOn); $('split-panel').style.display = splitOn ? 'block' : 'none'; updateSplitUI(); };
   $('split-minus').onclick = () => { if (splitPeople > 2) { splitPeople--; updateSplitUI(); } };
@@ -546,7 +546,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
 
     const btn = $('rev-pay');
     btn.disabled = true;
-    btn.textContent = 'LOCKING...';
+    btn.textContent = 'STARTING...';
     try {
       const checkout = await fetch('/api/checkout', {
         method: 'POST',
@@ -568,7 +568,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
       const noun = cart.tables.length ? 'item' : 'ticket';
       if (splitOn && cart.tables.length) {
         const share = splitShare(), friends = splitPeople - 1;
-        $('done-list').innerHTML = '<b>' + money(share) + '</b> started — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' invited · table held while payment completes';
+        $('done-list').innerHTML = '<b>' + money(share) + '</b> started — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' previewed · split payment links are next';
       } else {
         $('done-list').innerHTML = '<b>' + cartCount() + ' ' + noun + (cartCount() > 1 ? 's' : '') + '</b> · ' + money(order.total || cartTotal()) + '<br>' + parts.slice(0, 6).join(' &middot; ') + '<br>Payment request sent to your phone.';
       }

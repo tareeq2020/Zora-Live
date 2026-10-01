@@ -5,10 +5,9 @@ import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import SeatMap from '../../seatmap/SeatMap';
-import type { FloorPlan, Seat, SeatStatus } from '../../seatmap/types';
+import type { FloorPlan, Seat } from '../../seatmap/types';
 import { getBooking } from '../../data/floorPlans';
 import { getMobileBooking, type MobileBooking } from '../../api/booking';
-import { useRealtime } from '../../realtime/useRealtime';
 import { useZ } from '../../theme';
 
 function Legend({ color, label }: { color: string; label: string }) {
@@ -53,11 +52,6 @@ export default function TableBookingScreen() {
       });
     return () => { alive = false; };
   }, [eventId, fallback]);
-
-  // Live availability for this specific event.
-  useRealtime(`wss://gate.zora.app/events/${booking.id}/seats`, (m: { id: string; status: SeatStatus }) =>
-    setPlan((p) => ({ ...p, seats: p.seats.map((s) => (s.id === m.id ? { ...s, status: m.status } : s)) })),
-  );
 
   const onSelect = (seat: Seat) => {
     if (seat.status !== 'available') return;
