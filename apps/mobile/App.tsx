@@ -10,7 +10,7 @@ import { Michroma_400Regular } from '@expo-google-fonts/michroma';
 import SplashGate from './src/components/SplashGate';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useThemeStore, useZ } from './src/theme';
-import { bindAuth } from './src/lib/auth';
+import { bindAuth, hydrateNestSession } from './src/lib/auth';
 import { supabaseReady } from './src/lib/supabase';
 
 export default function App() {
@@ -32,6 +32,10 @@ export default function App() {
     if (!supabaseReady) return;
     const sub = bindAuth();
     return () => sub.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    hydrateNestSession();
   }, []);
 
   return (

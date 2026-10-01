@@ -8,6 +8,7 @@ import ConsumerTabs from './ConsumerTabs';
 import OrganizerTabs from './OrganizerTabs';
 import AuthNavigator from './AuthNavigator';
 import ScannerScreen from '../screens/staff/ScannerScreen';
+import { trackProductEvent } from '../lib/productAnalytics';
 
 const Root = createNativeStackNavigator();
 
@@ -26,7 +27,13 @@ export default function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      theme={navTheme}
+      onStateChange={(state) => {
+        const route = state?.routes[state.index || 0];
+        if (route?.name) trackProductEvent('mobile_screen_viewed', { screen: route.name, role: role || 'anonymous' });
+      }}
+    >
       <Root.Navigator screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: z.bg } }}>
         {role == null ? (
           <Root.Screen name="Auth" component={AuthNavigator} />

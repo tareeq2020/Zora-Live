@@ -8,6 +8,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '../../session/store';
 import { verifyTicket, clearAgentToken } from '../../lib/agent';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { z } from '../../theme';
 
 type Result = { ok: boolean; title: string; sub: string } | null;
@@ -17,6 +18,8 @@ const SIM_SEQ = ['valid', 'valid', 'used', 'invalid'] as const;
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets();
   const signOut = useSession((s) => s.signOut);
+  const scannerName = useSession((s) => s.scannerName);
+  const scannerEventScope = useSession((s) => s.scannerEventScope);
   const [permission, requestPermission] = useCameraPermissions();
 
   const [result, setResult] = useState<Result>(null);
@@ -40,10 +43,12 @@ export default function ScannerScreen() {
     busy.current = true;
     try {
       const r = await verifyTicket(data); // verified against the Gate with the scoped agent token
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: r.ok ? 'valid' : r.result });
       if (r.ok) { setHead((h) => h + 1); flash({ ok: true, title: 'Valid', sub: shorten(r.ticket) }, true); }
       else flash({ ok: false, title: 'Already in', sub: shorten(r.ticket) + ' · scanned earlier' }, false);
     } catch (e: any) {
       if (e?.message === 'session_ended') { await clearAgentToken(); signOut(); return; } // token expired/revoked → back to code entry
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: 'network_error' });
       flash({ ok: false, title: 'Not valid', sub: 'Verification failed' }, false);
     }
   };
@@ -63,8 +68,8 @@ export default function ScannerScreen() {
     <View style={{ flex: 1, backgroundColor: z.bg, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <View>
-          <Text style={{ color: z.orangeSoft, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>GATE AGENT</Text>
-          <Text style={{ color: z.mut, fontSize: 12, marginTop: 4 }}>GATE A · OFFSHORE</Text>
+          <Text style={{ color: z.orangeSoft, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{scannerName || 'GATE AGENT'}</Text>
+          <Text style={{ color: z.mut, fontSize: 12, marginTop: 4 }}>{scannerEventScope ? `EVENT · ${scannerEventScope}` : 'EVENT SCANNER'}</Text>
         </View>
         <View style={{ backgroundColor: 'rgba(255,90,31,0.18)', borderRadius: 100, paddingHorizontal: 11, paddingVertical: 6 }}>
           <Text style={{ color: z.orangeSoft, fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>LOCKED VIEW</Text>

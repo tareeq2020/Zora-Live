@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Module, Param, Put } from '@nestjs/common';
+import { normalizeSeatMapPlan } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 
 // Vendored events data-access — reused here for canonical slug resolution so
@@ -7,17 +8,14 @@ import { EntityStore } from '../storage/entity-store';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const eventsApi = require('../vendor/events');
 
-const EMPTY_PLAN = { space: { w: 1600, h: 900 }, stage: null, zones: [] as any[], updatedAt: null as string | null };
+const EMPTY_PLAN = normalizeSeatMapPlan({ space: { w: 1600, h: 900 }, stage: null, zones: [], updatedAt: null });
 
-function normalizePlan(body: any) {
-  const b = body || {};
-  const zones = Array.isArray(b.zones) ? b.zones.slice(0, 300) : [];
-  return {
-    space: b.space && b.space.w ? b.space : { w: 1600, h: 900 },
-    stage: b.stage || null,
-    zones,
+function normalizePlan(body: any, eventId?: string) {
+  return normalizeSeatMapPlan({
+    ...body,
+    zones: Array.isArray(body?.zones) ? body.zones.slice(0, 300) : [],
     updatedAt: new Date().toISOString(),
-  };
+  }, eventId);
 }
 
 @Controller()
@@ -62,7 +60,7 @@ export class EventFloorplanController {
   // the global builder endpoint above.
   @Put('events/:id/floorplan')
   async put(@Param('id') id: string, @Body() body: any) {
-    const plan = normalizePlan(body);
+    const plan = normalizePlan(body, eventsApi.resolveSlug(id));
     await this.entities.write(this.key(id), plan);
     return { ok: true, zones: plan.zones.length, updatedAt: plan.updatedAt };
   }

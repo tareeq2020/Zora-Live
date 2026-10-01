@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
+import { trackProductEvent } from '../../../components/product-analytics';
 
 /* The single-event ticket CTA. Two fulfillment paths, chosen by the event data —
    the SAME split the storefront sheet uses (storefront-client.tsx):
@@ -34,6 +35,7 @@ export function GetTicketButton({
         type="button"
         onClick={() => {
           if (webSellable) {
+            trackProductEvent('web_event_cta_clicked', { eventName, source: 'event_page' });
             setOpen(true);
           } else {
             setToast(true);

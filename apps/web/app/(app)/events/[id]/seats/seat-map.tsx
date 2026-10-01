@@ -95,6 +95,12 @@ const STYLE = `
 #smroot .totrow .tv{font-family:var(--mono);font-size:24px;font-weight:500}
 #smroot .nofee{font-family:var(--mono);font-size:10.5px;color:var(--mut);text-align:center;margin:12px 0 0;letter-spacing:.04em}
 #smroot .nofee b{color:var(--bone);font-weight:500}
+#smroot .buyer-fields{display:grid;gap:10px;margin-top:16px;border-top:1px solid var(--hair);padding-top:16px}
+#smroot .buyer-fields label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--mut)}
+#smroot .buyer-fields input{width:100%;margin-top:6px;background:var(--black);border:1px solid var(--hair2);border-radius:10px;color:var(--bone);font:14px var(--sans);padding:12px;outline:none}
+#smroot .buyer-fields input:focus{border-color:var(--blue)}
+#smroot .age-row{display:flex;align-items:flex-start;gap:10px;color:var(--mut);font-family:var(--mono);font-size:10.5px;line-height:1.5}
+#smroot .age-row input{width:auto;margin:2px 0 0}
 #smroot .split-switch{width:44px;height:26px;border-radius:99px;background:var(--hair);position:relative;flex-shrink:0;transition:background .2s;cursor:pointer}
 #smroot .split-switch.on{background:var(--blue)}
 #smroot .split-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
@@ -189,6 +195,11 @@ const BODY = `
           <p style="font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.03em;margin-top:10px;line-height:1.7">Invites go out by WhatsApp / SMS. Each friend pays their share in the app; the table locks the moment everyone has paid.</p>
         </div>
       </div>
+      <div class="buyer-fields">
+        <label>PHONE FOR PAYMENT<input id="buyer-phone" inputmode="tel" autocomplete="tel" placeholder="+255 7XX XXX XXX"></label>
+        <label>EMAIL FOR RECEIPT<input id="buyer-email" inputmode="email" autocomplete="email" placeholder="you@email.com"></label>
+        <label class="age-row"><input id="buyer-age" type="checkbox"> I confirm I am 18 or older and can purchase this pass.</label>
+      </div>
       <button class="pay" id="rev-pay">LOCK SEATS &amp; CHECKOUT</button>
     </div>
   </div>
@@ -211,6 +222,9 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   const $ = (id: string) => host.querySelector('#' + id) as any;
   const fmt = (n: number) => n.toLocaleString('en-US');
   const money = (n: number) => fmt(n) + ' TZS';
+  const track = (event: string, properties: Record<string, unknown> = {}) => {
+    try { window.zoraTrack?.(event as any, { eventId, source: 'seatmap', ...properties } as any); } catch { /* analytics must not block checkout */ }
+  };
   function toast(m: string) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
 
   const STAGE: any = { x: 360, y: 34, w: 280, h: 46 };
@@ -222,6 +236,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
     { id: 'b', name: 'Grandstand B', type: 'seated', x: 670, y: 104, w: 210, h: 384, color: '#3D5AFE', price: 90000, rows: 16, perRow: 12 },
     { id: 'lawn', name: 'Lawn GA', type: 'ga', x: 120, y: 506, w: 760, h: 120, color: '#639922', price: 55000, cap: 5000, sold: 2240 },
   ];
+  let EVENT_TIERS: any[] = [];
   const ROWLABEL = (i: number) => String.fromCharCode(65 + i);
   function rng(seed: number) { return () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
   function genSeats(z: any) {
@@ -306,14 +321,25 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   function clear() { while (svg.firstChild) svg.removeChild(svg.firstChild); }
 
   function transformZone(z: any) {
-    const b: any = { id: z.id, name: z.name || 'Zone', type: z.type || 'seated', x: +z.x || 0, y: +z.y || 0, w: +z.w || 100, h: +z.h || 100, color: z.color || '#3D5AFE', price: +z.price || 0 };
+    const b: any = { id: z.id, name: z.name || 'Zone', type: z.type || 'seated', x: +z.x || 0, y: +z.y || 0, w: +z.w || 100, h: +z.h || 100, color: z.color || '#3D5AFE', price: +z.price || 0, tierId: z.tierId || null };
     if (z.type === 'ga') return Object.assign(b, { cap: Math.max(0, +z.cap || 0), sold: 0 });
     if (z.type === 'table') return Object.assign(b, { tables: Math.max(1, +z.tables || 1), perTable: Math.max(1, +z.perTable || 1) });
     return Object.assign(b, { rows: Math.max(1, +z.rows || 1), perRow: Math.max(1, +z.perRow || 1) });
   }
+  function attachTier(z: any) {
+    if (!EVENT_TIERS.length) return z;
+    const direct = z.tierId ? EVENT_TIERS.find((t) => t.tierId === z.tierId) : null;
+    const byName = EVENT_TIERS.find((t) => String(t.name || '').toLowerCase() === String(z.name || '').toLowerCase());
+    const byPrice = EVENT_TIERS.find((t) => Number(t.unitPrice ?? t.price ?? 0) === Number(z.price || 0));
+    const tier = direct || byName || byPrice || EVENT_TIERS[0];
+    z.tierId = tier?.tierId || z.tierId || null;
+    z.tierName = tier?.name || z.name;
+    if (tier?.unitPrice != null) z.price = Number(tier.unitPrice);
+    return z;
+  }
   function loadPlan(plan: any) {
     ZONES.length = 0;
-    (plan.zones || []).forEach((z: any) => ZONES.push(transformZone(z)));
+    (plan.zones || []).forEach((z: any) => ZONES.push(attachTier(transformZone(z))));
     if (!ZONES.length) return false;
     const minx = Math.min(...ZONES.map((z) => z.x)), miny = Math.min(...ZONES.map((z) => z.y));
     const maxx = Math.max(...ZONES.map((z) => z.x + z.w)), maxy = Math.max(...ZONES.map((z) => z.y + z.h));
@@ -411,8 +437,9 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
       s.state = 'avail'; cart.seats = cart.seats.filter((x: any) => x.id !== id);
     } else {
       if (cartCount() >= 8) { toast('Up to 8 tickets per order'); return; }
-      s.state = 'selected'; cart.seats.push({ id, label: z.name + ' · ' + s.label, zone: z.id, price: z.price });
+      s.state = 'selected'; cart.seats.push({ id, label: z.name + ' · ' + s.label, zone: z.id, tierId: z.tierId, tierName: z.tierName || z.name, price: z.price });
     }
+    track('web_seatmap_selection_changed', { count: cartCount(), tierId: z.tierId || 'unmapped', tierName: z.tierName || z.name });
     renderSection(z); updateCartBar();
   }
 
@@ -424,9 +451,10 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
       t.state = 'avail'; cart.tables = cart.tables.filter((x: any) => x.id !== id);
     } else {
       if (cartCount() >= 8) { toast('Up to 8 items per order'); return; }
-      t.state = 'selected'; cart.tables.push({ id, label: z.name + ' · Table ' + t.num, zone: z.id, price: z.price, seats: z.perTable });
+      t.state = 'selected'; cart.tables.push({ id, label: z.name + ' · Table ' + t.num, zone: z.id, tierId: z.tierId, tierName: z.tierName || z.name, price: z.price, seats: z.perTable });
       toast('Table ' + t.num + ' held — seats ' + z.perTable);
     }
+    track('web_seatmap_selection_changed', { count: cartCount(), tierId: z.tierId || 'unmapped', tierName: z.tierName || z.name });
     renderTables(z); updateCartBar();
   }
 
@@ -440,8 +468,9 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   $('ga-minus').onclick = () => { if (gaQty > 1) { gaQty--; $('ga-n').textContent = gaQty; } };
   $('ga-plus').onclick = () => { if (gaQty < 8 && cartCount() - (cart.ga[gaZone.id] ? cart.ga[gaZone.id].qty : 0) + gaQty < 9) { gaQty++; $('ga-n').textContent = gaQty; } };
   $('ga-add').onclick = () => {
-    cart.ga[gaZone.id] = { qty: gaQty, price: gaZone.price, name: gaZone.name };
+    cart.ga[gaZone.id] = { qty: gaQty, price: gaZone.price, name: gaZone.name, tierId: gaZone.tierId, tierName: gaZone.tierName || gaZone.name };
     $('ga-sheet').classList.remove('on'); updateCartBar(); toast(gaQty + ' × ' + gaZone.name + ' added');
+    track('web_seatmap_selection_changed', { count: cartCount(), tierId: gaZone.tierId || 'unmapped', tierName: gaZone.tierName || gaZone.name });
   };
   $('ga-x').onclick = () => $('ga-sheet').classList.remove('on');
 
@@ -492,19 +521,66 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   $('split-minus').onclick = () => { if (splitPeople > 2) { splitPeople--; updateSplitUI(); } };
   $('split-plus').onclick = () => { if (splitPeople < 12) { splitPeople++; updateSplitUI(); } };
 
-  $('rev-pay').onclick = () => {
+  function checkoutLines() {
+    const byTier: Record<string, number> = {};
+    const add = (tierId: string | null | undefined, quantity: number) => {
+      if (!tierId) return;
+      byTier[tierId] = (byTier[tierId] || 0) + quantity;
+    };
+    cart.seats.forEach((s: any) => add(s.tierId, 1));
+    (Object.values(cart.ga) as any[]).forEach((g) => add(g.tierId, g.qty));
+    cart.tables.forEach((t: any) => add(t.tierId, 1));
+    return Object.entries(byTier).map(([tier, quantity]) => ({ tier, quantity }));
+  }
+
+  $('rev-pay').onclick = async () => {
     if (!cartCount()) return;
-    if (splitOn && cart.tables.length) {
-      const share = splitShare(), friends = splitPeople - 1;
-      $('done-list').innerHTML = '<b>' + money(share) + '</b> paid — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' invited · table held until all pay';
-    } else {
+    const phone = String($('buyer-phone').value || '').trim();
+    const email = String($('buyer-email').value || '').trim();
+    const ageAttested = !!$('buyer-age').checked;
+    if (!phone) { toast('Enter the payment phone number'); return; }
+    if (!email) { toast('Enter the receipt email'); return; }
+    if (!ageAttested) { toast('Confirm you are 18 or older'); return; }
+    const lines = checkoutLines();
+    if (!lines.length) { toast('This floor plan is not linked to ticket tiers yet'); return; }
+
+    const btn = $('rev-pay');
+    btn.disabled = true;
+    btn.textContent = 'LOCKING...';
+    try {
+      const checkout = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, email, ageAttested, cart: lines, method: 'mobile', network: 'VODACOM' }),
+      });
+      if (!checkout.ok) {
+        const d = await checkout.json().catch(() => ({}));
+        throw new Error(d.error || 'checkout_failed');
+      }
+      const order = await checkout.json();
+      track('web_seatmap_checkout_started', { count: cartCount(), amount: order.total, currency: 'TZS', method: 'mobile' });
+      await fetch('/api/checkout/' + encodeURIComponent(order.orderId) + '/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: 'mobile', payerPhone: phone, mno: 'VODACOM' }),
+      });
       const parts: string[] = []; cart.seats.forEach((s: any) => parts.push(s.label)); (Object.values(cart.ga) as any[]).forEach((g) => parts.push(g.qty + ' × ' + g.name)); cart.tables.forEach((t: any) => parts.push(t.label));
       const noun = cart.tables.length ? 'item' : 'ticket';
-      $('done-list').innerHTML = '<b>' + cartCount() + ' ' + noun + (cartCount() > 1 ? 's' : '') + '</b> · ' + money(cartTotal()) + '<br>' + parts.slice(0, 6).join(' &middot; ');
+      if (splitOn && cart.tables.length) {
+        const share = splitShare(), friends = splitPeople - 1;
+        $('done-list').innerHTML = '<b>' + money(share) + '</b> started — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' invited · table held while payment completes';
+      } else {
+        $('done-list').innerHTML = '<b>' + cartCount() + ' ' + noun + (cartCount() > 1 ? 's' : '') + '</b> · ' + money(order.total || cartTotal()) + '<br>' + parts.slice(0, 6).join(' &middot; ') + '<br>Payment request sent to your phone.';
+      }
+      $('rev-sheet').classList.remove('on'); $('done-sheet').classList.add('on'); stopHold();
+    } catch (e: any) {
+      toast(e?.message === 'sold_out' ? 'One of these tickets just sold out' : 'Could not start checkout. Try again.');
+    } finally {
+      btn.disabled = false;
+      updateSplitUI();
     }
-    $('rev-sheet').classList.remove('on'); $('done-sheet').classList.add('on'); stopHold();
   };
-  $('done-close').onclick = () => { location.href = '/discover.html'; };
+  $('done-close').onclick = () => { location.href = '/discover'; };
 
   $('back').onclick = () => { if (mode === 'section') renderOverview(); else location.href = '/events/' + encodeURIComponent(eventId); };
   $('zback').onclick = () => renderOverview();
@@ -533,11 +609,17 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   const onHintDown = () => $('hint').classList.add('gone');
   svg.addEventListener('pointerdown', onHintDown, { once: true });
 
+  track('web_seatmap_opened', { eventId });
   // boot: pull the event (title/meta) + its event-scoped floor plan
-  fetch('/api/events/' + encodeURIComponent(eventId)).then((r) => (r.ok ? r.json() : null)).then((ev) => {
-    if (ev) { $('ev-title').textContent = ev.name; $('ev-meta').textContent = ((ev.dateLabel ? ev.dateLabel + ' · ' : '') + (ev.venue || '')).toUpperCase(); }
-  }).catch(() => {});
-  fetch('/api/events/' + encodeURIComponent(eventId) + '/floorplan').then((r) => (r.ok ? r.json() : null)).then((plan) => {
+  Promise.all([
+    fetch('/api/events/' + encodeURIComponent(eventId)).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch('/api/events/' + encodeURIComponent(eventId) + '/floorplan').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ]).then(([ev, plan]) => {
+    if (ev) {
+      $('ev-title').textContent = ev.name;
+      $('ev-meta').textContent = ((ev.dateLabel ? ev.dateLabel + ' · ' : '') + (ev.venue || '')).toUpperCase();
+      EVENT_TIERS = Array.isArray(ev.webCheckout?.tiers) ? ev.webCheckout.tiers.filter((t: any) => t && t.tierId && !t.disabled) : [];
+    }
     if (plan && plan.zones && plan.zones.length && loadPlan(plan)) {
       $('ev-meta').textContent = plan.zones.length + ' ZONES · LIVE FLOOR PLAN';
       $('cr-venue').textContent = 'Your venue';

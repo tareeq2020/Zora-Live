@@ -10,7 +10,7 @@
    Page-scoped styles (scoped under .join-team) mirror the seller sign-in card so
    the bespoke control-room look never leaks into the app tree. */
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const STYLES = `
 .join-team{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;--green:#2ECC71;
@@ -62,8 +62,8 @@ const INVALID_COPY: Record<string, string> = {
   accepted: 'This invitation has already been used. Try signing in instead.',
 };
 
-export default function JoinTeamPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = use(params);
+export default function JoinTeamPage({ params }: { params: { token: string } }) {
+  const { token } = params;
 
   const [info, setInfo] = useState<InviteInfo | null>(null);
   const [loading, setLoading] = useState(true);

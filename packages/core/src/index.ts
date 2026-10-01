@@ -80,6 +80,8 @@ export type {
   AnalyticsRange, AnalyticsOrder, AnalyticsInput, AnalyticsResult,
   AnalyticsKpis, RevenuePoint,
 } from './analytics';
+export { sanitizeProductAnalyticsProperties } from './product-analytics';
+export type { ProductAnalyticsEvent, ProductAnalyticsProperties } from './product-analytics';
 // BS70 (dashboard #6): the suspended-organizer cascade — a cached suspended-handle
 // set filtered on every public event read, refreshed synchronously on a status flip.
 export {
@@ -114,6 +116,13 @@ export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
+export {
+  normalizeSeatMapAvailability, normalizeSeatMapZoneKind, normalizeSeatMapPlan, zoneCapacity,
+} from './seatmap';
+export type {
+  SeatMapAvailability, SeatMapHold, SeatMapPlan, SeatMapPoint, SeatMapSeat,
+  SeatMapSelection, SeatMapSpace, SeatMapStage, SeatMapTable, SeatMapZone, SeatMapZoneKind,
+} from './seatmap';
 // BS42 (#1): the door. The two-step scan lifecycle rides the EXISTING
 // credential.state (OV4); the agent scan is the gate and the supervisor confirm
 // is selective (OV6). Row-locked, so a replayed QR can never win twice.

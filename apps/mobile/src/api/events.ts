@@ -1,9 +1,5 @@
-// Events data layer — the single source of truth is the shared Supabase `events`
-// table (same rows the website reads). Each row carries the full canonical event
-// object in `props`; useEvents() subscribes to realtime, so anything created on
-// the website appears here instantly (and vice-versa).
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiFetch } from './client';
 
 // The full canonical event body (matches the site's events.json shape).
 export interface EventProps {
@@ -23,41 +19,73 @@ export interface EventProps {
 }
 
 export interface RemoteEvent {
-  id: string;               // uuid
+  id: string;
   name: string;
-  city: string | null;      // code, mirrored for querying
+  city: string | null;
   status: string;
   cover: string | null;
   props: EventProps;
+  webCheckout?: {
+    tiers?: {
+      tierId?: string;
+      name?: string;
+      unitPrice?: number;
+      price?: number;
+      currency?: string;
+      seats?: number;
+      disabled?: boolean;
+    }[];
+  };
 }
 
-export const listEvents = (cityCode?: string) => {
-  let q = supabase.from('events').select('*').eq('status', 'published');
-  if (cityCode) q = q.eq('city', cityCode);
-  return q;
+function normalizeEvent(e: any): RemoteEvent {
+  const props: EventProps = {
+    id: String(e?.id ?? ''),
+    name: String(e?.name ?? 'Untitled event'),
+    tagline: e?.tagline,
+    category: e?.category,
+    city: e?.city,
+    venue: e?.venue,
+    dateLabel: e?.dateLabel ?? e?.date,
+    time: e?.time,
+    priceFrom: typeof e?.priceFrom === 'number' ? e.priceFrom : undefined,
+    weekend: Boolean(e?.weekend),
+    mega: Boolean(e?.mega),
+    seated: Boolean(e?.seated),
+    organizerHandle: e?.organizerHandle,
+  };
+  return {
+    id: props.id,
+    name: props.name,
+    city: props.city ?? null,
+    status: String(e?.status ?? 'published'),
+    cover: e?.cover ?? e?.theme?.posterColor ?? null,
+    props,
+    webCheckout: e?.webCheckout,
+  };
 };
 
-export const getEvent = (id: string) => supabase.from('events').select('*').eq('id', id).single();
+export const listEvents = async (cityCode?: string) => {
+  const q = cityCode ? `?city=${encodeURIComponent(cityCode)}` : '';
+  const rows = await apiFetch<any[]>(`/api/events${q}`, { auth: false });
+  return rows.map(normalizeEvent);
+};
 
-/** Live list of published events for a city code, kept current via realtime. */
+export const getEvent = async (id: string) => normalizeEvent(await apiFetch<any>(`/api/events/${encodeURIComponent(id)}`, { auth: false }));
+
+/** Published event list for a city code. Realtime comes later via the Nest API. */
 export function useEvents(cityCode?: string) {
   const [events, setEvents] = useState<RemoteEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
-      listEvents(cityCode).then(({ data }) => {
-        if (alive) { setEvents((data ?? []) as RemoteEvent[]); setLoading(false); }
-      });
+    const load = () => listEvents(cityCode)
+      .then((data) => { if (alive) setEvents(data); })
+      .catch(() => { if (alive) setEvents([]); })
+      .finally(() => { if (alive) setLoading(false); });
     load();
-
-    const channel = supabase
-      .channel('public:events')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, load)
-      .subscribe();
-
-    return () => { alive = false; supabase.removeChannel(channel); };
+    return () => { alive = false; };
   }, [cityCode]);
 
   return { events, loading };

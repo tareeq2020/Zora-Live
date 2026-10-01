@@ -1,10 +1,12 @@
 // Shared organizer-event state. Dashboard reads it (and it ticks live via a
 // simulated sales feed); the Edit screen writes to it via applyEdit().
 import { create } from 'zustand';
+import type { OrgEvent } from '../api/organizer';
 
 export interface Tier { name: string; price: number; sold: number; cap: number }
 
 export interface OrganizerEvent {
+  id: string;
   name: string;
   tag: string;
   date: string;
@@ -19,11 +21,13 @@ export interface OrganizerEvent {
 
 interface EventStore {
   event: OrganizerEvent;
+  setFromApi: (event: OrgEvent) => void;
   recordSale: (tierIndex: number, qty: number) => void;
   applyEdit: (patch: { cap?: number; tiers?: Tier[] }) => void;
 }
 
 const OFFSHORE: OrganizerEvent = {
+  id: 'offshore',
   name: 'OFFSHORE',
   tag: 'Daytime Yacht Groove',
   date: 'Sat 25 Jul 2026',
@@ -42,6 +46,29 @@ const OFFSHORE: OrganizerEvent = {
 
 export const useEventStore = create<EventStore>((set) => ({
   event: OFFSHORE,
+  setFromApi: (event) =>
+    set({
+      event: {
+        id: event.id,
+        name: event.name,
+        tag: event.category || event.venue || 'ZoraPass event',
+        date: event.dateLabel || event.date || 'Date TBA',
+        city: event.city || 'Dar es Salaam',
+        status: event.status === 'draft' ? 'draft' : event.status === 'archived' ? 'past' : 'live',
+        cap: event.tiers.reduce((n, t) => n + Number(t.capacity || 0), 0) || 1,
+        checked: 0,
+        velo: 0,
+        pendingTZS: 0,
+        tiers: event.tiers.length
+          ? event.tiers.map((t) => ({
+              name: t.name,
+              price: Number(t.unitPrice || 0),
+              sold: Number(t.sold || 0),
+              cap: Number(t.capacity || 0),
+            }))
+          : [{ name: 'General admission', price: Number(event.priceFrom || 0), sold: 0, cap: 1 }],
+      },
+    }),
   recordSale: (tierIndex, qty) =>
     set((s) => ({
       event: {
