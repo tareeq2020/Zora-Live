@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SwitchModeButton from '../../components/SwitchModeButton';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useSession } from '../../session/store';
+import { signOutNest } from '../../lib/auth';
 import { useZ } from '../../theme';
 
 function InfoRow({ k, v, onPress, last }: { k: string; v: string; onPress?: () => void; last?: boolean }) {
@@ -30,7 +31,9 @@ function ToggleRow({ k, value, onValueChange, last }: { k: string; value: boolea
 export default function SettingsScreen() {
   const z = useZ();
   const insets = useSafeAreaInsets();
-  const signOut = useSession((s) => s.signOut);
+  const name = useSession((s) => s.name);
+  const email = useSession((s) => s.email);
+  const organizerHandle = useSession((s) => s.organizerHandle);
   const verified = useSession((s) => s.verified);
   const kycPending = useSession((s) => s.kycPending);
   const [twoFA, setTwoFA] = useState(true);
@@ -48,8 +51,8 @@ export default function SettingsScreen() {
 
       <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 6 }}>ACCOUNT</Text>
       <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 18, paddingHorizontal: 16 }}>
-        <InfoRow k="Name" v="Tareeq Twaha" />
-        <InfoRow k="Email" v="tareeqtwaha@gmail.com" />
+        <InfoRow k="Name" v={name || organizerHandle || 'Organizer'} />
+        <InfoRow k="Email" v={email || 'Not available'} />
         <InfoRow k="Identity (KYC)" v={verified ? 'Verified' : kycPending ? 'Under review' : 'Not verified'} />
         <ToggleRow k="Two-factor auth" value={twoFA} onValueChange={setTwoFA} />
         <ToggleRow k="Push notifications" value={push} onValueChange={setPush} last />
@@ -57,7 +60,7 @@ export default function SettingsScreen() {
 
       <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 20, marginBottom: 6 }}>STORE SETTINGS</Text>
       <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 18, paddingHorizontal: 16 }}>
-        <InfoRow k="Storefront" v="offshore.zora.app" />
+        <InfoRow k="Storefront" v={organizerHandle ? `${organizerHandle}.zorapass.com` : 'ZoraPass storefront'} />
         <InfoRow k="Default currency" v="TZS" />
         <InfoRow k="Payout account" v="M-Pesa •••• 4471" onPress={editPayout} />
         <ToggleRow k="Allow resale (face +10%)" value={resale} onValueChange={setResale} last />
@@ -66,7 +69,7 @@ export default function SettingsScreen() {
       <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 20, marginBottom: 10 }}>MODE</Text>
       <SwitchModeButton />
 
-      <Pressable onPress={signOut} style={({ pressed }) => ({ marginTop: 16, padding: 16, borderRadius: 14, borderColor: z.line, borderWidth: 1, opacity: pressed ? 0.8 : 1 })}>
+      <Pressable onPress={signOutNest} style={({ pressed }) => ({ marginTop: 16, padding: 16, borderRadius: 14, borderColor: z.line, borderWidth: 1, opacity: pressed ? 0.8 : 1 })}>
         <Text style={{ color: z.red, fontWeight: '700', textAlign: 'center' }}>Sign out</Text>
       </Pressable>
     </ScrollView>

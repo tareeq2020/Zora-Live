@@ -24,6 +24,7 @@ export default function AgentCodeScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
   const signInAs = useSession((s) => s.signInAs);
+  const setScanner = useSession((s) => s.setScanner);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -34,7 +35,8 @@ export default function AgentCodeScreen() {
     setErr('');
     setBusy(true);
     try {
-      await redeemCode(code, 'ios-demo-device'); // prod: a stable per-install id
+      const session = await redeemCode(clean);
+      setScanner({ scannerName: session.scanner.name, scannerEventScope: session.scanner.eventScope });
       signInAs('staff'); // RootNavigator locks to the scanner
     } catch (e: any) {
       setErr(ERR[e?.message] || 'Couldn’t verify the code. Check your connection.');

@@ -41,7 +41,7 @@ export default function EditEventScreen() {
     setDirty(false);
     setPublishing(true);
     try {
-      const r = await publishEvent('offshore', { cap, tiers: tiers.map((t) => ({ name: t.name, price: t.price })) });
+      const r = await publishEvent(event.id, { cap, tiers: tiers.map((t) => ({ name: t.name, price: t.price })) });
       Alert.alert('Published live', `On the Gate backend · v${r.version} · ${r.clients} device(s) notified.\nStorefront, apps and the door are updated.`, [
         { text: 'Done', onPress: () => nav.goBack() },
       ]);

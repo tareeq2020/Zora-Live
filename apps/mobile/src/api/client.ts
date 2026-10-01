@@ -1,4 +1,7 @@
+import * as SecureStore from 'expo-secure-store';
+
 const DEFAULT_API_URL = 'http://localhost:4101';
+const SESSION_COOKIE_KEY = 'zora.mobile.sessionCookie';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 
@@ -15,7 +18,19 @@ export class ApiError extends Error {
 type ApiOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
   timeoutMs?: number;
+  auth?: boolean;
 };
+
+export const getSessionCookie = () => SecureStore.getItemAsync(SESSION_COOKIE_KEY);
+export const saveSessionCookie = (cookie: string) => SecureStore.setItemAsync(SESSION_COOKIE_KEY, cookie);
+export const clearSessionCookie = () => SecureStore.deleteItemAsync(SESSION_COOKIE_KEY);
+
+function extractSessionCookie(headers: Headers): string | null {
+  const raw = headers.get('set-cookie');
+  if (!raw) return null;
+  const match = raw.match(/zora_session=[^;,]+/);
+  return match ? match[0] : null;
+}
 
 export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const controller = new AbortController();
@@ -26,13 +41,22 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     headers.set('Content-Type', 'application/json');
   }
 
+  if (options.auth !== false && !headers.has('Cookie')) {
+    const cookie = await getSessionCookie();
+    if (cookie) headers.set('Cookie', cookie);
+  }
+
   try {
     const res = await fetch(`${API_URL}${path.startsWith('/') ? path : `/${path}`}`, {
       ...options,
       headers,
       body: options.body == null ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
+      credentials: 'include',
     });
+
+    const sessionCookie = extractSessionCookie(res.headers);
+    if (sessionCookie) await saveSessionCookie(sessionCookie);
 
     if (!res.ok) {
       let message = `API responded ${res.status}`;

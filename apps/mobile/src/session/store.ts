@@ -11,11 +11,18 @@ const KYC_REF_KEY = 'zora.kyc.ref'; // survives app restarts so status keeps res
 interface SessionState {
   role: Role | null;              // privilege from the authenticated JWT
   activeMode: Mode;               // which face of the app is showing
+  name: string | null;
+  email: string | null;
+  organizerHandle: string | null;
+  scannerName: string | null;
+  scannerEventScope: string | null;
   verified: boolean;              // KYC identity verification — gates payouts/withdrawals
   kycPending: boolean;            // ID submitted, awaiting review
   kycRef: string | null;          // reference of the live submission (for status polling)
   kycRejection: string | null;    // user-facing reason when a submission is rejected
   signInAs: (role: Role) => void;
+  setAccount: (profile: Partial<Pick<SessionState, 'name' | 'email' | 'organizerHandle' | 'verified'>>) => void;
+  setScanner: (profile: Partial<Pick<SessionState, 'scannerName' | 'scannerEventScope'>>) => void;
   setVerified: (v: boolean) => void;                       // real path: mirrored from profiles.kyc_verified
   beginKyc: (ref: string) => void;                         // called after a real submit to /api/kyc/submit
   applyKycStatus: (status: KycStatus, reason?: string | null) => void; // maps a polled status → state
@@ -27,6 +34,11 @@ interface SessionState {
 export const useSession = create<SessionState>((set, get) => ({
   role: null,
   activeMode: 'consumer',
+  name: null,
+  email: null,
+  organizerHandle: null,
+  scannerName: null,
+  scannerEventScope: null,
   verified: false,
   kycPending: false,
   kycRef: null,
@@ -36,6 +48,18 @@ export const useSession = create<SessionState>((set, get) => ({
   // fans open the marketplace. (Staff is routed by role in RootNavigator, so
   // activeMode is irrelevant for them.)
   signInAs: (role) => set({ role, activeMode: role === 'organizer' ? 'organizer' : 'consumer' }),
+
+  setAccount: (profile) => set((s) => ({
+    name: profile.name ?? s.name,
+    email: profile.email ?? s.email,
+    organizerHandle: profile.organizerHandle ?? s.organizerHandle,
+    verified: profile.verified ?? s.verified,
+  })),
+
+  setScanner: (profile) => set((s) => ({
+    scannerName: profile.scannerName ?? s.scannerName,
+    scannerEventScope: profile.scannerEventScope ?? s.scannerEventScope,
+  })),
 
   // Source of truth is the Supabase profile (see auth.resolveProfile); this
   // setter is how bindAuth mirrors it into the session.
@@ -70,6 +94,18 @@ export const useSession = create<SessionState>((set, get) => ({
 
   signOut: () => {
     AsyncStorage.removeItem(KYC_REF_KEY).catch(() => {});
-    set({ role: null, activeMode: 'consumer', verified: false, kycPending: false, kycRef: null, kycRejection: null });
+    set({
+      role: null,
+      activeMode: 'consumer',
+      name: null,
+      email: null,
+      organizerHandle: null,
+      scannerName: null,
+      scannerEventScope: null,
+      verified: false,
+      kycPending: false,
+      kycRef: null,
+      kycRejection: null,
+    });
   },
 }));

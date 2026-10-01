@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useEventStore, soldOf, grossOf, mTZS, kTZS } from '../../store/eventStore';
+import { getOrgEvents, getOrgSummary, type OrgSummary } from '../../api/organizer';
 import Sparkline from '../../components/Sparkline';
 import { useZ } from '../../theme';
 
@@ -34,13 +35,32 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
   const event = useEventStore((s) => s.event);
+  const setFromApi = useEventStore((s) => s.setFromApi);
+  const [apiSummary, setApiSummary] = useState<OrgSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const sold = soldOf(event);
-  const gross = grossOf(event);
-  const net = Math.round(gross * 0.95);
+  const gross = apiSummary?.totals.revenue ?? grossOf(event);
+  const net = apiSummary?.totals.netRevenue ?? Math.round(gross * 0.95);
   const pct = Math.min(100, Math.round((sold / event.cap) * 100));
   const checkPct = sold ? Math.round((event.checked / sold) * 100) : 0;
   const avg = sold ? Math.round(gross / sold) : 0;
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([getOrgEvents(), getOrgSummary()])
+      .then(([events, summary]) => {
+        if (!alive) return;
+        const firstLive = events.find((e) => e.status !== 'archived') || events[0];
+        if (firstLive) setFromApi(firstLive);
+        setApiSummary(summary);
+        setLoadError(null);
+      })
+      .catch((e: any) => {
+        if (alive) setLoadError(e?.message ?? 'Could not load organizer data.');
+      });
+    return () => { alive = false; };
+  }, [setFromApi]);
 
   // Live sales feed — runs only while the Dashboard is focused.
   const [feed, setFeed] = useState<{ id: number; label: string; buyer: string }[]>([]);
@@ -76,6 +96,12 @@ export default function DashboardScreen() {
           <Text style={{ color: z.ultraSoft, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5 }}>ON SALE</Text>
         </View>
       </View>
+
+      {loadError ? (
+        <View style={{ borderColor: z.orange + '66', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 14, backgroundColor: z.orange + '12' }}>
+          <Text style={{ color: z.orangeSoft, fontSize: 12 }}>{loadError} Showing local demo data.</Text>
+        </View>
+      ) : null}
 
       {/* Event summary → Edit */}
       <Pressable

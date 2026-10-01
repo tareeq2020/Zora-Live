@@ -9,7 +9,7 @@ import { useSession, type Role } from '../session/store';
 import ZoraLogo from '../components/ZoraLogo';
 import ZoraButton from '../components/ZoraButton';
 import ThemeToggle from '../components/ThemeToggle';
-import { signInEmail, signUpEmail, signInGoogle } from '../lib/auth';
+import { signInEmail, signUpEmail, signInGoogle, signInOrganizer } from '../lib/auth';
 import { supabaseReady } from '../lib/supabase';
 import { useZ } from '../theme';
 
@@ -31,6 +31,7 @@ export default function RolePickerScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
   const signInAs = useSession((s) => s.signInAs);
+  const [accountType, setAccountType] = useState<'organizer' | 'attendee'>('organizer');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -45,6 +46,21 @@ export default function RolePickerScreen() {
   ];
 
   const submit = async () => {
+    if (accountType === 'organizer') {
+      if (!email.trim()) return setErr('Enter your organizer email or handle.');
+      if (pw.length < 8) return setErr('Password must be at least 8 characters.');
+      setErr('');
+      setBusy(true);
+      try {
+        await signInOrganizer(email, pw);
+      } catch (e: any) {
+        setErr(e?.message ?? 'Could not sign in. Check your organizer credentials.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!emailOk(email)) return setErr('Enter a valid email address.');
     if (pw.length < 8) return setErr('Password must be at least 8 characters.');
     if (mode === 'signup' && pw !== pw2) return setErr('Passwords don’t match.');
@@ -72,6 +88,10 @@ export default function RolePickerScreen() {
 
   const google = async () => {
     setErr('');
+    if (accountType === 'organizer') {
+      setErr('Organizer Google sign-in is not enabled yet. Use email or handle.');
+      return;
+    }
     if (!supabaseReady) return signInAs('consumer'); // demo fallback
     setBusy(true);
     try {
@@ -99,11 +119,25 @@ export default function RolePickerScreen() {
       </View>
 
       <Text style={{ color: z.bone, fontSize: 26, fontFamily: z.disp, marginTop: 24 }}>
-        {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+        {accountType === 'organizer' ? 'Organizer sign in' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
       </Text>
-      <Text style={{ color: z.mut, marginTop: 6, marginBottom: 18 }}>Your ticket is the product. The app is the only door.</Text>
+      <Text style={{ color: z.mut, marginTop: 6, marginBottom: 18 }}>
+        {accountType === 'organizer' ? 'Manage events, scan tickets, and track sales from the ZoraPass API.' : 'Your ticket is the product. The app is the only door.'}
+      </Text>
 
       <View style={{ flexDirection: 'row', backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 4 }}>
+        {(['organizer', 'attendee'] as const).map((m) => {
+          const on = accountType === m;
+          return (
+            <Pressable key={m} onPress={() => { setAccountType(m); setErr(''); }} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center', backgroundColor: on ? z.ultra : 'transparent' }}>
+              <Text style={{ color: on ? '#fff' : z.mut, fontWeight: '700', fontSize: 13 }}>{m === 'organizer' ? 'Organizer' : 'Attendee'}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {accountType === 'attendee' ? (
+        <View style={{ flexDirection: 'row', backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 4, marginTop: 12 }}>
         {(['signin', 'signup'] as const).map((m) => {
           const on = mode === m;
           return (
@@ -112,24 +146,27 @@ export default function RolePickerScreen() {
             </Pressable>
           );
         })}
+        </View>
+      ) : null}
+
+      {accountType === 'attendee' ? (
+        <Pressable onPress={google} disabled={busy} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: z.bone, borderRadius: z.r, paddingVertical: 14, marginTop: 16, opacity: busy ? 0.5 : pressed ? 0.85 : 1 })}>
+          <GoogleG />
+          <Text style={{ color: z.bg, fontWeight: '700', fontSize: 14 }}>Continue with Google</Text>
+        </Pressable>
+      ) : null}
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: accountType === 'attendee' ? 18 : 16 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
+        <Text style={{ color: z.mut2, fontSize: 12 }}>{accountType === 'organizer' ? 'API LOGIN' : 'or'}</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
       </View>
 
-      <Pressable onPress={google} disabled={busy} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: z.bone, borderRadius: z.r, paddingVertical: 14, marginTop: 16, opacity: busy ? 0.5 : pressed ? 0.85 : 1 })}>
-        <GoogleG />
-        <Text style={{ color: z.bg, fontWeight: '700', fontSize: 14 }}>Continue with Google</Text>
-      </Pressable>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 18 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
-        <Text style={{ color: z.mut2, fontSize: 12 }}>or</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
-      </View>
-
-      <Text style={label}>Email</Text>
-      <TextInput value={email} onChangeText={setEmail} placeholder="you@email.com" placeholderTextColor={z.mut2} autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={input} />
+      <Text style={label}>{accountType === 'organizer' ? 'Email or handle' : 'Email'}</Text>
+      <TextInput value={email} onChangeText={setEmail} placeholder={accountType === 'organizer' ? 'your-handle or you@email.com' : 'you@email.com'} placeholderTextColor={z.mut2} autoCapitalize="none" keyboardType={accountType === 'organizer' ? 'default' : 'email-address'} autoComplete="email" style={input} />
       <Text style={label}>Password</Text>
       <TextInput value={pw} onChangeText={setPw} placeholder="At least 8 characters" placeholderTextColor={z.mut2} secureTextEntry autoCapitalize="none" style={input} />
-      {mode === 'signup' && (
+      {accountType === 'attendee' && mode === 'signup' && (
         <>
           <Text style={label}>Confirm password</Text>
           <TextInput value={pw2} onChangeText={setPw2} placeholder="Re-enter password" placeholderTextColor={z.mut2} secureTextEntry autoCapitalize="none" style={input} />
@@ -137,7 +174,7 @@ export default function RolePickerScreen() {
       )}
       {err ? <Text style={{ color: '#ff8b84', fontSize: 12, marginTop: 4 }}>{err}</Text> : null}
 
-      <ZoraButton variant="gradient" disabled={busy} label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'} onPress={submit} style={{ marginTop: 16 }} />
+      <ZoraButton variant="gradient" disabled={busy} label={busy ? 'Please wait…' : accountType === 'organizer' ? 'Open organizer dashboard' : mode === 'signin' ? 'Sign in' : 'Create account'} onPress={submit} style={{ marginTop: 16 }} />
 
       <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 30, marginBottom: 10 }}>OR CONTINUE AS (DEMO)</Text>
       {ROLES.map((r) => (
