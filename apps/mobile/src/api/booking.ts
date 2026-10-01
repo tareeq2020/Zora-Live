@@ -138,6 +138,11 @@ function normalizePlan(plan: ApiPlan, tiers: ApiTier[]): FloorPlan {
   const height = Math.max(1, Number(plan.space?.h ?? 250));
   const scale = Math.min(1, 300 / width);
   const seats = (plan.zones ?? []).flatMap((zone) => zoneSeats(zone, tiers, width));
+  const normalizedRadius = (seat: Seat) => {
+    const scaled = seat.r * scale;
+    if (seat.kind === 'table') return Math.max(12, scaled);
+    return Math.max(7, scaled);
+  };
 
   return {
     width: Math.round(width * scale),
@@ -153,7 +158,7 @@ function normalizePlan(plan: ApiPlan, tiers: ApiTier[]): FloorPlan {
       ...seat,
       x: seat.x * scale,
       y: seat.y * scale,
-      r: seat.r * scale,
+      r: normalizedRadius(seat),
     })),
   };
 }
@@ -181,4 +186,3 @@ export async function getMobileBooking(eventId?: string): Promise<MobileBooking>
     tiers,
   };
 }
-
