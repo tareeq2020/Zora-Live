@@ -71,10 +71,10 @@ export default function CheckoutScreen() {
   };
 
   const lockAndSend = () => {
-    if (crew.length < 2) { Alert.alert('Add your crew', 'Invite at least one friend to split the table.'); return; }
-    // TODO(gate): POST /events/:id/split → hold table 10 min, create per-member
-    //   M-Pesa STK / card links, send push. Webhook marks each member paid.
-    setDone('locked');
+    Alert.alert(
+      'Split checkout is next',
+      'Pay-in-full is connected to the ZoraPass API now. Crew split links and exact table holds are part of the attendee phase.',
+    );
   };
 
   if (done) {
@@ -90,7 +90,7 @@ export default function CheckoutScreen() {
         <Text style={{ color: z.mut, marginTop: 8, fontSize: 14, lineHeight: 20 }}>
           {done === 'paid'
             ? `Table ${table.label} is yours. ${money(table.price)} charged — your pass is in Tickets.`
-            : `${splitFriends} friend${splitFriends === 1 ? '' : 's'} got a push + M-Pesa / card link for ${money(perPerson)} each. The table holds for 10 minutes while they pay.`}
+            : `${splitFriends} friend${splitFriends === 1 ? '' : 's'} previewed at ${money(perPerson)} each. Split payment links are part of the attendee phase.`}
         </Text>
         <ZoraButton variant="gradient" label="Done" onPress={() => nav.navigate('Home')} style={{ marginTop: 28 }} />
       </View>

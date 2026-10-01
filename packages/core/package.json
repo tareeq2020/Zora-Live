@@ -14,6 +14,10 @@
     "./contacts": {
       "types": "./src/contacts.ts",
       "default": "./src/contacts.ts"
+    },
+    "./product-analytics": {
+      "types": "./src/product-analytics.ts",
+      "default": "./src/product-analytics.ts"
     }
   },
   "scripts": {
