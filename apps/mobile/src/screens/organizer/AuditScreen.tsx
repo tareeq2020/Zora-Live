@@ -1,47 +1,84 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, FlatList, Pressable, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { getOrgScanAudit, type OrgScanAudit, type OrgScanAuditRow } from '../../api/organizer';
 import { useZ } from '../../theme';
 
-interface Scan { id: string; gate: string; time: string; ok: boolean; res: string }
 type Filter = 'all' | 'ok' | 'bad';
-const GATES = ['GATE A · DEV 1', 'GATE A · DEV 2', 'GATE B · DEV 1', 'GATE C · DEV 1'];
-const now = () => new Date().toTimeString().slice(0, 8);
-
-function makeScan(): Scan {
-  const bad = Math.random() < 0.16;
-  return {
-    id: 'Z001-' + (1000 + Math.floor(Math.random() * 8999)),
-    gate: GATES[Math.floor(Math.random() * GATES.length)],
-    time: now(), ok: !bad, res: bad ? (Math.random() < 0.6 ? 'DUPLICATE' : 'INVALID') : 'VALID',
-  };
-}
 
 const CHIPS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All gates' },
-  { key: 'ok', label: 'Valid' },
-  { key: 'bad', label: 'Rejected' },
+  { key: 'ok', label: 'Admitted' },
+  { key: 'bad', label: 'Revoked' },
 ];
+
+const EMPTY_AUDIT: OrgScanAudit = {
+  totals: { issued: 0, scanned: 0, wristband_issued: 0, used: 0, revoked: 0 },
+  rows: [],
+};
+
+function rowOk(row: OrgScanAuditRow) {
+  return row.state === 'scanned' || row.state === 'wristband_issued' || row.state === 'used';
+}
+
+function stateLabel(state: string) {
+  if (state === 'scanned') return 'SCANNED';
+  if (state === 'wristband_issued') return 'CONFIRMED';
+  if (state === 'used') return 'USED';
+  if (state === 'revoked') return 'REVOKED';
+  return state.toUpperCase();
+}
+
+function displayTime(row: OrgScanAuditRow) {
+  const raw = row.confirmedAt || row.scannedAt;
+  if (!raw) return '--:--';
+  return new Date(raw).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function AuditScreen() {
   const z = useZ();
   const insets = useSafeAreaInsets();
-  const [log, setLog] = useState<Scan[]>(() => Array.from({ length: 12 }, makeScan));
-  const [stats, setStats] = useState({ valid: 1842, rej: 14 });
+  const [audit, setAudit] = useState<OrgScanAudit>(EMPTY_AUDIT);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
-  const timer = useRef<ReturnType<typeof setInterval>>();
 
-  useEffect(() => {
-    // Real build subscribes to wss://gate.zora.app/events/:id/scans via useRealtime.
-    timer.current = setInterval(() => {
-      const s = makeScan();
-      setLog((l) => [s, ...l].slice(0, 60));
-      setStats((v) => ({ valid: v.valid + (s.ok ? 1 : 0), rej: v.rej + (s.ok ? 0 : 1) }));
-    }, 1700);
-    return () => clearInterval(timer.current);
+  const loadAudit = useCallback(() => {
+    let alive = true;
+    setRefreshing(true);
+    getOrgScanAudit()
+      .then((next) => {
+        if (!alive) return;
+        setAudit(next);
+        setLoadError(null);
+      })
+      .catch((e: any) => {
+        if (alive) setLoadError(e?.message ?? 'Could not load scan audit.');
+      })
+      .finally(() => {
+        if (alive) setRefreshing(false);
+      });
+    return () => { alive = false; };
   }, []);
 
-  const shown = log.filter((e) => filter === 'all' || (filter === 'ok') === e.ok);
+  useEffect(() => {
+    const cleanup = loadAudit();
+    return cleanup;
+  }, [loadAudit]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const cleanup = loadAudit();
+      return cleanup;
+    }, [loadAudit]),
+  );
+
+  const shown = useMemo(
+    () => audit.rows.filter((e) => filter === 'all' || (filter === 'ok') === rowOk(e)),
+    [audit.rows, filter],
+  );
+  const admitted = audit.totals.scanned + audit.totals.wristband_issued + audit.totals.used;
 
   return (
     <View style={{ flex: 1, backgroundColor: z.bg, paddingTop: insets.top + 8, paddingHorizontal: 20 }}>
@@ -49,14 +86,20 @@ export default function AuditScreen() {
 
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
         <View style={{ flex: 1, backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 12 }}>
-          <Text style={{ color: z.mut2, fontSize: 10, fontWeight: '700' }}>VALID</Text>
-          <Text style={{ color: '#4fd699', fontSize: 24, fontWeight: '900', marginTop: 5 }}>{stats.valid.toLocaleString()}</Text>
+          <Text style={{ color: z.mut2, fontSize: 10, fontWeight: '700' }}>ADMITTED</Text>
+          <Text style={{ color: '#4fd699', fontSize: 24, fontWeight: '900', marginTop: 5 }}>{admitted.toLocaleString()}</Text>
         </View>
         <View style={{ flex: 1, backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 12 }}>
-          <Text style={{ color: z.mut2, fontSize: 10, fontWeight: '700' }}>REJECTED</Text>
-          <Text style={{ color: '#ff8b84', fontSize: 24, fontWeight: '900', marginTop: 5 }}>{stats.rej}</Text>
+          <Text style={{ color: z.mut2, fontSize: 10, fontWeight: '700' }}>REVOKED</Text>
+          <Text style={{ color: '#ff8b84', fontSize: 24, fontWeight: '900', marginTop: 5 }}>{audit.totals.revoked.toLocaleString()}</Text>
         </View>
       </View>
+
+      {loadError ? (
+        <View style={{ borderColor: z.orange + '66', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 12, backgroundColor: z.orange + '12' }}>
+          <Text style={{ color: z.orangeSoft, fontSize: 12 }}>{loadError}</Text>
+        </View>
+      ) : null}
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         {CHIPS.map((c) => {
@@ -75,17 +118,23 @@ export default function AuditScreen() {
 
       <FlatList
         data={shown}
-        keyExtractor={(e, i) => e.id + i}
+        keyExtractor={(e) => e.credentialId}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { loadAudit(); }} tintColor={z.ultraSoft} />}
+        ListEmptyComponent={
+          <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8 }}>
+            <Text style={{ color: z.mut, fontSize: 13 }}>{refreshing ? 'Loading scan audit…' : 'No scan activity yet.'}</Text>
+          </View>
+        }
         renderItem={({ item: e }) => (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomColor: z.line2, borderBottomWidth: 1 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: e.ok ? z.green : z.red }} />
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: rowOk(e) ? z.green : z.red }} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: z.bone, fontWeight: '700' }}>{e.id}</Text>
-              <Text style={{ color: z.mut2, fontSize: 11, marginTop: 3 }}>{e.gate}</Text>
+              <Text style={{ color: z.bone, fontWeight: '700' }}>{e.publicRef}</Text>
+              <Text style={{ color: z.mut2, fontSize: 11, marginTop: 3 }}>{e.eventName} · {e.scannedByName || e.confirmedByName || 'Scanner'}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ color: e.ok ? '#4fd699' : '#ff8b84', fontSize: 10, fontWeight: '700' }}>{e.res}</Text>
-              <Text style={{ color: z.mut2, fontSize: 10, marginTop: 3 }}>{e.time}</Text>
+              <Text style={{ color: rowOk(e) ? '#4fd699' : '#ff8b84', fontSize: 10, fontWeight: '700' }}>{stateLabel(e.state)}</Text>
+              <Text style={{ color: z.mut2, fontSize: 10, marginTop: 3 }}>{displayTime(e)}</Text>
             </View>
           </View>
         )}
