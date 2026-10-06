@@ -87,6 +87,14 @@ export interface OrgScanAudit {
   rows: OrgScanAuditRow[];
 }
 
+export interface OrgEventTierPatch {
+  tierId?: string | null;
+  name: string;
+  price: number;
+  capacity: number;
+  currency?: string;
+}
+
 export const getOrgEvents = () => apiFetch<OrgEvent[]>('/api/org/events');
 export const getOrgSummary = () => apiFetch<OrgSummary>('/api/org/summary');
 export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
@@ -96,3 +104,5 @@ export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
   return apiFetch<OrgOrdersPage>(`/api/org/orders${q.toString() ? `?${q.toString()}` : ''}`);
 };
 export const getOrgScanAudit = () => apiFetch<OrgScanAudit>('/api/org/scanners/audit');
+export const updateOrgEvent = (id: string, body: { tiers?: OrgEventTierPatch[] }) =>
+  apiFetch<OrgEvent>(`/api/org/events/${encodeURIComponent(id)}`, { method: 'PUT', body });

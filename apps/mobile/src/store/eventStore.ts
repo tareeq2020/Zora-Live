@@ -3,7 +3,14 @@
 import { create } from 'zustand';
 import type { OrgEvent } from '../api/organizer';
 
-export interface Tier { name: string; price: number; sold: number; cap: number }
+export interface Tier {
+  tierId: string | null;
+  name: string;
+  price: number;
+  sold: number;
+  cap: number;
+  currency: string;
+}
 
 export interface OrganizerEvent {
   id: string;
@@ -38,9 +45,9 @@ const OFFSHORE: OrganizerEvent = {
   velo: 148,
   pendingTZS: 27_200_000,
   tiers: [
-    { name: 'Wave 01', price: 65_000, sold: 1000, cap: 1000 },
-    { name: 'Wave 02', price: 85_000, sold: 250, cap: 1200 },
-    { name: 'Cabana — crew of 6', price: 900_000, sold: 34, cap: 40 },
+    { tierId: null, name: 'Wave 01', price: 65_000, sold: 1000, cap: 1000, currency: 'TZS' },
+    { tierId: null, name: 'Wave 02', price: 85_000, sold: 250, cap: 1200, currency: 'TZS' },
+    { tierId: null, name: 'Cabana — crew of 6', price: 900_000, sold: 34, cap: 40, currency: 'TZS' },
   ],
 };
 
@@ -61,12 +68,14 @@ export const useEventStore = create<EventStore>((set) => ({
         pendingTZS: 0,
         tiers: event.tiers.length
           ? event.tiers.map((t) => ({
+              tierId: t.tierId,
               name: t.name,
               price: Number(t.unitPrice || 0),
               sold: Number(t.sold || 0),
               cap: Number(t.capacity || 0),
+              currency: t.currency || 'TZS',
             }))
-          : [{ name: 'General admission', price: Number(event.priceFrom || 0), sold: 0, cap: 1 }],
+          : [{ tierId: null, name: 'General admission', price: Number(event.priceFrom || 0), sold: 0, cap: 1, currency: 'TZS' }],
       },
     }),
   recordSale: (tierIndex, qty) =>
