@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useEventStore, soldOf, grossOf, mTZS, kTZS } from '../../store/eventStore';
@@ -7,7 +7,6 @@ import { getOrgEvents, getOrgSummary, type OrgSummary } from '../../api/organize
 import Sparkline from '../../components/Sparkline';
 import { useZ } from '../../theme';
 
-const BUYERS = ['Amani M.', 'Zawadi K.', 'John P.', 'Neema S.', 'Baraka L.', 'Fatma H.', 'Deo R.', 'Upendo N.'];
 const VELOCITY = [8, 11, 9, 14, 13, 18, 16, 22, 20, 27, 31, 40];
 
 function StatTile({ k, v, sub }: { k: string; v: string; sub?: string }) {
@@ -38,6 +37,7 @@ export default function DashboardScreen() {
   const setFromApi = useEventStore((s) => s.setFromApi);
   const [apiSummary, setApiSummary] = useState<OrgSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const sold = soldOf(event);
   const gross = apiSummary?.totals.revenue ?? grossOf(event);
@@ -46,8 +46,9 @@ export default function DashboardScreen() {
   const checkPct = sold ? Math.round((event.checked / sold) * 100) : 0;
   const avg = sold ? Math.round(gross / sold) : 0;
 
-  useEffect(() => {
+  const loadOrganizerData = useCallback(() => {
     let alive = true;
+    setRefreshing(true);
     Promise.all([getOrgEvents(), getOrgSummary()])
       .then(([events, summary]) => {
         if (!alive) return;
@@ -58,32 +59,34 @@ export default function DashboardScreen() {
       })
       .catch((e: any) => {
         if (alive) setLoadError(e?.message ?? 'Could not load organizer data.');
+      })
+      .finally(() => {
+        if (alive) setRefreshing(false);
       });
     return () => { alive = false; };
   }, [setFromApi]);
 
-  // Live sales feed — runs only while the Dashboard is focused.
-  const [feed, setFeed] = useState<{ id: number; label: string; buyer: string }[]>([]);
+  useEffect(() => {
+    const cleanup = loadOrganizerData();
+    return cleanup;
+  }, [loadOrganizerData]);
+
   useFocusEffect(
     useCallback(() => {
-      const id = setInterval(() => {
-        const ev = useEventStore.getState().event;
-        const sellable = ev.tiers.map((t, i) => ({ t, i })).filter((x) => x.t.sold < x.t.cap);
-        if (!sellable.length) return;
-        const pick = sellable[Math.floor(Math.random() * sellable.length)];
-        const qty = 1 + Math.floor(Math.random() * 2);
-        useEventStore.getState().recordSale(pick.i, qty);
-        setFeed((f) => [{ id: Date.now(), label: `${qty} × ${pick.t.name}`, buyer: BUYERS[Math.floor(Math.random() * BUYERS.length)] }, ...f].slice(0, 5));
-      }, 3500);
-      return () => clearInterval(id);
-    }, []),
+      const cleanup = loadOrganizerData();
+      return cleanup;
+    }, [loadOrganizerData]),
   );
 
   const switchEvent = () =>
     Alert.alert('Your events', `${event.name} — ${event.date}, ${event.city} (live).\n\nCreate or switch events from the Zora web dashboard.`, [{ text: 'OK' }]);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: z.bg }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 28 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: z.bg }}
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 28 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { loadOrganizerData(); }} tintColor={z.ultraSoft} />}
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <View>
           <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2 }}>NOW MANAGING</Text>
@@ -99,7 +102,7 @@ export default function DashboardScreen() {
 
       {loadError ? (
         <View style={{ borderColor: z.orange + '66', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 14, backgroundColor: z.orange + '12' }}>
-          <Text style={{ color: z.orangeSoft, fontSize: 12 }}>{loadError} Showing local demo data.</Text>
+          <Text style={{ color: z.orangeSoft, fontSize: 12 }}>{loadError} Showing last loaded data.</Text>
         </View>
       ) : null}
 
@@ -175,17 +178,9 @@ export default function DashboardScreen() {
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: z.green }} />
       </View>
       <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 18, padding: 16 }}>
-        {feed.length === 0 ? (
-          <Text style={{ color: z.mut2, fontSize: 13, paddingVertical: 6 }}>Watching for sales…</Text>
-        ) : (
-          feed.map((f, i) => (
-            <View key={f.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, borderBottomColor: z.line2, borderBottomWidth: i < feed.length - 1 ? 1 : 0 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: z.green }} />
-              <Text style={{ color: z.bone, fontSize: 13, flex: 1 }}><Text style={{ fontWeight: '700' }}>{f.label}</Text> · {f.buyer}</Text>
-              <Text style={{ color: z.mut2, fontSize: 11 }}>{i === 0 ? 'just now' : `${i}m ago`}</Text>
-            </View>
-          ))
-        )}
+        <Text style={{ color: z.mut2, fontSize: 13, paddingVertical: 6 }}>
+          Pull to refresh for the latest sales. Real-time sale events will be wired once the mobile API exposes an organizer activity stream.
+        </Text>
       </View>
     </ScrollView>
   );
