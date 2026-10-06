@@ -28,7 +28,9 @@ export interface OrganizerEvent {
 
 interface EventStore {
   event: OrganizerEvent;
+  selectedEventId: string | null;
   setFromApi: (event: OrgEvent) => void;
+  selectEvent: (event: OrgEvent) => void;
   recordSale: (tierIndex: number, qty: number) => void;
   applyEdit: (patch: { cap?: number; tiers?: Tier[] }) => void;
 }
@@ -51,33 +53,36 @@ const OFFSHORE: OrganizerEvent = {
   ],
 };
 
+function toOrganizerEvent(event: OrgEvent): OrganizerEvent {
+  return {
+    id: event.id,
+    name: event.name,
+    tag: event.category || event.venue || 'ZoraPass event',
+    date: event.dateLabel || event.date || 'Date TBA',
+    city: event.city || 'Dar es Salaam',
+    status: event.status === 'draft' ? 'draft' : event.status === 'archived' ? 'past' : 'live',
+    cap: event.tiers.reduce((n, t) => n + Number(t.capacity || 0), 0) || 1,
+    checked: 0,
+    velo: 0,
+    pendingTZS: 0,
+    tiers: event.tiers.length
+      ? event.tiers.map((t) => ({
+          tierId: t.tierId,
+          name: t.name,
+          price: Number(t.unitPrice || 0),
+          sold: Number(t.sold || 0),
+          cap: Number(t.capacity || 0),
+          currency: t.currency || 'TZS',
+        }))
+      : [{ tierId: null, name: 'General admission', price: Number(event.priceFrom || 0), sold: 0, cap: 1, currency: 'TZS' }],
+  };
+}
+
 export const useEventStore = create<EventStore>((set) => ({
   event: OFFSHORE,
-  setFromApi: (event) =>
-    set({
-      event: {
-        id: event.id,
-        name: event.name,
-        tag: event.category || event.venue || 'ZoraPass event',
-        date: event.dateLabel || event.date || 'Date TBA',
-        city: event.city || 'Dar es Salaam',
-        status: event.status === 'draft' ? 'draft' : event.status === 'archived' ? 'past' : 'live',
-        cap: event.tiers.reduce((n, t) => n + Number(t.capacity || 0), 0) || 1,
-        checked: 0,
-        velo: 0,
-        pendingTZS: 0,
-        tiers: event.tiers.length
-          ? event.tiers.map((t) => ({
-              tierId: t.tierId,
-              name: t.name,
-              price: Number(t.unitPrice || 0),
-              sold: Number(t.sold || 0),
-              cap: Number(t.capacity || 0),
-              currency: t.currency || 'TZS',
-            }))
-          : [{ tierId: null, name: 'General admission', price: Number(event.priceFrom || 0), sold: 0, cap: 1, currency: 'TZS' }],
-      },
-    }),
+  selectedEventId: null,
+  setFromApi: (event) => set({ event: toOrganizerEvent(event), selectedEventId: event.id }),
+  selectEvent: (event) => set({ event: toOrganizerEvent(event), selectedEventId: event.id }),
   recordSale: (tierIndex, qty) =>
     set((s) => ({
       event: {
