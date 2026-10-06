@@ -1,5 +1,5 @@
-// Shared organizer-event state. Dashboard reads it (and it ticks live via a
-// simulated sales feed); the Edit screen writes to it via applyEdit().
+// Shared organizer-event state. Dashboard hydrates it from the Nest API; the Edit
+// screen writes local draft edits through applyEdit().
 import { create } from 'zustand';
 import type { OrgEvent } from '../api/organizer';
 

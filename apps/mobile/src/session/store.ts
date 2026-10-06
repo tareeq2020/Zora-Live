@@ -88,7 +88,7 @@ export const useSession = create<SessionState>((set, get) => ({
   toggleMode: () => {
     const { role, activeMode } = get();
     if (role === 'staff') return;                                              // HARD LOCK — staff can never switch
-    if (role === 'consumer') { set({ role: 'organizer', activeMode: 'organizer' }); return; } // demo self-promote (real: KYC onboarding)
+    if (role !== 'organizer') return;
     set({ activeMode: activeMode === 'consumer' ? 'organizer' : 'consumer' });
   },
 

@@ -8,7 +8,7 @@ export default function SwitchModeButton() {
   const role = useSession((s) => s.role);
   const activeMode = useSession((s) => s.activeMode);
   const toggleMode = useSession((s) => s.toggleMode);
-  if (role === 'staff') return null;
+  if (role !== 'organizer') return null;
 
   const toOrganizer = activeMode === 'consumer';
   return (
