@@ -64,6 +64,29 @@ export interface OrgOrdersPage {
   nextCursor: string | null;
 }
 
+export interface OrgScanAuditRow {
+  credentialId: string;
+  publicRef: string;
+  state: 'issued' | 'scanned' | 'wristband_issued' | 'used' | 'revoked' | string;
+  eventId: string;
+  eventName: string;
+  scannedAt: string | null;
+  scannedByName: string | null;
+  confirmedAt: string | null;
+  confirmedByName: string | null;
+}
+
+export interface OrgScanAudit {
+  totals: {
+    issued: number;
+    scanned: number;
+    wristband_issued: number;
+    used: number;
+    revoked: number;
+  };
+  rows: OrgScanAuditRow[];
+}
+
 export const getOrgEvents = () => apiFetch<OrgEvent[]>('/api/org/events');
 export const getOrgSummary = () => apiFetch<OrgSummary>('/api/org/summary');
 export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
@@ -72,3 +95,4 @@ export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
   if (params.q?.trim()) q.set('q', params.q.trim());
   return apiFetch<OrgOrdersPage>(`/api/org/orders${q.toString() ? `?${q.toString()}` : ''}`);
 };
+export const getOrgScanAudit = () => apiFetch<OrgScanAudit>('/api/org/scanners/audit');

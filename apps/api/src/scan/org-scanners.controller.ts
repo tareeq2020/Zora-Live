@@ -65,6 +65,60 @@ export class OrgScannersController {
     return { sellers, totals: { cash, mobile } };
   }
 
+  /** GET /api/org/scanners/audit — mobile organizer audit feed. This is scoped to
+      the org's owned events and reads credential state transitions, not synthetic
+      websocket data. Invalid scan attempts are not persisted today, so this feed
+      reports real pass activity: scanned, confirmed/used, and revoked. */
+  @Get('audit')
+  async auditFeed(@Req() req: Request) {
+    const handle = req.actingHandle as string;
+    const [ownedIds, events] = await Promise.all([
+      this.scope.ownedEventIds(handle),
+      this.scope.readEvents(),
+    ]);
+    if (!ownedIds.length) {
+      return {
+        totals: { issued: 0, scanned: 0, wristband_issued: 0, used: 0, revoked: 0 },
+        rows: [],
+      };
+    }
+
+    const totals = { issued: 0, scanned: 0, wristband_issued: 0, used: 0, revoked: 0 };
+    const totalRows = await db()`
+      select state, count(*)::int as n
+        from credential
+       where event_id = any(${ownedIds})
+       group by state`;
+    for (const r of totalRows) {
+      if (r.state in totals) totals[r.state as keyof typeof totals] = Number(r.n ?? 0);
+    }
+
+    const eventNameById = new Map(events.filter((e) => ownedIds.includes(e.id)).map((e) => [e.id, e.name ?? e.id]));
+    const rows = await db()`
+      select c.id, c.public_ref, c.state, c.event_id, c.scanned_at, c.scanned_by_name,
+             c.confirmed_at, c.confirmed_by_name
+        from credential c
+       where c.event_id = any(${ownedIds})
+         and c.state <> 'issued'
+       order by coalesce(c.confirmed_at, c.scanned_at, c.issued_at) desc
+       limit 80`;
+
+    return {
+      totals,
+      rows: rows.map((r: any) => ({
+        credentialId: r.id,
+        publicRef: r.public_ref ?? r.id,
+        state: r.state,
+        eventId: r.event_id,
+        eventName: eventNameById.get(r.event_id) ?? r.event_id,
+        scannedAt: r.scanned_at ? new Date(r.scanned_at).toISOString() : null,
+        scannedByName: r.scanned_by_name ?? null,
+        confirmedAt: r.confirmed_at ? new Date(r.confirmed_at).toISOString() : null,
+        confirmedByName: r.confirmed_by_name ?? null,
+      })),
+    };
+  }
+
   /** POST /api/org/scanners { name, contact, eventId, role } — create + pin to an owned event. */
   @Post()
   async create(@Req() req: Request, @Body() body: any) {
