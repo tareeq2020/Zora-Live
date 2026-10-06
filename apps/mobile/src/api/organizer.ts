@@ -95,6 +95,23 @@ export interface OrgEventTierPatch {
   currency?: string;
 }
 
+export interface OrgScanner {
+  id: string;
+  name: string;
+  contact: string;
+  via: string;
+  event: string;
+  eventScope: string | null;
+  role: 'agent' | 'supervisor' | string;
+  code: string;
+  status: 'active' | 'revoked' | string;
+  organizerHandle: string | null;
+  canSell: boolean;
+  createdAt: string;
+  expiresAt: string | null;
+  lastSeenAt: string | null;
+}
+
 export const getOrgEvents = () => apiFetch<OrgEvent[]>('/api/org/events');
 export const getOrgSummary = () => apiFetch<OrgSummary>('/api/org/summary');
 export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
@@ -106,3 +123,10 @@ export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
 export const getOrgScanAudit = () => apiFetch<OrgScanAudit>('/api/org/scanners/audit');
 export const updateOrgEvent = (id: string, body: { tiers?: OrgEventTierPatch[] }) =>
   apiFetch<OrgEvent>(`/api/org/events/${encodeURIComponent(id)}`, { method: 'PUT', body });
+export const getOrgScanners = () => apiFetch<OrgScanner[]>('/api/org/scanners');
+export const createOrgScanner = (body: { name: string; contact: string; eventId: string; role: 'agent' | 'supervisor'; canSell: boolean }) =>
+  apiFetch<OrgScanner>('/api/org/scanners', { method: 'POST', body });
+export const rotateOrgScanner = (id: string) =>
+  apiFetch<OrgScanner>(`/api/org/scanners/${encodeURIComponent(id)}/rotate`, { method: 'POST' });
+export const revokeOrgScanner = (id: string) =>
+  apiFetch<OrgScanner>(`/api/org/scanners/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
