@@ -45,5 +45,30 @@ export interface OrgSummary {
   }>;
 }
 
+export interface OrgOrderRow {
+  orderId: string;
+  eventId: string;
+  eventName: string | null;
+  tier: string;
+  qty: number;
+  amount: number;
+  currency: string;
+  status: string;
+  buyer: { phone: string | null; email: string | null };
+  credentials: string[];
+  createdAt: string;
+}
+
+export interface OrgOrdersPage {
+  rows: OrgOrderRow[];
+  nextCursor: string | null;
+}
+
 export const getOrgEvents = () => apiFetch<OrgEvent[]>('/api/org/events');
 export const getOrgSummary = () => apiFetch<OrgSummary>('/api/org/summary');
+export const getOrgOrders = (params: { limit?: number; q?: string } = {}) => {
+  const q = new URLSearchParams();
+  if (params.limit) q.set('limit', String(params.limit));
+  if (params.q?.trim()) q.set('q', params.q.trim());
+  return apiFetch<OrgOrdersPage>(`/api/org/orders${q.toString() ? `?${q.toString()}` : ''}`);
+};
