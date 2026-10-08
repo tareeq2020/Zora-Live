@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getOrgScanAudit, type OrgScanAudit, type OrgScanAuditRow } from '../../api/organizer';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 type Filter = 'all' | 'ok' | 'bad';
@@ -51,6 +52,11 @@ export default function AuditScreen() {
       .then((next) => {
         if (!alive) return;
         setAudit(next);
+        trackProductEvent('mobile_organizer_scan_audit_loaded', {
+          role: 'organizer',
+          count: next.rows.length,
+          status: 'loaded',
+        });
         setLoadError(null);
       })
       .catch((e: any) => {
