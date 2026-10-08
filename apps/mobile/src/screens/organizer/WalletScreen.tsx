@@ -15,6 +15,7 @@ import {
   type PayoutRecord,
   type PayoutsView,
 } from '../../api/payouts';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import type { WalletStackParams } from '../../navigation/OrganizerTabs';
 import { useZ } from '../../theme';
 
@@ -124,10 +125,23 @@ export default function WalletScreen() {
         currency: primaryBalance.currency,
         destination: { method: 'mobile_money', provider: selectedProvider.code, account: account.trim() },
       });
+      trackProductEvent('mobile_organizer_payout_requested', {
+        role: 'organizer',
+        method: 'mobile_money',
+        currency: primaryBalance.currency,
+        status: 'requested',
+      });
       setOpen(false);
       loadWallet();
       Alert.alert('Withdrawal requested', 'Zora ops will process this payout and update the ledger.');
     } catch (e: any) {
+      trackProductEvent('mobile_organizer_payout_requested', {
+        role: 'organizer',
+        method: 'mobile_money',
+        currency: primaryBalance.currency,
+        status: 'failed',
+        errorType: 'request_failed',
+      });
       Alert.alert('Withdrawal not requested', e?.message ?? 'Check the amount and destination, then try again.');
     } finally {
       setBusy(false);

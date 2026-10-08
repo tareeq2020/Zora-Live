@@ -5,6 +5,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useEventStore, soldOf, grossOf, mTZS, kTZS } from '../../store/eventStore';
 import { getOrgEvents, getOrgSummary, type OrgEvent, type OrgSummary } from '../../api/organizer';
 import Sparkline from '../../components/Sparkline';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 const VELOCITY = [8, 11, 9, 14, 13, 18, 16, 22, 20, 27, 31, 40];
@@ -62,6 +63,12 @@ export default function DashboardScreen() {
         const nextEvent = selected || events.find((e) => e.status !== 'archived') || events[0];
         if (nextEvent) setFromApi(nextEvent);
         setApiSummary(summary);
+        trackProductEvent('mobile_organizer_dashboard_loaded', {
+          role: 'organizer',
+          eventId: nextEvent?.id ?? null,
+          eventCount: events.length,
+          currency: summary.totals.currency,
+        });
         setLoadError(null);
       })
       .catch((e: any) => {
@@ -215,6 +222,12 @@ export default function DashboardScreen() {
                     key={ev.id}
                     onPress={() => {
                       selectEvent(ev);
+                      trackProductEvent('mobile_organizer_event_switched', {
+                        role: 'organizer',
+                        eventId: ev.id,
+                        status: ev.status,
+                        eventCount: events.length,
+                      });
                       setPickerOpen(false);
                     }}
                     style={({ pressed }) => ({

@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useEventStore, type Tier } from '../../store/eventStore';
 import { updateOrgEvent } from '../../api/organizer';
 import ZoraButton from '../../components/ZoraButton';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 function StepButton({ label, onPress }: { label: string; onPress: () => void }) {
@@ -79,6 +80,12 @@ export default function EditEventScreen() {
         })),
       });
       setDirty(false);
+      trackProductEvent('mobile_organizer_event_update_published', {
+        role: 'organizer',
+        eventId: event.id,
+        count: updated.tiers.length,
+        currency: updated.tiers[0]?.currency || 'TZS',
+      });
       Alert.alert('Published live', 'Storefront, apps and the door are updated.', [
         { text: 'Done', onPress: () => nav.goBack() },
       ]);

@@ -6,6 +6,7 @@ import SwitchModeButton from '../../components/SwitchModeButton';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useSession } from '../../session/store';
 import { signOutNest } from '../../lib/auth';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 import {
   createOrgScanner,
@@ -122,6 +123,12 @@ export default function SettingsScreen() {
       setScanners((list) => [...list, created]);
       setAddingStaff(false);
       resetStaffForm();
+      trackProductEvent('mobile_organizer_scanner_created', {
+        role: 'organizer',
+        eventId: created.eventScope,
+        scannerRole: created.role,
+        canSell: created.canSell,
+      });
       Alert.alert('Door code created', `${created.name}\nCode: ${created.code}\nEvent: ${eventName(created.eventScope)}`);
     } catch (e: any) {
       Alert.alert('Could not create door staff', e?.message ?? 'Please try again.');
@@ -139,6 +146,12 @@ export default function SettingsScreen() {
           try {
             const next = await rotateOrgScanner(s.id);
             setScanners((list) => list.map((x) => (x.id === s.id ? next : x)));
+            trackProductEvent('mobile_organizer_scanner_rotated', {
+              role: 'organizer',
+              eventId: next.eventScope,
+              scannerRole: next.role,
+              canSell: next.canSell,
+            });
             Alert.alert('New door code', `${next.name}\nCode: ${next.code}`);
           } catch (e: any) {
             Alert.alert('Could not rotate code', e?.message ?? 'Please try again.');
@@ -158,6 +171,12 @@ export default function SettingsScreen() {
           try {
             const next = await revokeOrgScanner(s.id);
             setScanners((list) => list.map((x) => (x.id === s.id ? next : x)));
+            trackProductEvent('mobile_organizer_scanner_revoked', {
+              role: 'organizer',
+              eventId: next.eventScope,
+              scannerRole: next.role,
+              canSell: next.canSell,
+            });
           } catch (e: any) {
             Alert.alert('Could not revoke access', e?.message ?? 'Please try again.');
           }
