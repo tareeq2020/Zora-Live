@@ -5,6 +5,7 @@ export type MobilePaymentMethod = 'mobile' | 'billpay' | 'card';
 export interface CheckoutOrder {
   orderId: string;
   total: number;
+  holdExpiresAt?: string;
 }
 
 export async function createCheckout(input: {
@@ -35,4 +36,3 @@ export async function startCheckoutPayment(orderId: string, input: { method: Mob
     },
   });
 }
-

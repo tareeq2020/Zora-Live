@@ -110,7 +110,11 @@ export class CheckoutController {
         path: '/',
         maxAge: 1000 * 3600, // 1h — the payment window
       });
-      return res.status(200).json({ orderId: result.orderId, total: result.total });
+      return res.status(200).json({
+        orderId: result.orderId,
+        total: result.total,
+        holdExpiresAt: new Date(Date.now() + holdTtl * 1000).toISOString(),
+      });
     } finally {
       inFlight--;
     }
