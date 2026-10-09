@@ -42,7 +42,8 @@ export class ConsumerController {
   async myTickets(@Req() req: Request, @Res() res: Response) {
     const { customerId } = (req as any).consumer as ConsumerIdentity;
     const rows = await db()`
-      select cr.code, cr.signature, cr.public_ref, cr.tier_id, cr.seat_index, cr.table_no, e.name as event_name
+      select cr.code, cr.signature, cr.public_ref, cr.tier_id, cr.seat_index, cr.table_no, cr.state,
+             cr.issued_at, e.id as event_id, e.name as event_name, e.venue, e.date_label
         from credential cr
         join event e on e.id = cr.event_id
        where cr.state <> 'revoked' and (
@@ -52,8 +53,9 @@ export class ConsumerController {
        )
        order by cr.issued_at desc`;
     const tickets = rows.map((r: any) => ({
-      publicRef: r.public_ref, tier: r.tier_id, eventName: r.event_name,
-      seatIndex: r.seat_index, tableNo: r.table_no, code: r.code, qr: qrPayload(r.code, r.signature),
+      publicRef: r.public_ref, tier: r.tier_id, eventId: r.event_id, eventName: r.event_name,
+      venue: r.venue, dateLabel: r.date_label, seatIndex: r.seat_index, tableNo: r.table_no,
+      state: r.state, issuedAt: r.issued_at, code: r.code, qr: qrPayload(r.code, r.signature),
     }));
     return res.status(200).json({ tickets });
   }
