@@ -226,6 +226,12 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
     try { window.zoraTrack?.(event as any, { eventId, source: 'seatmap', ...properties } as any); } catch { /* analytics must not block checkout */ }
   };
   function toast(m: string) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+  function holdCopy(raw: any) {
+    if (!raw) return 'Your tickets are held while payment completes.';
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return 'Your tickets are held while payment completes.';
+    return 'Your tickets are held until ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' while payment completes.';
+  }
 
   const STAGE: any = { x: 360, y: 34, w: 280, h: 46 };
   let ZONES: any[] = [
@@ -284,9 +290,9 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
   let holdT: any = null, holdLeft = 0;
   function startHold() { if (holdT) return; holdLeft = 8 * 60; tickHold(); holdT = setInterval(tickHold, 1000); }
   function tickHold() {
-    if (holdLeft <= 0) { stopHold(); cart.seats = []; cart.ga = {}; cart.tables = []; updateCartBar(); redraw(); toast('Checkout window expired — selection cleared'); return; }
+    if (holdLeft <= 0) { stopHold(); cart.seats = []; cart.ga = {}; cart.tables = []; updateCartBar(); redraw(); toast('Selection window expired — pick again'); return; }
     const m = Math.floor(holdLeft / 60), s = holdLeft % 60;
-    $('hold').textContent = '· checkout ' + m + ':' + String(s).padStart(2, '0');
+    $('hold').textContent = '· selection ' + m + ':' + String(s).padStart(2, '0');
     holdLeft--;
   }
   function stopHold() { if (holdT) { clearInterval(holdT); holdT = null; } $('hold').textContent = ''; }
@@ -566,11 +572,12 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
       });
       const parts: string[] = []; cart.seats.forEach((s: any) => parts.push(s.label)); (Object.values(cart.ga) as any[]).forEach((g) => parts.push(g.qty + ' × ' + g.name)); cart.tables.forEach((t: any) => parts.push(t.label));
       const noun = cart.tables.length ? 'item' : 'ticket';
+      const held = holdCopy(order.holdExpiresAt);
       if (splitOn && cart.tables.length) {
         const share = splitShare(), friends = splitPeople - 1;
-        $('done-list').innerHTML = '<b>' + money(share) + '</b> started — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' previewed · split payment links are next';
+        $('done-list').innerHTML = '<b>' + money(share) + '</b> started — your share of ' + money(cartTotal()) + ' split ' + splitPeople + ' ways<br>' + friends + ' friend' + (friends !== 1 ? 's' : '') + ' previewed · split payment links are next<br>' + held;
       } else {
-        $('done-list').innerHTML = '<b>' + cartCount() + ' ' + noun + (cartCount() > 1 ? 's' : '') + '</b> · ' + money(order.total || cartTotal()) + '<br>' + parts.slice(0, 6).join(' &middot; ') + '<br>Payment request sent to your phone.';
+        $('done-list').innerHTML = '<b>' + cartCount() + ' ' + noun + (cartCount() > 1 ? 's' : '') + '</b> · ' + money(order.total || cartTotal()) + '<br>' + parts.slice(0, 6).join(' &middot; ') + '<br>Payment request sent to your phone.<br>' + held;
       }
       $('rev-sheet').classList.remove('on'); $('done-sheet').classList.add('on'); stopHold();
     } catch (e: any) {

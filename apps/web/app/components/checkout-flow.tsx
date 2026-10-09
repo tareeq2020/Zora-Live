@@ -60,7 +60,7 @@ type Step = 'cart' | 'buyer' | 'network' | 'pay' | 'poll' | 'done';
 type Method = 'mobile' | 'billpay' | 'card';
 
 type PoolSnapshot = { tierId: string; available: number };
-type Order = { orderId: string; total: number };
+type Order = { orderId: string; total: number; holdExpiresAt?: string };
 type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string };
 
 const NETWORKS = [
@@ -76,6 +76,12 @@ const POLL_MAX = 60; // ~3 min ceiling before we tell the buyer to check back
 const TERMINAL = new Set(['paid', 'payment_short', 'paid_unseatable', 'failed', 'expired']);
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+const formatHoldExpiry = (value?: string) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
@@ -233,7 +239,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
 
       if (res.status === 200) {
         const d = (await res.json()) as Order;
-        setOrder({ orderId: d.orderId, total: d.total });
+        setOrder({ orderId: d.orderId, total: d.total, holdExpiresAt: d.holdExpiresAt });
         trackProductEvent('web_checkout_started', {
           eventName,
           count: cartLines.reduce((n, l) => n + l.q, 0),
@@ -364,6 +370,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   }
 
   if (!open) return null;
+  const holdExpiry = order ? formatHoldExpiry(order.holdExpiresAt) : null;
 
   return (
     <div className="zco" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -445,7 +452,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                       {fmt(estSubtotal)} {currency}
                     </span>
                   </div>
-                  <p className="zco-fineprint">Fees are shown before payment. Your passes are held while you finish checkout.</p>
+                  <p className="zco-fineprint">Fees are shown before payment. Availability is confirmed when checkout starts.</p>
                 </div>
               ) : null}
 
@@ -529,6 +536,9 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                     {fmt(order.total)} {currency}
                   </span>
                 </div>
+                <p className="zco-fineprint">
+                  {holdExpiry ? `Your passes are held until ${holdExpiry} while payment completes.` : 'Your passes are held while payment completes.'}
+                </p>
               </div>
 
               <label className="zco-field">
