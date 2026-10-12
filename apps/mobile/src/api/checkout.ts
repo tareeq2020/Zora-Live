@@ -8,6 +8,19 @@ export interface CheckoutOrder {
   holdExpiresAt?: string;
 }
 
+export interface CheckoutCredential {
+  tier: string;
+  state: string;
+  qr: string;
+  code: string;
+  publicRef: string;
+}
+
+export interface CheckoutStatus {
+  status: string;
+  credentials: CheckoutCredential[];
+}
+
 export async function createCheckout(input: {
   phone: string;
   email: string;
@@ -34,5 +47,11 @@ export async function startCheckoutPayment(orderId: string, input: { method: Mob
       method: input.method,
       payerPhone: input.phone,
     },
+  });
+}
+
+export async function getCheckoutStatus(orderId: string) {
+  return apiFetch<CheckoutStatus>(`/api/orders/${encodeURIComponent(orderId)}/status`, {
+    auth: 'checkout',
   });
 }

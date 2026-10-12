@@ -29,7 +29,7 @@ export default function TableBookingScreen() {
   const eventId = route.params?.eventId as string | undefined;
   const fallback = getBooking(eventId);
   const [booking, setBooking] = useState<MobileBooking>({ ...fallback, tiers: [] });
-  const money = (minor: number) => `${booking.currency} ${Math.round(minor / 100).toLocaleString()}`;
+  const money = (amount: number) => `${booking.currency} ${Math.round(amount).toLocaleString()}`;
 
   const [plan, setPlan] = useState<FloorPlan>(booking.plan);
   const [selected, setSelected] = useState<Seat | null>(null);
