@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 const DEFAULT_API_URL = 'http://localhost:4101';
 const SESSION_COOKIE_KEY = 'zora.mobile.sessionCookie';
 const CONSUMER_COOKIE_KEY = 'zora.mobile.consumerCookie';
+const CHECKOUT_COOKIE_KEY = 'zora.mobile.checkoutCookie';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 
@@ -19,7 +20,7 @@ export class ApiError extends Error {
 type ApiOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
   timeoutMs?: number;
-  auth?: boolean | 'organizer' | 'consumer';
+  auth?: boolean | 'organizer' | 'consumer' | 'checkout';
 };
 
 export const getSessionCookie = () => SecureStore.getItemAsync(SESSION_COOKIE_KEY);
@@ -28,7 +29,10 @@ export const clearSessionCookie = () => SecureStore.deleteItemAsync(SESSION_COOK
 export const getConsumerCookie = () => SecureStore.getItemAsync(CONSUMER_COOKIE_KEY);
 export const saveConsumerCookie = (cookie: string) => SecureStore.setItemAsync(CONSUMER_COOKIE_KEY, cookie);
 export const clearConsumerCookie = () => SecureStore.deleteItemAsync(CONSUMER_COOKIE_KEY);
-export const clearApiCookies = () => Promise.all([clearSessionCookie(), clearConsumerCookie()]);
+export const getCheckoutCookie = () => SecureStore.getItemAsync(CHECKOUT_COOKIE_KEY);
+export const saveCheckoutCookie = (cookie: string) => SecureStore.setItemAsync(CHECKOUT_COOKIE_KEY, cookie);
+export const clearCheckoutCookie = () => SecureStore.deleteItemAsync(CHECKOUT_COOKIE_KEY);
+export const clearApiCookies = () => Promise.all([clearSessionCookie(), clearConsumerCookie(), clearCheckoutCookie()]);
 
 function extractCookie(headers: Headers, name: string): string | null {
   const raw = headers.get('set-cookie');
@@ -47,7 +51,11 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   }
 
   if (options.auth !== false && !headers.has('Cookie')) {
-    const cookie = options.auth === 'consumer' ? await getConsumerCookie() : await getSessionCookie();
+    const cookie = options.auth === 'consumer'
+      ? await getConsumerCookie()
+      : options.auth === 'checkout'
+        ? await getCheckoutCookie()
+        : await getSessionCookie();
     if (cookie) headers.set('Cookie', cookie);
   }
 
@@ -62,8 +70,10 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 
     const sessionCookie = extractCookie(res.headers, 'zora_session');
     const consumerCookie = extractCookie(res.headers, 'zora_buyer');
+    const checkoutCookie = extractCookie(res.headers, 'zora_checkout');
     if (sessionCookie) await saveSessionCookie(sessionCookie);
     if (consumerCookie) await saveConsumerCookie(consumerCookie);
+    if (checkoutCookie) await saveCheckoutCookie(checkoutCookie);
 
     if (!res.ok) {
       let message = `API responded ${res.status}`;
