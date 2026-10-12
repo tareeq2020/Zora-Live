@@ -1,5 +1,5 @@
 // KYC identity capture — photographs the organizer's ID with the camera and
-// uploads it to the real Phase 1 pipeline (zora-site /api/kyc/*). No fake
+// uploads it to the real Nest API KYC pipeline (/api/kyc/*). No fake
 // approval: the wallet stays locked until an admin approves in the web console.
 import { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, Image, Modal, Alert, ActivityIndicator } from 'react-native';
@@ -77,7 +77,7 @@ export default function KycVerifyScreen() {
       Alert.alert('Submitted for review', 'Your ID is under review — usually within 24 hours. Payouts unlock the moment it clears.');
       nav.goBack();
     } catch (e) {
-      Alert.alert('Could not submit', (e as Error).message + '\n\nMake sure the Zora server is reachable (set EXPO_PUBLIC_KYC_URL to your PC on port 4100).');
+      Alert.alert('Could not submit', (e as Error).message + '\n\nMake sure the Zora API is reachable (set EXPO_PUBLIC_API_URL to your PC on port 4101).');
     } finally {
       setSubmitting(false);
     }
