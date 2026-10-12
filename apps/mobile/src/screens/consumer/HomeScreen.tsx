@@ -17,7 +17,7 @@ const CURRENCY: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi:
 const CAT_TINT: Record<string, string> = { Festivals: '#3D5AFE', Nightlife: '#C738C6', Daytime: '#E9A83B', Arts: '#17B368', Concerts: '#FF5A1F' };
 const money = (code?: string | null, n?: number) => (n != null ? `${CURRENCY[code || 'dar'] || 'TZS'} ${n.toLocaleString()}` : '');
 
-// Supabase row → marketplace card. The full event lives in `props`.
+// Nest marketplace row -> mobile marketplace card. The full event lives in `props`.
 const toCard = (e: RemoteEvent): ConsumerEvent => {
   const p = e.props || ({} as RemoteEvent['props']);
   return {

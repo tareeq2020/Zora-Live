@@ -61,8 +61,8 @@ export const useSession = create<SessionState>((set, get) => ({
     scannerEventScope: profile.scannerEventScope ?? s.scannerEventScope,
   })),
 
-  // Source of truth is the Supabase profile (see auth.resolveProfile); this
-  // setter is how bindAuth mirrors it into the session.
+  // Source of truth is the Nest API account/session state; KYC polling also
+  // uses this setter after the server confirms approval.
   setVerified: (v) => set({ verified: v, kycPending: v ? false : get().kycPending }),
 
   // After the phone POSTs documents to /api/kyc/submit, remember the ref so the

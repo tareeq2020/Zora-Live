@@ -20,6 +20,7 @@ export type ProductAnalyticsEvent =
   | 'mobile_organizer_scanner_revoked'
   | 'mobile_staff_code_redeemed'
   | 'mobile_staff_scan_completed'
+  | 'mobile_attendee_entry_opened'
   | 'mobile_attendee_checkout_started'
   | 'mobile_attendee_payment_started'
   | 'mobile_attendee_payment_confirmed'

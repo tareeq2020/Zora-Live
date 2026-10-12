@@ -1,31 +1,16 @@
-// Auth entry — Google + email/password (validation), a light/dark toggle, and the
-// demo role selector. "Gate agent" routes to access-code entry (not a direct login).
+// Auth entry for the one mobile app. Organizer login uses the Nest API; attendees
+// enter the app and verify ticket ownership by phone OTP inside the ticket wallet.
 import { useState } from 'react';
 import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import Svg, { Path } from 'react-native-svg';
 import { useSession, type Role } from '../session/store';
 import ZoraLogo from '../components/ZoraLogo';
 import ZoraButton from '../components/ZoraButton';
 import ThemeToggle from '../components/ThemeToggle';
-import { signInEmail, signUpEmail, signInGoogle, signInOrganizer } from '../lib/auth';
-import { supabaseReady } from '../lib/supabase';
+import { signInOrganizer } from '../lib/auth';
 import { trackProductEvent } from '../lib/productAnalytics';
 import { useZ } from '../theme';
-
-const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-
-function GoogleG() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 48 48">
-      <Path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.2 17.7 9.5 24 9.5z" />
-      <Path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7C43.7 37.9 46.5 31.8 46.5 24.5z" />
-      <Path fill="#FBBC05" d="M10.5 28.3c-.5-1.5-.8-3.1-.8-4.8s.3-3.3.8-4.8l-7.9-6.1C1 15.9 0 19.8 0 23.5s1 7.6 2.6 10.9l7.9-6.1z" />
-      <Path fill="#34A853" d="M24 47c6.2 0 11.4-2 15.2-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.9 2.2-6.3 0-11.6-3.7-13.5-9.3l-7.9 6.1C6.5 42.6 14.6 47 24 47z" />
-    </Svg>
-  );
-}
 
 export default function RolePickerScreen() {
   const z = useZ();
@@ -33,10 +18,8 @@ export default function RolePickerScreen() {
   const nav = useNavigation<any>();
   const signInAs = useSession((s) => s.signInAs);
   const [accountType, setAccountType] = useState<'organizer' | 'attendee'>('organizer');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
-  const [pw2, setPw2] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -64,46 +47,9 @@ export default function RolePickerScreen() {
       return;
     }
 
-    if (!emailOk(email)) return setErr('Enter a valid email address.');
-    if (pw.length < 8) return setErr('Password must be at least 8 characters.');
-    if (mode === 'signup' && pw !== pw2) return setErr('Passwords don’t match.');
     setErr('');
-
-    // Demo fallback until Supabase keys are set — keeps the app usable offline.
-    if (!supabaseReady) return signInAs('consumer');
-
-    setBusy(true);
-    try {
-      const { data, error } = mode === 'signin' ? await signInEmail(email, pw) : await signUpEmail(email, pw);
-      if (error) return setErr(error.message);
-      // Sign-up with email confirmation on → no session yet.
-      if (mode === 'signup' && !data.session) {
-        setMode('signin');
-        return setErr('Account created — check your email to confirm, then sign in.');
-      }
-      // Success: bindAuth()'s listener mirrors the profile role → RootNavigator routes.
-    } catch (e: any) {
-      setErr(e?.message ?? 'Something went wrong. Try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const google = async () => {
-    setErr('');
-    if (accountType === 'organizer') {
-      setErr('Organizer Google sign-in is not enabled yet. Use email or handle.');
-      return;
-    }
-    if (!supabaseReady) return signInAs('consumer'); // demo fallback
-    setBusy(true);
-    try {
-      await signInGoogle(); // on success, onAuthStateChange routes via bindAuth()
-    } catch (e: any) {
-      setErr(e?.message ?? 'Google sign-in failed.');
-    } finally {
-      setBusy(false);
-    }
+    trackProductEvent('mobile_attendee_entry_opened', { role: 'consumer', source: 'auth' });
+    signInAs('consumer');
   };
 
   const onRole = (role: Role) => (role === 'staff' ? nav.navigate('AgentCode') : signInAs(role));
@@ -122,10 +68,10 @@ export default function RolePickerScreen() {
       </View>
 
       <Text style={{ color: z.bone, fontSize: 26, fontFamily: z.disp, marginTop: 24 }}>
-        {accountType === 'organizer' ? 'Organizer sign in' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
+        {accountType === 'organizer' ? 'Organizer sign in' : 'Attendee access'}
       </Text>
       <Text style={{ color: z.mut, marginTop: 6, marginBottom: 18 }}>
-        {accountType === 'organizer' ? 'Manage events, scan tickets, and track sales from the ZoraPass API.' : 'Your ticket is the product. The app is the only door.'}
+        {accountType === 'organizer' ? 'Manage events, scan tickets, and track sales from the ZoraPass API.' : 'Open your ticket wallet, then verify with the phone number used at checkout.'}
       </Text>
 
       <View style={{ flexDirection: 'row', backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 4 }}>
@@ -139,45 +85,23 @@ export default function RolePickerScreen() {
         })}
       </View>
 
-      {accountType === 'attendee' ? (
-        <View style={{ flexDirection: 'row', backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, padding: 4, marginTop: 12 }}>
-        {(['signin', 'signup'] as const).map((m) => {
-          const on = mode === m;
-          return (
-            <Pressable key={m} onPress={() => { setMode(m); setErr(''); }} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center', backgroundColor: on ? z.ultra : 'transparent' }}>
-              <Text style={{ color: on ? '#fff' : z.mut, fontWeight: '700', fontSize: 13 }}>{m === 'signin' ? 'Sign in' : 'Sign up'}</Text>
-            </Pressable>
-          );
-        })}
-        </View>
-      ) : null}
-
-      {accountType === 'attendee' ? (
-        <Pressable onPress={google} disabled={busy} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: z.bone, borderRadius: z.r, paddingVertical: 14, marginTop: 16, opacity: busy ? 0.5 : pressed ? 0.85 : 1 })}>
-          <GoogleG />
-          <Text style={{ color: z.bg, fontWeight: '700', fontSize: 14 }}>Continue with Google</Text>
-        </Pressable>
-      ) : null}
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: accountType === 'attendee' ? 18 : 16 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
-        <Text style={{ color: z.mut2, fontSize: 12 }}>{accountType === 'organizer' ? 'API LOGIN' : 'or'}</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
-      </View>
-
-      <Text style={label}>{accountType === 'organizer' ? 'Email or handle' : 'Email'}</Text>
-      <TextInput value={email} onChangeText={setEmail} placeholder={accountType === 'organizer' ? 'your-handle or you@email.com' : 'you@email.com'} placeholderTextColor={z.mut2} autoCapitalize="none" keyboardType={accountType === 'organizer' ? 'default' : 'email-address'} autoComplete="email" style={input} />
-      <Text style={label}>Password</Text>
-      <TextInput value={pw} onChangeText={setPw} placeholder="At least 8 characters" placeholderTextColor={z.mut2} secureTextEntry autoCapitalize="none" style={input} />
-      {accountType === 'attendee' && mode === 'signup' && (
+      {accountType === 'organizer' ? (
         <>
-          <Text style={label}>Confirm password</Text>
-          <TextInput value={pw2} onChangeText={setPw2} placeholder="Re-enter password" placeholderTextColor={z.mut2} secureTextEntry autoCapitalize="none" style={input} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 16 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
+            <Text style={{ color: z.mut2, fontSize: 12 }}>API LOGIN</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: z.line }} />
+          </View>
+
+          <Text style={label}>Email or handle</Text>
+          <TextInput value={email} onChangeText={setEmail} placeholder="your-handle or you@email.com" placeholderTextColor={z.mut2} autoCapitalize="none" autoComplete="email" style={input} />
+          <Text style={label}>Password</Text>
+          <TextInput value={pw} onChangeText={setPw} placeholder="At least 8 characters" placeholderTextColor={z.mut2} secureTextEntry autoCapitalize="none" style={input} />
         </>
-      )}
+      ) : null}
       {err ? <Text style={{ color: '#ff8b84', fontSize: 12, marginTop: 4 }}>{err}</Text> : null}
 
-      <ZoraButton variant="gradient" disabled={busy} label={busy ? 'Please wait…' : accountType === 'organizer' ? 'Open organizer dashboard' : mode === 'signin' ? 'Sign in' : 'Create account'} onPress={submit} style={{ marginTop: 16 }} />
+      <ZoraButton variant="gradient" disabled={busy} label={busy ? 'Please wait...' : accountType === 'organizer' ? 'Open organizer dashboard' : 'Open ticket wallet'} onPress={submit} style={{ marginTop: 16 }} />
 
       <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 30, marginBottom: 10 }}>OR CONTINUE AS (DEMO)</Text>
       {ROLES.map((r) => (
