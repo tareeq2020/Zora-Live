@@ -842,6 +842,19 @@ export default function DropEditor(props: DropEditorProps) {
                 <span className="knob" />
               </button>
             </div>
+            {isEdit && form.seated ? (
+              <a
+                className="ghost"
+                href={`/dashboard/events/new/floor-plan?event=${encodeURIComponent((props as { eventId: string }).eventId)}`}
+                style={{ display: 'inline-flex', marginTop: 12 }}
+              >
+                EDIT FLOOR PLAN
+              </a>
+            ) : form.seated ? (
+              <p className="tier-note" style={{ marginTop: 10 }}>
+                Save this drop first, then open the floor-plan builder to link zones to ticket tiers.
+              </p>
+            ) : null}
           </div>
 
           {/* BS24 — manage drop: archive (reversible, works even with sales) or, for

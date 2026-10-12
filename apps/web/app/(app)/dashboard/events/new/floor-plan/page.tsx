@@ -2,7 +2,8 @@
 
 /* PR-F6 — the no-code floor-plan builder (dashboard-seatbuilder.html) at
    /dashboard/events/new/floor-plan. The interactive SVG canvas (pointer
-   draw/select zones, sample stadium, PUT /api/floorplan) is preserved verbatim.
+   draw/select zones, sample stadium, PUT /api/events/:id/floorplan when an
+   event id is present) is preserved.
    Same faithful pattern: page-scoped styles + markup via
    dangerouslySetInnerHTML, original script run once on mount. Styles scoped
    under `.zora-seatbuilder`; the DASHBOARD breadcrumb points to /dashboard. */
@@ -15,10 +16,10 @@ import { ORG_NAV, ORG_BRAND } from '../../../components/org-nav';
 // shared <CrShell> and every local palette var aliases to the theme-aware
 // `--cr-*` token set, so it reads as the same product and flips light↔dark with
 // the rest of the organizer console. The interactive SVG canvas + imperative
-// script (draw/select zones, sample, PUT /api/floorplan) are UNCHANGED — only
-// the surrounding chrome is re-skinned. .ztext/.zsub fill stays the fixed dark
-// ink on purpose — that text sits ON TOP of a zone's own bright swatch color,
-// not on the page background, so it's content-plane, not chrome.
+// script stays as a faithful port while the publish/preview endpoints now know
+// about event-scoped seat maps. .ztext/.zsub fill stays the fixed dark ink on
+// purpose — that text sits ON TOP of a zone's own bright swatch color, not on
+// the page background, so it's content-plane, not chrome.
 const STYLE = `
 .zora-seatbuilder{--black:var(--cr-paper);--ink:var(--cr-card);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
   --blue:var(--cr-blue);--teal:var(--cr-green);--amber:var(--cr-amber);
@@ -167,9 +168,30 @@ const SCRIPT = String.raw`
   const $ = id => document.getElementById(id);
   const fmt = n => n.toLocaleString('en-US');
   function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200); }
+  const params = new URLSearchParams(location.search);
+  const EVENT_ID = params.get('event') || params.get('eventId') || params.get('id') || '';
+  const planApi = EVENT_ID ? '/api/events/' + encodeURIComponent(EVENT_ID) + '/floorplan' : '/api/floorplan';
+  const buyerHref = EVENT_ID ? '/events/' + encodeURIComponent(EVENT_ID) + '/seats' : '/discover';
 
   const COLORS = ['#3D5AFE','#2FA9A0','#B98A2E','#7A5AF8','#639922','#D4537E'];
-  let tool='draw', zones=[], sel=null, nextId=1;
+  let tool='draw', zones=[], sel=null, nextId=1, tiers=[];
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function tierLabel(t){ return t.name || t.tierId || 'Ticket tier'; }
+  function tierOptions(selected){
+    const opts = ['<option value="">Not linked — preview only</option>'];
+    tiers.forEach(t => opts.push('<option value="'+esc(t.tierId)+'"'+(selected===t.tierId?' selected':'')+'>'+esc(tierLabel(t))+' · '+fmt(Number(t.unitPrice||t.price||0))+' '+esc(t.currency||'TZS')+'</option>'));
+    return opts.join('');
+  }
+  function defaultTierId(){
+    const live = tiers.find(t => t && t.tierId && !t.disabled);
+    return live ? live.tierId : '';
+  }
+  function syncPriceFromTier(z){
+    if(!z.tierId) return;
+    const t = tiers.find(x => x.tierId === z.tierId);
+    if(t && Number.isFinite(Number(t.unitPrice || t.price))) z.price = Number(t.unitPrice || t.price);
+  }
 
   /* ── upload ── */
   $('up-btn').onclick=()=>$('up-file').click();
@@ -205,7 +227,8 @@ const SCRIPT = String.raw`
     const w=Math.abs(drawing.x1-drawing.x0), h=Math.abs(drawing.y1-drawing.y0);
     drawing=null;
     if(w<40||h<30){ render(); return; }
-    const z={ id:'z'+(nextId++), name:'Zone '+(zones.length+1), type:'seated', x,y,w,h, color:COLORS[zones.length%COLORS.length], price:50000, rows:10, perRow:20, cap:200, tables:16, perTable:8 };
+    const z={ id:'z'+(nextId++), name:'Zone '+(zones.length+1), type:'seated', x,y,w,h, color:COLORS[zones.length%COLORS.length], tierId:defaultTierId(), price:50000, rows:10, perRow:20, cap:200, tables:16, perTable:8 };
+    syncPriceFromTier(z);
     zones.push(z); selectZone(z.id); toast('Zone added — set its details');
   });
 
@@ -245,7 +268,8 @@ const SCRIPT = String.raw`
     const box=$('editor');
     if(!z){ box.innerHTML='<p class="no-sel">Draw a zone on the map, or pick one from the list below, to set its name, seating, capacity and price.</p>'; return; }
     box.innerHTML =
-      '<div class="field"><label>ZONE NAME</label><input class="in" id="e-name" value="'+z.name.replace(/"/g,'&quot;')+'"></div>'+
+      '<div class="field"><label>ZONE NAME</label><input class="in" id="e-name" value="'+esc(z.name)+'"></div>'+
+      '<div class="field"><label>TICKET TIER</label><select class="in" id="e-tier">'+tierOptions(z.tierId||'')+'</select><p class="no-sel" style="font-size:10.5px;margin-top:7px">Link each zone to a sellable ticket tier so buyer checkout can reserve inventory.</p></div>'+
       '<div class="field"><label>ZONE TYPE</label><select class="in" id="e-type">'+
         '<option value="seated"'+(z.type==='seated'?' selected':'')+'>Assigned seating (rows &amp; seats)</option>'+
         '<option value="table"'+(z.type==='table'?' selected':'')+'>Table reservations (whole tables)</option>'+
@@ -271,6 +295,7 @@ const SCRIPT = String.raw`
       else { z.cap=parseInt($('e-cap').value)||0; }
       capText(); render(); };
     $('e-name').oninput=upd; $('e-price').oninput=upd;
+    $('e-tier').onchange=()=>{ z.tierId=$('e-tier').value||''; syncPriceFromTier(z); renderEditor(); render(); };
     $('e-type').onchange=()=>{ z.type=$('e-type').value;
       if(z.type==='table'){ if(!z.tables)z.tables=16; if(!z.perTable)z.perTable=8; }
       if(z.type==='ga'&&!z.cap)z.cap=(z.rows||10)*(z.perRow||20);
@@ -285,8 +310,8 @@ const SCRIPT = String.raw`
     $('zlist').innerHTML = zones.length ? zones.map(z=>
       '<div class="zitem'+(sel===z.id?' on':'')+'" data-z="'+z.id+'">'+
         '<span class="dot" style="background:'+z.color+'"></span>'+
-        '<span class="zn">'+z.name+'</span>'+
-        '<span class="zc">'+fmt(capOf(z))+'</span>'+
+        '<span class="zn">'+esc(z.name)+'</span>'+
+        '<span class="zc">'+(z.tierId?'LINKED':'UNMAPPED')+' · '+fmt(capOf(z))+'</span>'+
         '<button class="del" data-del="'+z.id+'" aria-label="Delete">&times;</button>'+
       '</div>').join('') : '<p class="no-sel">No zones yet.</p>';
   }
@@ -304,29 +329,61 @@ const SCRIPT = String.raw`
   /* ── sample ── */
   function loadSample(){
     zones=[
-      {id:'z'+(nextId++),name:'Golden Circle',type:'ga',x:560,y:150,w:480,h:190,color:COLORS[1],price:180000,cap:2000,rows:10,perRow:20},
-      {id:'z'+(nextId++),name:'VIP Tables',type:'table',x:560,y:360,w:480,h:120,color:COLORS[5],price:900000,tables:16,perTable:8},
-      {id:'z'+(nextId++),name:'Grandstand A',type:'seated',x:150,y:150,w:360,h:520,color:COLORS[0],price:90000,rows:16,perRow:12},
-      {id:'z'+(nextId++),name:'Grandstand B',type:'seated',x:1090,y:150,w:360,h:520,color:COLORS[0],price:90000,rows:16,perRow:12},
-      {id:'z'+(nextId++),name:'Lawn GA',type:'ga',x:150,y:700,w:1300,h:150,color:COLORS[4],price:55000,cap:5000,rows:10,perRow:20}
+      {id:'z'+(nextId++),name:'Golden Circle',type:'ga',x:560,y:150,w:480,h:190,color:COLORS[1],tierId:defaultTierId(),price:180000,cap:2000,rows:10,perRow:20},
+      {id:'z'+(nextId++),name:'VIP Tables',type:'table',x:560,y:360,w:480,h:120,color:COLORS[5],tierId:defaultTierId(),price:900000,tables:16,perTable:8},
+      {id:'z'+(nextId++),name:'Grandstand A',type:'seated',x:150,y:150,w:360,h:520,color:COLORS[0],tierId:defaultTierId(),price:90000,rows:16,perRow:12},
+      {id:'z'+(nextId++),name:'Grandstand B',type:'seated',x:1090,y:150,w:360,h:520,color:COLORS[0],tierId:defaultTierId(),price:90000,rows:16,perRow:12},
+      {id:'z'+(nextId++),name:'Lawn GA',type:'ga',x:150,y:700,w:1300,h:150,color:COLORS[4],tierId:defaultTierId(),price:55000,cap:5000,rows:10,perRow:20}
     ];
+    zones.forEach(syncPriceFromTier);
     sel=zones[0].id; render(); renderEditor(); toast('Sample stadium loaded — edit any zone');
   }
 
   /* ── publish / preview ── */
   async function publish(){
     if(!zones.length){ toast('Draw at least one zone first'); return; }
+    if(EVENT_ID && zones.some(z=>!z.tierId)){ toast('Link every zone to a ticket tier before publishing'); return; }
     const cap=zones.reduce((a,z)=>a+capOf(z),0);
     try{
-      const r=await fetch('/api/floorplan',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ space:{w:1600,h:900}, zones })});
+      const r=await fetch(planApi,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ space:{w:1600,h:900}, zones })});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
       toast('Published live — '+zones.length+' zones, '+fmt(cap)+' seats. Buyers see it now.');
     }catch(err){ toast('Publish failed: '+(err.message||err)); }
   }
+  function openBuyer(){
+    if(!EVENT_ID){ toast('Open this builder from a saved event to preview the buyer seat map'); return; }
+    location.href = buyerHref;
+  }
+  function loadPlan(plan){
+    if(!plan || !Array.isArray(plan.zones)) return;
+    zones = plan.zones.map((z, i) => ({...z, id:z.id||('z'+(i+1)), color:z.color||COLORS[i%COLORS.length]}));
+    nextId = zones.reduce((max,z)=>Math.max(max, Number(String(z.id||'').replace(/^z/,''))||0), 0) + 1;
+    sel = zones[0]?.id || null;
+    render(); renderEditor();
+  }
+  async function bootEventContext(){
+    if(!EVENT_ID){ render(); return; }
+    try{
+      const [evRes, planRes] = await Promise.all([
+        fetch('/api/events/' + encodeURIComponent(EVENT_ID), {cache:'no-store'}),
+        fetch(planApi, {cache:'no-store'})
+      ]);
+      if(evRes.ok){
+        const ev = await evRes.json();
+        tiers = Array.isArray(ev.webCheckout?.tiers) ? ev.webCheckout.tiers.filter(t => t && t.tierId && !t.disabled) : [];
+        if(ev.name) document.querySelector('.zora-seatbuilder .title').textContent = 'FLOOR PLAN · ' + ev.name.toUpperCase();
+      }
+      if(planRes.ok){
+        const plan = await planRes.json();
+        if(plan && Array.isArray(plan.zones) && plan.zones.length) loadPlan(plan);
+      }
+    }catch(e){ /* builder still works offline */ }
+    render(); renderEditor();
+  }
   $('publish').onclick=publish; $('publish2').onclick=publish;
-  $('preview').onclick=()=>location.href='/seatmap.html'; $('preview2').onclick=()=>location.href='/seatmap.html';
+  $('preview').onclick=openBuyer; $('preview2').onclick=openBuyer;
 
-  render();
+  bootEventContext();
 `;
 
 export default function FloorPlanBuilderPage() {
