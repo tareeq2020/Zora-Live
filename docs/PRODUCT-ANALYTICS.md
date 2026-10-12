@@ -106,6 +106,8 @@ totals; use DB analytics for financial reporting.
 - `mobile_attendee_checkout_started`
 - `mobile_attendee_payment_started`
 - `mobile_attendee_payment_confirmed`
+- `mobile_attendee_split_created`
+- `mobile_attendee_split_host_payment_started`
 - `mobile_attendee_ticket_wallet_loaded`
 - `mobile_attendee_ticket_viewed`
 - `mobile_attendee_otp_requested`
