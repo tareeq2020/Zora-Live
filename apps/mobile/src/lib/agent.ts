@@ -16,6 +16,15 @@ export interface RedeemResult {
   scanner: { id: string; name: string; role: 'agent' | 'supervisor'; eventScope: string | null; canSell?: boolean };
 }
 
+export interface VerifyTicketResult {
+  ok: boolean;
+  result: string;
+  ticket: string;
+  message?: string;
+  priorActor?: string | null;
+  priorAt?: string | null;
+}
+
 export async function redeemCode(code: string): Promise<RedeemResult> {
   const r = await fetch(`${API_URL}/api/scan/session`, {
     method: 'POST',
@@ -28,7 +37,7 @@ export async function redeemCode(code: string): Promise<RedeemResult> {
   return j as RedeemResult;
 }
 
-export async function verifyTicket(ticket: string): Promise<{ ok: boolean; result: string; ticket: string }> {
+export async function verifyTicket(ticket: string): Promise<VerifyTicketResult> {
   const token = await getAgentToken();
   const r = await fetch(`${API_URL}/api/scan/verify`, {
     method: 'POST',
@@ -42,11 +51,15 @@ export async function verifyTicket(ticket: string): Promise<{ ok: boolean; resul
       ok: false,
       result: String(j.outcome || j.error || 'invalid'),
       ticket: String(j.pass?.reference ?? j.pass?.id ?? ticket),
+      message: typeof j.message === 'string' ? j.message : undefined,
+      priorActor: typeof j.priorActor === 'string' ? j.priorActor : null,
+      priorAt: typeof j.priorAt === 'string' ? j.priorAt : null,
     };
   }
   return {
     ok: true,
     result: String(j.outcome || 'valid'),
     ticket: String(j.pass?.reference ?? j.pass?.id ?? ticket),
+    message: typeof j.message === 'string' ? j.message : undefined,
   };
 }
