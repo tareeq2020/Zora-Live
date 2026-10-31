@@ -47,7 +47,7 @@ Last updated: 2026-10-31
 | BS132 | Installments core: plan/schedule tables, schedule maths, statuses, held→reserved, earnings by collected money | R5 | A | BS116, BS118 | F7, A2, A3, A16, A19 | merged | https://github.com/tareeq2020/Zora-Live/pull/215 | migration 0031; installments + payouts + money regression e2e PASS; refunds after default are manual (ops) |
 | BS133 | Installment provider adapter (x-bridge /v1 receivables; mock until R3 sandbox) + webhook handler | R5 | A | BS132 | A4, A20 | merged | https://github.com/tareeq2020/Zora-Live/pull/217 | migration 0033; mock-only until x-bridge sandbox (TODO(xbridge-v1) markers); webhook HMAC |
 | BS134 | Installment checkout + confirmation + "booked" pass state (no QR until paid) | R5 | A | BS122, BS132 | A5, DD5 | todo | | |
-| BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | todo | | |
+| BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | merged | https://github.com/tareeq2020/Zora-Live/pull/219 | locked default close; refund recorded as pending for ops; jobs e2e PASS |
 | BS136 | Organizer installment settings + orders view; admin enable switch + fee | R5 | A | BS132 | F7 | todo | | |
 | BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | todo | | |
 | BS138 | Payments: move from x-bridge /collection/* to /v1 before x-bridge release 4 (≈ 28 Nov) | R6 | A | x-bridge /v1 live | new | blocked | | x-bridge switches /collection/* off at its R4 |
