@@ -35,7 +35,7 @@ Last updated: 2026-10-31
 | BS121 | Checkout API: subtotal/fee/currency in response; payment-method groups endpoint | R2 | A | BS116 | A8 | merged | https://github.com/tareeq2020/Zora-Live/pull/196 | checkout-http e2e PASS |
 | BS122 | Checkout v2 UI: 2 steps, summary column, artwork, fee line, methods Mobile/Card/QR | R2 | A | BS120, BS121 | F3, DD6 | todo | | |
 | BS123 | Analytics capture: beacon + `analytics_daily` / `analytics_visitor_day`, server events (payment_completed, checkout_abandoned), purge job | R2 | C | BS115, BS118 | F4, A10, A11, A22 | todo | | |
-| BS124 | Seat inventory: migration, generation from published plan, versioned diff + 409 guard | R3 | B | BS116, BS118 | F5, A6, A7, A21 | todo | | |
+| BS124 | Seat inventory: migration, generation from published plan, versioned diff + 409 guard | R3 | B | BS116, BS118 | F5, A6, A7, A21 | merged | https://github.com/tareeq2020/Zora-Live/pull/199 | seat-inventory e2e 18/18 |
 | BS125 | Seat holds in checkout: hold tx with tier hold, seatIds through order, seat on credential, sweep, late-settlement rule | R3 | B | BS124 | A6, A12, A13, A17 | todo | | touches checkout API — coordinate with Lane A |
 | BS126 | Buyer seat map live (desktop + phone), poll + ETag, conflict UX | R3 | B | BS125 | F5, DD3 | todo | | |
 | BS127 | Organizer builder: block / reserve / comps / release, venue image upload, price mode | R3 | B | BS124 | F5, DD8 | todo | | |
