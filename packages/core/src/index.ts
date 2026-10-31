@@ -241,3 +241,10 @@ export {
   recordInstallmentRefund, installmentPayLink, REMINDER_HOURS, CLOSING_MAX_HOURS,
 } from './payments/installments-jobs';
 export type { ReminderKind, DefaultCloseResult, RecordInstallmentRefundResult } from './payments/installments-jobs';
+// BS136: organizer installments list + reminder latch, admin refund worklist.
+export {
+  orgInstallmentList, installmentPlanEvent, claimOrgReminder, releaseOrgReminder, secondsUntilEatMidnight,
+  pendingInstallmentRefunds, buyerDisplayName, orderRef, ORG_INSTALLMENT_STATUSES,
+} from './payments/installments-org';
+export type { OrgInstallmentRow, OrgInstallmentList, OrgInstallmentStatus, PendingInstallmentRefund } from './payments/installments-org';
+export { sendManualInstallmentReminder } from './payments/installments-jobs';

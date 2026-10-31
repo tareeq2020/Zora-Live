@@ -18,6 +18,10 @@
     "./product-analytics": {
       "types": "./src/product-analytics.ts",
       "default": "./src/product-analytics.ts"
+    },
+    "./installments": {
+      "types": "./src/installments.ts",
+      "default": "./src/installments.ts"
     }
   },
   "scripts": {
