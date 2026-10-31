@@ -1,6 +1,6 @@
 import { Controller, Get, Module, Param, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { db, suspendedHandles } from '@zora/core';
+import { db, resolveTheme, suspendedHandles } from '@zora/core';
 import { OrganizerRepo } from '../storage/organizer-repo';
 import { DEFAULT_THEME, ROOT_DOMAIN } from '../common/defaults';
 
@@ -31,37 +31,20 @@ const eventsApi = require('../vendor/events');
 const CACHE = 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800';
 const NOCACHE = 'no-store';
 
-type ThemeRow = {
-  brand_name: string | null; accent: string | null; secondary: string | null;
-  bg: string | null; card: string | null; logo_url: string | null; updated_at: Date | string | null;
-};
-
 @Controller('share-card')
 export class ShareCardController {
   constructor(private readonly organizers: OrganizerRepo) {}
 
   // ── theme, read the SAME way the storefront reads it (never a write) ────────
-  private async themeFor(handle: string, orgId: string, brandFallback: string) {
-    try {
-      const rows = await db()<ThemeRow[]>`
-        select brand_name, accent, secondary, bg, card, logo_url, updated_at
-          from theme where organizer_id = ${orgId}`;
-      const r = rows[0];
-      return {
-        brandName: r?.brand_name || brandFallback || DEFAULT_THEME.brandName,
-        accent: r?.accent || DEFAULT_THEME.accent,
-        bg: r?.bg || DEFAULT_THEME.bg,
-        card: r?.card || DEFAULT_THEME.card,
-        logoUrl: r?.logo_url || '',
-        updatedAt: r?.updated_at ? new Date(r.updated_at).toISOString() : '',
-      };
-    } catch {
-      return {
-        brandName: brandFallback || DEFAULT_THEME.brandName,
-        accent: DEFAULT_THEME.accent, bg: DEFAULT_THEME.bg, card: DEFAULT_THEME.card,
-        logoUrl: '', updatedAt: '',
-      };
-    }
+  // BS130 (A14): the shared core resolver; share cards take the storefront
+  // layer only (no ticket design) over the platform DEFAULT_THEME.
+  private async themeFor(_handle: string, orgId: string, brandFallback: string) {
+    const t = await resolveTheme({
+      organizerId: orgId,
+      brandFallback: brandFallback || DEFAULT_THEME.brandName,
+      defaults: { ...DEFAULT_THEME },
+    });
+    return { brandName: t.brandName, accent: t.accent, bg: t.bg, card: t.card, logoUrl: t.logoUrl, updatedAt: t.updatedAt };
   }
 
   // sold_count for one event (C2: inventory_pool.sold_count via product_tier map).

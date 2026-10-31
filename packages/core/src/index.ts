@@ -193,3 +193,13 @@ export type { SeatState, SeatRowSpec, StoredSeat, SeatDiff, PublishSeatMapResult
 // BS123: first-party storefront analytics + server product events.
 export { recordView, purgeVisitorDays, classifySource, isBotUserAgent, visitorHash, captureServerEvent, ANALYTICS_SOURCES } from './analytics-capture';
 export type { AnalyticsSource, RecordViewInput } from './analytics-capture';
+// BS130 (F6/A14): the shared theme resolver (share cards + branded passes).
+export {
+  PASS_TEMPLATES, PASS_SHOW_FIELDS, ZP_BLACK, ZP_BONE, ZP_YELLOW, ZORA_PASS_DEFAULTS,
+  isHexColour, luminance, contrastRatio, pickTextOn, normaliseTemplate, normaliseShowFields,
+  mergeTheme, loadStorefrontTheme, loadTicketDesign, resolveTheme,
+} from './theme-resolve';
+export type {
+  PassTemplate, PassShowField, ThemeDefaults, StorefrontThemeLayer, EventThemeLayer,
+  TicketDesignFields, TicketDesignLayer, TicketDesignRecord, ResolvedTheme,
+} from './theme-resolve';
