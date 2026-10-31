@@ -35,6 +35,7 @@ type ZoraEvent = {
   mega?: boolean;
   organizer?: string;
   organizerHandle?: string;
+  cover?: string;
   // Present when the event is web-sellable (seed-tiers wires a GA tier). Its
   // presence flips the CTA from the app-claim toast to the real <CheckoutFlow>.
   webCheckout?: { tiers?: CheckoutTier[] };
@@ -163,7 +164,18 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               GET PASSES<span className={styles.arrow} aria-hidden="true">→</span>
             </Link>
           ) : (
-            <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} />
+            <GetTicketButton
+              eventName={ev.name}
+              eventId={params.id}
+              when={when}
+              tiers={ev.webCheckout?.tiers}
+              organizerHandle={ev.organizerHandle}
+              artwork={ev.cover}
+              dateLabel={ev.dateLabel}
+              time={ev.time}
+              venue={ev.venue}
+              city={city}
+            />
           )}
           <p className={styles.nofee}>Fees shown before you pay.</p>
         </aside>

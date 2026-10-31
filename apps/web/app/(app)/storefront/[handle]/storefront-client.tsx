@@ -9,15 +9,19 @@
    yellow, flat). The organizer supplies the name, logo and banner; their accent
    colour no longer recolours the page chrome.
 
-   Client component: it owns the ZoraPass checkout sheet (qty / honest no-fee
-   pricing / crew split / app-claim step) and the per-event countdowns, exactly
-   as the original page did — just expressed as React state instead of imperative
-   DOM. The server page (page.tsx) fetches and passes everything in as props. */
+   BS120: every event renders through the shared <EventCard> (one link, chip
+   only when true, GET PASSES strip). For a web-sellable event the card click
+   opens the live <CheckoutFlow> in place (the fastest path — no page load); the
+   card's href is the event page with ?buy=1, so open-in-new-tab lands on the
+   same checkout. App-claim events and sold-out cards navigate to the event page.
+   The server page (page.tsx) fetches and passes everything in as props. */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
+import CheckoutFlow, { resolveCheckoutV2, type CheckoutTier } from '../../../components/checkout-flow';
 import ViewBeacon from '@/app/components/view-beacon';
+import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../../components/event-card';
+import { CITIES } from '../../../lib/cities';
 
 export type StorefrontEvent = {
   id: string;
@@ -29,6 +33,7 @@ export type StorefrontEvent = {
   time?: string;
   priceFrom?: number;
   seated?: boolean;
+  mega?: boolean;
   cover?: string; // per-event hero poster (event blob `cover`)
   // PR-11: real product tiers wired to the payments backend. Present only on
   // web-sellable events (webCheckout.tiers in the event store); when absent the
@@ -57,6 +62,8 @@ export type StorefrontProps = {
   events: StorefrontEvent[];
   theme: StorefrontTheme;
   canManage: boolean;
+  /** Live inventory pools by tierId (null when /api/inventory was unreachable). */
+  pools?: Record<string, InventoryPool> | null;
 };
 
 const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
@@ -65,7 +72,6 @@ const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES
 // colour (STOREFRONT-BRAND-SPEC.md D2 + the BS119 handoff migration).
 
 const fmt = (n: number) => n.toLocaleString('en-US');
-const pad = (n: number) => String(n).padStart(2, '0');
 // Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
 const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
 const money = (n: number, c: string) => `${curLabel(c)} ${fmt(n)}`;
@@ -76,54 +82,6 @@ const initials = (name: string) =>
     .slice(0, 2)
     .map((w) => w.charAt(0).toUpperCase())
     .join('') || 'Z';
-
-// Best-effort target date for the doors countdown. Events carry a human dateLabel
-// ("Sat 08 Aug") + time ("12:00") but no ISO — reconstruct a Date, rolling to next
-// year if the day has already passed. Client-only (Date.now) to avoid SSR skew.
-function targetDate(ev: StorefrontEvent): number | null {
-  if (!ev.dateLabel) return null;
-  const clean = ev.dateLabel.replace(/^[A-Za-z]{3,}\s+/, ''); // strip weekday
-  const now = new Date();
-  for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
-    const d = new Date(`${clean} ${year} ${ev.time || '12:00'}`);
-    if (!isNaN(d.getTime()) && d.getTime() > now.getTime() - 86400000) return d.getTime();
-  }
-  const d = new Date(`${clean} ${now.getFullYear()} ${ev.time || '12:00'}`);
-  return isNaN(d.getTime()) ? null : d.getTime();
-}
-
-function Countdown({ ev }: { ev: StorefrontEvent }) {
-  const [label, setLabel] = useState('DOORS IN --:--:--:--');
-  useEffect(() => {
-    const target = targetDate(ev);
-    if (target == null) {
-      setLabel('');
-      return;
-    }
-    const tick = () => {
-      const d = target - Date.now();
-      if (d <= 0) {
-        setLabel('LIVE NOW');
-        return;
-      }
-      setLabel(
-        'DOORS IN ' +
-          pad(Math.floor(d / 86400000)) +
-          ':' +
-          pad(Math.floor(d / 3600000) % 24) +
-          ':' +
-          pad(Math.floor(d / 60000) % 60) +
-          ':' +
-          pad(Math.floor(d / 1000) % 60),
-      );
-    };
-    tick();
-    const iv = setInterval(tick, 1000);
-    return () => clearInterval(iv);
-  }, [ev]);
-  if (!label) return null;
-  return <p className="countdown">{label}</p>;
-}
 
 // A poster tile that shows the WHOLE image (event flyers are portrait), never
 // cropped: the full poster is contained on a flat board-black frame (handoff:
@@ -137,7 +95,7 @@ function Poster({ src, variant, alt }: { src: string; variant: 'hero' | 'cover';
 }
 
 export default function StorefrontClient(props: StorefrontProps) {
-  const { handle, subdomain, eyebrow, lede, aboutHeading, aboutBody, events, canManage } = props;
+  const { handle, subdomain, eyebrow, lede, aboutHeading, aboutBody, events, canManage, pools } = props;
 
   // Live theming: start from the published theme (props) and merge any `zora-theme`
   // postMessage the Studio preview iframe sends — mirrors the original page's
@@ -160,41 +118,18 @@ export default function StorefrontClient(props: StorefrontProps) {
   // redesign); it no longer recolours the storefront chrome.
   const accent = theme.accent || '#C46A28';
 
-  // ── checkout sheet state (faithful to the original) ──
+  // ── in-place checkout (web-sellable events only) ──
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<StorefrontEvent | null>(null);
-  const [qty, setQty] = useState(1);
-  const [crew, setCrew] = useState(false);
-  const [paid, setPaid] = useState(false);
-  const orderRef = useRef('ORDER');
 
+  // BS122: warm the checkout-v2 flag per sellable event so the in-place
+  // checkout opens without waiting on /api/flags.
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [open]);
+    for (const ev of events) if (ev.webCheckout?.tiers?.some((t) => t.tierId && !t.disabled)) void resolveCheckoutV2(handle, ev.id);
+  }, [events, handle]);
 
-  function openCheckout(ev: StorefrontEvent) {
-    setActive(ev);
-    setQty(1);
-    setCrew(false);
-    setPaid(false);
-    setOpen(true);
-  }
-  function pay() {
-    orderRef.current = 'ORDER ' + brandName.slice(0, 3).toUpperCase() + '-' + (4000 + Math.floor(Math.random() * 900)) + Math.floor(Math.random() * 9);
-    setPaid(true);
-  }
-
-  const unit = active?.priceFrom || 0;
-  const cur = CUR[active?.city || ''] || 'TZS';
-  const total = unit * qty;
-
-  // PR-11: a web-sellable event carries real product tiers → the live payments
-  // flow replaces the old app-claim sheet. Everything else keeps the app-claim path.
-  const webTiers = active?.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
-  const webSellable = webTiers.length > 0;
+  const onSaleTiersOf = (ev: StorefrontEvent) => ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
+  const webTiers = active ? onSaleTiersOf(active) : [];
   const activeWhen = active
     ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()
     : '';
@@ -265,55 +200,52 @@ export default function StorefrontClient(props: StorefrontProps) {
               </div>
             ) : (
               <div className="event-grid">
-                {events.map((ev) => {
+                {events.map((ev, i) => {
                   const evCur = CUR[ev.city || ''] || 'TZS';
                   // BS26: the headline "FROM" must reflect what's actually on sale — the
                   // cheapest ENABLED tier — not the stale priceFrom scalar (which still
                   // points at a switched-off tier). Falls back to priceFrom for app-claim
                   // events (no web catalog).
-                  const onSaleTiers = ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
+                  const onSaleTiers = onSaleTiersOf(ev);
                   const cheapest = onSaleTiers.length
                     ? onSaleTiers.reduce((a, b) => (b.unitPrice < a.unitPrice ? b : a))
                     : null;
                   const fromPrice = cheapest ? cheapest.unitPrice : ev.priceFrom || 0;
                   const fromUsd = cheapest?.usd; // BS65: show the USD price in brackets
-                  const href = `/@${handle}/events/${encodeURIComponent(ev.id)}`;
+                  // BS120: the chip reflects REAL tier state — stock of the on-sale tiers
+                  // from /api/inventory. App-claim events (no web tiers) or missing
+                  // inventory → no stock chip (never a guessed ON SALE).
+                  const stock = onSaleTiers.length ? stockForTiers(onSaleTiers.map((t) => t.tierId), pools) : null;
+                  const status = pickStatus([stock ? stockStatus(stock.remaining, stock.capacity) : null, ev.mega ? 'ZORA PICK' : null]);
+                  const soldOut = status === 'SOLD OUT';
+                  const inPlace = onSaleTiers.length > 0 && !soldOut;
+                  const base = `/@${handle}/events/${encodeURIComponent(ev.id)}`;
                   return (
-                    <article className="event" key={ev.id}>
-                      <Link className="event-cover" href={href} aria-label={ev.name}>
-                        {ev.cover ? (
-                          <Poster src={ev.cover} variant="cover" alt={ev.name} />
-                        ) : (
-                          <div className="poster cover no-cover">{ev.name}</div>
-                        )}
-                        <span className="chip zp-chip--on-sale">ON SALE</span>
-                      </Link>
-                      <div className="event-body">
-                        <p className="meta date">
-                          {(ev.dateLabel || 'TBA').toUpperCase()}
-                          {ev.time ? ` · ${ev.time}` : ''}
-                        </p>
-                        <Link className="name" href={href}>
-                          {ev.name}
-                        </Link>
-                        <p className="venue">{ev.venue || 'Venue to be announced'}</p>
-                        <p className="meta kind">
-                          {(ev.category || 'EVENT').toUpperCase()}
-                          {ev.seated ? ' · SEATED' : ' · GENERAL ADMISSION'}
-                        </p>
-                        <Countdown ev={ev} />
-                        <p className="price">
-                          From {money(fromPrice, evCur)}
-                          {fromUsd ? <small> (${fmt(fromUsd)})</small> : null}
-                        </p>
-                        <button type="button" className="get" onClick={() => openCheckout(ev)}>
-                          GET PASSES<span aria-hidden="true">→</span>
-                        </button>
-                        <Link className="details" href={href}>
-                          Event details
-                        </Link>
-                      </div>
-                    </article>
+                    <EventCard
+                      key={ev.id}
+                      href={inPlace ? `${base}?buy=1` : base}
+                      name={ev.name}
+                      artwork={ev.cover}
+                      dateLabel={ev.dateLabel}
+                      time={ev.time}
+                      venue={ev.venue}
+                      city={CITIES.find((c) => c.id === ev.city)?.city || ev.city}
+                      priceFrom={fromPrice ? money(fromPrice, evCur) : undefined}
+                      priceNote={fromUsd ? `($${fmt(fromUsd)})` : undefined}
+                      status={status}
+                      priority={i < 3}
+                      onClick={
+                        inPlace
+                          ? (e) => {
+                              // Plain left-click only; modified clicks keep the link.
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                              e.preventDefault();
+                              setActive(ev);
+                              setOpen(true);
+                            }
+                          : undefined
+                      }
+                    />
                   );
                 })}
               </div>
@@ -348,123 +280,23 @@ export default function StorefrontClient(props: StorefrontProps) {
         </footer>
 
         {/* PR-11: live payments flow for web-sellable events (real checkout → pay → QR) */}
-        {webSellable && (
+        {active && webTiers.length > 0 ? (
           <CheckoutFlow
             open={open}
             onClose={() => setOpen(false)}
-            eventName={active?.name || ''}
-            eventId={active?.id}
+            eventName={active.name}
+            eventId={active.id}
             when={activeWhen}
             tiers={webTiers}
             accent={accent}
+            organizerHandle={handle}
+            artwork={active.cover}
+            dateLabel={active.dateLabel}
+            time={active.time}
+            venue={active.venue}
+            city={CITIES.find((c) => c.id === active.city)?.city || active.city}
           />
-        )}
-
-        {/* ═══ ZORAPASS CHECKOUT SHEET (app-claim path; hidden when web-sellable) ═══ */}
-        <div className={'sheet' + (open && !webSellable ? ' on' : '')} onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
-          {active ? (
-            <div className="checkout" role="dialog" aria-modal="true" aria-label={`Get passes for ${active.name}`}>
-              <div className="co-head">
-                <span className="secure">
-                  SECURE CHECKOUT · <b>ZORAPASS</b>
-                </span>
-                <button type="button" className="x" aria-label="Close" onClick={() => setOpen(false)}>
-                  ×
-                </button>
-              </div>
-
-              {!paid ? (
-                <div className="co-body">
-                  <div className="co-welcome">A real ZoraPass pass, issued on payment.</div>
-                  <p className="co-event">{active.name}</p>
-                  <p className="co-when">
-                    {active.dateLabel || 'TBA'}
-                    {active.time ? ` · ${active.time}` : ''} · {active.venue || 'TBA'}
-                  </p>
-
-                  <div className="qty">
-                    <span className="lab">How many passes?</span>
-                    <div className="ctrl">
-                      <button type="button" aria-label="Fewer" onClick={() => setQty((q) => Math.max(1, q - 1))}>
-                        −
-                      </button>
-                      <span className="n" aria-live="polite">
-                        {qty}
-                      </span>
-                      <button type="button" aria-label="More" onClick={() => setQty((q) => Math.min(10, q + 1))}>
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="honest">
-                    <div className="line">
-                      <span className="lbl">
-                        {qty} × {money(unit, cur)}
-                      </span>
-                      <span className="val">{money(total, cur)}</span>
-                    </div>
-                    <div className="total">
-                      <span className="lbl">Total</span>
-                      <span className="val">{money(total, cur)}</span>
-                    </div>
-                  </div>
-                  <button type="button" className="crew-toggle" aria-pressed={crew} onClick={() => setCrew((c) => !c)}>
-                    <span className="ic">6</span>
-                    <span className="ct">
-                      <span className="tt">Split with Tuchange</span>
-                      <span className="td">Each person pays their own share from their phone.</span>
-                    </span>
-                    <span className={'switch' + (crew ? ' on' : '')} aria-hidden />
-                  </button>
-                  <div className={'crew-detail' + (crew ? ' on' : '')}>
-                    <div className="split-line">
-                      <span>Your share now</span>
-                      <span className="share">{money(Math.round(total / 6), cur)}</span>
-                    </div>
-                    <div className="split-line">
-                      <span>5 invites sent on WhatsApp</span>
-                      <span>15 min hold</span>
-                    </div>
-                    <div style={{ marginTop: 8 }}>
-                      Each friend installs ZoraPass and pays their share. Passes issue when the sixth lands.
-                    </div>
-                  </div>
-
-                  <button type="button" className="pay" onClick={pay}>
-                    <span>GET PASSES</span>
-                    <span className="pay-amt">{money(total, cur)}</span>
-                  </button>
-                  <div className="methods">
-                    <span>M-PESA</span>
-                    <span>TIGO PESA</span>
-                    <span>AIRTEL MONEY</span>
-                    <span>VISA</span>
-                    <span>MASTERCARD</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="claim on">
-                  <img className="claim-stamp" src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg" alt="" aria-hidden="true" />
-                  <h3>YOU&apos;RE IN.</h3>
-                  <p className="code">{orderRef.current}</p>
-                  <p>
-                    Your pass is{' '}
-                    <span className="waiting">waiting for you in the ZoraPass app.</span> Claiming takes thirty seconds and
-                    unlocks faster entry, resale and split payments.
-                  </p>
-                  <div className="stores">
-                    <span className="store">CLAIM ON APP STORE</span>
-                    <span className="store">CLAIM ON GOOGLE PLAY</span>
-                  </div>
-                  <button type="button" className="web" onClick={() => setOpen(false)}>
-                    or use a basic web pass →
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </div>
     </>
   );
@@ -516,8 +348,6 @@ const STYLE = `
 .zora-sf .poster-img{display:block;width:100%;height:100%;object-fit:contain;transition:transform .18s var(--zp-motion-easing-standard)}
 .zora-sf .poster.hero{display:none;width:200px;aspect-ratio:4/5;border-radius:var(--zp-radius-md);border:1px solid var(--zp-color-line-dark);flex-shrink:0}
 @media(min-width:768px){.zora-sf .poster.hero{display:block}}
-.zora-sf .poster.cover{aspect-ratio:4/5;width:100%}
-.zora-sf .poster.no-cover{display:flex;align-items:flex-end;padding:20px;font-family:var(--disp);font-size:24px;line-height:1.05;text-transform:uppercase;color:var(--yl)}
 @keyframes posterIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.zora-sf .poster{animation:none}.zora-sf .poster-img{transition:none}}
 
@@ -534,26 +364,6 @@ const STYLE = `
 .zora-sf .event-grid{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:680px){.zora-sf .event-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}}
 @media(min-width:1040px){.zora-sf .event-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.zora-sf .event{background:var(--zp-color-white);border:1px solid var(--line);border-radius:var(--zp-radius-lg);overflow:hidden;display:flex;flex-direction:column;transition:border-color .18s var(--zp-motion-easing-standard)}
-.zora-sf .event:hover{border-color:var(--bk)}
-.zora-sf .event:hover .poster-img{transform:scale(1.02)}
-@media(prefers-reduced-motion:reduce){.zora-sf .event:hover .poster-img{transform:none}}
-.zora-sf .event-cover{position:relative;display:block}
-.zora-sf .chip{position:absolute;left:12px;top:12px;z-index:2;font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-radius:var(--zp-radius-pill);padding:6px 12px;line-height:1.2}
-.zora-sf .event-body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:6px;flex:1}
-.zora-sf .meta{font-family:var(--mono);font-size:13px;letter-spacing:.08em}
-.zora-sf .meta.kind{font-size:12px;letter-spacing:.12em;color:var(--mut)}
-.zora-sf .event .name{font-weight:700;font-size:20px;letter-spacing:-.02em;line-height:1.15}
-.zora-sf .event .name:hover{text-decoration:underline}
-.zora-sf .venue{font-size:14px;color:var(--mut)}
-.zora-sf .countdown{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-600)}
-.zora-sf .price{font-family:var(--mono);font-weight:600;font-size:16px;margin-top:auto;padding-top:8px}
-.zora-sf .price small{font-size:13px;font-weight:400;color:var(--mut)}
-.zora-sf .get{margin-top:12px;width:100%;height:48px;border:none;border-radius:var(--zp-radius-lg);background:var(--bk);color:var(--yl);display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--disp);font-size:20px;line-height:1;cursor:pointer;transition:background .12s}
-.zora-sf .get:hover{background:var(--zp-color-ink-600)}
-.zora-sf .get:active{transform:translateY(2px)}
-.zora-sf .details{align-self:center;font-weight:700;font-size:14px;min-height:44px;display:inline-flex;align-items:center;padding:0 8px}
-.zora-sf .details:hover{text-decoration:underline}
 
 /* about */
 .zora-sf .about{background:var(--zp-color-white);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -575,61 +385,4 @@ const STYLE = `
 .zora-sf .foot-help:hover{text-decoration:underline}
 .zora-sf .legal{font-size:12px}
 
-/* app-claim checkout sheet — dark surface, so the primary flips to yellow */
-.zora-sf .sheet{position:fixed;inset:0;background:var(--zp-overlay,rgba(17,17,17,.6));display:none;align-items:flex-end;justify-content:center;z-index:90}
-.zora-sf .sheet.on{display:flex}
-@media(min-width:680px){.zora-sf .sheet{align-items:center}}
-.zora-sf .checkout{background:var(--bk);color:var(--bone);width:100%;max-width:460px;border-radius:16px 16px 0 0;max-height:94vh;overflow-y:auto}
-@media(min-width:680px){.zora-sf .checkout{border-radius:16px}}
-.zora-sf .checkout :focus-visible{outline-color:var(--yl)}
-.zora-sf .co-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 12px 24px;border-bottom:1px solid var(--zp-color-line-dark);position:sticky;top:0;background:var(--bk)}
-.zora-sf .co-head .secure{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-300)}
-.zora-sf .co-head .secure b{color:var(--bone);font-weight:500}
-.zora-sf .co-head .x{background:none;border:none;color:var(--bone);font-size:24px;cursor:pointer;line-height:1;width:44px;height:44px}
-.zora-sf .co-body{padding:24px}
-.zora-sf .co-welcome{font-size:14px;color:var(--zp-color-ink-300);border:1px solid var(--zp-color-line-dark);border-radius:12px;padding:12px 16px;margin-bottom:24px}
-.zora-sf .co-event{font-weight:700;font-size:20px;letter-spacing:-.02em}
-.zora-sf .co-when{font-family:var(--mono);font-size:13px;color:var(--zp-color-ink-300);letter-spacing:.08em;margin-top:6px}
-.zora-sf .qty{display:flex;align-items:center;justify-content:space-between;margin:24px 0 8px}
-.zora-sf .qty .lab{font-size:16px;font-weight:700}
-.zora-sf .qty .ctrl{display:flex;align-items:center;gap:12px}
-.zora-sf .qty button{width:48px;height:48px;border-radius:12px;border:2px solid var(--zp-color-line-dark);background:none;color:var(--bone);font-size:20px;cursor:pointer;line-height:1}
-.zora-sf .qty button:hover{border-color:var(--bone)}
-.zora-sf .qty .n{font-family:var(--mono);font-size:20px;min-width:28px;text-align:center}
-.zora-sf .honest{border-top:1px solid var(--zp-color-line-dark);margin-top:20px;padding-top:16px}
-.zora-sf .honest .line{display:flex;justify-content:space-between;font-family:var(--mono);font-size:14px;padding:6px 0}
-.zora-sf .honest .line .lbl{color:var(--zp-color-ink-300)}
-.zora-sf .honest .total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--zp-color-line-dark);margin-top:10px;padding-top:16px}
-.zora-sf .honest .total .lbl{font-size:16px;font-weight:700}
-.zora-sf .honest .total .val{font-family:var(--mono);font-size:24px;font-weight:600}
-.zora-sf .crew-toggle{width:100%;text-align:left;font:inherit;color:inherit;display:flex;align-items:center;gap:14px;background:var(--zp-color-night);border:1px solid var(--zp-color-line-dark);border-radius:16px;padding:16px;margin-top:24px;cursor:pointer}
-.zora-sf .crew-toggle .ic{width:40px;height:40px;border-radius:12px;background:var(--zp-color-mtaa-green);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--mono);font-size:16px}
-.zora-sf .crew-toggle .ct{flex:1;display:flex;flex-direction:column}
-.zora-sf .crew-toggle .tt{font-size:16px;font-weight:700}
-.zora-sf .crew-toggle .td{font-size:14px;color:var(--zp-color-ink-300);margin-top:2px}
-.zora-sf .switch{width:44px;height:26px;border-radius:99px;background:var(--zp-color-ink-600);position:relative;transition:background .12s;flex-shrink:0}
-.zora-sf .switch.on{background:var(--yl)}
-.zora-sf .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bone);transition:transform .12s}
-.zora-sf .switch.on::after{transform:translateX(18px);background:var(--bk)}
-.zora-sf .crew-detail{display:none;margin-top:12px;font-family:var(--mono);font-size:13px;color:var(--zp-color-ink-300);line-height:1.8;border:1px dashed var(--zp-color-line-dark);border-radius:12px;padding:16px}
-.zora-sf .crew-detail.on{display:block}
-.zora-sf .crew-detail .share{color:var(--bone)}
-.zora-sf .crew-detail .split-line{display:flex;justify-content:space-between;gap:12px}
-.zora-sf .pay{width:100%;height:56px;background:var(--yl);color:var(--bk);border:none;font-family:var(--disp);font-size:20px;line-height:1;padding:0 24px;border-radius:16px;cursor:pointer;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background .12s}
-.zora-sf .pay .pay-amt{font-family:var(--mono);font-weight:600;font-size:16px}
-.zora-sf .pay:hover{background:var(--zp-color-yellow-press)}
-.zora-sf .pay:active{transform:translateY(2px)}
-.zora-sf .methods{display:flex;justify-content:center;gap:8px 16px;margin-top:16px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--zp-color-ink-300);flex-wrap:wrap}
-.zora-sf .claim{display:none;padding:40px 24px;text-align:center}
-.zora-sf .claim.on{display:block}
-.zora-sf .claim-stamp{width:96px;height:96px;transform:rotate(-10deg);margin:0 auto 20px;display:block;animation:slam .18s var(--zp-motion-easing-standard) both}
-@keyframes slam{from{opacity:0;transform:scale(1.3) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(-10deg)}}
-@media(prefers-reduced-motion:reduce){.zora-sf .claim-stamp{animation:none}}
-.zora-sf .claim h3{font-family:var(--disp);font-weight:400;font-size:32px;line-height:1}
-.zora-sf .claim .code{font-family:var(--mono);font-size:16px;color:var(--yl);letter-spacing:.12em;margin-top:12px}
-.zora-sf .claim p{font-size:16px;color:var(--zp-color-ink-300);line-height:1.5;margin-top:16px;max-width:34ch;margin-left:auto;margin-right:auto}
-.zora-sf .claim .waiting{font-weight:700;color:var(--bone)}
-.zora-sf .claim .stores{display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap}
-.zora-sf .claim .store{font-family:var(--mono);font-size:12px;letter-spacing:.08em;border:2px solid var(--zp-color-line-dark);color:var(--bone);padding:12px 16px;border-radius:12px}
-.zora-sf .claim .web{font-size:14px;color:var(--zp-color-ink-300);margin-top:20px;text-decoration:underline;cursor:pointer;background:none;border:none;min-height:44px;padding:0 8px}
 `;

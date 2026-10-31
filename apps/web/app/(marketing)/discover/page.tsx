@@ -131,27 +131,10 @@ const CSS = `
 .zd-sec-head-2{margin-top:48px}
 .zd-count{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--mut)}
 .zd-grid{display:grid;grid-template-columns:1fr;gap:16px}
-@media(min-width:600px){.zd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(min-width:1000px){.zd-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}}
+@media(min-width:680px){.zd-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}}
+@media(min-width:1040px){.zd-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
-/* event card — artwork 4:5 on top, the whole card one link, GET PASSES strip last */
-.zd-card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--raised);transition:border-color 180ms}
-.zd-card:hover{border-color:var(--ink)}
-.zd-cover{position:relative;aspect-ratio:4/5;overflow:hidden;display:flex;align-items:flex-end;padding:16px;background:var(--ink)}
-.zd-cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform 180ms}
-.zd-card:hover .zd-cover-img{transform:scale(1.02)}
-/* no artwork: a flat black block with the event name set as the poster */
-.zd-cover-word{position:relative;font-weight:800;font-size:clamp(28px,5vw,36px);line-height:1;letter-spacing:-.035em;color:var(--zp-color-bone);max-width:94%}
-.zd-badge{position:absolute;top:12px;left:12px;font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:.12em;padding:6px 12px;border-radius:999px;white-space:nowrap}
-.zd-card-body{display:flex;flex-direction:column;flex:1;gap:6px;padding:16px 20px 20px}
-.zd-when{font-family:var(--mono);font-size:13px;letter-spacing:.08em}
-.zd-card-t{font-size:20px;font-weight:700;line-height:1.15;letter-spacing:-.02em}
-.zd-where{font-size:14px;color:var(--mut)}
-.zd-card-foot{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:auto;padding-top:8px}
-.zd-price{font-family:var(--mono);font-size:16px;font-weight:600}
-.zd-plan{font-family:var(--mono);font-size:13px;color:var(--mut)}
-.zd-get{display:flex;align-items:center;justify-content:space-between;margin-top:12px;height:48px;padding:0 20px;border-radius:16px;background:var(--ink);color:var(--yellow);font-family:var(--display);font-size:20px}
-.zd-card:hover .zd-get{background:var(--ink2)}
+/* event card: the shared <EventCard> (app/components/event-card.module.css) */
 
 /* loading skeletons — shaped like the card, no spinner */
 .zd-skel{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--raised)}
@@ -243,8 +226,7 @@ const CSS = `
 .zd .zbot-fab.hide{display:none}
 
 @media(prefers-reduced-motion:reduce){
-  .zd-card,.zd-feat,.zd-cover-img,.zd-aura-btn,.zd-tk-pay,.zd-toast,.zd-feat-media img{transition:opacity 120ms}
-  .zd-card:hover .zd-cover-img{transform:none}
+  .zd-feat,.zd-aura-btn,.zd-tk-pay,.zd-toast,.zd-feat-media img{transition:opacity 120ms}
 }
 `;
 

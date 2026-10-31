@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import StorefrontClient, { type StorefrontEvent, type StorefrontTheme } from './storefront-client';
+import type { InventoryPool } from '../../../components/event-card';
 import { shareCardImage } from '@/app/lib/share-card';
 
 // PR-F5 — the tenant STOREFRONT INDEX route. The middleware rewrites the /@handle
@@ -56,6 +57,22 @@ async function fetchEvents(handle: string): Promise<StorefrontEvent[]> {
   }
 }
 
+// BS120: live stock per tier (capacity + available) so the card chip reflects
+// real tier state (ON SALE / FEW LEFT / ALMOST GONE / SOLD OUT). Fails soft: no
+// inventory → null → the cards carry no stock chip (never a guessed one).
+async function fetchInventory(): Promise<Record<string, InventoryPool> | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/inventory`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = (await res.json()) as { pools?: InventoryPool[] };
+    const map: Record<string, InventoryPool> = {};
+    for (const p of d.pools || []) if (p && p.tierId) map[p.tierId] = p;
+    return map;
+  } catch {
+    return null;
+  }
+}
+
 // Published storefront theme, scoped to this organizer's own row (BS47 — the
 // endpoint used to serve a single global theme; every organizer now gets theirs).
 async function fetchTheme(handle: string): Promise<StorefrontTheme & { brandName?: string }> {
@@ -98,11 +115,12 @@ export async function generateMetadata({ params }: { params: { handle: string } 
 
 export default async function StorefrontPage({ params }: { params: { handle: string } }) {
   const handle = params.handle;
-  const [org, events, theme, owner] = await Promise.all([
+  const [org, events, theme, owner, pools] = await Promise.all([
     fetchTenant(handle),
     fetchEvents(handle),
     fetchTheme(handle),
     isOwner(handle),
+    fetchInventory(),
   ]);
 
   if (!org) notFound();
@@ -129,6 +147,7 @@ export default async function StorefrontPage({ params }: { params: { handle: str
       events={events}
       theme={theme}
       canManage={owner}
+      pools={pools}
     />
   );
 }

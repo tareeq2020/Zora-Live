@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
 import { trackProductEvent } from '../../../components/product-analytics';
 import styles from './event-page.module.css';
@@ -19,6 +19,12 @@ export function GetTicketButton({
   when,
   tiers,
   accent,
+  organizerHandle,
+  artwork,
+  dateLabel,
+  time,
+  venue,
+  city,
 }: {
   eventName: string;
   eventId?: string;
@@ -28,11 +34,34 @@ export function GetTicketButton({
       is always the ZoraPass primary button; organizer colour never re-skins
       product chrome (handoff DD4). */
   accent?: string;
+  /** BS122: checkout v2 summary column + flag lookup (all optional). */
+  organizerHandle?: string;
+  artwork?: string;
+  dateLabel?: string;
+  time?: string;
+  venue?: string;
+  city?: string;
 }) {
   const webTiers = (tiers || []).filter((t) => t.tierId && !t.disabled);
   const webSellable = webTiers.length > 0;
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(false);
+
+  // BS120: a storefront card opened in a new tab links here with ?buy=1 — open
+  // the checkout straight away so the buyer lands where a plain click would
+  // have taken them. Ignored for app-claim events (nothing to open).
+  useEffect(() => {
+    if (!webSellable) return;
+    try {
+      if (new URLSearchParams(window.location.search).get('buy') === '1') {
+        trackProductEvent('web_event_cta_clicked', { eventId, eventName, source: 'buy_param' });
+        setOpen(true);
+      }
+    } catch {
+      /* no-op */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -64,6 +93,12 @@ export function GetTicketButton({
           when={when}
           tiers={webTiers}
           accent={accent}
+          organizerHandle={organizerHandle}
+          artwork={artwork}
+          dateLabel={dateLabel}
+          time={time}
+          venue={venue}
+          city={city}
         />
       ) : (
         <div
