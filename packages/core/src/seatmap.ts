@@ -80,6 +80,12 @@ export interface SeatMapHold {
 }
 
 const DEFAULT_SPACE: SeatMapSpace = { w: 1600, h: 900 };
+const MAX_ZONE_SEATS = 5000;
+/** BS139: finite number or fallback (Number('x') is NaN). */
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
 const AVAILABILITY_ALIASES: Record<string, SeatMapAvailability> = {
   avail: 'available',
   available: 'available',
@@ -120,8 +126,8 @@ export function normalizeSeatMapPlan(input: any, eventId?: string): SeatMapPlan 
     venueName: input?.venueName,
     mapImageUrl: input?.mapImageUrl,
     space: {
-      w: Math.max(1, Number(input?.space?.w ?? DEFAULT_SPACE.w)),
-      h: Math.max(1, Number(input?.space?.h ?? DEFAULT_SPACE.h)),
+      w: Math.max(1, num(input?.space?.w, DEFAULT_SPACE.w)),
+      h: Math.max(1, num(input?.space?.h, DEFAULT_SPACE.h)),
     },
     stage: input?.stage ?? null,
     zones: zones.map(normalizeSeatMapZone),
@@ -135,10 +141,10 @@ function normalizeSeatMapZone(zone: any): SeatMapZone {
     id: String(zone?.id ?? ''),
     name: String(zone?.name ?? 'Zone'),
     type,
-    x: Number(zone?.x ?? 0),
-    y: Number(zone?.y ?? 0),
-    w: Math.max(1, Number(zone?.w ?? 100)),
-    h: Math.max(1, Number(zone?.h ?? 100)),
+    x: num(zone?.x, 0),
+    y: num(zone?.y, 0),
+    w: Math.max(1, num(zone?.w, 100)),
+    h: Math.max(1, num(zone?.h, 100)),
     color: zone?.color,
     tierId: zone?.tierId,
     price: zone?.price == null ? undefined : Number(zone.price),
@@ -151,7 +157,7 @@ function normalizeSeatMapZone(zone: any): SeatMapZone {
     normalized.tables = Math.max(1, Number(zone?.tables ?? 1));
     normalized.perTable = Math.max(1, Number(zone?.perTable ?? 1));
     if (Array.isArray(zone?.tableItems)) {
-      normalized.tableItems = zone.tableItems.map((table: any) => ({
+      normalized.tableItems = zone.tableItems.slice(0, MAX_ZONE_SEATS).map((table: any) => ({
         id: String(table?.id ?? ''),
         label: String(table?.label ?? table?.num ?? 'Table'),
         seats: Math.max(1, Number(table?.seats ?? zone?.perTable ?? 1)),
@@ -162,7 +168,7 @@ function normalizeSeatMapZone(zone: any): SeatMapZone {
     normalized.rows = Math.max(1, Number(zone?.rows ?? 1));
     normalized.perRow = Math.max(1, Number(zone?.perRow ?? 1));
     if (Array.isArray(zone?.seats)) {
-      normalized.seats = zone.seats.map((seat: any) => ({
+      normalized.seats = zone.seats.slice(0, MAX_ZONE_SEATS).map((seat: any) => ({
         id: String(seat?.id ?? ''),
         label: String(seat?.label ?? ''),
         row: seat?.row == null ? undefined : String(seat.row),
