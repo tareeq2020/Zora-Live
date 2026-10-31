@@ -40,6 +40,39 @@ export class SoldOut extends Error {
 export interface CartLine {
   tier: string;
   quantity: number;
+  /** BS125: chosen seats/tables for a seated tier. When present the server
+      derives the priced quantity from them (seats = 1 each; a per-table table =
+      1; a per-seat table = its seat count) and holds exactly these seats. */
+  seatIds?: string[];
+}
+
+export class SeatTaken extends Error {
+  constructor(public seats: string[]) {
+    super(`seats unavailable: ${seats.join(',')}`);
+    this.name = 'SeatTaken';
+  }
+}
+
+/** BS125: hold the chosen seats for an order inside the order tx. Returns the
+    priced quantity they represent. Throws SeatTaken (rolling back the whole
+    order, tier holds included) if any seat is not free for THIS tier. */
+async function holdSeats(t: Sql, eventId: string, tierId: string, orderId: string, orderItemId: string, seatIds: string[], ttlSecs: number): Promise<number> {
+  const ids = Array.from(new Set(seatIds.map(String))).slice(0, 50);
+  const rows = await t`
+    update seat_inventory
+       set state = 'held', hold_order_id = ${orderId}::uuid,
+           hold_expires_at = now() + make_interval(secs => ${ttlSecs}), updated_at = now()
+     where event_id = ${eventId} and tier_id = ${tierId} and seat_id = any(${ids})
+       and (state = 'available' or (state = 'held' and hold_expires_at <= now()))
+     returning seat_id, kind, seats_count, price_mode`;
+  if (rows.length !== ids.length) {
+    const got = new Set(rows.map((r: any) => r.seat_id));
+    throw new SeatTaken(ids.filter((i) => !got.has(i)));
+  }
+  for (const id of ids) {
+    await t`insert into order_seat (order_id, order_item_id, event_id, seat_id) values (${orderId}::uuid, ${orderItemId}::uuid, ${eventId}, ${id})`;
+  }
+  return rows.reduce((n: number, r: any) => n + (r.kind === 'table' && r.price_mode === 'per_seat' ? Number(r.seats_count) : 1), 0);
 }
 
 export interface CreateGaVipOrderInput {
@@ -62,7 +95,8 @@ export interface CreateGaVipOrderInput {
 
 export type CreateGaVipOrderResult =
   | { ok: true; orderId: string; total: number; subtotal: number; fee: number }
-  | { ok: false; reason: 'sold_out'; tier: string };
+  | { ok: false; reason: 'sold_out'; tier: string }
+  | { ok: false; reason: 'seat_taken'; seats: string[] };
 
 /**
  * Create a pending GA/VIP order: upsert the customer, insert the order + line
@@ -109,14 +143,21 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
         if (!pvRows.length) throw new SoldOut(line.tier);
         const pv = pvRows[0];
 
-        const hold = await placeHold(t, line.tier, orderId, line.quantity, holdTtl);
+        // BS125: a seated line's quantity comes from its seats, never the client.
+        let quantity = line.quantity;
+        const [item] = await t`
+          insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
+          values (${orderId}, ${line.tier}, ${pv.id}, ${quantity}, ${pv.price})
+          returning id`;
+        if (Array.isArray(line.seatIds) && line.seatIds.length) {
+          quantity = await holdSeats(t, eventId, line.tier, orderId, item.id, line.seatIds, holdTtl);
+          await t`update order_item set quantity = ${quantity} where id = ${item.id}`;
+        }
+
+        const hold = await placeHold(t, line.tier, orderId, quantity, holdTtl);
         if (hold === null) throw new SoldOut(line.tier); // rollback releases earlier holds
 
-        await t`
-          insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
-          values (${orderId}, ${line.tier}, ${pv.id}, ${line.quantity}, ${pv.price})`;
-
-        const lineTotal = Number(pv.price) * line.quantity;
+        const lineTotal = Number(pv.price) * quantity;
         subtotal += lineTotal;
         if (pv.fee_treatment === 'passed') passedSubtotal += lineTotal;
       }
@@ -130,6 +171,7 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
     }, sql);
   } catch (e) {
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
+    if (e instanceof SeatTaken) return { ok: false, reason: 'seat_taken', seats: e.seats };
     throw e;
   }
 }
@@ -148,6 +190,29 @@ export async function issueCredentials(sql: Sql, orderId: string): Promise<numbe
      where oi.order_id = ${orderId}`;
   let issued = 0;
   for (const it of items) {
+    // BS125: a seated line issues one credential per admitted guest, each naming
+    // its seat (a table of 6 → 6 passes "Table 5 · Seat 1…6").
+    const seats = await sql`
+      select si.seat_id, si.kind, si.label, si.seats_count
+        from order_seat os join seat_inventory si on si.event_id = os.event_id and si.seat_id = os.seat_id
+       where os.order_item_id = ${it.id} order by si.zone_id, si.seat_number nulls last, si.seat_id`;
+    if (seats.length) {
+      let idx = 0;
+      for (const st of seats) {
+        const n = st.kind === 'table' ? Number(st.seats_count) : 1;
+        for (let k = 1; k <= n; k++, idx++) {
+          const code = generateCode();
+          const signature = signCredential({ code, tier: it.product_tier_id, eventId: it.event_id, tableId: st.kind === 'table' ? st.seat_id : null }, key);
+          const label = st.kind === 'table' ? `${st.label} · Seat ${k}` : st.label;
+          const res = await sql`
+            insert into credential (order_item_id, seat_index, event_id, tier_id, code, signature, public_ref, seat_id, seat_label, table_no)
+            values (${it.id}, ${idx}, ${it.event_id}, ${it.product_tier_id}, ${code}, ${signature}, ${generatePublicRef()}, ${st.seat_id}, ${label}, ${st.kind === 'table' ? st.label : null})
+            on conflict (order_item_id, seat_index) where order_item_id is not null do nothing`;
+          issued += res.count ?? 0;
+        }
+      }
+      continue;
+    }
     for (let seat = 0; seat < it.quantity; seat++) {
       const code = generateCode();
       const signature = signCredential(
@@ -348,6 +413,26 @@ export async function applyOutcome(
         await alertOps(t, 'duplicate_collection', txr.order_id);
         return 'paid';
       }
+      // BS125 (A17): seats first, under lock. Every seat the order bought must
+      // still be its hold, or free (a lapsed hold nobody re-took). Otherwise the
+      // money arrived too late for those exact seats: paid_unseatable, issue nothing.
+      const seatRows = await t`
+        select si.seat_id, si.state, si.hold_order_id, si.hold_expires_at <= now() as expired
+          from order_seat os join seat_inventory si on si.event_id = os.event_id and si.seat_id = os.seat_id
+         where os.order_id = ${txr.order_id} for update of si`;
+      const seatsOk = seatRows.every((r: any) =>
+        r.state === 'available' || (r.state === 'held' && (r.hold_order_id === txr.order_id || r.expired)));
+      if (!seatsOk) {
+        await t`update payment_transaction set status='successful',
+                  collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+                where transaction_id=${transactionId}`;
+        await t`update "order" set status='paid_unseatable' where id=${txr.order_id}`;
+        await releaseHolds(t, txr.order_id);
+        await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
+                 where hold_order_id=${txr.order_id} and state='held'`;
+        await alertOps(t, 'paid_unseatable', txr.order_id);
+        return 'paid_unseatable';
+      }
       // Convert inventory (table→reservation, GA/VIP→holds). A 0 means the grant
       // lapsed (late-settlement race) — fall back to reacquire; if that fails,
       // flag paid_unseatable and issue NOTHING (the anti-oversell).
@@ -370,6 +455,10 @@ export async function applyOutcome(
                 collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
               where transaction_id=${transactionId}`;
       await t`update "order" set status='paid' where id=${txr.order_id}`;
+      if (seatRows.length) {
+        await t`update seat_inventory set state='sold', sold_order_id=${txr.order_id}, hold_order_id=null, hold_expires_at=null, updated_at=now()
+                 where (event_id, seat_id) in (select event_id, seat_id from order_seat where order_id=${txr.order_id})`;
+      }
       if (!isTable) await issueCredentials(t, txr.order_id);
       return 'paid';
     } else if (outcome === 'short') {
@@ -383,6 +472,8 @@ export async function applyOutcome(
       await t`update payment_transaction set status='failed', updated_at=now() where transaction_id=${transactionId}`;
       await t`update "order" set status='failed' where id=${txr.order_id} and status='pending'`;
       await releaseHolds(t, txr.order_id);
+      await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
+               where hold_order_id=${txr.order_id} and state='held'`;
       return 'failed';
     }
   }, sql);
@@ -838,5 +929,9 @@ export async function sweepExpiredHolds(sql: Sql): Promise<number> {
     await releaseHolds(sql, r.order_id);
     await sql`update "order" set status = 'expired' where id = ${r.order_id} and status = 'pending'`;
   }
-  return rows.length;
+  // BS125: lapsed seat holds go back on the map.
+  const seats = await sql`
+    update seat_inventory set state = 'available', hold_order_id = null, hold_expires_at = null, updated_at = now()
+     where state = 'held' and hold_expires_at < now()`;
+  return rows.length + Number(seats.count ?? 0);
 }
