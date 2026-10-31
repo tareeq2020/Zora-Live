@@ -19,6 +19,12 @@ export function GetTicketButton({
   when,
   tiers,
   accent,
+  organizerHandle,
+  artwork,
+  dateLabel,
+  time,
+  venue,
+  city,
 }: {
   eventName: string;
   eventId?: string;
@@ -28,6 +34,13 @@ export function GetTicketButton({
       is always the ZoraPass primary button; organizer colour never re-skins
       product chrome (handoff DD4). */
   accent?: string;
+  /** BS122: checkout v2 summary column + flag lookup (all optional). */
+  organizerHandle?: string;
+  artwork?: string;
+  dateLabel?: string;
+  time?: string;
+  venue?: string;
+  city?: string;
 }) {
   const webTiers = (tiers || []).filter((t) => t.tierId && !t.disabled);
   const webSellable = webTiers.length > 0;
@@ -80,6 +93,12 @@ export function GetTicketButton({
           when={when}
           tiers={webTiers}
           accent={accent}
+          organizerHandle={organizerHandle}
+          artwork={artwork}
+          dateLabel={dateLabel}
+          time={time}
+          venue={venue}
+          city={city}
         />
       ) : (
         <div
