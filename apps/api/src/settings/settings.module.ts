@@ -67,7 +67,10 @@ export class SettingsController {
 
   @Get('settings')
   async get() {
-    return this.entities.read('settings', DEFAULT_SETTINGS);
+    // BS139: flag rules name organizers/events in pilots — only resolved
+    // booleans leave via GET /api/flags, never the raw lists.
+    const { flags: _flags, ...rest } = (await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS)) as Record<string, unknown>;
+    return rest;
   }
 
   @UseGuards(SessionGuard)
@@ -75,6 +78,8 @@ export class SettingsController {
   async update(@Body() body: any) {
     // BS87: guard the money-critical rate on the generic write too.
     if (body?.usdRate !== undefined) body = { ...body, usdRate: validateUsdRate(body.usdRate) };
+    // BS139: flags only change through the validated PUT /api/settings/flags.
+    if (body && typeof body === 'object' && 'flags' in body) { const { flags: _f, ...rest } = body; body = rest; }
     const current = await this.entities.read('settings', DEFAULT_SETTINGS);
     const updated = { ...current, ...body };
     await this.entities.write('settings', updated);
