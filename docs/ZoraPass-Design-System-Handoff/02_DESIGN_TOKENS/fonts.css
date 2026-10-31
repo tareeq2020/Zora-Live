@@ -1,0 +1,47 @@
+/* ZoraPass typefaces.
+   All three are open-licence (SIL OFL 1.1), so they can be self-hosted and shipped in an app.
+
+   Web, quickest path — Google Fonts:
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+   Production (recommended): self-host woff2 from https://fonts.google.com and replace the @import below
+   with @font-face blocks. Apps: bundle the .ttf files and register them
+   (Flutter: pubspec fonts; iOS: UIAppFonts; Android: res/font).
+
+   Roles — never mix them up:
+     Bungee              display only, ALL CAPS, short. Never for sentences or body copy.
+     Bricolage Grotesque headlines, body, UI labels, buttons that are not display, and the logo.
+     IBM Plex Mono       data, times, prices in tables, codes, pass IDs, uppercase micro-labels.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --zp-font-display: 'Bungee', 'Arial Black', sans-serif;
+  --zp-font-sans: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  --zp-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Type styles — the whole scale, ready to use. */
+.zp-display-xl { font-family: var(--zp-font-display); font-size: clamp(40px, 8vw, 72px); line-height: .95; letter-spacing: 0; text-transform: uppercase; }
+.zp-display-l  { font-family: var(--zp-font-display); font-size: clamp(32px, 6vw, 48px); line-height: .95; text-transform: uppercase; }
+.zp-display-m  { font-family: var(--zp-font-display); font-size: 32px; line-height: .98; text-transform: uppercase; }
+.zp-display-s  { font-family: var(--zp-font-display); font-size: 24px; line-height: 1; text-transform: uppercase; }
+
+.zp-h1 { font-family: var(--zp-font-sans); font-weight: 700; font-size: clamp(28px, 4vw, 40px); line-height: 1.08; letter-spacing: -.02em; }
+.zp-h2 { font-family: var(--zp-font-sans); font-weight: 700; font-size: 32px; line-height: 1.08; letter-spacing: -.02em; }
+.zp-h3 { font-family: var(--zp-font-sans); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -.015em; }
+.zp-h4 { font-family: var(--zp-font-sans); font-weight: 700; font-size: 20px; line-height: 1.15; letter-spacing: -.015em; }
+
+.zp-body-lg { font-family: var(--zp-font-sans); font-weight: 400; font-size: 18px; line-height: 1.35; }
+.zp-body    { font-family: var(--zp-font-sans); font-weight: 400; font-size: 16px; line-height: 1.35; }
+.zp-body-sm { font-family: var(--zp-font-sans); font-weight: 400; font-size: 14px; line-height: 1.4; }
+
+.zp-data  { font-family: var(--zp-font-mono); font-weight: 500; font-size: 16px; line-height: 1.3; }
+.zp-meta  { font-family: var(--zp-font-mono); font-weight: 500; font-size: 13px; line-height: 1.3; letter-spacing: .08em; text-transform: uppercase; }
+.zp-label { font-family: var(--zp-font-mono); font-weight: 500; font-size: 12px; line-height: 1.3; letter-spacing: .12em; text-transform: uppercase; }
+
+/* The logo, when set as live text rather than the SVG. */
+.zp-logo { font-family: var(--zp-font-sans); font-weight: 700; letter-spacing: -.035em; }

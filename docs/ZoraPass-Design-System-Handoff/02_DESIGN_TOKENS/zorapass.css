@@ -1,0 +1,218 @@
+/* ZoraPass design tokens v1.0.0 — generated from tokens.json. Do not edit by hand. */
+
+:root {
+  --zp-color-signal-yellow: #FFD21F;
+  --zp-color-board-black: #111111;
+  --zp-color-bone: #F7F5EE;
+  --zp-color-night: #1C1C1C;
+  --zp-color-mtaa-green: #0F7B3F;
+  --zp-color-bahari-blue: #1597D4;
+  --zp-color-alert-red: #B42318;
+  --zp-color-white: #FFFFFF;
+  --zp-color-ink-900: #111111;
+  --zp-color-ink-800: #1C1C1C;
+  --zp-color-ink-700: #262626;
+  --zp-color-ink-600: #3A3A3A;
+  --zp-color-ink-500: #4A4A4A;
+  --zp-color-ink-300: #BDBDBD;
+  --zp-color-line-light: #D9D6CC;
+  --zp-color-line-dark: #333333;
+  --zp-color-yellow-press: #E6BD1B;
+  --zp-color-yellow-ghost: #BC9C1B;
+  --zp-font-family-display: 'Bungee', 'Arial Black', sans-serif;
+  --zp-font-family-sans: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  --zp-font-family-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --zp-font-weight-regular: 400;
+  --zp-font-weight-medium: 500;
+  --zp-font-weight-bold: 700;
+  --zp-font-weight-extrabold: 800;
+  --zp-font-size-display-xl: 56px;
+  --zp-font-size-display-l: 40px;
+  --zp-font-size-display-m: 32px;
+  --zp-font-size-display-s: 24px;
+  --zp-font-size-h1: 40px;
+  --zp-font-size-h2: 32px;
+  --zp-font-size-h3: 24px;
+  --zp-font-size-h4: 20px;
+  --zp-font-size-body-lg: 18px;
+  --zp-font-size-body: 16px;
+  --zp-font-size-body-sm: 14px;
+  --zp-font-size-data: 16px;
+  --zp-font-size-meta: 13px;
+  --zp-font-size-label: 12px;
+  --zp-font-line-height-display: 0.95;
+  --zp-font-line-height-heading: 1.08;
+  --zp-font-line-height-body: 1.35;
+  --zp-font-line-height-tight: 1.15;
+  --zp-font-line-height-mono: 1.3;
+  --zp-font-letter-spacing-display: 0;
+  --zp-font-letter-spacing-heading: -0.02em;
+  --zp-font-letter-spacing-body: -0.01em;
+  --zp-font-letter-spacing-label: 0.12em;
+  --zp-font-letter-spacing-meta: 0.08em;
+  --zp-space-0: 0px;
+  --zp-space-1: 4px;
+  --zp-space-2: 8px;
+  --zp-space-3: 12px;
+  --zp-space-4: 16px;
+  --zp-space-5: 20px;
+  --zp-space-6: 24px;
+  --zp-space-8: 32px;
+  --zp-space-10: 40px;
+  --zp-space-12: 48px;
+  --zp-space-16: 64px;
+  --zp-space-20: 80px;
+  --zp-space-24: 96px;
+  --zp-radius-xs: 6px;
+  --zp-radius-sm: 8px;
+  --zp-radius-md: 12px;
+  --zp-radius-lg: 16px;
+  --zp-radius-xl: 24px;
+  --zp-radius-pill: 999px;
+  --zp-border-hairline: 1px;
+  --zp-border-regular: 2px;
+  --zp-border-strong: 3px;
+  --zp-shadow-none: none;
+  --zp-shadow-raised: 0 1px 0 0 #111111;
+  --zp-shadow-overlay: 0 12px 32px rgba(17,17,17,0.18);
+  --zp-size-control-sm: 40px;
+  --zp-size-control-md: 48px;
+  --zp-size-control-lg: 56px;
+  --zp-size-touch-min: 44px;
+  --zp-size-logo-height-min: 24px;
+  --zp-size-stamp-sm: 64px;
+  --zp-size-stamp-md: 96px;
+  --zp-size-stamp-lg: 128px;
+  --zp-size-qr-min: 200px;
+  --zp-size-icon-sm: 16px;
+  --zp-size-icon-md: 20px;
+  --zp-size-icon-lg: 24px;
+  --zp-layout-container-max: 1200px;
+  --zp-layout-gutter-mobile: 16px;
+  --zp-layout-gutter-tablet: 24px;
+  --zp-layout-gutter-desktop: 32px;
+  --zp-layout-grid-columns-mobile: 4;
+  --zp-layout-grid-columns-tablet: 8;
+  --zp-layout-grid-columns-desktop: 12;
+  --zp-layout-breakpoint-xs: 360px;
+  --zp-layout-breakpoint-sm: 480px;
+  --zp-layout-breakpoint-md: 768px;
+  --zp-layout-breakpoint-lg: 1024px;
+  --zp-layout-breakpoint-xl: 1280px;
+  --zp-layout-breakpoint-xxl: 1440px;
+  --zp-layout-header-height: 64px;
+  --zp-layout-tabbar-height: 64px;
+  --zp-motion-duration-instant: 120ms;
+  --zp-motion-duration-fast: 180ms;
+  --zp-motion-duration-base: 240ms;
+  --zp-motion-duration-slow: 400ms;
+  --zp-motion-easing-standard: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --zp-motion-easing-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --zp-motion-easing-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --zp-motion-stamp-slam-from: scale(1.3) rotate(-20deg);
+  --zp-motion-stamp-slam-to: scale(1) rotate(-10deg);
+  --zp-motion-stamp-slam-duration: 180ms;
+  --zp-z-base: 0;
+  --zp-z-sticky: 100;
+  --zp-z-header: 200;
+  --zp-z-drawer: 300;
+  --zp-z-modal: 400;
+  --zp-z-toast: 500;
+  --zp-opacity-disabled: 0.4;
+  --zp-opacity-muted: 0.6;
+  --zp-opacity-scrim: 0.6;
+
+  /* semantic — light (default) */
+  --zp-surface: #F7F5EE;
+  --zp-surface-raised: #FFFFFF;
+  --zp-surface-sunken: #EFEDE4;
+  --zp-surface-inverse: #111111;
+  --zp-surface-brand: #FFD21F;
+  --zp-text-primary: #111111;
+  --zp-text-secondary: #4A4A4A;
+  --zp-text-inverse: #F7F5EE;
+  --zp-text-on-brand: #111111;
+  --zp-text-link: #111111;
+  --zp-border: #D9D6CC;
+  --zp-border-strong: #111111;
+  --zp-brand: #FFD21F;
+  --zp-accent: #111111;
+  --zp-focus: #111111;
+  --zp-success: #0F7B3F;
+  --zp-info: #1597D4;
+  --zp-danger: #B42318;
+  --zp-overlay: rgba(17,17,17,0.6);
+}
+
+[data-theme="dark"], .zp-dark {
+  --zp-surface: #111111;
+  --zp-surface-raised: #1C1C1C;
+  --zp-surface-sunken: #000000;
+  --zp-surface-inverse: #F7F5EE;
+  --zp-surface-brand: #FFD21F;
+  --zp-text-primary: #F7F5EE;
+  --zp-text-secondary: #BDBDBD;
+  --zp-text-inverse: #111111;
+  --zp-text-on-brand: #111111;
+  --zp-text-link: #FFD21F;
+  --zp-border: #333333;
+  --zp-border-strong: #F7F5EE;
+  --zp-brand: #FFD21F;
+  --zp-accent: #FFD21F;
+  --zp-focus: #FFD21F;
+  --zp-success: #0F7B3F;
+  --zp-info: #1597D4;
+  --zp-danger: #B42318;
+  --zp-overlay: rgba(0,0,0,0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --zp-surface: #111111;
+    --zp-surface-raised: #1C1C1C;
+    --zp-surface-sunken: #000000;
+    --zp-surface-inverse: #F7F5EE;
+    --zp-surface-brand: #FFD21F;
+    --zp-text-primary: #F7F5EE;
+    --zp-text-secondary: #BDBDBD;
+    --zp-text-inverse: #111111;
+    --zp-text-on-brand: #111111;
+    --zp-text-link: #FFD21F;
+    --zp-border: #333333;
+    --zp-border-strong: #F7F5EE;
+    --zp-brand: #FFD21F;
+    --zp-accent: #FFD21F;
+    --zp-focus: #FFD21F;
+    --zp-success: #0F7B3F;
+    --zp-info: #1597D4;
+    --zp-danger: #B42318;
+    --zp-overlay: rgba(0,0,0,0.7);
+  }
+}
+
+/* status chips */
+.zp-chip--now-on-zorapass { background: #FFD21F; color: #111111; border: 2px solid #111111; }
+.zp-chip--just-announced { background: #F7F5EE; color: #111111; border: 2px solid #111111; }
+.zp-chip--on-sale { background: #FFD21F; color: #111111; border: 2px solid #111111; }
+.zp-chip--early-bird { background: #FFD21F; color: #111111; border: 2px solid #111111; }
+.zp-chip--presale { background: #111111; color: #FFD21F; border: 2px solid transparent; }
+.zp-chip--limited { background: #111111; color: #FFD21F; border: 2px solid transparent; }
+.zp-chip--few-left { background: #111111; color: #FFD21F; border: 2px solid transparent; }
+.zp-chip--almost-gone { background: #111111; color: #FFD21F; border: 2px solid transparent; }
+.zp-chip--sold-out { background: #F7F5EE; color: #111111; border: 2px solid #111111; text-decoration: line-through; }
+.zp-chip--waitlist { background: #1597D4; color: #111111; border: 2px solid transparent; }
+.zp-chip--were-in { background: #0F7B3F; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--checked-in { background: #0F7B3F; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--split-with-tuchange { background: #0F7B3F; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--free { background: #0F7B3F; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--live-now { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--postponed { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--cancelled { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--venue-change { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--time-change { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--update { background: #B42318; color: #FFFFFF; border: 2px solid transparent; }
+.zp-chip--next-up { background: #F7F5EE; color: #111111; border: 2px solid #111111; }
+.zp-chip--new { background: #1597D4; color: #111111; border: 2px solid transparent; }
+.zp-chip--trending { background: #111111; color: #FFD21F; border: 2px solid transparent; }
+.zp-chip--zora-pick { background: #FFD21F; color: #111111; border: 2px solid #111111; }
+.zp-chip--verified-event { background: #FFFFFF; color: #111111; border: 2px solid #111111; }
