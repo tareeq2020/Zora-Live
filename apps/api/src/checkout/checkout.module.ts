@@ -110,14 +110,41 @@ export class CheckoutController {
         path: '/',
         maxAge: 1000 * 3600, // 1h — the payment window
       });
+      // BS121: the summary column shows subtotal, fee and total as separate lines,
+      // so return the breakdown createGaVipOrder already computed, plus currency.
+      const [cur] = await db()`
+        select pv.currency from order_item oi
+          join price_version pv on pv.id = oi.price_version_id
+         where oi.order_id = ${result.orderId} limit 1`;
       return res.status(200).json({
         orderId: result.orderId,
+        subtotal: result.subtotal,
+        fee: result.fee,
         total: result.total,
+        currency: cur?.currency ?? 'TZS',
         holdExpiresAt: new Date(Date.now() + holdTtl * 1000).toISOString(),
       });
     } finally {
       inFlight--;
     }
+  }
+
+  // BS121: payment-method groups for checkout, in display order. Methods come
+  // from x-bridge; until its /v1 method list exists the groups are configured
+  // here and gated by settings.methodsEnabled (absent key = enabled). QR stays
+  // off until x-bridge ships QR collection.
+  @Get('payment-methods')
+  async paymentMethods() {
+    const settings = await readSettingsCached(this.entities);
+    const en = settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
+    return {
+      groups: [
+        { id: 'mobile', label: 'Mobile money', enabled: en.mobile !== false, networks: 'from_number' },
+        { id: 'card', label: 'Card', enabled: en.card !== false },
+        { id: 'qr', label: 'Scan to pay (QR)', enabled: en.qr === true },
+        { id: 'billpay', label: 'Control number', enabled: en.billpay !== false },
+      ],
+    };
   }
 
   // Storefront inventory read — coalesced ~2s cache, edge-cacheable.
