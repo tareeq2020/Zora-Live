@@ -14,7 +14,7 @@ for i in $(seq 1 40); do pg_isready -h 127.0.0.1 -p "$PG_PORT" >/dev/null 2>&1 &
 createdb -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" zora_an
 URL="postgres://$USER_NAME@127.0.0.1:$PG_PORT/zora_an"
 DATABASE_URL_MIGRATE="$URL" node "$ROOT/db/migrate.mjs" >/dev/null
-DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" settings >/dev/null
+DATABASE_URL="$URL" ZORA_DATA_DIR="$ROOT/data" node "$ROOT/db/backfill.mjs" settings tiers organizers audit admin events kyc >/dev/null
 ( cd "$ROOT/apps/api" && env PORT="$API_PORT" DATABASE_URL="$URL" XBRIDGE_MOCK=true SESSION_SECRET=e2e KYC_SECRET=e2e TICKET_SIGNING_KEY=k node dist/main.js ) >"$SNAP/api.log" 2>&1 &
 for i in $(seq 1 30); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
 B="http://localhost:$API_PORT/api/v/track"; UA='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
@@ -33,4 +33,20 @@ check "whatsapp via utm" "$(q "select views from analytics_daily where source='w
 check "event view direct" "$(q "select views||'/'||source from analytics_daily where kind='event' and event_id='brunch-vol-09'")" "1/direct"
 check "bot not stored" "$(q "select coalesce(sum(views),0) from analytics_daily")" 4
 check "no raw anon id stored" "$(q "select count(*) from analytics_visitor_day where visitor_hash in ('a1','a2')")" 0
+echo "== BS128/129 read endpoints =="
+A="http://localhost:$API_PORT"; SN="$(mktemp -d)"
+jget() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);let v=o;for(const p of process.argv[1].split("."))v=v?.[p];process.stdout.write(Array.isArray(v)?String(v.length):String(v))})' "$1"; }
+curl -s -c "$SN/admin" -X POST "$A/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}' >/dev/null
+curl -s -b "$SN/admin" -X PUT "$A/api/organizers/o1/password" -H 'content-type: application/json' -d '{"password":"orgpass123"}' >/dev/null
+curl -s -c "$SN/org" -X POST "$A/api/org/login" -H 'content-type: application/json' -d '{"handle":"thebrunchcity","password":"orgpass123"}' >/dev/null
+O=$(curl -s -b "$SN/org" "$A/api/org/storefront-analytics?range=7D")
+check "org storefront visits" "$(echo "$O" | jget kpis.storefrontVisits)" 3
+check "org series has 7 days" "$(echo "$O" | jget series)" 7
+check "org top event" "$(echo "$O" | jget topEvents)" 1
+check "anon org endpoint 401" "$(curl -s -o /dev/null -w '%{http_code}' "$A/api/org/storefront-analytics")" 401
+AD=$(curl -s -b "$SN/admin" "$A/api/admin/storefront-analytics?range=30D")
+check "admin page views" "$(echo "$AD" | jget kpis.pageViews)" 4
+check "admin organizers row" "$(echo "$AD" | jget organizers)" 1
+check "org cannot read admin" "$(curl -s -o /dev/null -w '%{http_code}' -b "$SN/org" "$A/api/admin/storefront-analytics")" 401
+
 [ "$fail" = 0 ] && echo "ANALYTICS E2E: PASS" || { echo "ANALYTICS E2E: FAIL"; tail -20 "$SNAP/api.log"; exit 1; }

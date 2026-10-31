@@ -8,6 +8,7 @@ import type { CrNavItem } from '@/app/components/cr';
 export const ORG_NAV: CrNavItem[] = [
   { href: '/dashboard/overview', label: 'Home', icon: 'home' },
   { href: '/dashboard/sales', label: 'Sales', icon: 'sales' },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: 'overview' },
   { href: '/dashboard/events', label: 'Events', icon: 'events' },
   { href: '/dashboard/payouts', label: 'Payouts', icon: 'payouts' },
   { href: '/dashboard/comps', label: 'Comps', icon: 'comps' },

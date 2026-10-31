@@ -22,6 +22,7 @@ import { CrShell, type CrNavItem } from '@/app/components/cr';
 const NAV: CrNavItem[] = [
   // Lane C — rebuilt on the CR lib.
   { href: '/admin/console/overview', label: 'Overview', icon: 'overview' },
+  { href: '/admin/console/analytics', label: 'Analytics', icon: 'sales' },
   { href: '/admin/console/events', label: 'Events-manager', icon: 'events-manager' },
   { href: '/admin/console/orders', label: 'Orders & carts', icon: 'orders' },
   { href: '/admin/console/broadcasts', label: 'Broadcasts', icon: 'broadcasts' },

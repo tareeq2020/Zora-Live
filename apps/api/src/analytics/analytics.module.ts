@@ -2,6 +2,8 @@ import { Body, Controller, HttpCode, Module, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { db, recordView } from '@zora/core';
 import { resolveSessionSecret } from '../common/secret';
+import { OrgModule } from '../org/org.module';
+import { StorefrontAnalyticsController } from './storefront-analytics.controller';
 
 /* BS123: storefront analytics beacon (Web Premium v1, F4 / A10).
    POST /api/v/track {kind, org, event?, anonId, referrer?, utm?} → always 204.
@@ -47,5 +49,5 @@ export class AnalyticsController {
   }
 }
 
-@Module({ controllers: [AnalyticsController] })
+@Module({ imports: [OrgModule], controllers: [AnalyticsController, StorefrontAnalyticsController] })
 export class AnalyticsModule {}
