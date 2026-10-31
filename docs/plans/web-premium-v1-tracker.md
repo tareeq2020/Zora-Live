@@ -25,7 +25,7 @@ Last updated: 2026-10-31
 | PR | Title | Release | Lane | Depends on | Plan refs | Status | Link | Notes |
 |---|---|---|---|---|---|---|---|---|
 | — | Sync origin/develop with mirror (Reli-Tech #1–#16) | R0 | — | — | F0.6 | released | — | pushed 485af35 to origin/develop 2026-10-31 |
-| BS114 | Plan, tracker, design handoff into repo | R0 | — | — | — | wip | | docs only |
+| BS114 | Plan, tracker, design handoff into repo | R0 | — | — | — | merged | https://github.com/tareeq2020/Zora-Live/pull/193 | docs only |
 | BS115 | Safety fixes: analytics route pattern + sanitiser allowlist + eventId; floor-plan auth; GA capacity read; seat-map buyer flag; cr-tokens names/font | R0 | 0 | — | F0.1–F0.5, A9 | todo | | |
 | BS116 | Order-status single owner (`core/order-status.ts`) + migrate paid-literal callers + regression e2e | R0 | 0 | — | A1, IRON RULE | todo | | must merge before any lane touches money/scan |
 | BS117 | Mobile: Nest attendee entry (drop Supabase) — merge `codex/week3-mobile-nest-attendee-entry` | R0 | 0 | — | F0.6 | todo | | |
