@@ -3,7 +3,7 @@ export type { Sql } from './db';
 export {
   placeHold, convertHolds, releaseHolds, tryReacquire, tryRehold, releaseOrderInventory,
   reserveInventory, convertReservation, releaseReservation, sweepExpiredReservations,
-  poolSnapshots, poolSnapshotsCached,
+  poolSnapshots, poolSnapshotsCached, convertHoldsToReservation, tryReserveOrder, INSTALLMENT_REF,
 } from './inventory';
 export type { PoolSnapshot } from './inventory';
 export {
@@ -66,10 +66,10 @@ export type { CommissionEventLike, CommissionOrgLike } from './commission';
 export {
   ORDER_STATUS, ORDER_STATUSES, isOrderStatus, orderStatusTraits,
   countsAsSold, countsAsRevenue, isFlaggedMoney, issuesPasses, isPayable,
-  holdsBuyerMoney, wasEverPaid, isRefundable, isBroadcastAudience,
+  holdsBuyerMoney, wasEverPaid, isRefundable, isBroadcastAudience, earnsCollected,
   SOLD_STATUSES, REVENUE_STATUSES, FLAGGED_MONEY_STATUSES, PASS_ISSUING_STATUSES,
   PAYABLE_STATUSES, BUYER_MONEY_STATUSES, EVER_PAID_STATUSES, REFUNDABLE_STATUSES,
-  BROADCAST_STATUSES,
+  BROADCAST_STATUSES, COLLECTED_REVENUE_STATUSES,
 } from './order-status';
 export type { OrderStatus, OrderStatusTraits } from './order-status';
 // BS35: the debit side — refunded money leaves the organizer's earnings (OV1).
@@ -207,3 +207,37 @@ export type {
 // BS128/BS129: storefront analytics reads (organizer + admin consoles).
 export { readStorefrontAnalytics, storefrontRangeDays } from './analytics-read';
 export type { StorefrontAnalytics, AnalyticsRangeDays } from './analytics-read';
+// BS132 (F7): installments — pure schedule maths + the order/payment service.
+export {
+  buildSchedule, depositFor, dueDateFor, addDays, addMonths, eatToday, finalDueFor,
+  sanitizeInstallmentConfig, configCoversCart,
+  INSTALLMENT_FREQUENCIES, INSTALLMENT_MIN_COUNT, INSTALLMENT_MAX_COUNT,
+} from './installments';
+export type {
+  InstallmentConfig, InstallmentFrequency, ScheduleRow, ScheduleResult, ScheduleRejection, BuildScheduleInput,
+} from './installments';
+export {
+  readInstallmentConfig, upsertInstallmentConfig, eventInstallmentContext, createInstallmentOrder,
+  hasInstallmentPlan, planInstallmentAttempt, openInstallmentAttempt, applyInstallmentOutcome,
+  installmentSummary, InstallmentAttemptRefused, PUSH_LIMIT, PUSH_WINDOW_SECS,
+} from './payments/installments';
+export type {
+  CreateInstallmentOrderInput, CreateInstallmentOrderResult, InstallmentBinding, InstallmentSummary,
+} from './payments/installments';
+// BS133: installment provider adapter (x-bridge /v1 receivables; /collection/* + mock today).
+export {
+  createReceivable, payInstallment, parseWebhook, handleReceivableWebhook, signReceivableWebhook,
+  installmentRail, installmentProviderName, receivableWebhookSecret, RECEIVABLE_EVENTS,
+} from './payments/installments-provider';
+export type {
+  InstallmentRail, PayInstallmentInput, ReceivableEvent, ReceivableEventType, ParseWebhookResult, ReceivableWebhookResult,
+} from './payments/installments-provider';
+export { collectViaCollectionApi } from './payments/service';
+export type { CollectAttemptInput, CollectAttemptResult } from './payments/service';
+export { xbridgeRequest, XbridgeHttpError } from './payments/xbridge';
+// BS135: installment worker jobs — reminders, locked default close, refund booking.
+export {
+  sendInstallmentReminders, closeDefaultedPlans, cancelStalePendingPlans, runInstallmentJobs,
+  recordInstallmentRefund, installmentPayLink, REMINDER_HOURS, CLOSING_MAX_HOURS,
+} from './payments/installments-jobs';
+export type { ReminderKind, DefaultCloseResult, RecordInstallmentRefundResult } from './payments/installments-jobs';

@@ -38,9 +38,10 @@ export const ORDER_STATUS = {
   PAYMENT_SHORT: 'payment_short',
   /** Fully refunded (refunded_amount = gross). */
   REFUNDED: 'refunded',
-  /** Installment plan in progress (deposit paid, seats reserved). Not produced yet (F7). */
+  /** Installment plan in progress (deposit paid, inventory reserved, no passes). BS132. */
   INSTALLMENT_ACTIVE: 'installment_active',
-  /** Installment plan defaulted. Not produced yet (F7). */
+  /** Installment plan closed unpaid after grace: inventory released, paid money
+      (minus the service fee) owed back to the buyer. BS135. */
   INSTALLMENT_DEFAULTED: 'installment_defaulted',
 } as const;
 
@@ -70,52 +71,59 @@ export interface OrderStatusTraits {
   isRefundable: boolean;
   /** Included in organizer/admin broadcast audiences ("a buyer"). */
   isBroadcastAudience: boolean;
+  /** BS132 (A2): organizer earnings come from the money COLLECTED so far (paid
+      installment_schedule rows, net of the service fee), never from the order's
+      line items. Disjoint from countsAsRevenue — an order is read one way only. */
+  earnsCollected: boolean;
 }
 
 const STATUS_TRAITS: Record<OrderStatus, OrderStatusTraits> = {
   pending: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: true, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false,
+    isPayable: true, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
   paid: {
     countsAsSold: true, countsAsRevenue: true, isFlaggedMoney: false, issuesPasses: true,
-    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true,
+    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true, earnsCollected: false,
   },
   payment_short: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: true, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true,
+    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true, earnsCollected: false,
   },
   paid_unseatable: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: true, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true,
+    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: true, isBroadcastAudience: true, earnsCollected: false,
   },
   failed: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: true, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false,
+    isPayable: true, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
   expired: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false,
+    isPayable: false, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
   cancelled: {
     countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false,
+    isPayable: false, holdsBuyerMoney: false, wasEverPaid: false, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
   refunded: {
     countsAsSold: false, countsAsRevenue: true, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: false, wasEverPaid: true, isRefundable: false, isBroadcastAudience: false,
+    isPayable: false, holdsBuyerMoney: false, wasEverPaid: true, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
   // Installments (F7). Seats are reserved, so they count as sold; revenue comes
-  // from COLLECTED payment_transaction rows in BS132 (plan A2), never from the
-  // order total, so countsAsRevenue is false. No pass before full payment (A5).
-  // Refunds of collected installments are decided in F7 — not refundable here yet.
+  // from COLLECTED money (earnsCollected, A2), never from the order total, so
+  // countsAsRevenue is false. No pass before full payment (A5). Not refundable
+  // through refundOrder (its gross is the line items, not what was collected).
+  // Defaulted (BS132 decision): inventory is RELEASED on default (owner decision
+  // 3), so it no longer counts as sold; the paid money minus the service fee is
+  // owed back, so it still holds buyer money until the refund is recorded.
   installment_active: {
     countsAsSold: true, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: true, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: false, isBroadcastAudience: true,
+    isPayable: true, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: false, isBroadcastAudience: true, earnsCollected: true,
   },
   installment_defaulted: {
-    countsAsSold: true, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
-    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: false, isBroadcastAudience: false,
+    countsAsSold: false, countsAsRevenue: false, isFlaggedMoney: false, issuesPasses: false,
+    isPayable: false, holdsBuyerMoney: true, wasEverPaid: true, isRefundable: false, isBroadcastAudience: false, earnsCollected: false,
   },
 };
 
@@ -143,6 +151,7 @@ export const holdsBuyerMoney = trait('holdsBuyerMoney');
 export const wasEverPaid = trait('wasEverPaid');
 export const isRefundable = trait('isRefundable');
 export const isBroadcastAudience = trait('isBroadcastAudience');
+export const earnsCollected = trait('earnsCollected');
 
 const where = (p: (s: string) => boolean): OrderStatus[] => ORDER_STATUSES.filter(p);
 
@@ -158,3 +167,4 @@ export const BUYER_MONEY_STATUSES = where(holdsBuyerMoney);
 export const EVER_PAID_STATUSES = where(wasEverPaid);
 export const REFUNDABLE_STATUSES = where(isRefundable);
 export const BROADCAST_STATUSES = where(isBroadcastAudience);
+export const COLLECTED_REVENUE_STATUSES = where(earnsCollected);

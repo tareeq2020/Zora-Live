@@ -428,6 +428,58 @@ FINAL_ROWS=$(psql_one "select count(*) from payout where organizer_handle='thebr
   && echo "  ✓ FINAL LEDGER: Σ(non-rejected) = $FINAL_HELD ≤ 142500 earned (post-refund) · $FINAL_ROWS total rows" \
   || { echo "  ✗ FINAL LEDGER over-withdrawn: $FINAL_HELD of 142500 earned"; fail=1; }
 
+echo ""
+echo "══ 10. BS132 (A2): AN INSTALLMENT ORDER EARNS ONLY WHAT WAS COLLECTED ══"
+# Org B (offshore) earns 76000 net from one paid order. Add an installment order
+# for 80000 (40% deposit, 3 payments): after the deposit the balance must grow by
+# the DEPOSIT net of commission — never by the 80000 order total — and by the
+# second installment after that.
+psql_one "insert into installment_config (event_id, enabled, deposit_pct, count, frequency, final_due_days_before_event, grace_days) values ('offshore-001', true, 40, 3, 'weekly', 0, 2)" >/dev/null
+inst_step() { # step → prints the order id after the step
+  DATABASE_URL="$URL" XBRIDGE_MOCK=true SMS_DRIVER=mock EMAIL_DRIVER=mock TICKET_SIGNING_KEY=e2e-ticket-key PG_PREPARE=false \
+  STEP="$1" ORDER="${2:-}" node -e '
+const c = require(process.argv[1]);
+(async () => {
+  const sql = c.db();
+  let id = process.env.ORDER;
+  if (process.env.STEP === "create") {
+    const cfg = await c.readInstallmentConfig(sql, "offshore-001");
+    const r = await c.createInstallmentOrder(sql, { phone: "255713999999", email: "inst@example.com",
+      cart: [{ tier: "t-offshore", quantity: 1 }], feeRate: 0, holdTtl: 900, commissionRate: 0.05,
+      config: cfg, eventDate: "2027-06-30", orgHandle: "offshore", today: "2026-11-01" });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    id = r.orderId;
+  }
+  const a = await c.initiatePayment(sql, { orderId: id, method: "mobile", payerPhone: "0713999999", callbackUrl: "http://x", routeMap: c.DEFAULT_FSP_ROUTE_MAP });
+  const [t] = await sql`select amount from payment_transaction where transaction_id = ${a.transactionId}`;
+  c.__setMockCollectionStatus(a.transactionId, { status: "COMPLETED", amount: String(t.amount), collectedAmount: String(t.amount) });
+  await c.reconcile(sql, a.transactionId);
+  process.stdout.write(id);
+  await sql.end({ timeout: 5 });
+})().catch((e) => { console.error(e); process.exit(1); });' "$ROOT/packages/core/dist/index.js"
+}
+IO=$(inst_step create)
+IST=$(psql_one "select status from \"order\" where id = '$IO'")
+DEP=$(psql_one "select amount from installment_schedule where order_id = '$IO' and n = 1")
+[ "$IST" = "installment_active" ] && [ "$DEP" = "32000" ] \
+  && echo "  · installment order $IO: deposit 32000 of 80000 collected → installment_active" \
+  || { echo "  ✗ installment order setup: status=$IST deposit=$DEP"; fail=1; }
+PVB2=$(pv_get "$SNAP/orgB")
+echo "$PVB2" | grep -q '"earned":106400' \
+  && echo "  ✓ org B earned 76000 + 30400 (32000 deposit net of 5%) = 106400 — NOT +76000 for the 80000 total" \
+  || { echo "  ✗ org B balance after deposit: $PVB2"; fail=1; }
+inst_step pay "$IO" >/dev/null
+PVB3=$(pv_get "$SNAP/orgB")
+echo "$PVB3" | grep -q '"earned":129200' \
+  && echo "  ✓ after the 2nd installment (24000): earned 76000 + 53200 (56000 net) = 129200" \
+  || { echo "  ✗ org B balance after 2nd installment: $PVB3"; fail=1; }
+inst_step pay "$IO" >/dev/null
+PVB4=$(pv_get "$SNAP/orgB")
+FST=$(psql_one "select status from \"order\" where id = '$IO'")
+[ "$FST" = "paid" ] && echo "$PVB4" | grep -q '"earned":152000' \
+  && echo "  ✓ final installment → paid: earned 76000 + 76000 = 152000 (same as a pay-in-full order)" \
+  || { echo "  ✗ after final: status=$FST $PVB4"; fail=1; }
+
 [ "$fail" = "0" ] || { echo ""; echo "PAYOUTS E2E: FAIL"; tail -30 "$SNAP/api.log"; exit 1; }
 echo ""
 echo "PAYOUTS E2E: PASS (net balance · reservation · CONCURRENT requests cannot over-withdraw · typed codes · unverified blocked · approve-with-reference · reject returns funds · refunds not withdrawable · cross-org isolation)"

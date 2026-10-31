@@ -98,3 +98,22 @@ export async function poolSnapshotsCached(sql: Sql, ttlMs = 2000, now = Date.now
   _poolCache = { at: now, data };
   return data;
 }
+
+/* ── BS132 (A3): installment inventory — the reservation ledger ──────────── */
+
+/** Reservation ref_type for installment plans (ref_id = the order id). */
+export const INSTALLMENT_REF = 'installment';
+
+/** Deposit cleared: the order's HELD holds → reservations (ref 'installment').
+    Returns hold rows moved; 0 = the holds lapsed (fall back to tryReserveOrder). */
+export async function convertHoldsToReservation(sql: Sql, orderId: string, expiresAt: Date | string): Promise<number> {
+  const rows = await sql`select convert_order_holds_to_reservation(${orderId}::uuid, ${INSTALLMENT_REF}, ${expiresAt}::timestamptz) as n`;
+  return Number(rows[0].n);
+}
+
+/** Late deposit (holds already swept): all-or-nothing available → reserved for
+    the order's tier quantities. False = sold out meanwhile; nothing applied. */
+export async function tryReserveOrder(sql: Sql, orderId: string, expiresAt: Date | string): Promise<boolean> {
+  const rows = await sql`select try_reserve_order(${orderId}::uuid, ${INSTALLMENT_REF}, ${expiresAt}::timestamptz) as ok`;
+  return rows[0].ok === true;
+}

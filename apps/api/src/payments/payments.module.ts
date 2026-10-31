@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, issuesPasses, type FspRouteMap, type PaymentMethod,
+  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, handleReceivableWebhook, type FspRouteMap, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -42,9 +42,14 @@ export class PaymentsController {
   // ── Start a collection for a pending/failed order ─────────────────────────
   @Post('checkout/:orderId/pay')
   async pay(@Param('orderId') orderId: string, @Body() body: any, @Res() res: Response) {
-    const { method, payerPhone, payerName, mno } = body || {};
+    const { method, payerPhone, payerName, mno, scheduleN } = body || {};
     if (method !== 'mobile' && method !== 'billpay' && method !== 'card') {
       return res.status(400).json({ error: 'invalid_method' });
+    }
+    // BS132 (A16): optional installment row. Omitted on an installment order = the
+    // next unpaid row; on a pay-in-full order it must be absent.
+    if (scheduleN !== undefined && scheduleN !== null && (!Number.isInteger(scheduleN) || scheduleN < 1 || scheduleN > 6)) {
+      return res.status(400).json({ error: 'invalid_schedule_n' });
     }
     if (!payerPhone || !String(payerPhone).trim()) {
       return res.status(400).json({ error: 'payer_phone_required' });
@@ -80,6 +85,7 @@ export class PaymentsController {
         callbackUrl,
         routeMap,
         feeRateByFsp,
+        scheduleN: scheduleN ?? null,
       });
       return res.status(200).json({
         transactionId: r.transactionId,
@@ -88,6 +94,14 @@ export class PaymentsController {
         ...(r.redirectUrl ? { redirectUrl: r.redirectUrl } : {}),
       });
     } catch (e: any) {
+      if (e instanceof InstallmentAttemptRefused) {
+        // BS133: x-bridge caps mobile pushes (3 / receivable / 10 min) — say when to retry.
+        if (e.code === 'push_rate_limited') {
+          res.setHeader('Retry-After', String(e.retryAfterSecs ?? 600));
+          return res.status(429).json({ error: e.code, message: e.message, retryAfterSecs: e.retryAfterSecs ?? 600 });
+        }
+        return res.status(e.code === 'provider_refused' ? 502 : 409).json({ error: e.code, message: e.message });
+      }
       const msg = String(e?.message ?? e);
       if (msg === 'order not found') return res.status(404).json({ error: 'order_not_found' });
       if (msg.startsWith('order not payable')) return res.status(409).json({ error: 'not_payable' });
@@ -148,7 +162,9 @@ export class PaymentsController {
       }
     }
 
-    return res.status(200).json({ status: order.status, credentials });
+    // BS132: an installment order also reports its plan ("Booked — X of N paid").
+    const installments = await installmentSummary(sql, orderId);
+    return res.status(200).json({ status: order.status, credentials, ...(installments ? { installments } : {}) });
   }
 
   // ── Provider webhook — RAW body, dedup, reconcile. ALWAYS 200. ────────────
@@ -178,5 +194,28 @@ export class PaymentsController {
   }
 }
 
-@Module({ controllers: [PaymentsController] })
+/* BS133: x-bridge /v1 receivable webhooks (installments). Unlike the
+   /collection/* callback above, this rail has NO polling backstop, so:
+   - the signature is verified (X-Bridge-Signature v1, HMAC-SHA256 over the RAW
+     body with XBRIDGE_WEBHOOK_SECRET — main.ts's raw parser covers this sub-path);
+   - a bad signature is refused (401) and a missing secret is 503 (fail-closed);
+   - a processing error is a 500 so x-bridge retries; the delivery is only marked
+     applied once it fully succeeded, and allocation is idempotent per attempt. */
+@Controller()
+export class ReceivableWebhookController {
+  @Post('webhooks/xbridge/receivables')
+  async receivables(@Req() req: Request, @Res() res: Response) {
+    const b: any = (req as any).body;
+    const rawBody = Buffer.isBuffer(b) ? b.toString('utf8') : typeof b === 'string' ? b : JSON.stringify(b ?? {});
+    try {
+      const r = await handleReceivableWebhook(db(), rawBody, req.headers as Record<string, string | string[] | undefined>);
+      return res.status(r.http).json(r.body);
+    } catch (e) {
+      console.error('xbridge receivable webhook error', e);
+      return res.status(500).json({ error: 'retry' });
+    }
+  }
+}
+
+@Module({ controllers: [PaymentsController, ReceivableWebhookController] })
 export class PaymentsModule {}

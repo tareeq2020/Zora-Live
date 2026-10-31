@@ -1,6 +1,9 @@
 import { Controller, Get, Module, Post, Body, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { db, createGaVipOrder, poolSnapshotsCached, releaseOwnSeatHold } from '@zora/core';
+import {
+  db, createGaVipOrder, poolSnapshotsCached, releaseOwnSeatHold, isFlagOn,
+  createInstallmentOrder, readInstallmentConfig, eventInstallmentContext,
+} from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { CommissionService } from '../common/commission.module';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -39,6 +42,25 @@ function normalizeTzPhone(raw: string): string {
   if (d.startsWith('0')) return '255' + d.slice(1);
   if (d.length === 9) return '255' + d;
   return d;
+}
+
+/** Pure validation of a checkout body (shared by pay-in-full and installments).
+    Returns the error code, or null when the body is well-formed. */
+function checkoutBodyError(body: any): string | null {
+  const { phone, email, ageAttested, cart } = body || {};
+  if (ageAttested !== true) return 'age_attestation_required';
+  if (!phone || !String(phone).trim()) return 'phone_required';
+  if (!email || !String(email).trim()) return 'email_required';
+  if (!Array.isArray(cart) || cart.length === 0) return 'cart_required';
+  for (const line of cart) {
+    const badTier = !line || typeof line.tier !== 'string' || !line.tier.trim();
+    const badQty = !Number.isInteger(line?.quantity) || line.quantity < 1;
+    const badSeats = line?.seatIds !== undefined &&
+      (!Array.isArray(line.seatIds) || line.seatIds.length === 0 || line.seatIds.length > 50 ||
+       line.seatIds.some((x: unknown) => typeof x !== 'string' || !x || x.length > 120));
+    if (badTier || badQty || badSeats) return 'invalid_cart_line';
+  }
+  return null;
 }
 
 @Controller()
@@ -140,6 +162,95 @@ export class CheckoutController {
         total: result.total,
         currency: cur?.currency ?? 'TZS',
         holdExpiresAt: new Date(Date.now() + holdTtl * 1000).toISOString(),
+      });
+    } finally {
+      inFlight--;
+    }
+  }
+
+  /* BS132 (F7): installment checkout. Same validation, load-shed valve and
+     kill-switch as pay-in-full, then three server-side gates:
+       1. flag zp_installments (per org / event) — 403 installments_disabled
+       2. the event's offer covers every tier in the cart — 403 installments_not_offered
+       3. the schedule fits before the final due date — 422 with a readable message
+     The order is created 'pending' with HELD inventory; paying the deposit
+     (POST /checkout/:orderId/pay, which binds to schedule row 1) moves it to
+     installment_active. Nothing here charges money. */
+  @Post('checkout/installments')
+  async checkoutInstallments(@Body() body: any, @Res() res: Response) {
+    const bad = checkoutBodyError(body);
+    if (bad) return res.status(400).json({ error: bad });
+    const { phone, email, cart } = body;
+
+    if (inFlight >= MAX_CONCURRENT) {
+      res.setHeader('Retry-After', '2');
+      return res.status(503).json({ error: 'busy' });
+    }
+    inFlight++;
+    try {
+      const settings = await readSettingsCached(this.entities);
+      if (settings?.sales_paused === true || settings?.salesPaused === true) {
+        res.setHeader('Retry-After', '600');
+        return res.status(503).json({ error: 'sales_paused' });
+      }
+      const sql = db();
+      const [tier] = await sql`select event_id from product_tier where id = ${String(cart[0].tier)}`;
+      if (!tier) return res.status(409).json({ error: 'sold_out', tier: cart[0].tier });
+      const eventId: string = tier.event_id;
+      const ctx = await eventInstallmentContext(sql, eventId);
+      // Read fresh (not the 10s cache): turning the flag OFF must stop new plans at once.
+      const fresh = await this.entities.read<any>('settings', DEFAULT_SETTINGS);
+      if (!isFlagOn(fresh?.flags, 'zp_installments', { org: ctx.orgHandle, event: eventId })) {
+        return res.status(403).json({ error: 'installments_disabled' });
+      }
+      const config = await readInstallmentConfig(sql, eventId);
+      if (!config) return res.status(403).json({ error: 'installments_not_offered' });
+
+      const feeRate = typeof settings?.feeRate === 'number' ? settings.feeRate : 0;
+      const holdTtl = Number.isInteger(settings?.hold_ttl_seconds) ? settings.hold_ttl_seconds : 900;
+      const normPhone = normalizeTzPhone(phone);
+      const commissionRate = await this.commission.forTier(cart[0].tier);
+
+      const result = await createInstallmentOrder(sql, {
+        phone: normPhone,
+        email: String(email).trim(),
+        cart: cart.map((l: any) => ({ tier: l.tier, quantity: l.quantity, ...(Array.isArray(l.seatIds) ? { seatIds: l.seatIds } : {}) })),
+        feeRate,
+        holdTtl,
+        commissionRate,
+        config,
+        eventDate: ctx.eventDate,
+        orgHandle: ctx.orgHandle,
+      });
+      if (!result.ok) {
+        if (result.reason === 'not_offered') return res.status(403).json({ error: 'installments_not_offered' });
+        if (result.reason === 'schedule_rejected') return res.status(422).json({ error: 'schedule_rejected', code: result.code, message: result.message });
+        if (result.reason === 'seat_taken') return res.status(409).json({ error: 'seat_taken', seats: result.seats });
+        return res.status(409).json({ error: 'sold_out', tier: result.tier });
+      }
+
+      const cookie = signSession({ orderId: result.orderId, phone: normPhone } as any, resolveSessionSecret());
+      res.cookie('zora_checkout', cookie, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.COOKIE_SECURE === 'true',
+        path: '/',
+        maxAge: 1000 * 3600,
+      });
+      const [cur] = await sql`select currency from installment_plan where order_id = ${result.orderId}`;
+      return res.status(200).json({
+        orderId: result.orderId,
+        subtotal: result.subtotal,
+        fee: result.fee,
+        total: result.total,
+        currency: cur?.currency ?? 'TZS',
+        holdExpiresAt: new Date(Date.now() + holdTtl * 1000).toISOString(),
+        installments: {
+          deposit: result.deposit,
+          finalDue: result.finalDue,
+          graceDays: config.graceDays,
+          schedule: result.schedule,
+        },
       });
     } finally {
       inFlight--;
