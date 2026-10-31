@@ -85,7 +85,15 @@ export class SeatsController {
   @Get('events/:id/seatmap')
   async published(@Param('id') id: string, @Res() res: Response) {
     const eventId = eventsApi.resolveSlug(id);
-    const plan = await this.entities.read<any>(`floorplan_published:${eventId}`, null);
+    let plan = await this.entities.read<any>(`floorplan_published:${eventId}`, null);
+    if (!plan) {
+      // BS144: events published BEFORE BS143 have seat inventory but no stored
+      // published copy — serve their current plan (the pre-BS143 behaviour) so the
+      // live map keeps its zones. The next publish writes the proper copy.
+      const [v] = await db()`select max(version) as v from seatmap_version where event_id = ${eventId}`;
+      if (v?.v) plan = await this.entities.read<any>(`floorplan:${eventId}`, null);
+      if (plan) plan = { ...plan, publishedVersion: Number(v.v), legacy: true };
+    }
     if (!plan) return res.status(404).json({ error: 'not_published' });
     res.setHeader('Cache-Control', 'public, max-age=10');
     return res.status(200).json(plan);

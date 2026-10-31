@@ -186,4 +186,7 @@ check "plan keeps priceMode" "$(curl -s "$BASE/api/events/$EV/floorplan" | grep 
 check "republish" "$(pub "$SNAP/org" $EV | tail -1)" 200
 check "seats per_seat" "$(psqlq "select price_mode from seat_inventory where seat_id='vip-T1'")" per_seat
 
+echo "== 9. pre-BS143 events (BS144) =="
+psqlq "delete from collection_store where name = 'floorplan_published:$EV'" >/dev/null
+check "pre-BS143 publish falls back to its plan" "$(curl -s "$BASE/api/events/$EV/seatmap" | jget legacy)" true
 [ "$fail" = 0 ] && echo "SEAT INVENTORY E2E: PASS" || { echo "SEAT INVENTORY E2E: FAIL"; tail -30 "$SNAP/api.log"; exit 1; }
