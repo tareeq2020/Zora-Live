@@ -74,7 +74,21 @@ export class SeatsController {
     const result = await publishSeatMap(db(), eventId, plan, req.actingHandle as string);
     cache.delete(eventId);
     if (!result.ok) return res.status(409).json(result);
+    // BS143: buyers read the PUBLISHED plan, never the builder's draft (which the
+    // builder overwrites on every save, even when a publish then fails with 409).
+    await this.entities.write(`floorplan_published:${eventId}`, { ...plan, publishedVersion: result.version, publishedAt: new Date().toISOString() });
     return res.status(200).json(result);
+  }
+
+  // BS143: the published plan (zones, prices, tier links) for the buyer map.
+  // 404 until the organizer publishes — the map then stays hidden.
+  @Get('events/:id/seatmap')
+  async published(@Param('id') id: string, @Res() res: Response) {
+    const eventId = eventsApi.resolveSlug(id);
+    const plan = await this.entities.read<any>(`floorplan_published:${eventId}`, null);
+    if (!plan) return res.status(404).json({ error: 'not_published' });
+    res.setHeader('Cache-Control', 'public, max-age=10');
+    return res.status(200).json(plan);
   }
 
   @Get('events/:id/seats')

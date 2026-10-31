@@ -9,7 +9,7 @@ import { CITIES } from '../../../../lib/cities';
    Replaces the BS115 imperative SVG port and its placeholder availability.
    Everything shown comes from the server:
      • GET /api/events/:id            — name, date, venue, tiers (prices)
-     • GET /api/events/:id/floorplan  — zones (seated / table / GA)
+     • GET /api/events/:id/seatmap    — PUBLISHED zones (seated / table / GA) — BS143
      • GET /api/events/:id/seats      — live seat state, polled every 5s while the
                                         tab is visible (If-None-Match → 304)
      • GET /api/inventory             — GA remaining per tier
@@ -114,7 +114,7 @@ export function SeatMap({ eventId }: { eventId: string }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!dead && d) setEv(d); })
       .catch(() => {});
-    fetch('/api/events/' + encodeURIComponent(eventId) + '/floorplan', { cache: 'no-store' })
+    fetch('/api/events/' + encodeURIComponent(eventId) + '/seatmap', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
         if (dead || !p || !Array.isArray(p.zones)) return;

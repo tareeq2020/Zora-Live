@@ -51,6 +51,9 @@ check "seat ids deterministic" "$(psqlq "select string_agg(seat_id, ',' order by
 check "table seats 6" "$(psqlq "select seats_count from seat_inventory where event_id='$EV' and seat_id='vip-T1'")" 6
 check "ga makes no rows" "$(psqlq "select count(*) from seat_inventory where zone_id='ga'")" 0
 
+echo "== 1b. buyers read the PUBLISHED plan (BS143) =="
+check "published plan v1" "$(curl -s "$BASE/api/events/$EV/seatmap" | jget publishedVersion)" 1
+check "unpublished event → 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/events/offshore-001/seatmap")" 404
 echo "== 2. ETag =="
 ET=$(curl -s -D - -o /dev/null "$BASE/api/events/$EV/seats" | awk -F': ' 'tolower($1)=="etag"{print $2}' | tr -d '\r')
 check "If-None-Match → 304" "$(curl -s -o /dev/null -w '%{http_code}' -H "If-None-Match: $ET" "$BASE/api/events/$EV/seats")" 304
@@ -58,6 +61,7 @@ check "If-None-Match → 304" "$(curl -s -o /dev/null -w '%{http_code}' -H "If-N
 echo "== 3. sold seat blocks removal =="
 psqlq "update seat_inventory set state='sold', sold_order_id=gen_random_uuid() where event_id='$EV' and seat_id='lt-B2'" >/dev/null
 check "save plan with 1 row" "$(putplan 1)" 200
+check "draft edit does not reach buyers" "$(curl -s "$BASE/api/events/$EV/seatmap" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const z=JSON.parse(s).zones.find(z=>z.id==="lt");process.stdout.write(String(z.rows))})')" 2
 R=$(pub "$SNAP/org" $EV); check "republish → 409" "$(echo "$R" | tail -1)" 409
 check "conflict names B2" "$(echo "$R" | head -1 | grep -o 'lt-B2' | head -1)" lt-B2
 check "nothing removed" "$(psqlq "select count(*) from seat_inventory where event_id='$EV'")" 8

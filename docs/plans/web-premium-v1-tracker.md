@@ -57,6 +57,7 @@ Last updated: 2026-10-31
 | BS140 | Admin feature-flags page (`/admin/console/flags`) + `GET /api/settings/flags` (admin) | R1 | 0 | BS118 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/209 | needed to switch each release on |
 | BS141 | Admin Google sign-in as the default (password kept as break-glass); allowlist via settings.adminGoogleEmails / ADMIN_GOOGLE_EMAILS / ADMIN_GOOGLE_DOMAIN | R7 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/211 | needs Google OAuth client + callback <web>/api/auth/google/callback |
 | BS142 | Render Blueprint (`render.yaml`: zora-api web + zora-worker + env group), `/api/health`, api.zorapass.com, cutover runbook `docs/deploy/render.md` | R8 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/222 | owner: create Blueprint from Reli-Tech/zora, DNS CNAME api → zora-api.onrender.com, Vercel API_URL |
+| BS143 | Buyer seat map reads the PUBLISHED plan (`GET /api/events/:id/seatmap`, written on publish), never the builder draft | R3 | B | BS127 | QA finding (BS137) | merged | https://github.com/tareeq2020/Zora-Live/pull/226 | seat e2e extended |
 ## Decisions log
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
 - 2026-10-31 · Owner: add Google login as the default for admins (R7 / BS141).
