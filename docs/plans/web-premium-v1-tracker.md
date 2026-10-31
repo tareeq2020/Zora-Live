@@ -50,7 +50,7 @@ Last updated: 2026-10-31
 | BS134 | Installment checkout + confirmation + "booked" pass state (no QR until paid) | R5 | A | BS122, BS132 | A5, DD5 | merged | https://github.com/tareeq2020/Zora-Live/pull/224 | quote = stored schedule; /pay needs cookie or OTP; buyer e2e 27/27 |
 | BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | merged | https://github.com/tareeq2020/Zora-Live/pull/219 | locked default close; refund recorded as pending for ops; jobs e2e PASS |
 | BS136 | Organizer installment settings + orders view; admin enable switch + fee | R5 | A | BS132 | F7 | merged | https://github.com/tareeq2020/Zora-Live/pull/221 | org tab + page, reminders 1/day, admin refund queue; org e2e PASS |
-| BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | todo | | |
+| BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | merged | https://github.com/tareeq2020/Zora-Live/pull/225 | QA R1–R4: 9 bugs fixed (fonts never loaded!) + installments double-sidebar; open: buyer map reads draft plan → BS143 |
 | BS138 | Payments: move from x-bridge /collection/* to /v1 before x-bridge release 4 (≈ 28 Nov) | R6 | A | x-bridge /v1 live | new | blocked | | x-bridge switches /collection/* off at its R4 |
 | BS139 | R0 review follow-ups: flags lists out of public GET /settings, generic PUT can't write flags, seat-plan NaN/size guards | R0 | 0 | BS118 | review | merged | https://github.com/tareeq2020/Zora-Live/pull/202 | homepage→/discover kept (intentional Reli-Tech change) |
 
