@@ -203,3 +203,6 @@ export type {
   PassTemplate, PassShowField, ThemeDefaults, StorefrontThemeLayer, EventThemeLayer,
   TicketDesignFields, TicketDesignLayer, TicketDesignRecord, ResolvedTheme, EmailBrand,
 } from './theme-resolve';
+// BS128/BS129: storefront analytics reads (organizer + admin consoles).
+export { readStorefrontAnalytics, storefrontRangeDays } from './analytics-read';
+export type { StorefrontAnalytics, AnalyticsRangeDays } from './analytics-read';
