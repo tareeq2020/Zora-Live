@@ -450,7 +450,7 @@ const STYLE = `
 .zcs{position:relative;min-height:100vh;width:100%;overflow:hidden;background:#08080A;color:#fff;-webkit-font-smoothing:antialiased;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
 .zcs *{box-sizing:border-box}
 .zcs ::selection{background:rgba(236,63,126,.3)}
-.zcs a{color:inherit;text-decoration:none}
+:where(.zcs) a{color:inherit;text-decoration:none}
 .zcs-layer{position:absolute;inset:0;z-index:0;pointer-events:none}
 .zcs-canvas{position:absolute;inset:0;z-index:0;height:100%;width:100%}
 .zcs-cursor{pointer-events:none;position:fixed;left:0;top:0;z-index:10}

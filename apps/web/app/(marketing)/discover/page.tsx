@@ -27,7 +27,7 @@ const CSS = `
   --ink:var(--zp-color-board-black); --ink2:var(--zp-color-ink-600); --mut:var(--zp-color-ink-500);
   --line:var(--zp-color-line-light); --yellow:var(--zp-color-signal-yellow);
   --sans:var(--zp-font-family-sans); --display:var(--zp-font-family-display); --mono:var(--zp-font-family-mono);
-  position:relative; min-height:100vh; background:var(--bg); color:var(--ink);
+  color-scheme:light; position:relative; min-height:100vh; background:var(--bg); color:var(--ink);
   font-family:var(--sans); font-size:16px; line-height:1.35; -webkit-font-smoothing:antialiased;
 }
 .zd *{margin:0;padding:0;box-sizing:border-box}
@@ -224,7 +224,7 @@ const CSS = `
 .zd .zbot{position:fixed;right:16px;bottom:16px;z-index:80;font-family:var(--sans)}
 .zd .zbot-fab{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 20px;border-radius:16px;background:var(--ink);border:2px solid var(--ink);color:var(--zp-color-bone);font-weight:700;font-size:16px;cursor:pointer}
 .zd .zbot-fab:hover{background:var(--ink2)}
-.zd .zbot-fab svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
+.zd .zbot-fab svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2}
 .zd .zbot-fab.hide{display:none}
 /* BS147: compact round icon on phones so it never covers a card or headline;
    the page keeps clear space at the bottom for it. */

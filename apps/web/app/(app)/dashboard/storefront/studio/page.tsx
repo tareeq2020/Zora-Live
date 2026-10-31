@@ -34,7 +34,7 @@ const STYLE = `
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   background:var(--cr-card);color:var(--cr-ink);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased;height:calc(100dvh - 104px);overflow:hidden;border:1px solid var(--cr-hair);border-radius:18px}
 .zora-studio *{margin:0;padding:0;box-sizing:border-box}
-.zora-studio a{color:inherit;text-decoration:none}
+:where(.zora-studio) a{color:inherit;text-decoration:none}
 .zora-studio .mono{font-family:var(--mono)}
 .zora-studio button{font-family:inherit}
 .zora-studio .studio{display:flex;flex-direction:column;height:100%}

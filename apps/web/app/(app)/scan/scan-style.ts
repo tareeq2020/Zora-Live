@@ -36,7 +36,7 @@ export const SCAN_STYLE = `
   display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 .zscan *{margin:0;padding:0;box-sizing:border-box}
-.zscan button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:where(.zscan) button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .zscan .mono{font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase}
 .zscan :focus-visible{outline:2px solid var(--ice);outline-offset:2px}
 

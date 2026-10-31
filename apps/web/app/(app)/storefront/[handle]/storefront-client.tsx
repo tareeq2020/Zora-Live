@@ -321,7 +321,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 /* ZoraPass handoff, scoped to .zora-sf. FIXED light (bone): primitive tokens only,
    because <html data-theme> defaults to dark and would flip the semantic --zp-*. */
 const STYLE = `
-.zora-sf{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-sf{color-scheme:light;--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sf *{margin:0;padding:0;box-sizing:border-box}
 :where(.zora-sf) a{color:inherit;text-decoration:none} /* BS147: zero specificity, see discover */
 .zora-sf ::selection{background-color:var(--yl);color:var(--bk)}

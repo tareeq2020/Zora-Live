@@ -8,6 +8,7 @@
    GET PASSES bar sticky at the bottom; content left + purchase panel right from
    1024px. */
 .page {
+  color-scheme: light; /* BS149: native controls stay light on bone */
   --bk: var(--zp-color-board-black);
   --bone: var(--zp-color-bone);
   --yl: var(--zp-color-signal-yellow);
@@ -24,7 +25,7 @@
   min-height: 100vh;
 }
 .page :focus-visible { outline: 3px solid var(--bk); outline-offset: 2px; }
-.page a { color: inherit; }
+:where(.page) a { color: inherit; } /* BS149: zero specificity so link-buttons keep their colour */
 
 /* header */
 .topbar { border-bottom: 1px solid var(--line); background: var(--bone); }

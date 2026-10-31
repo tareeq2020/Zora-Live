@@ -1205,7 +1205,7 @@ function validationMessage(err?: string): string {
    <html data-theme> defaults to dark and would flip the semantic --zp-*.
    Every rule is .zc2-prefixed twice-deep so the reset below never outranks it. */
 const STYLE = `
-.zc2{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--wh:var(--zp-color-white);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--ink2:var(--zp-color-ink-600);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);position:fixed;inset:0;z-index:120;background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;overflow-y:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.zc2{color-scheme:light;--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--wh:var(--zp-color-white);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--ink2:var(--zp-color-ink-600);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);position:fixed;inset:0;z-index:120;background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;overflow-y:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
 .zc2:focus{outline:none}
 .zc2 *{margin:0;padding:0;box-sizing:border-box}
 .zc2 :focus-visible{outline:3px solid var(--bk);outline-offset:2px}

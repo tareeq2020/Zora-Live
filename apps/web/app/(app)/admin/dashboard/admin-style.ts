@@ -22,7 +22,7 @@ export const ADMIN_STYLE = `
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;
   -webkit-font-smoothing:antialiased;min-height:100vh}
 .admin-shell *{margin:0;padding:0;box-sizing:border-box}
-.admin-shell a{color:inherit;text-decoration:none}
+:where(.admin-shell) a{color:inherit;text-decoration:none}
 .admin-shell .mono{font-family:var(--mono)}
 .admin-shell :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
