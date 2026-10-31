@@ -7,11 +7,11 @@
    ambient motion — is DELIBERATELY ABSENT below the top strip. At a door,
    legibility, battery and a 0.5-second read beat polish:
 
-     · canvas #0A0B10, Space Grotesk for the giant result word, IBM Plex Mono for
-       pass details, Inter for body.
+     · canvas #0A0B10, Bricolage Grotesque for the giant result word, IBM Plex Mono for
+       pass details and body.
      · the RESULT is a full-screen SOLID-COLOUR takeover, readable across a
        crowd: true go-green for valid, red for used/invalid/wrong-event, and the
-       aura gradient reserved for the one case that means "escalate".
+       flat Signal Yellow (black text) reserved for the one case that means "escalate".
      · motion is near-zero: one fast slam-in on the result, nothing ambient, and
        `prefers-reduced-motion` removes even that.
      · one-handed: every target ≥44px, the primary action sits at the BOTTOM of
@@ -26,9 +26,9 @@ export const SCAN_STYLE = `
   /* A TRUE go-green, not brand magenta: at a door this colour means "walk". */
   --go:#0FA958;--go2:#0B8646;
   --stop:#D8352A;--stop2:#B32218;
-  --aura:linear-gradient(130deg,#D53AD8,#FF4D7D,#FF9145);
-  --disp:'Space Grotesk',system-ui,-apple-system,sans-serif;
-  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --aura:var(--zp-color-signal-yellow,#FFD21F);
+  --disp:var(--zp-font-family-sans);
+  --sans:var(--zp-font-family-sans);
   --mono:'IBM Plex Mono',ui-monospace,monospace;
   position:fixed;inset:0;background:var(--bg);color:var(--text);
   font-family:var(--sans);font-size:16px;line-height:1.5;
@@ -143,7 +143,7 @@ export const SCAN_STYLE = `
 .zscan .take.go{background:var(--go)}
 .zscan .take.stop{background:var(--stop)}
 /* The ONE place brand colour earns its keep at the door: "escalate". */
-.zscan .take.esc{background:var(--aura)}
+.zscan .take.esc{background:var(--aura);color:#111}
 .zscan .take .glyph{
   font-family:var(--disp);font-size:clamp(76px,26vw,132px);line-height:1;font-weight:700;
   margin-bottom:4px}

@@ -3,7 +3,7 @@
    so the bespoke control-room look never leaks past /admin/*.
 
    Palette = DESIGN.md "Control-room" plane (dark `#0A0A0B`), carried over from
-   the legacy console tokens so the port is visually continuous. Type = Archivo
+   the legacy console tokens so the port is visually continuous. Type = Bricolage Grotesque
    (sans) + IBM Plex Mono (labels, money, codes, timers — DESIGN.md rules 2/4b:
    mono is never below 11.5px and never below `--mut` contrast).
 
@@ -17,7 +17,7 @@ export const ADMIN_STYLE = `
   --black:#0A0A0B;--ink:#101012;--ink2:#16161A;--hair:#222226;--hair2:#2E2E34;
   --bone:#F4F1EA;--mut:#8A877E;--mut2:#615F59;
   --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
-  --sans:'Archivo',system-ui,-apple-system,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',ui-monospace,monospace;
   --rail:236px;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;
   -webkit-font-smoothing:antialiased;min-height:100vh}

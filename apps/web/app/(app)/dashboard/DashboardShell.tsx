@@ -67,7 +67,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 const STYLE = `
 .dash-shell{--black:var(--zp-board,#111111);--ink:#101012;--ink2:#16161A;--hair:#222226;--bone:var(--zp-bone,#F6F0E6);--mut:#8A877E;
   --blue:var(--zp-signal,#FFD21F);--orange:var(--zp-heat,#FF5A1F);--teal:#2FA9A0;--amber:#F0C674;
-  --sans:var(--zp-font-sans,'Space Grotesk',system-ui,sans-serif);background:var(--black);color:var(--bone);min-height:100vh}
+  --sans:var(--zp-font-family-sans);background:var(--black);color:var(--bone);min-height:100vh}
 .dash-shell .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
 @media(max-width:820px){.dash-shell .shell{grid-template-columns:1fr}}
 .dash-shell .rail{border-right:1px solid var(--hair);padding:26px 0;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:var(--black)}

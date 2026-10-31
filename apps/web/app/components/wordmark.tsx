@@ -11,8 +11,8 @@
    no hydration flash, matching the no-flash boot that sets data-theme pre-paint.
    The .wordmark img.zora-logo rule in zora-tokens.css sizes it identically. */
 
-const WHITE = '/assets/zora-wordmark-white.png'; // dark theme
-const BLACK = '/assets/zora-wordmark-black.png'; // light theme
+const WHITE = '/brand/logo/svg/zorapass-wordmark-white.svg'; // dark theme
+const BLACK = '/brand/logo/svg/zorapass-wordmark-black.svg'; // light theme
 
 export function Wordmark({
   href,
@@ -25,8 +25,8 @@ export function Wordmark({
 }) {
   return (
     <a href={href} className={className}>
-      <img className="zora-logo zora-logo-dark" src={WHITE} alt="ZORA" draggable={false} />
-      <img className="zora-logo zora-logo-light" src={BLACK} alt="ZORA" draggable={false} />
+      <img className="zora-logo zora-logo-dark" src={WHITE} alt="ZoraPass" draggable={false} />
+      <img className="zora-logo zora-logo-light" src={BLACK} alt="ZoraPass" draggable={false} />
       {small ? <> <small>{small}</small></> : null}
     </a>
   );

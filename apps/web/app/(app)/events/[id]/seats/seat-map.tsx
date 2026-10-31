@@ -20,7 +20,7 @@ const STYLE = `
   --bone:var(--c-text); --mut:var(--c-text2); --mut2:var(--c-text2);
   --blue:var(--c-blue); --green:#3FB950; --grey:#3A3A40; --amber:#E3A008;
   --gold:#B98A2E; --teal:#2FA9A0;
-  --sans:'Archivo',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+  --sans:var(--zp-font-family-sans); --mono:'IBM Plex Mono',monospace;
   position:fixed; inset:0; background:var(--black); color:var(--bone);
   font-family:var(--sans); font-size:15px; -webkit-font-smoothing:antialiased;
   display:flex; flex-direction:column; overflow:hidden;
@@ -59,10 +59,10 @@ const STYLE = `
 #smroot .cartbar .sum .c{font-weight:600;font-size:15px}
 #smroot .cartbar .sum .c .hold{font-family:var(--mono);font-size:11px;color:var(--amber);margin-left:8px}
 #smroot .cartbar .sum .p{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.03em;margin-top:2px}
-#smroot .cartbar .rev{margin-left:auto;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.1em;padding:14px 24px;cursor:pointer;transition:background .2s;white-space:nowrap}
+#smroot .cartbar .rev{margin-left:auto;background:var(--blue);color:var(--c-bg);border:none;border-radius:12px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.1em;padding:14px 24px;cursor:pointer;transition:background .2s;white-space:nowrap}
 #smroot .cartbar .rev:hover{background:var(--bone);color:var(--black)}
 #smroot .cartbar .rev:disabled{opacity:.4;cursor:not-allowed}
-#smroot .cartbar .rev:disabled:hover{background:var(--blue);color:#fff}
+#smroot .cartbar .rev:disabled:hover{background:var(--blue);color:var(--c-bg)}
 #smroot .sheet{position:fixed;inset:0;background:rgba(5,5,6,.6);backdrop-filter:blur(4px);display:none;align-items:flex-end;justify-content:center;z-index:40}
 #smroot .sheet.on{display:flex}
 @media(min-width:620px){#smroot .sheet{align-items:center}}
@@ -80,7 +80,7 @@ const STYLE = `
 #smroot .stepper button{width:40px;height:40px;border-radius:50%;border:1px solid var(--hair2);background:none;color:var(--bone);font-size:20px;cursor:pointer}
 #smroot .stepper button:hover{border-color:var(--bone)}
 #smroot .stepper .n{font-family:var(--mono);font-size:20px;min-width:26px;text-align:center}
-#smroot .addbtn{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.1em;padding:15px;cursor:pointer}
+#smroot .addbtn{width:100%;background:var(--blue);color:var(--c-bg);border:none;border-radius:12px;font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.1em;padding:15px;cursor:pointer}
 #smroot .addbtn:hover{background:var(--bone);color:var(--black)}
 #smroot .line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair)}
 #smroot .line .l .n{font-weight:500;font-size:14px}
@@ -107,7 +107,7 @@ const STYLE = `
 #smroot .split-switch.on::after{transform:translateX(18px)}
 #smroot .sp-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--hair2);background:none;color:var(--bone);font-size:18px;cursor:pointer}
 #smroot .sp-btn:hover{border-color:var(--blue);color:var(--blue)}
-#smroot .pay{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.12em;padding:16px;cursor:pointer;margin-top:16px}
+#smroot .pay{width:100%;background:var(--blue);color:var(--c-bg);border:none;border-radius:12px;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.12em;padding:16px;cursor:pointer;margin-top:16px}
 #smroot .pay:hover{background:var(--bone);color:var(--black)}
 #smroot .done{text-align:center;padding:30px 24px}
 #smroot .done .tick{width:56px;height:56px;border-radius:50%;border:2px solid var(--blue);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px}

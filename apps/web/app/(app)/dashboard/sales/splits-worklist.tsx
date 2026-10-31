@@ -28,7 +28,7 @@ export default function SplitsWorklist() {
   if (!data || (!data.forming.length && !data.refundPending.length)) return null;
 
   return (
-    <div style={{ margin: '18px 0 8px', fontFamily: "'Archivo',system-ui,sans-serif" }}>
+    <div style={{ margin: '18px 0 8px', fontFamily: "var(--zp-font-family-sans)" }}>
       {data.refundPending.length ? (
         <div style={{ background: '#FBEAE1', border: '1px solid #f0c3ad', borderRadius: 14, padding: 16, marginBottom: 14 }}>
           <p style={{ fontWeight: 700, fontSize: 14, color: '#D85A30', display: 'flex', gap: 8, alignItems: 'center', margin: 0 }}>⚠ Needs a manual refund</p>

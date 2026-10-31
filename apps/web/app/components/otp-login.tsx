@@ -2,9 +2,11 @@
 
 /* BS8 — consumer SMS-OTP sign-in (A3/D6). Reusable: phone → 6-digit code →
    consumer session (zora_buyer cookie set by the API). No password, no download.
-   POST /api/otp/request, POST /api/otp/verify. */
+   POST /api/otp/request, POST /api/otp/verify.
+   BS119: ZoraPass flow primitives (zp-flow-css) — bone, black, one yellow. */
 
 import { useEffect, useState } from 'react';
+import { ZP_FLOW_CSS } from './zp-flow-css';
 
 export default function OtpLogin({ onSignedIn, lead }: { onSignedIn: (phone: string) => void; lead?: string }) {
   const [phase, setPhase] = useState<'phone' | 'code'>('phone');
@@ -30,7 +32,7 @@ export default function OtpLogin({ onSignedIn, lead }: { onSignedIn: (phone: str
       if (res.status === 429) { setError('Too many requests. Wait a minute and try again.'); return; }
       if (!res.ok) { setError('Could not send a code. Try again.'); return; }
       setPhase('code'); setResendIn(30);
-    } catch { setError('Network error — try again.'); }
+    } catch { setError('No connection. Try again.'); }
     finally { setBusy(false); }
   }
 
@@ -44,34 +46,35 @@ export default function OtpLogin({ onSignedIn, lead }: { onSignedIn: (phone: str
       const d = await res.json().catch(() => ({}));
       if (res.status === 200 && d.ok) { onSignedIn(phone.trim()); return; }
       if (d.error === 'too_many_attempts') { setError('Too many tries. Wait a bit and resend a new code.'); return; }
-      if (d.error === 'expired') { setError('That code expired — resend a new one.'); return; }
-      setError(d.attemptsLeft != null ? `Wrong code. ${d.attemptsLeft} tries left.` : 'Wrong code — try again.');
-    } catch { setError('Network error — try again.'); }
+      if (d.error === 'expired') { setError('That code expired. Resend a new one.'); return; }
+      setError(d.attemptsLeft != null ? `That code didn't match. ${d.attemptsLeft} tries left.` : "That code didn't match. Check the message and try again.");
+    } catch { setError('No connection. Try again.'); }
     finally { setBusy(false); }
   }
 
   return (
-    <div className="ol">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="wm">Z<span className="o" />RA</div>
+    <div className="zpf ol">
+      <style dangerouslySetInnerHTML={{ __html: ZP_FLOW_CSS + CSS }} />
       {phase === 'phone' ? (
         <>
-          <h2 className="t">Your number is your ticket.</h2>
-          <p className="sub">{lead || "We'll text you a code — that's it. No password, nothing to download."}</p>
-          <div className="field"><span className="pfx">+255</span>
-            <input inputMode="tel" autoFocus placeholder="712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && request()} /></div>
-          {error ? <div className="err">{error}</div> : null}
-          <button className="btn" disabled={busy} onClick={request}>{busy ? 'Sending…' : 'Text me a code'}</button>
+          <h2 className="zpf-t">Your number is your pass.</h2>
+          <p className="zpf-sub">{lead || "We'll text you a code. No password, nothing to download."}</p>
+          <label className="zpf-lab" htmlFor="ol-phone">Mobile number</label>
+          <div className="zpf-field"><span className="pfx">+255</span>
+            <input id="ol-phone" inputMode="tel" autoFocus placeholder="712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && request()} /></div>
+          {error ? <div className="zpf-err" role="alert">{error}</div> : null}
+          <button className="zpf-btn" disabled={busy} onClick={request}>TEXT ME A CODE{busy ? <span className="spin" aria-label="Sending" /> : <span aria-hidden="true">→</span>}</button>
         </>
       ) : (
         <>
-          <h2 className="t">Enter the code</h2>
-          <p className="sub">Sent to <b>+255 {phone}</b>. <a onClick={() => { setPhase('phone'); setCode(''); setError(null); }}>Change</a></p>
-          <input className="code" inputMode="numeric" autoFocus maxLength={6} placeholder="••••••" value={code}
+          <h2 className="zpf-t">Enter the code</h2>
+          <p className="zpf-sub">Sent to <b className="mono">+255 {phone}</b>. <button type="button" className="zpf-link" onClick={() => { setPhase('phone'); setCode(''); setError(null); }}>Change</button></p>
+          <label className="zpf-lab" htmlFor="ol-code">6-digit code</label>
+          <input id="ol-code" className="code" inputMode="numeric" autoFocus maxLength={6} placeholder="••••••" value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} onKeyDown={(e) => e.key === 'Enter' && verify()} />
-          <p className="resend mono">{resendIn > 0 ? `Resend in 0:${String(resendIn).padStart(2, '0')}` : <a onClick={request}>Resend code</a>}</p>
-          {error ? <div className="err">{error}</div> : null}
-          <button className="btn" disabled={busy} onClick={verify}>{busy ? 'Verifying…' : 'Verify'}</button>
+          <p className="resend">{resendIn > 0 ? `RESEND IN 0:${String(resendIn).padStart(2, '0')}` : <button type="button" className="zpf-link" onClick={request}>Resend code</button>}</p>
+          {error ? <div className="zpf-err" role="alert">{error}</div> : null}
+          <button className="zpf-btn" disabled={busy} onClick={verify}>VERIFY{busy ? <span className="spin" aria-label="Verifying" /> : <span aria-hidden="true">→</span>}</button>
         </>
       )}
     </div>
@@ -79,22 +82,8 @@ export default function OtpLogin({ onSignedIn, lead }: { onSignedIn: (phone: str
 }
 
 const CSS = `
-.ol{--c-surface2:#171A28;--c-text:#EDEFF7;--c-text2:#9BA3C4;--c-text3:#5C6488;--c-line:rgba(124,160,255,.12);--c-line2:rgba(124,160,255,.22);--c-blue:#4C6FFF;--c-ice:#7CA0FF;
-  --c-aura:linear-gradient(130deg,#D53AD8 0%,#FF4D7D 48%,#FF9145 100%);--sans:'Inter',system-ui,sans-serif;--disp:'Space Grotesk',var(--sans);--mono:'IBM Plex Mono',monospace;color:var(--c-text);font-family:var(--sans)}
-.ol .wm{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:18px;display:inline-flex;align-items:center;color:var(--c-text2)}
-.ol .wm .o{width:.62em;height:.62em;margin:0 .05em;border-radius:50%;background:var(--c-aura);display:inline-block;box-shadow:0 0 10px rgba(255,90,120,.4)}
-.ol .t{font-family:var(--disp);font-weight:600;font-size:23px;line-height:1.15;letter-spacing:-.01em;margin:14px 0 8px}
-.ol .sub{color:var(--c-text2);font-size:13.5px;line-height:1.6}
-.ol .sub a{color:var(--c-ice);cursor:pointer}
-.ol .field{background:var(--c-surface2);border:1px solid var(--c-line);border-radius:12px;padding:14px 15px;display:flex;align-items:center;gap:10px;margin-top:16px}
-.ol .field:focus-within{border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(76,111,255,.16)}
-.ol .field .pfx{font-family:var(--mono);color:var(--c-text2);font-size:15px}
-.ol .field input{background:none;border:none;outline:none;color:var(--c-text);font-family:var(--mono);font-size:16px;width:100%}
-.ol .code{width:100%;margin-top:16px;background:var(--c-surface2);border:1px solid var(--c-line2);border-radius:12px;padding:14px;text-align:center;letter-spacing:.5em;font-family:var(--mono);font-size:22px;color:var(--c-text);outline:none}
-.ol .code:focus{border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(76,111,255,.16)}
-.ol .resend{font-family:var(--mono);font-size:11px;color:var(--c-text3);margin-top:10px}
-.ol .resend a{color:var(--c-ice);cursor:pointer}
-.ol .err{background:rgba(255,145,69,.1);border:1px solid rgba(255,145,69,.35);color:#FF9145;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:12px}
-.ol .btn{display:block;width:100%;text-align:center;font-family:var(--disp);font-weight:600;font-size:14.5px;padding:15px;border-radius:13px;border:none;cursor:pointer;background:var(--c-aura);color:#fff;box-shadow:0 8px 26px rgba(255,77,125,.28);margin-top:16px}
-.ol .btn:disabled{opacity:.6}
+.ol .mono{font-family:var(--zp-font-family-mono)}
+.ol .code{width:100%;height:56px;background:var(--raised);border:2px solid var(--line);border-radius:12px;padding:0 14px;text-align:center;letter-spacing:.5em;font-family:var(--zp-font-family-mono);font-size:24px;color:var(--ink);outline:none}
+.ol .code:focus{border-color:var(--ink);outline:3px solid var(--yellow);outline-offset:2px}
+.ol .resend{font-family:var(--zp-font-family-mono);font-size:13px;letter-spacing:.08em;color:var(--mut);margin:12px 0 0;min-height:24px}
 `;

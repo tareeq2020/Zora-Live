@@ -1,32 +1,38 @@
 /* ══════════════════════════════════════════════════════════════════
-   ZORA — GLOBAL DESIGN TOKENS  (obsidian · sunrise aura · blue anchor)
-   Token-first re-skin. Included AFTER each page's inline <style> so these
-   :root definitions win, re-mapping every legacy variable to the new system.
-   Dark is default; [data-theme="light"] flips the whole site.
+   ZORA — LEGACY TOKEN ALIASES  (BS119)
+   The ZoraPass handoff is the design system: public/brand/design-tokens/
+   zorapass.css + fonts.css (source of truth: docs/ZoraPass-Design-System-
+   Handoff/). This file only keeps the legacy --c-* / --sans / .wordmark names
+   alive for older surfaces, aliased onto --zp-* tokens: Bricolage Grotesque /
+   Bungee / IBM Plex Mono, Board Black / Bone / Signal Yellow, flat (no
+   gradients, glass or glow). New UI uses --zp-* directly.
+   Dark is the default [data-theme]; [data-theme="light"] flips to bone.
    ══════════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-/* ── semantic tokens : DARK (default) ── */
+/* ── semantic tokens : DARK (default) — board black ground ── */
 :root, :root[data-theme="dark"]{
-  --c-bg:#0A0B10; --c-bg2:#0D0F17; --c-surface:#11131E; --c-surface2:#171A28;
-  --c-text:#EDEFF7; --c-text2:#9BA3C4; --c-text3:#5C6488;
-  --c-line:rgba(124,160,255,.12); --c-line2:rgba(124,160,255,.22);
-  --c-blue:#4C6FFF; --c-ice:#7CA0FF; --c-cyan:#3FE0FF; --c-indigo:#151A3A;
-  --c-aura-1:#D53AD8; --c-aura-2:#FF4D7D; --c-aura-3:#FF9145;
-  --c-aura:linear-gradient(130deg,var(--c-aura-1) 0%,var(--c-aura-2) 48%,var(--c-aura-3) 100%);
-  --c-glass:rgba(13,15,23,.62);
-  --c-nav:rgba(10,11,16,.72);
+  --c-bg:var(--zp-color-board-black); --c-bg2:var(--zp-color-board-black);
+  --c-surface:var(--zp-color-night); --c-surface2:var(--zp-color-ink-700);
+  --c-text:var(--zp-color-bone); --c-text2:var(--zp-color-ink-300); --c-text3:var(--zp-color-ink-300);
+  --c-line:var(--zp-color-line-dark); --c-line2:var(--zp-color-ink-600);
+  --c-blue:var(--zp-color-signal-yellow); --c-ice:var(--zp-color-signal-yellow);
+  --c-cyan:var(--zp-color-mtaa-green); --c-indigo:var(--zp-color-ink-700);
+  --c-aura-1:var(--zp-color-signal-yellow); --c-aura-2:var(--zp-color-signal-yellow); --c-aura-3:var(--zp-color-signal-yellow);
+  --c-aura:var(--zp-color-signal-yellow);
+  --c-glass:var(--zp-color-board-black);
+  --c-nav:var(--zp-color-board-black);
   color-scheme:dark;
 }
 
-/* ── semantic tokens : LIGHT ── */
+/* ── semantic tokens : LIGHT — bone ground ── */
 :root[data-theme="light"]{
-  --c-bg:#F4F6FC; --c-bg2:#EBEEF8; --c-surface:#FFFFFF; --c-surface2:#F3F5FC;
-  --c-text:#0C1020; --c-text2:#4E5675; --c-text3:#8B93B2;
-  --c-line:rgba(60,80,180,.14); --c-line2:rgba(60,80,180,.26);
-  --c-blue:#3A54E8; --c-ice:#3A54E8; --c-cyan:#0E8FB8; --c-indigo:#DDE3FF;
-  --c-glass:rgba(255,255,255,.66);
-  --c-nav:rgba(255,255,255,.72);
+  --c-bg:var(--zp-color-bone); --c-bg2:#EFEDE4; --c-surface:var(--zp-color-white); --c-surface2:#EFEDE4;
+  --c-text:var(--zp-color-board-black); --c-text2:var(--zp-color-ink-500); --c-text3:var(--zp-color-ink-500);
+  --c-line:var(--zp-color-line-light); --c-line2:var(--zp-color-board-black);
+  --c-blue:var(--zp-color-board-black); --c-ice:var(--zp-color-board-black);
+  --c-cyan:var(--zp-color-mtaa-green); --c-indigo:#EFEDE4;
+  --c-glass:var(--zp-color-bone);
+  --c-nav:var(--zp-color-bone);
   color-scheme:light;
 }
 
@@ -39,7 +45,9 @@
   --orange:var(--c-aura-3); --guest:var(--c-ice); --teal:var(--c-ice); --green:var(--c-cyan);
   /* creator names also mapped so pages without data-ui still resolve */
   --paper:var(--c-bg); --card:var(--c-surface);
-  --sans:'Inter',system-ui,sans-serif;
+  --sans:var(--zp-font-family-sans);
+  --mono:var(--zp-font-family-mono);
+  --display:var(--zp-font-family-display);
 }
 
 /* ── legacy aliases (CREATOR light-native pages) — resolves the --ink conflict ── */
@@ -51,48 +59,51 @@
   --green:var(--c-cyan); --amber:var(--c-aura-3);
 }
 
-/* ── typography: geometric headings (Space Grotesk), fluid body (Inter).
-   :where() keeps zero specificity so pages that deliberately chose the Anton
-   display "stamp" (OFFSHORE / KULTUR) keep it, while every Archivo-inherited
-   heading upgrades to Space Grotesk. ── */
-:where(h1,h2,h3,h4,h5,h6){font-family:'Space Grotesk',var(--sans)}
+/* ── typography: Bricolage Grotesque for headlines + body (handoff).
+   :where() keeps zero specificity so a page's own heading rules still win. ── */
+body{font-family:var(--zp-font-family-sans)}
+:where(h1,h2,h3,h4,h5,h6){font-family:var(--zp-font-family-sans)}
 
-/* ── the brand: uppercase geometric ZORA, gradient CIRCLE for the "O" ──
-   Recreates the real logo as a theme-aware vector: Z/R/A inherit the text
-   colour (white in dark, black in light), the aura circle is constant. ── */
-.wordmark, .brand{ font-family:'Space Grotesk',var(--sans); text-transform:uppercase; font-weight:700; letter-spacing:.03em; }
+/* ── the logo: "ZoraPass", one word, Bricolage Bold, −0.035em ── */
+.wordmark, .brand{ font-family:var(--zp-font-family-sans); font-weight:700; letter-spacing:-0.035em; }
+/* legacy "ZORA" markup with a coloured O: flat yellow dot, no gradient/glow */
 .wordmark .o, .brand .o, .logo .o, .foot .byzora .o, .runs .zmark .o{
   width:.6em; height:.6em; margin:0 .05em; border-radius:50%;
-  background:var(--c-aura) !important; color:transparent !important;
+  background:var(--zp-color-signal-yellow) !important; color:transparent !important;
   display:inline-block; vertical-align:-0.06em; overflow:hidden; text-indent:-999px; white-space:nowrap;
-  box-shadow:0 0 12px rgba(255,90,120,.35);
 }
-.brand small{ text-transform:none; }   /* keep the "DASHBOARD / CONTROL ROOM" sublabel as set */
+.brand small{ text-transform:none; letter-spacing:normal; }   /* keep the "DASHBOARD / CONTROL ROOM" sublabel as set */
 
-/* real logo image (injected site-wide by zora-theme.js: white on dark, dark on light) */
-.wordmark img.zora-logo, .brand img.zora-logo{ height:.86em; width:auto; display:inline-block; vertical-align:-0.14em; user-select:none; }
+/* logo image (<Wordmark>: chalk/white on dark, black on light) */
+.wordmark img.zora-logo, .brand img.zora-logo{ height:1em; width:auto; display:inline-block; vertical-align:-0.18em; user-select:none; }
 .wordmark:has(img.zora-logo), .brand:has(img.zora-logo){ letter-spacing:normal; }
-/* Theme-driven logo swap with pure CSS (F1 follow-up): <Wordmark> renders both
-   assets (white letters for dark, black for light); data-theme on <html> shows
-   exactly one, so no useTheme() mount effect and no hydration flash. */
+/* Theme-driven logo swap with pure CSS: <Wordmark> renders both assets;
+   data-theme on <html> shows exactly one, so no hydration flash. */
 .wordmark img.zora-logo-light, .brand img.zora-logo-light{ display:none; }
 [data-theme="light"] .wordmark img.zora-logo-dark,
 [data-theme="light"] .brand img.zora-logo-dark{ display:none; }
 [data-theme="light"] .wordmark img.zora-logo-light,
 [data-theme="light"] .brand img.zora-logo-light{ display:inline-block; }
 
-/* ── primary CTAs carry the aura; everything structural stays blue ── */
+/* ── legacy primary CTAs: the handoff primary button. Most legacy pages are
+   dark-ground, so the flipped variant (yellow block, black label). ── */
 .btn.solid, .nav-cta, .app-btn, .btn-aura, .kbtn:hover, .big-btn{
-  background:var(--c-aura) !important; color:#fff !important; border-color:transparent !important;
+  background:var(--zp-color-signal-yellow) !important; color:var(--zp-color-board-black) !important; border-color:transparent !important;
+  box-shadow:none !important;
+}
+[data-theme="light"] :is(.btn.solid, .nav-cta, .app-btn, .btn-aura, .kbtn:hover, .big-btn){
+  background:var(--zp-color-board-black) !important; color:var(--zp-color-signal-yellow) !important;
 }
 
-/* ── floating theme toggle (top-right corner) ── */
+/* ── floating theme toggle (top-right corner) — flat ── */
 .zora-theme-toggle{
   position:fixed; top:14px; right:16px; z-index:200;
-  width:40px; height:40px; border-radius:50%;
-  border:1px solid var(--c-line2); background:var(--c-glass); backdrop-filter:blur(12px);
+  width:44px; height:44px; border-radius:50%;
+  border:2px solid var(--c-line2); background:var(--c-bg);
   color:var(--c-text); display:flex; align-items:center; justify-content:center; cursor:pointer;
-  box-shadow:0 6px 22px rgba(0,0,0,.28); transition:border-color .2s,color .2s,transform .2s;
+  transition:border-color .2s,color .2s;
 }
-.zora-theme-toggle:hover{ border-color:var(--c-blue); color:var(--c-ice); transform:translateY(-1px); }
+.zora-theme-toggle:hover{ border-color:var(--c-text); }
+.zora-theme-toggle:focus-visible{ outline:3px solid var(--zp-color-signal-yellow); outline-offset:2px; }
+[data-theme="light"] .zora-theme-toggle:focus-visible{ outline-color:var(--zp-color-board-black); }
 .zora-theme-toggle svg{ width:18px; height:18px; }

@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
 const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
-const PAL: Record<string, string> = {
-  Festivals: '#B23A17', Nightlife: '#3D2A8F', Concerts: '#1E4FD8', Daytime: '#C46A28', Arts: '#0F6E56',
+// City names in full in body copy (04_UI_COPY rule 7).
+const CITY: Record<string, string> = {
+  dar: 'Dar es Salaam', zanzibar: 'Zanzibar', nairobi: 'Nairobi', accra: 'Accra', lagos: 'Lagos',
 };
 
 type ZoraEvent = {
@@ -57,9 +58,9 @@ async function fetchEvent(id: string): Promise<ZoraEvent | null> {
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const ev = await fetchEvent(params.id);
-  if (!ev) return { title: 'Event — ZORA' };
-  const title = `${ev.name} — ZORA`;
-  const description = ev.tagline || `${ev.name} on ZORA.`;
+  if (!ev) return { title: 'Event — ZoraPass' };
+  const title = `${ev.name} — ZoraPass`;
+  const description = ev.tagline || `${ev.name} on ZoraPass.`;
   const canonical = `/events/${params.id}`;
   // BS86: the brand-matched drop card is the unfurl image when the event belongs to
   // an organizer (the card reads that org's theme + this event's cover).
@@ -79,76 +80,98 @@ export default async function EventPage({ params }: { params: { id: string } }) 
 
   if (!ev) {
     return (
-      <main className={styles.wrap}>
-        <div className={styles.notFound}>This event could not be found.</div>
-      </main>
+      <div className={styles.page}>
+        <main className={styles.wrap}>
+          <div className={styles.notFound}>This event could not be found.</div>
+        </main>
+      </div>
     );
   }
 
   const cur = CUR[ev.city || ''] || 'TZS';
-  const price = (ev.priceFrom != null ? ev.priceFrom : 0).toLocaleString();
-  const cover = PAL[ev.category || ''] || '#4C6FFF';
+  // 04_UI_COPY money: `TSh 25,000`, symbol first, thousands separators.
+  const curLabel = cur === 'TZS' ? 'TSh' : cur;
+  const price = (ev.priceFrom != null ? ev.priceFrom : 0).toLocaleString('en-US');
   // Same "when" line the storefront sheet builds, so both surfaces open an
   // identically-labelled checkout.
   const when = [ev.dateLabel || 'TBA', ev.time, ev.venue].filter(Boolean).join(' · ').toUpperCase();
+  const city = ev.city ? CITY[ev.city] || ev.city : '';
 
   return (
-    <main className={styles.wrap}>
-      {ev.mega ? <div className={styles.megaBadge}>MEGA EVENT</div> : null}
-      <p className={styles.eyebrow}>
-        {(ev.category || 'EVENT').toUpperCase()} · {(ev.city || '').toUpperCase()}
-      </p>
-      <h1 className={styles.title}>{ev.name}</h1>
-      {ev.tagline ? <p className={styles.tagline}>{ev.tagline}</p> : null}
+    <div className={styles.page}>
+      <header className={styles.top}>
+        <Link href="/" className={styles.logo} aria-label="ZoraPass home">
+          <img src="/brand/logo/svg/zorapass-wordmark-black.svg" alt="ZoraPass" />
+        </Link>
+        <Link href="/discover.html" className={styles.back}>
+          ← WHAT&apos;S ON
+        </Link>
+      </header>
 
-      <div className={styles.cover} style={{ ['--coverA' as any]: cover }} />
-
-      <div className={styles.meta}>
-        <div>
-          <div className={styles.metaKey}>Date</div>
-          <div className={styles.metaVal}>
-            {ev.dateLabel || 'TBA'}
-            {ev.time ? ` · ${ev.time}` : ''}
+      <div className={styles.wrap}>
+        <main className={styles.main}>
+          <div className={styles.cover} role="img" aria-label={`${ev.name} artwork`}>
+            <img
+              className={styles.stamp}
+              src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg"
+              alt=""
+              aria-hidden="true"
+            />
           </div>
-        </div>
-        <div>
-          <div className={styles.metaKey}>Venue</div>
-          <div className={styles.metaVal}>{ev.venue || 'TBA'}</div>
-        </div>
-      </div>
 
-      <div className={styles.buy}>
-        <span>
-          <small className={styles.priceLabel}>FROM</small>
+          {/* One chip, only when true. The platform-featured ("mega") event is a ZORA PICK. */}
+          {ev.mega ? (
+            <div className={styles.chips}>
+              <span className={`${styles.chip} zp-chip--zora-pick`}>ZORA PICK</span>
+            </div>
+          ) : null}
+
+          <h1 className={styles.title}>{ev.name}</h1>
+          {ev.organizer ? <p className={styles.by}>by {ev.organizer}</p> : null}
+          {ev.tagline ? <p className={styles.tagline}>{ev.tagline}</p> : null}
+
+          <dl className={styles.meta}>
+            <dt>DATE</dt>
+            <dd>{(ev.dateLabel || 'TBA').toUpperCase()}</dd>
+            {ev.time ? (
+              <>
+                <dt>TIME</dt>
+                <dd>{ev.time}</dd>
+              </>
+            ) : null}
+            <dt>VENUE</dt>
+            <dd>{ev.venue || 'TBA'}</dd>
+            {city ? (
+              <>
+                <dt>CITY</dt>
+                <dd>{city}</dd>
+              </>
+            ) : null}
+          </dl>
+
+        </main>
+
+        <aside className={styles.panel} aria-label="Passes">
+          <span className={styles.label}>From</span>
           <b className={styles.priceVal}>
-            {cur} {price}
+            {curLabel} {price}
           </b>
-        </span>
-        {ev.seated && SEATMAP_ENABLED ? (
-          <Link
-            href={`/events/${params.id}/seats`}
-            style={{
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 15,
-              letterSpacing: '.02em',
-              padding: '15px 26px',
-              borderRadius: 12,
-              textDecoration: 'none',
-              background: 'var(--c-blue)',
-            }}
-          >
-            CHOOSE YOUR SEATS →
-          </Link>
-        ) : (
-          <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} />
-        )}
+          {ev.seated && SEATMAP_ENABLED ? (
+            <Link href={`/events/${params.id}/seats`} className={styles.primary}>
+              GET PASSES<span className={styles.arrow} aria-hidden="true">→</span>
+            </Link>
+          ) : (
+            <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} />
+          )}
+          <p className={styles.nofee}>Fees shown before you pay.</p>
+        </aside>
+
+        <div className={styles.foot}>
+          <span>RUNS ON ZORAPASS</span>
+          <Link href="/discover.html">SEE ALL EVENTS →</Link>
+        </div>
       </div>
 
-      <div className={styles.foot}>
-        <span>runs on zora</span>
-        <Link href="/discover.html">← back to the marketplace</Link>
-      </div>
-    </main>
+    </div>
   );
 }

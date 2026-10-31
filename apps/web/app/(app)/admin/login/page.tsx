@@ -16,7 +16,7 @@ import { useState } from 'react';
 
 const STYLES = `
 .admin-login{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);min-height:100vh;
   display:flex;align-items:center;justify-content:center;padding:24px}
 .admin-login *{margin:0;padding:0;box-sizing:border-box}
@@ -70,7 +70,7 @@ export default function AdminLoginPage() {
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
