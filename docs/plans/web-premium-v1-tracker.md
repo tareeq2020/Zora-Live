@@ -44,7 +44,7 @@ Last updated: 2026-10-31
 | BS129 | Admin platform analytics page + API | R4 | C | BS123 | F4 | merged | https://github.com/tareeq2020/Zora-Live/pull/208 | shared view component |
 | BS130 | Theme resolver (core) + `ticket_design` + renderer branding + seat on pass | R4 | C | BS116 | F6, A14, DD4 | merged | https://github.com/tareeq2020/Zora-Live/pull/204 | migration 0030; flag off = byte-identical pass; ticket-qr e2e PASS |
 | BS131 | Pass design tab (draft → publish) + branded web pass + email | R4 | C | BS130 | F6 | merged | https://github.com/tareeq2020/Zora-Live/pull/206 | ticket-design e2e PASS; EMAIL/WALLET preview toggles not built; logo PNG/JPEG only |
-| BS132 | Installments core: plan/schedule tables, schedule maths, statuses, held→reserved, earnings by collected money | R5 | A | BS116, BS118 | F7, A2, A3, A16, A19 | todo | | |
+| BS132 | Installments core: plan/schedule tables, schedule maths, statuses, held→reserved, earnings by collected money | R5 | A | BS116, BS118 | F7, A2, A3, A16, A19 | merged | https://github.com/tareeq2020/Zora-Live/pull/215 | migration 0031; installments + payouts + money regression e2e PASS; refunds after default are manual (ops) |
 | BS133 | Installment provider adapter (x-bridge /v1 receivables; mock until R3 sandbox) + webhook handler | R5 | A | BS132 | A4, A20 | todo | | real wiring blocked on x-bridge /v1 |
 | BS134 | Installment checkout + confirmation + "booked" pass state (no QR until paid) | R5 | A | BS122, BS132 | A5, DD5 | todo | | |
 | BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | todo | | |

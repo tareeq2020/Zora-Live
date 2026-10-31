@@ -28,6 +28,9 @@ import { ORDER_STATUS, PASS_ISSUING_STATUSES, isPayable, issuesPasses } from '..
 import {
   onShareSuccessful, onShareShort, onShareFailed, notifyShareReceived, notifySplitCompleteByOrder,
 } from '../split';
+import {
+  applyInstallmentOutcome, planInstallmentAttempt, openInstallmentAttempt, hasInstallmentPlan, InstallmentAttemptRefused,
+} from './installments';
 
 type Sql = any; // postgres.js Sql | tx handle
 
@@ -93,6 +96,10 @@ export interface CreateGaVipOrderInput {
       channel ('gate_mobile'). Omitted for online self-serve (channel='online'). */
   soldBy?: string | null;
   channel?: string | null;
+  /** BS132: runs INSIDE the order tx after the total is known, on the same tx
+      handle. A throw rolls the whole order back. Used by createInstallmentOrder
+      to snapshot the plan; absent for every pay-in-full checkout. */
+  onCreated?: (t: Sql, order: { orderId: string; eventId: string; total: number; subtotal: number; fee: number }) => Promise<void>;
 }
 
 export type CreateGaVipOrderResult =
@@ -168,6 +175,7 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       const fee = Math.round(passedSubtotal * feeRate);
       const total = subtotal + fee;
       await t`update "order" set target_value = ${total} where id = ${orderId}`;
+      if (input.onCreated) await input.onCreated(t, { orderId, eventId, total, subtotal, fee });
 
       return { ok: true, orderId, total, subtotal, fee } as const;
     }, sql);
@@ -266,6 +274,10 @@ export interface InitiatePaymentInput {
   /** TTL for the hold a failed-order RETRY re-places (BS56). Defaults to the
       same 15 min checkout uses; pass the org's configured hold_ttl_seconds. */
   holdTtlSecs?: number;
+  /** BS132 (A16): installment orders only — which schedule row this attempt
+      pays (omitted = the next unpaid row). The attempt charges THAT row's amount.
+      Refused (InstallmentAttemptRefused) on a pay-in-full order. */
+  scheduleN?: number | null;
 }
 
 export interface InitiatePaymentResult {
@@ -284,8 +296,16 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   const [order] = await sql`
     select target_value, status, customer_id from "order" where id = ${orderId}`;
   if (!order) throw new Error('order not found');
-  if (!isPayable(order.status)) { // BS116: pending | failed (+ installment_active, not produced yet — A16)
+  if (!isPayable(order.status)) { // BS116: pending | failed | installment_active (A16 below)
     throw new Error(`order not payable (status ${order.status})`);
+  }
+  // BS132 (A16): an installment order is charged one schedule row at a time,
+  // never its target_value. Pre-flight BEFORE any write (incl. the retry re-hold).
+  const installment = (await hasInstallmentPlan(sql, orderId))
+    ? await planInstallmentAttempt(sql, orderId, order.status, input.scheduleN)
+    : null;
+  if (!installment && input.scheduleN != null) {
+    throw new InstallmentAttemptRefused('not_installment_order');
   }
   // A retry re-HOLDS inventory for a failed order whose holds were released.
   // (BS56) tryRehold moves available → held; using tryReacquire here marked the
@@ -297,12 +317,20 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   }
 
   const fspId = resolveFsp(routeMap, method, mno);
-  const transactionId = await nextAttemptKey(sql, orderId);
-  const amount = Number(order.target_value);
+  let transactionId: string;
+  let amount: number;
+  if (installment) {
+    // Opened under a plan lock; refuses a second in-flight attempt on the row.
+    transactionId = await openInstallmentAttempt(sql, orderId, installment, method, fspId);
+    amount = installment.amount;
+  } else {
+    transactionId = await nextAttemptKey(sql, orderId);
+    amount = Number(order.target_value);
 
-  await sql`
-    insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status)
-    values (${orderId}, ${transactionId}, ${method}, ${fspId}, ${amount}, 'created')`;
+    await sql`
+      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status)
+      values (${orderId}, ${transactionId}, ${method}, ${fspId}, ${amount}, 'created')`;
+  }
 
   let orderReference: string | undefined;
   let billPayNumber: string | undefined;
@@ -389,8 +417,13 @@ export async function applyOutcome(
   return tx(async (t: Sql): Promise<string | null> => {
     // GUARD 1 (txn-level): lock the txn; a terminal/missing txn is a no-op.
     const [txr] = await t`
-      select order_id, status from payment_transaction where transaction_id = ${transactionId} for update`;
+      select order_id, status, schedule_n, amount from payment_transaction where transaction_id = ${transactionId} for update`;
     if (!txr || txr.status === 'successful' || txr.status === 'failed' || txr.status === 'partial') return null;
+
+    // ── BS132 installment branch: an attempt bound to a schedule row (A16) is
+    //    allocated to THAT row. Returns BEFORE the pay-in-full logic below, which
+    //    stays untouched.
+    if (txr.schedule_n != null) return applyInstallmentOutcome(t, transactionId, txr, outcome, collected);
 
     const [ord] = await t`select type, status from "order" where id = ${txr.order_id}`;
     const isTable = ord?.type === 'table';
