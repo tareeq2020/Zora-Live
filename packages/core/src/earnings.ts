@@ -17,9 +17,17 @@
      time (`order.commission_rate`), never the org's live rate.
    - Refunds are a DEBIT: `order.refunded_amount` comes off the gross BEFORE
      netting, so refunded money is never withdrawable (eng review OV1).
-   - Currencies are never summed together (I7). */
+   - Currencies are never summed together (I7).
+   - BS132 (A2): an installment order in progress (`earnsCollected`) earns only
+     the money COLLECTED so far — the paid installment_schedule rows, each paid by
+     exactly one `successful` payment_transaction — minus the buyer service fee
+     (fee-first: the fee is the platform's and is kept on default), then netted
+     at the stamped commission like any order. Excess / duplicate collections are
+     owed back and never counted. Once the last installment clears the order is
+     'paid' and reads through the line-item query: collected − fee = Σ items, so
+     the number does not jump at completion. */
 import { netOf, resolveCommissionRate } from './commission';
-import { REVENUE_STATUSES, countsAsSold } from './order-status';
+import { REVENUE_STATUSES, COLLECTED_REVENUE_STATUSES, countsAsSold } from './order-status';
 
 type Sql = any;
 
@@ -121,7 +129,24 @@ export async function readOrderMoney(
     };
   };
 
-  return [...itemRows.map(toMoney), ...shareRows.map(toMoney)];
+  // BS132 (A2): installment orders in progress — collected money only.
+  const collectedStatuses = [...COLLECTED_REVENUE_STATUSES];
+  const installmentRows = (await sql`
+      select o.id                                as order_id,
+             o.event_id                          as event_id,
+             o.status                            as status,
+             o.commission_rate                   as commission_rate,
+             ip.currency                         as currency,
+             greatest(0, coalesce((select sum(s.amount) from installment_schedule s
+                                    where s.order_id = o.id and s.status = 'paid'), 0)
+                         - ip.service_fee)::bigint as gross,
+             coalesce(o.refunded_amount, 0)::bigint as refunded
+        from "order" o
+        join installment_plan ip on ip.order_id = o.id
+       where o.event_id = any(${ownedEventIds})
+         and o.status = any(${collectedStatuses})`) as Row[];
+
+  return [...itemRows.map(toMoney), ...shareRows.map(toMoney), ...installmentRows.map(toMoney)];
 }
 
 /** Net earnings per currency — the CREDIT side of the payout balance. Summed

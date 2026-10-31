@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, issuesPasses, type FspRouteMap, type PaymentMethod,
+  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, type FspRouteMap, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -42,9 +42,14 @@ export class PaymentsController {
   // ── Start a collection for a pending/failed order ─────────────────────────
   @Post('checkout/:orderId/pay')
   async pay(@Param('orderId') orderId: string, @Body() body: any, @Res() res: Response) {
-    const { method, payerPhone, payerName, mno } = body || {};
+    const { method, payerPhone, payerName, mno, scheduleN } = body || {};
     if (method !== 'mobile' && method !== 'billpay' && method !== 'card') {
       return res.status(400).json({ error: 'invalid_method' });
+    }
+    // BS132 (A16): optional installment row. Omitted on an installment order = the
+    // next unpaid row; on a pay-in-full order it must be absent.
+    if (scheduleN !== undefined && scheduleN !== null && (!Number.isInteger(scheduleN) || scheduleN < 1 || scheduleN > 6)) {
+      return res.status(400).json({ error: 'invalid_schedule_n' });
     }
     if (!payerPhone || !String(payerPhone).trim()) {
       return res.status(400).json({ error: 'payer_phone_required' });
@@ -80,6 +85,7 @@ export class PaymentsController {
         callbackUrl,
         routeMap,
         feeRateByFsp,
+        scheduleN: scheduleN ?? null,
       });
       return res.status(200).json({
         transactionId: r.transactionId,
@@ -88,6 +94,9 @@ export class PaymentsController {
         ...(r.redirectUrl ? { redirectUrl: r.redirectUrl } : {}),
       });
     } catch (e: any) {
+      if (e instanceof InstallmentAttemptRefused) {
+        return res.status(409).json({ error: e.code, message: e.message });
+      }
       const msg = String(e?.message ?? e);
       if (msg === 'order not found') return res.status(404).json({ error: 'order_not_found' });
       if (msg.startsWith('order not payable')) return res.status(409).json({ error: 'not_payable' });
@@ -148,7 +157,9 @@ export class PaymentsController {
       }
     }
 
-    return res.status(200).json({ status: order.status, credentials });
+    // BS132: an installment order also reports its plan ("Booked — X of N paid").
+    const installments = await installmentSummary(sql, orderId);
+    return res.status(200).json({ status: order.status, credentials, ...(installments ? { installments } : {}) });
   }
 
   // ── Provider webhook — RAW body, dedup, reconcile. ALWAYS 200. ────────────

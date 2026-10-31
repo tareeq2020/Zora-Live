@@ -14,20 +14,20 @@ import * as core from '../dist/index.js';
 
 const T = true, F = false;
 const COLS = ['countsAsSold', 'countsAsRevenue', 'isFlaggedMoney', 'issuesPasses', 'isPayable',
-  'holdsBuyerMoney', 'wasEverPaid', 'isRefundable', 'isBroadcastAudience'];
+  'holdsBuyerMoney', 'wasEverPaid', 'isRefundable', 'isBroadcastAudience', 'earnsCollected'];
 
-// status                  sold rev  flag pass pay  held ever refund bcast
+// status                  sold rev  flag pass pay  held ever refund bcast collected
 const TABLE = {
-  pending:               [F,   F,   F,   F,   T,   F,   F,   F,     F],
-  paid:                  [T,   T,   F,   T,   F,   T,   T,   T,     T],
-  payment_short:         [F,   F,   T,   F,   F,   T,   T,   T,     T],
-  paid_unseatable:       [F,   F,   T,   F,   F,   T,   T,   T,     T],
-  failed:                [F,   F,   F,   F,   T,   F,   F,   F,     F],
-  expired:               [F,   F,   F,   F,   F,   F,   F,   F,     F],
-  cancelled:             [F,   F,   F,   F,   F,   F,   F,   F,     F],
-  refunded:              [F,   T,   F,   F,   F,   F,   T,   F,     F],
-  installment_active:    [T,   F,   F,   F,   T,   T,   T,   F,     T],
-  installment_defaulted: [T,   F,   F,   F,   F,   T,   T,   F,     F],
+  pending:               [F,   F,   F,   F,   T,   F,   F,   F,     F,    F],
+  paid:                  [T,   T,   F,   T,   F,   T,   T,   T,     T,    F],
+  payment_short:         [F,   F,   T,   F,   F,   T,   T,   T,     T,    F],
+  paid_unseatable:       [F,   F,   T,   F,   F,   T,   T,   T,     T,    F],
+  failed:                [F,   F,   F,   F,   T,   F,   F,   F,     F,    F],
+  expired:               [F,   F,   F,   F,   F,   F,   F,   F,     F,    F],
+  cancelled:             [F,   F,   F,   F,   F,   F,   F,   F,     F,    F],
+  refunded:              [F,   T,   F,   F,   F,   F,   T,   F,     F,    F],
+  installment_active:    [T,   F,   F,   F,   T,   T,   T,   F,     T,    T],
+  installment_defaulted: [F,   F,   F,   F,   F,   T,   T,   F,     F,    F],
 };
 
 test('ORDER_STATUSES is exactly the statuses in the truth table', () => {
@@ -59,7 +59,7 @@ test('SQL arrays are derived from the predicates', () => {
     FLAGGED_MONEY_STATUSES: 'isFlaggedMoney', PASS_ISSUING_STATUSES: 'issuesPasses',
     PAYABLE_STATUSES: 'isPayable', BUYER_MONEY_STATUSES: 'holdsBuyerMoney',
     EVER_PAID_STATUSES: 'wasEverPaid', REFUNDABLE_STATUSES: 'isRefundable',
-    BROADCAST_STATUSES: 'isBroadcastAudience',
+    BROADCAST_STATUSES: 'isBroadcastAudience', COLLECTED_REVENUE_STATUSES: 'earnsCollected',
   };
   for (const [arr, pred] of Object.entries(pairs)) {
     assert.deepEqual([...core[arr]].sort(), core.ORDER_STATUSES.filter(core[pred]).sort(), arr);
@@ -89,12 +89,20 @@ test('regression: the replaced hand-synced lists, for pre-installment statuses',
   assert.deepEqual(legacy(core.SOLD_STATUSES), ['paid']);
 });
 
-test('installments: seats count as sold, revenue does not, no passes', () => {
+test('installments: active seats count as sold (defaulted released them), revenue does not, no passes', () => {
+  assert.equal(core.countsAsSold('installment_active'), true);
+  assert.equal(core.countsAsSold('installment_defaulted'), false); // BS132: default releases inventory
   for (const s of ['installment_active', 'installment_defaulted']) {
-    assert.equal(core.countsAsSold(s), true);
     assert.equal(core.countsAsRevenue(s), false);
     assert.equal(core.issuesPasses(s), false);
   }
   assert.equal(core.isPayable('installment_active'), true);
   assert.equal(core.isPayable('installment_defaulted'), false);
+});
+
+test('BS132: earnsCollected and countsAsRevenue are disjoint (an order is read one way)', () => {
+  for (const st of core.ORDER_STATUSES) {
+    assert.ok(!(core.earnsCollected(st) && core.countsAsRevenue(st)), st);
+  }
+  assert.deepEqual([...core.COLLECTED_REVENUE_STATUSES], ['installment_active']);
 });
