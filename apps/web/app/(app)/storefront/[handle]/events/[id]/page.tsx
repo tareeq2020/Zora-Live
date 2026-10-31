@@ -6,6 +6,7 @@ import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
+import { fetchInstallmentOffer, InstallmentOfferNote } from '@/app/components/installment-offer';
 import { CITIES } from '@/app/lib/cities';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
@@ -77,7 +78,11 @@ export default async function TenantEventPage({ params }: { params: { handle: st
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
   const subdomain = org?.subdomain || ev.subdomain || '';
   // BS126: live seat map only when zp_seatmap is on AND seats are published.
-  const seatmap = await seatmapEnabledFor(ev.id || params.id, ev.organizerHandle || params.handle);
+  const [seatmap, instOffer] = await Promise.all([
+    seatmapEnabledFor(ev.id || params.id, ev.organizerHandle || params.handle),
+    // BS134: installment note — absent when the flag/offer is off or the API is older.
+    fetchInstallmentOffer(ev.id || params.id),
+  ]);
   const cur = CUR[ev.city || ''] || 'TZS';
   // Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
   const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
@@ -192,6 +197,8 @@ export default async function TenantEventPage({ params }: { params: { handle: st
               </div>
             </>
           ) : null}
+
+          {tiers.length > 0 ? <InstallmentOfferNote offer={instOffer} /> : null}
 
           <div className={styles.buy}>
             {tiers.length > 0 ? null : (

@@ -248,3 +248,10 @@ export {
 } from './payments/installments-org';
 export type { OrgInstallmentRow, OrgInstallmentList, OrgInstallmentStatus, PendingInstallmentRefund } from './payments/installments-org';
 export { sendManualInstallmentReminder } from './payments/installments-jobs';
+// BS134: buyer installment reads — offer hint, quote, the /pay page model, my plans.
+export {
+  installmentOffer, installmentQuote, installmentPayView, installmentOrderOwner, customerInstallments,
+} from './payments/installments-buyer';
+export type {
+  InstallmentOfferView, InstallmentQuoteResult, InstallmentPayView, QuoteLine, CustomerInstallmentRow,
+} from './payments/installments-buyer';

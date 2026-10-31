@@ -22,6 +22,7 @@ import CheckoutFlow, { resolveCheckoutV2, type CheckoutTier } from '../../../com
 import ViewBeacon from '@/app/components/view-beacon';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../../components/event-card';
 import { CITIES } from '../../../lib/cities';
+import { fetchCardOffers, hintText, type CardOffer } from '../../../lib/installments';
 
 export type StorefrontEvent = {
   id: string;
@@ -128,6 +129,20 @@ export default function StorefrontClient(props: StorefrontProps) {
     for (const ev of events) if (ev.webCheckout?.tiers?.some((t) => t.tierId && !t.disabled)) void resolveCheckoutV2(handle, ev.id);
   }, [events, handle]);
 
+  // BS134: installment hint per card ("or 3 × TSh 20,000") — one request; any
+  // failure (flag off, older API) leaves the slot empty.
+  const [instOffers, setInstOffers] = useState<Record<string, CardOffer>>({});
+  useEffect(() => {
+    let live = true;
+    const ids = events.filter((ev) => ev.webCheckout?.tiers?.some((t) => t.tierId && !t.disabled)).map((ev) => ev.id);
+    fetchCardOffers(ids).then((o) => {
+      if (live) setInstOffers(o);
+    });
+    return () => {
+      live = false;
+    };
+  }, [events]);
+
   const onSaleTiersOf = (ev: StorefrontEvent) => ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
   const webTiers = active ? onSaleTiersOf(active) : [];
   const activeWhen = active
@@ -233,6 +248,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       priceFrom={fromPrice ? money(fromPrice, evCur) : undefined}
                       priceNote={fromUsd ? `($${fmt(fromUsd)})` : undefined}
                       status={status}
+                      installmentHint={!soldOut && instOffers[ev.id] ? hintText(instOffers[ev.id]) : undefined}
                       priority={i < 3}
                       onClick={
                         inPlace
