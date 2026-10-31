@@ -10,6 +10,8 @@ export const ORG_NAV: CrNavItem[] = [
   { href: '/dashboard/sales', label: 'Sales', icon: 'sales' },
   { href: '/dashboard/analytics', label: 'Analytics', icon: 'overview' },
   { href: '/dashboard/events', label: 'Events', icon: 'events' },
+  // BS136: only for orgs with zp_installments on (the API answers { enabled }).
+  { href: '/dashboard/installments', label: 'Installments', icon: 'orders', gate: '/api/org/installments/enabled' },
   { href: '/dashboard/payouts', label: 'Payouts', icon: 'payouts' },
   { href: '/dashboard/comps', label: 'Comps', icon: 'comps' },
   { href: '/dashboard/scanners', label: 'Door', icon: 'scanner' },
