@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, type FspRouteMap, type PaymentMethod,
+  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, handleReceivableWebhook, type FspRouteMap, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -95,7 +95,12 @@ export class PaymentsController {
       });
     } catch (e: any) {
       if (e instanceof InstallmentAttemptRefused) {
-        return res.status(409).json({ error: e.code, message: e.message });
+        // BS133: x-bridge caps mobile pushes (3 / receivable / 10 min) — say when to retry.
+        if (e.code === 'push_rate_limited') {
+          res.setHeader('Retry-After', String(e.retryAfterSecs ?? 600));
+          return res.status(429).json({ error: e.code, message: e.message, retryAfterSecs: e.retryAfterSecs ?? 600 });
+        }
+        return res.status(e.code === 'provider_refused' ? 502 : 409).json({ error: e.code, message: e.message });
       }
       const msg = String(e?.message ?? e);
       if (msg === 'order not found') return res.status(404).json({ error: 'order_not_found' });
@@ -189,5 +194,28 @@ export class PaymentsController {
   }
 }
 
-@Module({ controllers: [PaymentsController] })
+/* BS133: x-bridge /v1 receivable webhooks (installments). Unlike the
+   /collection/* callback above, this rail has NO polling backstop, so:
+   - the signature is verified (X-Bridge-Signature v1, HMAC-SHA256 over the RAW
+     body with XBRIDGE_WEBHOOK_SECRET — main.ts's raw parser covers this sub-path);
+   - a bad signature is refused (401) and a missing secret is 503 (fail-closed);
+   - a processing error is a 500 so x-bridge retries; the delivery is only marked
+     applied once it fully succeeded, and allocation is idempotent per attempt. */
+@Controller()
+export class ReceivableWebhookController {
+  @Post('webhooks/xbridge/receivables')
+  async receivables(@Req() req: Request, @Res() res: Response) {
+    const b: any = (req as any).body;
+    const rawBody = Buffer.isBuffer(b) ? b.toString('utf8') : typeof b === 'string' ? b : JSON.stringify(b ?? {});
+    try {
+      const r = await handleReceivableWebhook(db(), rawBody, req.headers as Record<string, string | string[] | undefined>);
+      return res.status(r.http).json(r.body);
+    } catch (e) {
+      console.error('xbridge receivable webhook error', e);
+      return res.status(500).json({ error: 'retry' });
+    }
+  }
+}
+
+@Module({ controllers: [PaymentsController, ReceivableWebhookController] })
 export class PaymentsModule {}

@@ -154,7 +154,7 @@ async function create(sql, config, cart, phone, extra = {}) {
 
   // ── final installment ────────────────────────────────────────────────────
   console.log('— final installment → paid + passes');
-  const d3 = await pay(sql, A.orderId, { scheduleN: 3 });
+  const d3 = await pay(sql, A.orderId, { scheduleN: 3, method: 'billpay' }); // 4th mobile push would hit the BS133 cap
   complete(d3.transactionId, 36750);
   await reconcile(sql, d3.transactionId);
   ok((await status(sql, A.orderId)) === 'paid', 'final cleared → order paid');

@@ -88,6 +88,34 @@ async function authed(cfg: XbridgeConfig, path: string, init: { method: string; 
   return res.json();
 }
 
+/** BS133: authed call for the /v1 API with extra headers (Idempotency-Key).
+    Non-2xx throws XbridgeHttpError carrying the status, so a caller can tell a
+    definitive refusal (4xx — nothing was collected) from a transport failure. */
+export class XbridgeHttpError extends Error {
+  constructor(public readonly status: number, public readonly path: string, body: string) {
+    super(`x-bridge ${path} failed: ${status} ${body}`);
+    this.name = 'XbridgeHttpError';
+  }
+}
+
+export async function xbridgeRequest(
+  path: string,
+  init: { method: string; body?: unknown; headers?: Record<string, string> },
+  cfg = xbridgeConfig(),
+): Promise<any> {
+  const token = await getToken(cfg);
+  const res = await fetch(`${cfg.baseUrl}${path}`, {
+    method: init.method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new XbridgeHttpError(res.status, path, text);
+  }
+  return res.json();
+}
+
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
 /** Tanzanian MSISDN → E.164-ish "+255…": strip non-digits, leading 0 → 255, add +. */

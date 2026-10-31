@@ -31,6 +31,7 @@ import {
 import {
   applyInstallmentOutcome, planInstallmentAttempt, openInstallmentAttempt, hasInstallmentPlan, InstallmentAttemptRefused,
 } from './installments';
+import { payInstallment, installmentProviderName } from './installments-provider';
 
 type Sql = any; // postgres.js Sql | tx handle
 
@@ -321,7 +322,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   let amount: number;
   if (installment) {
     // Opened under a plan lock; refuses a second in-flight attempt on the row.
-    transactionId = await openInstallmentAttempt(sql, orderId, installment, method, fspId);
+    transactionId = await openInstallmentAttempt(sql, orderId, installment, method, fspId, installmentProviderName());
     amount = installment.amount;
   } else {
     transactionId = await nextAttemptKey(sql, orderId);
@@ -332,6 +333,49 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
       values (${orderId}, ${transactionId}, ${method}, ${fspId}, ${amount}, 'created')`;
   }
 
+  const collectInput = {
+    orderId, customerId: order.customer_id, transactionId, amount, method, payerPhone, payerName, fspId, callbackUrl,
+  };
+  // BS133: an installment attempt goes out through the installment provider
+  // (/collection/* today, x-bridge /v1 receivables behind XBRIDGE_V1); a
+  // pay-in-full attempt takes the unchanged /collection/* path.
+  const { orderReference, billPayNumber, redirectUrl } = installment
+    ? await payInstallment(sql, { ...collectInput, scheduleN: installment.n })
+    : await collectViaCollectionApi(sql, collectInput);
+
+  await sql`
+    update payment_transaction
+       set status = 'pending', order_reference = ${orderReference ?? null},
+           bill_pay_number = ${billPayNumber ?? null}, updated_at = now()
+     where transaction_id = ${transactionId}`;
+
+  return { transactionId, status: 'pending', billPayNumber, redirectUrl };
+}
+
+export interface CollectAttemptInput {
+  orderId: string;
+  customerId: string | null;
+  transactionId: string;
+  amount: number;
+  method: PaymentMethod;
+  payerPhone: string;
+  payerName?: string;
+  fspId: string;
+  callbackUrl: string;
+}
+
+export interface CollectAttemptResult {
+  orderReference?: string;
+  billPayNumber?: string;
+  redirectUrl?: string;
+}
+
+/** Send one attempt out on the /collection/* API (mobile STK push, bill-pay
+    control number, or hosted card checkout). Extracted verbatim from
+    initiatePayment (BS133) so the installment provider's default rail is the
+    exact same code as pay-in-full. */
+export async function collectViaCollectionApi(sql: Sql, input: CollectAttemptInput): Promise<CollectAttemptResult> {
+  const { orderId, customerId, transactionId, amount, method, payerPhone, payerName, fspId, callbackUrl } = input;
   let orderReference: string | undefined;
   let billPayNumber: string | undefined;
   let redirectUrl: string | undefined;
@@ -349,7 +393,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
     billPayNumber = r.billPayNumber; // the control number the payer settles later
   } else {
     // card: hosted checkout. Load buyer email + item count for the provider payload.
-    const [cust] = await sql`select email, name from customer where id = ${order.customer_id}`;
+    const [cust] = await sql`select email, name from customer where id = ${customerId}`;
     const [{ n: items }] = await sql`
       select coalesce(sum(quantity),1)::int as n from order_item where order_id = ${orderId}`;
     const phone = normalizeMsisdn(payerPhone);
@@ -368,14 +412,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
     orderReference = r.orderReference;
     redirectUrl = cardCheckoutUrl(r);
   }
-
-  await sql`
-    update payment_transaction
-       set status = 'pending', order_reference = ${orderReference ?? null},
-           bill_pay_number = ${billPayNumber ?? null}, updated_at = now()
-     where transaction_id = ${transactionId}`;
-
-  return { transactionId, status: 'pending', billPayNumber, redirectUrl };
+  return { orderReference, billPayNumber, redirectUrl };
 }
 
 /** Gateway status → our outcome. FAILED→failed; PARTIAL→short; PENDING→pending;
@@ -519,8 +556,12 @@ export async function applyOutcome(
     the buyer confirmation OUTSIDE the tx (idempotent, best-effort). */
 export async function reconcile(sql: Sql, transactionId: string): Promise<PaymentOutcome> {
   const [txr] = await sql`
-    select order_id, fsp_id from payment_transaction where transaction_id = ${transactionId}`;
+    select order_id, fsp_id, provider from payment_transaction where transaction_id = ${transactionId}`;
   if (!txr) throw new Error(`unknown transaction: ${transactionId}`);
+  // BS133: a pay against an x-bridge /v1 receivable is settled by the signed
+  // receivable webhook; /collection/status does not know its id.
+  // TODO(BS138): poll the /v1 payment status here once x-bridge publishes it.
+  if (txr.provider === 'xbridge_v1') return 'pending';
   const status = await collectionStatus(transactionId, txr.fsp_id);
   const outcome = mapStatus(status);
   const collected =
