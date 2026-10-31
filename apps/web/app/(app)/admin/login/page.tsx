@@ -15,28 +15,27 @@
 import { useEffect, useState } from 'react';
 
 const STYLES = `
-.admin-login{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;
-  --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
+.admin-login{--black:var(--zp-color-board-black);--ink:var(--zp-color-night);--hair:var(--zp-color-line-dark);--bone:var(--zp-color-bone);--mut:var(--zp-color-ink-300);--yellow:var(--zp-color-signal-yellow);--alert:#FF8A80;
+  --sans:var(--zp-font-family-sans);--mono:var(--zp-font-family-mono);
   background:var(--black);color:var(--bone);font-family:var(--sans);min-height:100vh;
   display:flex;align-items:center;justify-content:center;padding:24px}
 .admin-login *{margin:0;padding:0;box-sizing:border-box}
-.admin-login .card{width:100%;max-width:400px;border:1px solid var(--hair);padding:44px 36px}
-.admin-login .wordmark{font-weight:600;font-size:26px;letter-spacing:-.02em}
-.admin-login .wordmark .o{color:var(--blue)}
-.admin-login .sub{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--mut);margin:10px 0 34px}
-.admin-login label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--mut);margin-bottom:8px}
-.admin-login input{width:100%;background:var(--ink);border:1px solid var(--hair);color:var(--bone);font-family:var(--mono);
-  font-size:15px;padding:13px 15px;outline:none;margin-bottom:20px;border-radius:0}
-.admin-login input:focus{border-color:var(--blue)}
-.admin-login button{width:100%;background:var(--bone);color:var(--black);border:none;font-family:var(--mono);font-size:13px;
-  font-weight:500;letter-spacing:.2em;padding:15px;cursor:pointer;transition:background .2s}
-.admin-login button:hover{background:var(--blue);color:var(--bone)}
-.admin-login .google{display:block;text-align:center;background:var(--bone);color:var(--black);text-decoration:none;font-family:var(--mono);font-size:13px;letter-spacing:.12em;padding:16px;margin:8px 0 12px;min-height:44px;box-sizing:border-box}
-.admin-login .linkish{background:none!important;color:var(--bone)!important;text-decoration:underline;font-size:12px;padding:8px 0;width:auto!important}
-.admin-login .err{font-family:var(--mono);font-size:12px;color:var(--orange);letter-spacing:.05em;margin-top:16px;
-  border:1px dashed var(--orange);padding:12px 14px}
-.admin-login .back{display:block;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.15em;
-  color:var(--mut);margin-top:26px;text-decoration:none}
+.admin-login .card{width:100%;max-width:400px;border:1px solid var(--hair);border-radius:16px;background:var(--ink);padding:40px 32px}
+.admin-login .wordmark{font-weight:700;font-size:28px;letter-spacing:-.035em;color:var(--bone)}
+.admin-login .sub{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut);margin:10px 0 32px;text-transform:uppercase}
+.admin-login label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut);margin-bottom:8px}
+.admin-login input{width:100%;height:48px;background:var(--black);border:2px solid var(--hair);border-radius:12px;color:var(--bone);font-family:var(--sans);
+  font-size:16px;padding:0 14px;outline:none;margin-bottom:20px}
+.admin-login input:focus-visible{border-color:var(--yellow);outline:3px solid var(--yellow);outline-offset:2px}
+.admin-login button,.admin-login .google{width:100%;min-height:56px;background:var(--yellow);color:var(--black);border:none;border-radius:16px;font-family:var(--sans);font-size:16px;
+  font-weight:700;letter-spacing:.02em;padding:0 20px;cursor:pointer;transition:background .12s;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.admin-login button:hover,.admin-login .google:hover{background:var(--zp-color-yellow-press)}
+.admin-login button:focus-visible,.admin-login .google:focus-visible,.admin-login .back:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.admin-login .google{margin:8px 0 12px}
+.admin-login .linkish{background:none!important;color:var(--bone)!important;text-decoration:underline;font-size:14px;font-weight:500;min-height:44px;padding:0!important;width:auto!important;justify-content:flex-start}
+.admin-login .err{font-size:14px;color:var(--alert);margin-top:16px;border:1px solid var(--alert);border-radius:12px;padding:12px 14px}
+.admin-login .back{display:block;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.12em;
+  color:var(--mut);margin-top:24px;text-decoration:none;min-height:44px;line-height:44px}
 .admin-login .back:hover{color:var(--bone)}
 `;
 
@@ -88,17 +87,11 @@ export default function AdminLoginPage() {
 
   return (
     <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <div className="admin-login">
         <div className="card">
-          <p className="wordmark">
-            z<span className="o">o</span>ra
-          </p>
-          <p className="sub">INTERNAL STAFF CONSOLE — AUTHORIZED ONLY</p>
+          <p className="wordmark">ZoraPass</p>
+          <p className="sub">Staff console · authorized only</p>
           {google && (
             <a className="google" href="/api/auth/google/start">CONTINUE WITH GOOGLE</a>
           )}

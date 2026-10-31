@@ -21,12 +21,14 @@ import { ThemeToggle } from '../components/theme-toggle';
 
 // Routes that render their own <nav>/<footer> and therefore opt out of the
 // shared SiteNav/SiteFooter.
-const OWN_CHROME = new Set(['/about', '/help', '/commission', '/brand', '/discover']);
+// BS147: '/' renders Discover (middleware rewrite) but usePathname() reports the
+// visible '/', so it must be listed too or the legacy chrome wraps the home page.
+const OWN_CHROME = new Set(['/', '/about', '/help', '/commission', '/brand', '/discover']);
 // Buyer surfaces on the ZoraPass system are FIXED-LIGHT (bone ground, see
 // DESIGN.md) — they scope their own tokens and must not read the light/dark
 // theme, so the floating toggle is not offered there (BS74 #5). /discover also
 // pins <html data-theme="light"> in DiscoverApp while mounted.
-const FIXED_THEME = new Set(['/discover']);
+const FIXED_THEME = new Set(['/', '/discover']);
 
 export function MarketingChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();

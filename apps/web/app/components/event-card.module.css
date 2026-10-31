@@ -29,6 +29,10 @@
   background: var(--zp-color-board-black);
   overflow: hidden;
 }
+/* BS147: landscape artwork → 16:9 frame so it shows whole (no crop, no bars) */
+.card .art[data-wide] {
+  aspect-ratio: 16 / 9;
+}
 .card .artInner {
   position: absolute;
   inset: 0;
@@ -40,7 +44,9 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  /* BS147: fill the 4:5 frame (wide posters used to sit in black bars) */
+  object-fit: cover;
+  object-position: center;
   transition: transform 0.18s var(--zp-motion-easing-standard);
 }
 .card:hover .artImg {

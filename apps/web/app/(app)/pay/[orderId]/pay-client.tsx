@@ -550,8 +550,8 @@ const STYLE = `
 .zpay{--bk:var(--zp-color-board-black,#111111);--bone:var(--zp-color-bone,#F7F5EE);--yl:var(--zp-color-signal-yellow,#FFD21F);--card:#1C1C1C;--rule:#333333;--dash:#4A4A4A;--mut:var(--zp-color-ink-300,#BDBDBD);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);min-height:100vh;background:var(--bk);color:var(--bone);font-family:var(--sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased}
 .zpay *{box-sizing:border-box;margin:0;padding:0}
 .zpay :focus-visible{outline:3px solid var(--yl);outline-offset:2px}
-.zpay button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-.zpay a{color:inherit}
+:where(.zpay) button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:where(.zpay) a{color:inherit}
 .zpay .zpay-wrap{max-width:480px;margin:0 auto;padding:0 12px 48px}
 .zpay .zpay-top{height:52px;display:flex;align-items:center;gap:12px;padding:0 4px}
 .zpay .zpay-back{min-width:44px;height:44px;display:inline-flex;align-items:center;font-size:22px;text-decoration:none}

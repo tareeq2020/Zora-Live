@@ -61,6 +61,7 @@ Last updated: 2026-10-31 (final train)
 | BS144 | Final review fixes: seat map falls back for events published before BS143; pay page seat labels from order_seat | R5 | 0 | BS143 | final review | merged | https://github.com/tareeq2020/Zora-Live/pull/227 | follow-ups below |
 | BS145 | FOLLOW-UP (security): /api/orders/:id/status returns QR codes to anyone with the order id (pre-existing; order ids now in installment SMS). Gate qr/code on canReadBuyerOrder after checking mobile app + split-share flows | R6 | 0 | — | final review | todo | | must test mobile checkout + Tuchange shares first |
 | BS146 | FOLLOW-UP: quiet hours for organizer "Send reminder"; cancel stale pending installment_plan when releaseOwnSeatHold expires its order; batch the public installments/offers read | R6 | A | — | final review | todo | | minor |
+| BS147 | Live-site QA fixes: dead tenant-subdomain event links (API + web), legacy nav/footer on home, 8px page frame, button/link label colour = background (`.scope a/button` specificity → `:where()`), past events, consistent dates, featured not repeated, phone WhatsApp fab, SEARCH button, landscape artwork 16:9, admin login rebrand, storefront copy | R6 | 0 | — | live /qa 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/230 | Brunch City 0 events = no published events (data) |
 ## Decisions log
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
 - 2026-10-31 · Owner: add Google login as the default for admins (R7 / BS141).
