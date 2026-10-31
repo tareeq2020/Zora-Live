@@ -187,3 +187,6 @@ export {
 // BS118: feature flags (per release, per organizer, per event).
 export { FLAG_NAMES, isFlagOn, resolveFlags, sanitizeFlagRules } from './flags';
 export type { FlagName, FlagRule, FlagRules, FlagContext } from './flags';
+// BS124: seat inventory (seat identity + state; capacity stays in inventory_pool).
+export { expandPlanSeats, diffSeats, publishSeatMap, readSeatAvailability, rowLabel } from './seat-inventory';
+export type { SeatState, SeatRowSpec, StoredSeat, SeatDiff, PublishSeatMapResult, SeatAvailabilityRow } from './seat-inventory';
