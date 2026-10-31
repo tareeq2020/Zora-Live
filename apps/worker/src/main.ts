@@ -32,7 +32,7 @@ try {
 }
 import {
   makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending, splitAwareExpirySweep,
-  drainBroadcasts, broadcastBatchSize, logSmsStartup,
+  drainBroadcasts, broadcastBatchSize, logSmsStartup, purgeVisitorDays,
 } from '@zora/core';
 
 // Constant key shared by every worker instance (distinct from the migrate lock).
@@ -100,6 +100,8 @@ function startWorkers(): void {
     return released + flagged;
   });
   everyMs(RECONCILE_MS, 'reconcile', reconcilePending);
+  // BS123: visitor-dedupe rows are kept 35 days only (aggregates stay).
+  everyMs(6 * 60 * 60 * 1000, 'analytics-purge', (s) => purgeVisitorDays(s, 35));
   // BS43 (#2 / ARCH-4): BOUNDED per tick. drainBroadcasts claims at most
   // BROADCAST_BATCH rows and returns; it does not drain to empty.
   everyMs(BROADCAST_MS, 'broadcast-drain', async (s) => {

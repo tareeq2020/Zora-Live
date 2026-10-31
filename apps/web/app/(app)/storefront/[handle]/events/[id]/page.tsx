@@ -5,6 +5,7 @@ import type { CheckoutTier } from '../../../../../components/checkout-flow';
 import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import ViewBeacon from '@/app/components/view-beacon';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
 // system (BS119): bone ground, Bricolage Grotesque / Bungee / IBM Plex Mono, flat.
@@ -131,6 +132,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
 
   return (
     <main className={styles.page}>
+      <ViewBeacon kind="event" org={params.handle} event={params.id} />
       {topbar}
       <div className={styles.wrap}>
         <div className={styles.main}>
