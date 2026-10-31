@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
+import ViewBeacon from '@/app/components/view-beacon';
 
 export type StorefrontEvent = {
   id: string;
@@ -200,6 +201,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 
   return (
     <>
+      <ViewBeacon kind="storefront" org={handle} />
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <div className="zora-sf">
         {/* ── header: organizer name left, one quiet link right ── */}

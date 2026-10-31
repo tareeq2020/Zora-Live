@@ -5,6 +5,7 @@ import type { CheckoutTier } from '../../../components/checkout-flow';
 import styles from './event-page.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import ViewBeacon from '@/app/components/view-beacon';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
 // slug alias in the API's getEvent, the flagship URL /events/offshore). Lives
@@ -99,6 +100,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
 
   return (
     <div className={styles.page}>
+      <ViewBeacon kind="event" org={ev.organizerHandle} event={ev.id} />
       <header className={styles.top}>
         <Link href="/" className={styles.logo} aria-label="ZoraPass home">
           <img src="/brand/logo/svg/zorapass-wordmark-black.svg" alt="ZoraPass" />

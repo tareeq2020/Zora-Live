@@ -10,6 +10,7 @@
    - unit_price + price_version_id are snapshotted per line, so a later re-price
      never mutates a placed order. */
 import { tx } from '../db';
+import { captureServerEvent } from '../analytics-capture';
 import { placeHold, convertHolds, convertReservation, releaseHolds, tryReacquire, tryRehold, releaseOrderInventory } from '../inventory';
 import { generateCode, signCredential, generatePublicRef, ticketSigningKeys, qrPayload, renderQrPng } from '../credentials';
 import {
@@ -493,7 +494,12 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
       ? Number(status.collectedAmount ?? status.amount ?? 0)
       : null;
   const orderStatus = await applyOutcome(sql, transactionId, outcome, collected);
-  if (orderStatus === ORDER_STATUS.PAID) await notifyOrderPaid(sql, txr.order_id);
+  if (orderStatus === ORDER_STATUS.PAID) {
+    await notifyOrderPaid(sql, txr.order_id);
+    // BS123 (A11): the money event comes from the server, never the browser.
+    const [o] = await sql`select event_id, target_value from "order" where id = ${txr.order_id}`;
+    void captureServerEvent('payment_completed', txr.order_id, { eventId: o?.event_id ?? null, amount: Number(o?.target_value ?? 0), method: String(txr.fsp_id ?? '') });
+  }
   else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
   else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
   return outcome;
@@ -927,7 +933,9 @@ export async function sweepExpiredHolds(sql: Sql): Promise<number> {
     select distinct order_id from inventory_hold where state = 'held' and expires_at < now()`;
   for (const r of rows) {
     await releaseHolds(sql, r.order_id);
-    await sql`update "order" set status = 'expired' where id = ${r.order_id} and status = 'pending'`;
+    const exp = await sql`update "order" set status = 'expired' where id = ${r.order_id} and status = 'pending' returning event_id`;
+    // BS123: a checkout whose hold lapsed with no payment is a drop-off.
+    if (exp.length) void captureServerEvent('checkout_abandoned', r.order_id, { eventId: exp[0].event_id ?? null });
   }
   // BS125: lapsed seat holds go back on the map.
   const seats = await sql`
