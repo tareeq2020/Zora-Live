@@ -15,7 +15,7 @@ Last updated: 2026-10-31
 | R0 Safety + sync | BS114–BS118, BS121, BS124–BS125, BS139 | — | released 2026-10-31 · PR #203 |
 | R1 New look | BS119–BS120 | `zp_look_v2` | wip |
 | R2 Checkout v2 + tracking | BS121–BS123 | `zp_checkout_v2` | todo |
-| R3 Seat maps | BS124–BS127 | `zp_seatmap` (per event) | todo |
+| R3 Seat maps | BS124–BS127 | `zp_seatmap` (per event) | merged — ready to promote |
 | R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | todo |
 | R5 Installments | BS132–BS136 | `zp_installments` (per org, OFF until x-bridge /v1 R3 ≈ 21 Nov) | todo |
 | R6 Hardening + x-bridge /v1 | BS137–BS138 | — | todo |
@@ -39,7 +39,7 @@ Last updated: 2026-10-31
 | BS124 | Seat inventory: migration, generation from published plan, versioned diff + 409 guard | R3 | B | BS116, BS118 | F5, A6, A7, A21 | merged | https://github.com/tareeq2020/Zora-Live/pull/199 | seat-inventory e2e 18/18 |
 | BS125 | Seat holds in checkout: hold tx with tier hold, seatIds through order, seat on credential, sweep, late-settlement rule | R3 | B | BS124 | A6, A12, A13, A17 | merged | https://github.com/tareeq2020/Zora-Live/pull/201 | migration 0032; seat e2e + checkout/payments regression PASS |
 | BS126 | Buyer seat map live (desktop + phone), poll + ETag, conflict UX | R3 | B | BS125 | F5, DD3 | merged | https://github.com/tareeq2020/Zora-Live/pull/210 | wired into checkout v1+v2; re-entry releases own hold; seat e2e PASS |
-| BS127 | Organizer builder: block / reserve / comps / release, venue image upload, price mode | R3 | B | BS124 | F5, DD8 | todo | | |
+| BS127 | Organizer builder: block / reserve / comps / release, venue image upload, price mode | R3 | B | BS124 | F5, DD8 | merged | https://github.com/tareeq2020/Zora-Live/pull/216 | comps-for-seats shipped; builder prod-build bug fixed; seat + comps e2e PASS |
 | BS128 | Organizer storefront analytics page + API | R4 | C | BS123 | F4, DD7 | merged | https://github.com/tareeq2020/Zora-Live/pull/208 | with BS129 in one PR; analytics e2e PASS |
 | BS129 | Admin platform analytics page + API | R4 | C | BS123 | F4 | merged | https://github.com/tareeq2020/Zora-Live/pull/208 | shared view component |
 | BS130 | Theme resolver (core) + `ticket_design` + renderer branding + seat on pass | R4 | C | BS116 | F6, A14, DD4 | merged | https://github.com/tareeq2020/Zora-Live/pull/204 | migration 0030; flag off = byte-identical pass; ticket-qr e2e PASS |
