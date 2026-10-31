@@ -32,7 +32,7 @@ try {
 }
 import {
   makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending, splitAwareExpirySweep,
-  drainBroadcasts, broadcastBatchSize, logSmsStartup, purgeVisitorDays,
+  drainBroadcasts, broadcastBatchSize, logSmsStartup, purgeVisitorDays, runInstallmentJobs,
 } from '@zora/core';
 
 // Constant key shared by every worker instance (distinct from the migrate lock).
@@ -54,6 +54,9 @@ const RECONCILE_MS = intervalMs('RECONCILE_MS', 30_000, 250); // reconcile pendi
 // BS43: the broadcast trickle. Short interval + small batch = interleaved, not
 // bursty; the batch size is the actual bound (see @zora/core/broadcasts).
 const BROADCAST_MS = intervalMs('BROADCAST_TICK_MS', 5_000, 100);
+// BS135: installment reminders + locked default close + housekeeping. Every 5
+// min is plenty (reminders are once-a-day latches; grace is measured in days).
+const INSTALLMENT_MS = intervalMs('INSTALLMENT_TICK_MS', 5 * 60_000, 1_000);
 
 /* Verbose tick tracing. Off in production (a quiet worker is a readable log);
    on in the e2e, where "did reconcile keep running while the queue drained" is
@@ -100,6 +103,8 @@ function startWorkers(): void {
     return released + flagged;
   });
   everyMs(RECONCILE_MS, 'reconcile', reconcilePending);
+  // BS135: installments — reminders (once per order per day), default close (A18).
+  everyMs(INSTALLMENT_MS, 'installments', (s) => runInstallmentJobs(s));
   // BS123: visitor-dedupe rows are kept 35 days only (aggregates stay).
   everyMs(6 * 60 * 60 * 1000, 'analytics-purge', (s) => purgeVisitorDays(s, 35));
   // BS43 (#2 / ARCH-4): BOUNDED per tick. drainBroadcasts claims at most
@@ -114,7 +119,7 @@ function startWorkers(): void {
     return r.claimed;
   });
   console.log(
-    '[worker] started: hold-sweep + reservation-sweep + split-sweep + payment reconciliation' +
+    '[worker] started: hold-sweep + reservation-sweep + split-sweep + payment reconciliation + installments' +
       ` + broadcast fan-out (batch=${broadcastBatchSize()} every ${BROADCAST_MS}ms) (singleton)`,
   );
 }
