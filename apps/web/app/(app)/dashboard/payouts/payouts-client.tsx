@@ -162,7 +162,7 @@ export default function PayoutsClient() {
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
@@ -418,7 +418,7 @@ export default function PayoutsClient() {
 const STYLE = `
 .zora-payouts{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
   --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-payouts *{margin:0;padding:0;box-sizing:border-box}
 .zora-payouts a{color:inherit;text-decoration:none}

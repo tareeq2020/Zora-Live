@@ -18,7 +18,7 @@
    and the handle states (taken · reserved) can all resolve against the field they
    belong to, on the screen the person is already looking at.
 
-   BS50: restyled onto the CONSUMER plane of DESIGN.md (Space Grotesk / Inter /
+   BS50: restyled onto the CONSUMER plane of DESIGN.md (Bricolage Grotesque /
    IBM Plex Mono, the sunrise aura reserved for the wordmark O + the primary
    CTA, blue focus rings, the same soft ambient glow language as /discover) —
    this is a public acquisition funnel, not an internal tool, so it reads like
@@ -235,7 +235,7 @@ export default function OrganizerSignupPage() {
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
@@ -442,8 +442,8 @@ const STYLES = `
   --blue:#4C6FFF;--ice:#7CA0FF;--cyan:#3FE0FF;
   --aura:linear-gradient(130deg,#D53AD8,#FF4D7D,#FF9145);
   --err:#FFB9B9;--err-border:rgba(255,120,120,.34);--err-bg:rgba(40,14,16,.34);
-  --display:'Space Grotesk',system-ui,sans-serif;
-  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --display:var(--zp-font-family-sans);
+  --sans:var(--zp-font-family-sans);
   --mono:'IBM Plex Mono',ui-monospace,monospace;
   position:relative;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);
   min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}

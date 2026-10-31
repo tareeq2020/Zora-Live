@@ -24,7 +24,7 @@ import { useEffect } from 'react';
 const STYLE = `
 .zora-onboard{--black:#0A0A0B;--ink:#101012;--ink2:#16161A;--hair:#222226;--hair2:#2E2E34;--bone:#F4F1EA;--mut:#8A877E;
   --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
-  --sans:'Archivo',system-ui,sans-serif;--mono:'IBM Plex Mono',monospace;
+  --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-onboard *{margin:0;padding:0;box-sizing:border-box}
 .zora-onboard a{color:inherit;text-decoration:none}
@@ -495,7 +495,7 @@ export default function OnboardingPage() {
   return (
     <>
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />

@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
 import { trackProductEvent } from '../../../components/product-analytics';
+import styles from './event-page.module.css';
 
-/* The single-event ticket CTA. Two fulfillment paths, chosen by the event data —
+/* The single-event pass CTA. Two fulfillment paths, chosen by the event data —
    the SAME split the storefront sheet uses (storefront-client.tsx):
      • web-sellable  (webCheckout.tiers present) → open the real <CheckoutFlow>,
        the exact transaction the storefront runs (cart → pay → scannable QR).
      • app-only      (no tiers, e.g. a pure app drop) → the legacy "claim in the
-       Zora app" toast. Seated events never reach here (EventPage renders a
-       seat-selection link instead). */
+       ZoraPass app" toast. Seated events never reach here (EventPage renders a
+       seat-selection link instead).
+   The button is the ZoraPass primary: black block, yellow Bungee label, arrow. */
 export function GetTicketButton({
   eventName,
   eventId,
@@ -22,8 +24,9 @@ export function GetTicketButton({
   eventId?: string;
   when?: string;
   tiers?: CheckoutTier[];
-  /** Organizer brand accent — the CTA + checkout wear it on a branded storefront.
-      Falls back to the Zora aura gradient in non-branded contexts. */
+  /** Organizer brand accent — passed through to the checkout only. The CTA itself
+      is always the ZoraPass primary button; organizer colour never re-skins
+      product chrome (handoff DD4). */
   accent?: string;
 }) {
   const webTiers = (tiers || []).filter((t) => t.tierId && !t.disabled);
@@ -35,6 +38,7 @@ export function GetTicketButton({
     <>
       <button
         type="button"
+        className={styles.primary}
         onClick={() => {
           if (webSellable) {
             trackProductEvent('web_event_cta_clicked', { eventId, eventName, source: 'event_page' });
@@ -44,19 +48,11 @@ export function GetTicketButton({
             window.setTimeout(() => setToast(false), 2600);
           }
         }}
-        style={{
-          border: 'none',
-          cursor: 'pointer',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: 15,
-          letterSpacing: '.02em',
-          padding: '15px 26px',
-          borderRadius: 12,
-          background: accent || 'linear-gradient(90deg,#D53AD8,#FF4D7D,#FF9145)',
-        }}
       >
-        GET TICKET
+        GET PASSES
+        <span className={styles.arrow} aria-hidden="true">
+          →
+        </span>
       </button>
 
       {webSellable ? (
@@ -73,23 +69,13 @@ export function GetTicketButton({
         <div
           role="status"
           aria-live="polite"
+          className={styles.toast}
           style={{
-            position: 'fixed',
-            left: '50%',
-            bottom: 28,
             transform: `translateX(-50%) translateY(${toast ? 0 : 20}px)`,
-            background: 'var(--c-text)',
-            color: 'var(--c-bg)',
-            fontWeight: 600,
-            fontSize: 14,
-            padding: '13px 20px',
-            borderRadius: 12,
             opacity: toast ? 1 : 0,
-            transition: '.28s',
-            pointerEvents: 'none',
           }}
         >
-          Your pass is waiting in the Zora app — download to claim
+          Your pass is in the ZoraPass app. Download it to claim.
         </div>
       )}
     </>

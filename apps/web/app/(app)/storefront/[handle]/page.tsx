@@ -82,11 +82,11 @@ async function isOwner(handle: string): Promise<boolean> {
 
 export async function generateMetadata({ params }: { params: { handle: string } }): Promise<Metadata> {
   const org = await fetchTenant(params.handle);
-  if (!org) return { title: 'Storefront — ZORA' };
-  const title = `${org.name} — ZORA`;
-  const description = `Live events from ${org.name}. Passes run on Zora.`;
+  if (!org) return { title: 'Storefront — ZoraPass' };
+  const title = `${org.name} — ZoraPass`;
+  const description = `Live events from ${org.name}. Passes run on ZoraPass.`;
   // BS86: the server-rendered, brand-matched share card is this page's unfurl image.
-  const card = await shareCardImage(params.handle, null, `${org.name} on Zora`);
+  const card = await shareCardImage(params.handle, null, `${org.name} on ZoraPass`);
   const images = card ? [{ url: card.url, width: card.width, height: card.height, alt: card.alt }] : undefined;
   return {
     title,
@@ -111,11 +111,11 @@ export default async function StorefrontPage({ params }: { params: { handle: str
   const cityCode = events.find((e) => e.city)?.city || '';
   const cityLabel = (CITY_LABEL[cityCode] || cityCode).toUpperCase();
   const eyebrow = cityLabel ? `${cityLabel} · STOREFRONT` : 'STOREFRONT';
-  const lede = `Live events from ${brandName}. Passes run on Zora, and your table is your table.`;
+  const lede = `Live events from ${brandName}. Passes run on ZoraPass, and your table is your table.`;
   const aboutHeading = `Every ${brandName} event, in one place.`;
   const aboutBody =
-    `This is the ${brandName} storefront — the full index of upcoming events. Tickets are issued ` +
-    `and honored by Zora, and your pass lives in your pocket.`;
+    `This is the ${brandName} storefront — the full index of upcoming events. Passes are issued ` +
+    `and honoured by ZoraPass, and your pass lives in your pocket.`;
 
   return (
     <StorefrontClient

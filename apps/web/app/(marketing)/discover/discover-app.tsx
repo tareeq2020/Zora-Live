@@ -2,27 +2,19 @@
 
 /* DiscoverApp — the marketplace body of /discover.
 
-   BS37 (cluster D, #8): re-skinned onto the CONSUMER plane of DESIGN.md — the
-   same dark cinematic language as the apex home (BS27 coming-soon.tsx): #08080A
-   canvas, Space Grotesk display / Inter body / IBM Plex Mono for money+meta, the
-   Zora orb mark, shimmer gradient text, an ember particle field, cursor glow,
-   film grain and a vignette, all sitting BEHIND the content and all silenced by
-   `prefers-reduced-motion`.
+   BS119: on the ZoraPass design system (docs/ZoraPass-Design-System-Handoff,
+   mockups Main / StorefrontMobile). Fixed light: bone ground, board-black ink,
+   signal-yellow accent; Bungee only for short display lines and the primary
+   button label (never below 20px); IBM Plex Mono for dates, prices and labels.
+   Flat — no gradients, shadows, blur or ambient effects.
 
-   It is still a LISTING, not a teaser: search, the city menu, the category chips,
-   the /api/events-backed grids, the featured card, the ticket sheet, the KULTUR
-   banner and the organizer CTA all keep working. What changed is the skin, the
-   card anatomy (cover-forward + FROM price in mono + a SPLITTABLE badge) and the
-   state coverage — loading skeletons, an empty state, and a real error state with
-   a retry (the old code swallowed a failed fetch into "no events").
-
-   DESIGN.md rules honoured: the aura gradient appears ONLY on the primary CTAs
-   (organizer launch + the sheet's buy button) and the logo orb — never as
-   decoration; money/dates/labels are IBM Plex Mono at >= 11.5px; touch targets
-   are >= 44px and nothing is hover-only. */
+   It is a LISTING: search, the city menu, the category chips, the
+   /api/events-backed grids, the featured card, the pass sheet and the organizer
+   band all keep working, with loading skeletons, empty states and a real error
+   state with a retry. Chips only ever carry a status from 04_UI_COPY that is
+   actually true (the platform-featured event is a ZORA PICK). */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { RevealImg } from '../../components/reveal-img';
 import { ZBot } from '../../components/zbot';
 import { Placements } from '../../components/placements';
@@ -33,18 +25,9 @@ import { CITIES } from '../../lib/cities';
 // rather than removed so it's a one-line flip once the app ships.
 const SHOW_KULTUR = false;
 
-/* Cover fallback tints — deep, desaturated, category-coded. Deliberately NOT the
-   aura gradient (rule 1: aura = primary action or the logo O only). */
-const PAL: Record<string, [string, string]> = {
-  Nightlife: ['#2B1B5E', '#0A0B10'],
-  Concerts: ['#123067', '#0A0B10'],
-  Festivals: ['#4A1B3E', '#0A0B10'],
-  Daytime: ['#5A3312', '#0A0B10'],
-  Arts: ['#0C5245', '#0A0B10'],
-};
-
 const CATS = ['All', 'This Weekend', 'Concerts', 'Festivals', 'Nightlife', 'Daytime', 'Arts'];
-const SPARKS = ['#f7922f', '#ec3f7e', '#c41ee0', '#a855f7'];
+// Display labels are sentence case (04_UI_COPY rule 2); the filter keys stay as-is.
+const CAT_LABEL: Record<string, string> = { 'This Weekend': 'This weekend' };
 
 type Ev = {
   id: string; t: string; art: string; cat: string; city: string; venue: string;
@@ -103,6 +86,8 @@ function mapEvent(e: any): Ev {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+// 04_UI_COPY money: `TSh 25,000` — symbol first; other currency codes pass through.
+const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
 
 /* Faux QR (deterministic modules) — identical algorithm/seed to discover.html, so
    the SVG is byte-stable. Computed once at module load. */
@@ -132,144 +117,15 @@ const QR_SVG = (() => {
 const prefersReduced = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/* ── ambient layers (all decorative, all behind the content) ───────────────── */
-
-/* Canvas ember field, ported from the home. Fixed behind the page, half the
-   home's density (this is a content surface, not a takeover). Under
-   reduced-motion it paints ONE frame and never animates. */
-type Particle = { x: number; y: number; r: number; vy: number; vx: number; life: number; maxLife: number; color: string; glow: number };
-function ParticleField() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const reduce = prefersReduced();
-
-    let raf = 0;
-    let w = 0;
-    let h = 0;
-    let dpr = 1;
-    const particles: Particle[] = [];
-    const MAX = 46;
-
-    const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = canvas.clientWidth;
-      h = canvas.clientHeight;
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    const spawn = (n: number) => {
-      for (let i = 0; i < n; i++) {
-        particles.push({
-          x: Math.random() * w,
-          y: h + Math.random() * 40,
-          r: Math.random() * 1.6 + 0.4,
-          vy: -(Math.random() * 0.34 + 0.1),
-          vx: (Math.random() - 0.5) * 0.18,
-          life: 0,
-          maxLife: Math.random() * 620 + 380,
-          color: SPARKS[(Math.random() * SPARKS.length) | 0],
-          glow: Math.random() * 0.4 + 0.2,
-        });
-      }
-    };
-    const tick = () => {
-      ctx.clearRect(0, 0, w, h);
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.life++;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx += (Math.random() - 0.5) * 0.01;
-        if (p.life >= p.maxLife || p.y < -30) {
-          particles.splice(i, 1);
-          continue;
-        }
-        const alpha = Math.sin((p.life / p.maxLife) * Math.PI) * p.glow;
-        ctx.globalAlpha = Math.max(0, alpha);
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = p.r * 4;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
-      if (particles.length < MAX) spawn(MAX - particles.length);
-      if (!reduce) raf = requestAnimationFrame(tick);
-    };
-
-    resize();
-    spawn(MAX);
-    if (reduce) {
-      // one static frame: mid-life so the embers are visible, then stop
-      particles.forEach((p) => (p.life = Math.floor(p.maxLife / 2)));
-    }
-    tick();
-    window.addEventListener('resize', resize);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-  return <canvas ref={canvasRef} aria-hidden className="zd-canvas" />;
-}
-
-/* Cursor-following aura glow — pointer devices only, and never under
-   reduced-motion. */
-function CursorGlow() {
-  const mx = useMotionValue(-800);
-  const my = useMotionValue(-800);
-  const x = useSpring(mx, { stiffness: 55, damping: 22, mass: 0.7 });
-  const y = useSpring(my, { stiffness: 55, damping: 22, mass: 0.7 });
-  const [on, setOn] = useState(false);
-
-  useEffect(() => {
-    if (prefersReduced()) return;
-    if (!window.matchMedia?.('(pointer: fine)').matches) return;
-    setOn(true);
-    const move = (e: PointerEvent) => {
-      mx.set(e.clientX);
-      my.set(e.clientY);
-    };
-    window.addEventListener('pointermove', move);
-    return () => window.removeEventListener('pointermove', move);
-  }, [mx, my]);
-
-  if (!on) return null;
+/* The ZoraPass wordmark (one word, never "Zora" alone). */
+function ZpWordmark({ href = '/', height = 24, variant = 'black' }: { href?: string; height?: number; variant?: 'black' | 'white' }) {
   return (
-    <motion.div aria-hidden className="zd-cursor" style={{ x, y }}>
-      <div className="zd-cursor-in" />
-    </motion.div>
-  );
-}
-
-function Grain() {
-  const noise =
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
-  return <div aria-hidden className="zd-grain" style={{ backgroundImage: noise }} />;
-}
-
-/* The wordmark: ZORA with the orb as the O (the one decorative-looking place the
-   aura is allowed — it IS the logo). */
-function OrbWordmark({ href = '/', size = 20 }: { href?: string; size?: number }) {
-  return (
-    <a className="zd-brand" href={href} aria-label="Zora — home">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="zd-orb zora-aura" src="/zora-orb.png" alt="" width={size} height={size} style={{ width: size, height: size }} draggable={false} />
-      {/* BS67 (#3): the accurate Zora wordmark — white variant for this dark
-          surface — replaces the old text "ZORA". */}
+    <a className="zd-brand" href={href} aria-label="ZoraPass home">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className="zd-wordmark"
-        src="/assets/zora-wordmark-white.png"
-        alt="Zora"
-        style={{ height: Math.round(size * 0.9), width: 'auto', display: 'block' }}
+        src={`/brand/logo/svg/zorapass-wordmark-${variant}.svg`}
+        alt="ZoraPass"
+        style={{ height, width: 'auto', display: 'block' }}
         draggable={false}
       />
     </a>
@@ -304,15 +160,14 @@ export function DiscoverApp() {
   const [toastMsg, setToastMsg] = useState('');
   const [toastShow, setToastShow] = useState(false);
 
-  // BS74 #5: /discover is a consumer-plane FIXED-DARK surface (it scopes its own
-  // .zd dark tokens). If the visitor arrived with the site toggled to light, pin
-  // the document to dark while here — and restore their choice on leave — so the
-  // light body never leaks behind the dark content. The marketing chrome also
-  // hides the theme toggle on this route.
+  // BS74 #5 / BS119: /discover is a FIXED-LIGHT ZoraPass surface (it scopes its
+  // own .zd tokens). Pin the document to light while here — and restore the
+  // visitor's choice on leave — so a dark body never leaks behind the bone
+  // content. The marketing chrome also hides the theme toggle on this route.
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.getAttribute('data-theme');
-    root.setAttribute('data-theme', 'dark');
+    root.setAttribute('data-theme', 'light');
     return () => {
       if (prev === null) root.removeAttribute('data-theme');
       else root.setAttribute('data-theme', prev);
@@ -328,7 +183,7 @@ export function DiscoverApp() {
   // Price in the EVENT's own currency, never the currency of whatever city the
   // browser happens to be filtered to — we do not convert, so labelling a Dar
   // price "NGN" would be a lie (DESIGN.md rule 5).
-  const money = (e: Ev) => (CITIES.find((c) => c.id === e.city)?.cur || curCity().cur) + ' ' + fmt(e.price);
+  const money = (e: Ev) => curLabel(CITIES.find((c) => c.id === e.city)?.cur || curCity().cur) + ' ' + fmt(e.price);
   const cityLabel = (e: Ev) => CITIES.find((c) => c.id === e.city)?.city || curCity().city;
 
   const toast = useCallback((m: string) => {
@@ -366,7 +221,7 @@ export function DiscoverApp() {
       const ok = await load();
       if (cancelled) return;
       setCityResolved(true);
-      if (ok) t = setTimeout(() => toast('Located you in Dar es Salaam — switch anytime'), 900);
+      if (ok) t = setTimeout(() => toast('Showing Dar es Salaam. Switch city anytime.'), 900);
     })();
     return () => {
       cancelled = true;
@@ -406,7 +261,7 @@ export function DiscoverApp() {
     setLocOpen(false);
     const c = CITIES.find((x) => x.id === id)!;
     const n = events.filter((e) => e.city === id).length;
-    if (status === 'ready') toast(n ? `${n} event${n === 1 ? '' : 's'} live in ${c.city}` : `Nothing live in ${c.city} yet`);
+    if (status === 'ready') toast(n ? `${n} event${n === 1 ? '' : 's'} in ${c.city}` : `Nothing in ${c.city} yet`);
   };
 
   // ── derived list ──
@@ -444,7 +299,8 @@ export function DiscoverApp() {
     if (!here.length) return null;
     const mega = here.find(({ e }) => e.mega);
     const pick = mega || here[here.length - 1];
-    return { idx: pick.i, badge: mega ? 'MEGA EVENT' : 'JUST DROPPED', e: pick.e };
+    // Only a true status gets a chip: the platform-featured event is a ZORA PICK.
+    return { idx: pick.i, badge: mega ? 'ZORA PICK' : '', e: pick.e };
   }, [events, activeCity]);
 
   // Every card is a REAL link (middle-click / keyboard / SEO) to the event or its
@@ -458,46 +314,36 @@ export function DiscoverApp() {
     setSearchText('');
   };
 
-  const Card = ({ e, i }: { e: Ev; i: number }) => {
-    const pal = PAL[e.cat] || ['#1D2033', '#0A0B10'];
-    return (
-      <a
-        className="zd-card"
-        href={hrefFor(e)}
-        data-event-card
-        onClick={(ev) => { ev.preventDefault(); openTicket(i); }}
-      >
-        <div className="zd-cover" style={{ ['--a' as string]: pal[0], ['--b' as string]: pal[1] }}>
-          {e.cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="zd-cover-img" src={e.cover} alt="" loading="lazy" />
-          ) : (
-            <span className="zd-cover-word">{e.t}</span>
-          )}
-          <span className="zd-cat">{e.cat.toUpperCase()}</span>
-          <span className="zd-badges">
-            {e.wknd ? <span className="zd-badge zd-badge-wknd">THIS WEEKEND</span> : null}
-            {e.splittable ? <span className="zd-badge zd-badge-split">SPLITTABLE</span> : null}
-          </span>
+  const Card = ({ e, i }: { e: Ev; i: number }) => (
+    <a
+      className="zd-card"
+      href={hrefFor(e)}
+      data-event-card
+      onClick={(ev) => { ev.preventDefault(); openTicket(i); }}
+    >
+      <div className="zd-cover">
+        {e.cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="zd-cover-img" src={e.cover} alt={e.t} loading="lazy" />
+        ) : (
+          <span className="zd-cover-word" aria-hidden>{e.t}</span>
+        )}
+        {e.mega ? <span className="zd-badge zp-chip--zora-pick">ZORA PICK</span> : null}
+      </div>
+      <div className="zd-card-body">
+        <span className="zd-when">{(e.date + (e.time ? ` · ${e.time}` : '')).toUpperCase()}</span>
+        <h3 className="zd-card-t">{e.t}</h3>
+        <span className="zd-where">{[e.venue, cityLabel(e)].filter(Boolean).join(' · ')}</span>
+        <div className="zd-card-foot">
+          <span className="zd-price">From {money(e)}</span>
+          {e.splittable ? <span className="zd-plan">Split with Tuchange</span> : null}
         </div>
-        <div className="zd-card-body">
-          <h3 className="zd-card-t">{e.t}</h3>
-          {e.art ? <p className="zd-card-art">{e.art}</p> : null}
-          <p className="zd-card-meta">
-            <span className="zd-when">{e.date}{e.time ? ` · ${e.time}` : ''}</span>
-            <span className="zd-where">{e.venue}</span>
-          </p>
-          <div className="zd-card-foot">
-            <span className="zd-price">
-              <small>FROM</small>
-              <b>{money(e)}</b>
-            </span>
-            <span className="zd-get">GET TICKET</span>
-          </div>
-        </div>
-      </a>
-    );
-  };
+        <span className="zd-get">
+          GET PASSES<span aria-hidden="true">→</span>
+        </span>
+      </div>
+    </a>
+  );
 
   const Skeletons = ({ n = 6 }: { n?: number }) => (
     <>
@@ -516,23 +362,12 @@ export function DiscoverApp() {
   );
 
   const sheetEv = sheet.idx != null ? events[sheet.idx] : null;
-  const sheetPal = sheetEv ? PAL[sheetEv.cat] || ['#1D2033', '#0A0B10'] : ['#1D2033', '#0A0B10'];
 
   return (
     <>
-      {/* ambient layers — decorative, behind everything, reduced-motion aware */}
-      <div aria-hidden className="zd-bg" />
-      <div aria-hidden className="zd-layer zd-layer-1" />
-      <div aria-hidden className="zd-layer zd-layer-2" />
-      <div aria-hidden className="zd-layer zd-layer-3" />
-      <ParticleField />
-      <CursorGlow />
-      <Grain />
-      <div aria-hidden className="zd-vignette" />
-
       <nav className="zd-nav">
         <div className="zd-wrap zd-nav-in">
-          <OrbWordmark href="/" />
+          <ZpWordmark href="/" />
 
           <div className="zd-loc" ref={locRef}>
             <button
@@ -543,10 +378,9 @@ export function DiscoverApp() {
               aria-expanded={locOpen}
               onClick={() => setLocOpen((v) => !v)}
             >
-              <span className="zd-pin" />
-              {!cityResolved ? <span className="zd-detecting" id="loc-detecting">locating you…</span> : null}
+                            {!cityResolved ? <span className="zd-detecting" id="loc-detecting">locating you…</span> : null}
               {cityResolved ? <span className="zd-city" id="loc-city">{curCity().city}</span> : null}
-              <span className="zd-chev">&#9662;</span>
+              <span className="zd-chev" aria-hidden>&#9662;</span>
             </button>
             <div className={'zd-loc-menu' + (locOpen ? ' on' : '')} id="loc-menu" role="listbox">
               <p className="zd-lm-h">SHOWING EVENTS IN</p>
@@ -582,8 +416,8 @@ export function DiscoverApp() {
           </div>
 
           <div className="zd-nav-right">
-            <a href="/help" className="zd-link">help</a>
-            <a href="/dashboard/onboarding" className="zd-ghost-btn">FOR ORGANIZERS</a>
+            <a href="/help" className="zd-link">Help</a>
+            <a href="/dashboard/onboarding" className="zd-ghost-btn">Organizers</a>
           </div>
         </div>
       </nav>
@@ -591,25 +425,22 @@ export function DiscoverApp() {
       <header className="zd-hero">
         <div className="zd-wrap zd-hero-in">
           <span className="zd-now">
-            <span className="zd-live-dot" />
-            {status === 'loading' ? (
-              <>finding what&rsquo;s live near you…</>
+                        {status === 'loading' ? (
+              <>FINDING WHAT&rsquo;S ON…</>
             ) : status === 'error' ? (
-              <>couldn&rsquo;t reach the events service</>
+              <>EVENTS UNAVAILABLE</>
             ) : (
               <>
-                <b id="hero-count">{cityCount}</b> event{cityCount === 1 ? '' : 's'} live in{' '}
-                <b id="hero-city">{cityResolved ? curCity().city : 'your city'}</b>
+                <b id="hero-count">{cityCount}</b> EVENT{cityCount === 1 ? '' : 'S'} IN{' '}
+                <b id="hero-city">{cityResolved ? curCity().city.toUpperCase() : 'YOUR CITY'}</b>
               </>
             )}
           </span>
 
-          <h1 className="zd-h1">
-            find your <span className="shimmer-text">vibe</span>.
-          </h1>
-          <p className="zd-subline">
-            Every event worth being at, near you — concerts, festivals, nightlife and daytime.
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="zd-stamp" src="/brand/stamps/svg/zp-stamp-zorapass-dar-black.svg" alt="" aria-hidden="true" />
+          <h1 className="zd-h1">WHAT&rsquo;S ON?</h1>
+          <p className="zd-subline">Concerts, festivals, nights out and new experiences.</p>
 
           <div className="zd-herosearch">
             <div className="zd-box">
@@ -654,19 +485,23 @@ export function DiscoverApp() {
               href={hrefFor(feat.e)}
               onClick={(ev) => { ev.preventDefault(); openTicket(feat.idx); }}
             >
-              <div className="zd-feat-media" id="feat-media" style={{ ['--a' as string]: (PAL[feat.e.cat] || ['#123067', '#0A0B10'])[0] }}>
-                <RevealImg id="feat-img" src={feat.e.cover || '/assets/event-01.jpg'} data-slot="discover-featured" alt="" />
+              <div className="zd-feat-media" id="feat-media">
+                <RevealImg id="feat-img" src={feat.e.cover || '/assets/event-01.jpg'} data-slot="discover-featured" alt={feat.e.t} />
               </div>
               <div className="zd-feat-body">
-                <span className="zd-feat-badge" id="feat-badge">{feat.badge}</span>
+                {feat.badge ? (
+                  <span className="zd-feat-badge zp-chip--zora-pick" id="feat-badge">{feat.badge}</span>
+                ) : null}
                 <h2 className="zd-feat-title" id="feat-title">{feat.e.t}</h2>
                 {feat.e.art ? <p className="zd-feat-art" id="feat-art">{feat.e.art}</p> : null}
                 <p className="zd-feat-meta" id="feat-meta">
-                  {feat.e.date}{feat.e.time ? ` · ${feat.e.time}` : ''} — {feat.e.venue}
+                  {(feat.e.date + (feat.e.time ? ` · ${feat.e.time}` : '')).toUpperCase()} · {feat.e.venue}
                 </p>
                 <div className="zd-feat-row">
-                  <span className="zd-feat-price" id="feat-price">FROM {money(feat.e)}</span>
-                  <span className="zd-feat-get">GET TICKET</span>
+                  <span className="zd-feat-price" id="feat-price">From {money(feat.e)}</span>
+                  <span className="zd-feat-get">
+                    GET PASSES<span aria-hidden="true">→</span>
+                  </span>
                 </div>
               </div>
             </a>
@@ -686,7 +521,7 @@ export function DiscoverApp() {
               disabled={status === 'loading'}
               onClick={() => setActiveCat(c)}
             >
-              {c}
+              {CAT_LABEL[c] || c}
             </button>
           ))}
         </div>
@@ -697,7 +532,7 @@ export function DiscoverApp() {
           <div className="zd-sec-head">
             <h2 id="grid-title">{searching ? 'Results across all cities' : `Upcoming in ${curCity().city}`}</h2>
             <span className="zd-count" id="grid-count">
-              {status === 'ready' ? `${list.length} event${list.length === 1 ? '' : 's'}` : status === 'loading' ? 'LOADING…' : 'UNAVAILABLE'}
+              {status === 'ready' ? `${list.length} EVENT${list.length === 1 ? '' : 'S'} · SORTED BY DATE` : status === 'loading' ? 'LOADING…' : 'UNAVAILABLE'}
             </span>
           </div>
 
@@ -707,15 +542,15 @@ export function DiscoverApp() {
             {status === 'error' ? (
               <div className="zd-state zd-state-err">
                 <p className="zd-state-h">We couldn&rsquo;t load events right now.</p>
-                <p className="zd-state-p">The listing service didn&rsquo;t answer — {errCause}. Nothing is wrong with your ticket or your money.</p>
+                <p className="zd-state-p">The listing service didn&rsquo;t answer ({errCause}). Your passes and payments are not affected.</p>
                 <button className="zd-state-btn" type="button" onClick={() => load()}>TRY AGAIN</button>
               </div>
             ) : null}
 
             {status === 'ready' && !searching && cityCount === 0 ? (
               <div className="zd-state">
-                <p className="zd-state-h">No events in {curCity().city} yet — try another city.</p>
-                <p className="zd-state-p">We&rsquo;re onboarding organizers city by city. Here&rsquo;s where the lights are on:</p>
+                <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
+                <p className="zd-state-p">No events in {curCity().city} yet. Try another city:</p>
                 <div className="zd-state-cities">
                   {CITIES.filter((c) => c.id !== activeCity).map((c) => (
                     <button className="zd-state-btn zd-ghost" type="button" key={c.id} onClick={() => setCity(c.id)}>
@@ -728,21 +563,21 @@ export function DiscoverApp() {
 
             {status === 'ready' && !searching && cityCount > 0 && list.length === 0 ? (
               <div className="zd-state">
-                <p className="zd-state-h">Nothing in {activeCat} in {curCity().city} right now.</p>
+                <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
                 <p className="zd-state-p">
-                  {cityCount} other event{cityCount === 1 ? '' : 's'} {cityCount === 1 ? 'is' : 'are'} live here.
+                  Nothing in {CAT_LABEL[activeCat] || activeCat} in {curCity().city} right now. {cityCount} other event{cityCount === 1 ? '' : 's'} {cityCount === 1 ? 'is' : 'are'} on here.
                 </p>
-                <button className="zd-state-btn" type="button" onClick={clearFilters}>SHOW EVERYTHING</button>
+                <button className="zd-state-btn" type="button" onClick={clearFilters}>SEE ALL EVENTS</button>
               </div>
             ) : null}
 
             {status === 'ready' && searching && list.length === 0 ? (
               <div className="zd-state">
-                <p className="zd-state-h">Nothing matches “{searchText.trim()}” in any city.</p>
+                <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
                 <p className="zd-state-p">
-                  We searched every city{activeCat !== 'All' ? <> in {activeCat}</> : null}. Try a different spelling, or clear the search to browse.
+                  Nothing matches “{searchText.trim()}” in any city{activeCat !== 'All' ? <> in {CAT_LABEL[activeCat] || activeCat}</> : null}. Try a different spelling, or see everything.
                 </p>
-                <button className="zd-state-btn" type="button" onClick={clearFilters}>SHOW EVERYTHING</button>
+                <button className="zd-state-btn" type="button" onClick={clearFilters}>SEE ALL EVENTS</button>
               </div>
             ) : null}
 
@@ -755,10 +590,10 @@ export function DiscoverApp() {
               <div className="zd-kultur-in">
                 <div>
                   <p className="zd-tagpre">THE ACTIVATION DIVISION — INVITE &amp; EARN ONLY</p>
-                  <p className="zd-big">KULTUR<span className="zd-div">BY ZORA · NOT ON SALE ANYWHERE ELSE</span></p>
+                  <p className="zd-big">KULTUR<span className="zd-div">BY ZORAPASS · NOT ON SALE ANYWHERE ELSE</span></p>
                   <p className="zd-flag"><b>OFFSHORE.</b> One coast, one long daytime session off Dar. You don&apos;t buy your way on — you earn it, in the app.</p>
                   <div className="zd-cta-row">
-                    <button className="zd-k-btn" id="k-download" type="button" onClick={() => toast('Get the Zora app to enter KULTUR — invite & earn only')}>GET THE APP TO ENTER</button>
+                    <button className="zd-k-btn" id="k-download" type="button" onClick={() => toast('Get the ZoraPass app to enter KULTUR. Invite and earn only.')}>GET THE APP TO ENTER</button>
                     <a className="zd-k-btn zd-ghost" href="/drop-001.html">SEE THE FLAGSHIP &rarr;</a>
                   </div>
                 </div>
@@ -791,32 +626,28 @@ export function DiscoverApp() {
         <div className="zd-wrap">
           <div className="zd-organize">
             <p className="zd-pre">FOR ORGANIZERS</p>
-            <h2>Take control of your event.</h2>
-            <p className="zd-org-p">
-              Launch your own Zora storefront in two minutes — your own storefront, your data, built-in
-              marketing, and one honest price your crowd will love.
-            </p>
+            <h2>SELL OUT YOUR NEXT EVENT.</h2>
+            <p className="zd-org-p">Sell passes, get paid, check people in.</p>
             <a className="zd-aura-btn" href="/dashboard/onboarding">
-              Launch your storefront
+              START SELLING<span aria-hidden="true">→</span>
             </a>
-            <p className="zd-fine">Two clicks in. Your storefront is live before you finish signing up.</p>
           </div>
         </div>
       </section>
 
       <footer className="zd-footer">
         <div className="zd-wrap zd-foot">
-          <OrbWordmark href="/" size={18} />
+          <p className="zd-foot-line">YOUR PASS TO WHAT&rsquo;S ON.</p>
           <div className="zd-cols">
-            <a href="/">brand</a>
-            <a href="/dashboard/onboarding">organizers</a>
-            <a href="/help">help</a>
+            <a href="/">Brand</a>
+            <a href="/dashboard/onboarding">Organizers</a>
+            <a href="/help">Help</a>
           </div>
-          <p className="zd-legal">© 2026 ZORA · FIND YOUR VIBE</p>
+          <p className="zd-legal">© 2026 ZORAPASS</p>
         </div>
       </footer>
 
-      {/* ── ticket sheet ── */}
+      {/* ── pass sheet ── */}
       <div
         className={'zd-sheet' + (sheet.open ? ' on' : '')}
         id="sheet"
@@ -826,10 +657,10 @@ export function DiscoverApp() {
         onClick={(e) => { if (e.target === e.currentTarget) closeTicket(); }}
       >
         <div className="zd-tk">
-          <div className="zd-tk-cover" id="tk-cover" style={{ ['--a' as string]: sheetPal[0], ['--b' as string]: sheetPal[1] }}>
+          <div className="zd-tk-cover" id="tk-cover">
             {sheetEv?.cover ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className="zd-tk-img" src={sheetEv.cover} alt="" />
+              <img className="zd-tk-img" src={sheetEv.cover} alt={sheetEv.t} />
             ) : null}
             <button className="zd-x" id="tk-x" type="button" aria-label="Close" onClick={closeTicket}>&times;</button>
             <p className="zd-tt" id="tk-title">{sheetEv ? sheetEv.t : 'Event'}</p>
@@ -837,12 +668,12 @@ export function DiscoverApp() {
           <div className="zd-tk-body">
             <p className="zd-tk-meta" id="tk-meta">
               {sheetEv ? (
-                <>{sheetEv.art ? <>{sheetEv.art}<br /></> : null}{sheetEv.date}{sheetEv.time ? ` · ${sheetEv.time}` : ''}<br />{sheetEv.venue} · {cityLabel(sheetEv)}</>
+                <>{sheetEv.art ? <><span className="zd-tk-art">{sheetEv.art}</span><br /></> : null}{(sheetEv.date + (sheetEv.time ? ` · ${sheetEv.time}` : '')).toUpperCase()}<br />{sheetEv.venue} · {cityLabel(sheetEv)}</>
               ) : null}
             </p>
-            {sheetEv?.splittable ? <p className="zd-tk-split">SPLITTABLE TABLE — SHARE THE BILL WITH YOUR CREW</p> : null}
+            {sheetEv?.splittable ? <p className="zd-tk-split">Split with Tuchange — each person pays their own share from their phone.</p> : null}
             <div className="zd-honest">
-              <span className="zd-l">{sheetEv?.seated ? 'From — 1 seat' : 'From — 1 ticket'}</span>
+              <span className="zd-l">{sheetEv?.seated ? 'FROM · 1 SEAT' : 'FROM · 1 PASS'}</span>
               <span className="zd-p" id="tk-price">{sheetEv ? money(sheetEv) : "—"}</span>
             </div>
             <button
@@ -851,9 +682,11 @@ export function DiscoverApp() {
               type="button"
               onClick={() => { if (sheet.href) location.href = sheet.href; }}
             >
-              {sheetEv && sheetEv.organizer ? 'GET TICKETS AT ' + sheetEv.organizer.toUpperCase() + ' STORE' : 'GET TICKET'}
+              GET PASSES<span aria-hidden="true">→</span>
             </button>
-            <div className="zd-methods"><span>M-PESA</span><span>TIGO PESA</span><span>AIRTEL</span><span>VISA</span><span>MASTERCARD</span></div>
+            <p className="zd-methods">
+              {sheetEv && sheetEv.organizer ? <>Sold by {sheetEv.organizer}. </> : null}Mobile money or card. Fees shown before you pay.
+            </p>
           </div>
         </div>
       </div>

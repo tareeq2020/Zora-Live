@@ -1,65 +1,133 @@
-/* Canonical event page. Theme-aware via the shared token system (--c-*). Mirrors
-   the legacy tenant/drop layout but rebuilt as a React route so /events/:id
-   renders in place (no static twin). */
-.wrap { max-width: 720px; margin: 0 auto; padding: 40px 22px 80px; }
+/* Canonical event page — ZoraPass design system (docs/ZoraPass-Design-System-Handoff,
+   mockups Event / EventPhone). Fixed light: bone ground, board-black ink, one yellow
+   accent. Uses the PRIMITIVE --zp-color-* tokens on purpose, because <html data-theme>
+   defaults to dark and would flip the semantic --zp-surface/--zp-text-* tokens. Flat:
+   no gradients, no shadows, no blur. */
+.page {
+  --bg: var(--zp-color-bone);
+  --ink: var(--zp-color-board-black);
+  --raised: var(--zp-color-white);
+  --line: var(--zp-color-line-light);
+  --mut: var(--zp-color-ink-500);
+  --yellow: var(--zp-color-signal-yellow);
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--zp-font-family-sans);
+  font-size: 16px;
+  line-height: 1.35;
+}
+.page :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
-.eyebrow {
-  font-family: var(--mono, 'IBM Plex Mono', monospace);
-  font-size: 12px; letter-spacing: .22em; color: var(--c-text2);
-  margin-bottom: 14px; text-transform: uppercase;
+.top {
+  height: 64px; box-sizing: border-box; padding: 0 16px;
+  display: flex; align-items: center; gap: 24px;
+  border-bottom: 1px solid var(--line);
 }
-.megaBadge {
-  display: inline-block; font-family: var(--mono, 'IBM Plex Mono', monospace);
-  font-size: 10px; letter-spacing: .18em; font-weight: 700;
-  color: #fff; background: linear-gradient(90deg, #D53AD8, #FF4D7D, #FF9145);
-  border-radius: 99px; padding: 5px 11px; margin-bottom: 16px;
+.logo { display: inline-flex; align-items: center; min-height: 44px; }
+.logo img { height: 24px; width: auto; display: block; }
+.back {
+  font-family: var(--zp-font-family-mono); font-size: 13px; letter-spacing: .08em;
+  color: var(--ink); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center;
 }
-.title {
-  font-size: clamp(34px, 7vw, 58px); line-height: 1.02;
-  letter-spacing: -.01em; font-weight: 700; color: var(--c-text);
-}
-.tagline { color: var(--c-text2); font-size: 17px; margin-top: 14px; line-height: 1.5; }
+.back:hover { text-decoration: underline; }
 
+.wrap {
+  max-width: 1200px; margin: 0 auto; box-sizing: border-box;
+  padding: 24px 16px 64px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+@media (min-width: 1024px) {
+  .wrap {
+    display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: start;
+    column-gap: 48px; row-gap: 24px; padding: 32px 32px 80px;
+  }
+  .wrap > .foot { grid-column: 1; }
+  .top { padding: 0 32px; }
+}
+.main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+
+/* artwork: a flat 16:9 rectangle; real artwork drops in here, never cropped into a shape */
 .cover {
-  margin: 28px 0; height: 200px; border-radius: 20px; position: relative;
-  overflow: hidden; border: 1px solid var(--c-line);
-  background: linear-gradient(140deg, var(--coverA, #4C6FFF), var(--c-bg));
+  position: relative; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden;
+  background: var(--ink);
 }
-.cover::after {
-  content: ''; position: absolute; inset: 0;
-  background: radial-gradient(70% 80% at 80% 10%, rgba(255,255,255,.16), transparent 60%);
+.stamp {
+  position: absolute; right: 16px; bottom: 16px; width: 96px; height: 96px;
+  transform: rotate(-10deg);
+}
+@media (max-width: 767px) { .stamp { width: 64px; height: 64px; } }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  font-family: var(--zp-font-family-mono); font-weight: 500; font-size: 12px;
+  letter-spacing: .12em; text-transform: uppercase;
+  border-radius: 999px; padding: 6px 12px; line-height: 1;
 }
 
-.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 26px 0; }
-.metaKey {
-  font-family: var(--mono, 'IBM Plex Mono', monospace);
-  font-size: 11px; letter-spacing: .14em; color: var(--c-text2); text-transform: uppercase;
+.title {
+  margin: 0; font-weight: 800; letter-spacing: -0.02em; line-height: 1.02;
+  font-size: clamp(32px, 6vw, 56px); color: var(--ink);
 }
-.metaVal { font-size: 19px; font-weight: 500; margin-top: 5px; color: var(--c-text); }
+.tagline { margin: 0; font-size: 18px; line-height: 1.45; max-width: 640px; }
+.by { font-size: 18px; font-weight: 700; margin: 0; }
 
-.buy {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  flex-wrap: wrap; background: var(--c-surface); border: 1px solid var(--c-line);
-  border-radius: 18px; padding: 20px 22px; margin-top: 8px;
+.meta {
+  margin: 0; display: grid; grid-template-columns: 96px 1fr; row-gap: 10px;
+  font-family: var(--zp-font-family-mono); font-size: 16px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 0;
 }
-.priceLabel {
-  display: block; font-family: var(--mono, 'IBM Plex Mono', monospace);
-  font-size: 10.5px; letter-spacing: .16em; color: var(--c-text2);
-}
-.priceVal { font-size: 28px; font-weight: 700; color: var(--c-text); }
+.meta dt { color: var(--mut); font-size: 13px; letter-spacing: .08em; align-self: center; }
+.meta dd { margin: 0; }
 
-.nofee {
-  font-family: var(--mono, 'IBM Plex Mono', monospace);
-  font-size: 11px; color: var(--c-text2); letter-spacing: .03em;
-  margin-top: 16px; text-align: center;
+/* purchase panel — white, 2px black frame; sits right on desktop */
+.panel {
+  background: var(--raised); border: 2px solid var(--ink); border-radius: 16px;
+  padding: 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;
 }
+@media (min-width: 1024px) {
+  .panel { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 24px; }
+}
+.label {
+  font-family: var(--zp-font-family-mono); font-size: 12px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--mut);
+}
+.priceVal { font-family: var(--zp-font-family-mono); font-size: 24px; font-weight: 600; }
+.nofee { font-size: 14px; color: var(--mut); text-align: center; margin: 0; }
+
+/* primary button — black block, yellow Bungee label, right arrow */
+.primary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; height: 56px; box-sizing: border-box; padding: 0 24px;
+  border: none; border-radius: 16px; cursor: pointer; text-decoration: none;
+  background: var(--zp-color-board-black); color: var(--zp-color-signal-yellow);
+  font-family: var(--zp-font-family-display); font-size: 20px; font-weight: 400;
+  letter-spacing: 0; text-transform: uppercase; line-height: 1;
+  transition: background-color 120ms, transform 120ms;
+}
+.primary:hover { background: var(--zp-color-ink-600); color: var(--zp-color-signal-yellow); }
+.primary:active { transform: translateY(2px); }
+.primary:focus-visible { outline: 3px solid var(--zp-color-board-black); outline-offset: 2px; }
+.primary:disabled { background: var(--zp-color-ink-300); color: var(--zp-color-ink-500); cursor: not-allowed; }
+.arrow { font-family: var(--zp-font-family-sans); font-size: 20px; }
 
 .foot {
-  margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--c-line);
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-  gap: 10px; color: var(--c-text2);
-  font-family: var(--mono, 'IBM Plex Mono', monospace); font-size: 12px; letter-spacing: .04em;
+  margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  font-family: var(--zp-font-family-mono); font-size: 13px; letter-spacing: .08em; color: var(--mut);
 }
-.foot a { color: var(--c-text); text-decoration: none; }
+.foot a { color: var(--ink); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.foot a:hover { text-decoration: underline; }
 
-.notFound { padding: 80px 0; text-align: center; color: var(--c-text2); }
+/* toast (app-only events) — dark surface, bone text, bottom of the screen */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 500;
+  min-height: 48px; box-sizing: border-box; display: flex; align-items: center;
+  padding: 12px 20px; border-radius: 12px; border-left: 4px solid var(--zp-color-mtaa-green);
+  background: var(--zp-color-board-black); color: var(--zp-color-bone);
+  font-family: var(--zp-font-family-sans); font-size: 16px; font-weight: 500;
+  transition: opacity 240ms, transform 240ms; pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .toast, .primary { transition: opacity 120ms; } }
+
+.notFound { padding: 80px 0; text-align: center; color: var(--mut); font-size: 18px; }

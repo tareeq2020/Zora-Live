@@ -42,8 +42,8 @@ const CSS = `
     --text:#EDEFF7; --text-2:#9BA3C4; --text-3:#5C6488;
 
     /* — type — */
-    --head:'Space Grotesk',system-ui,sans-serif;
-    --body:'Inter',system-ui,sans-serif;
+    --head:var(--zp-font-family-sans);
+    --body:var(--zp-font-family-sans);
     --mono:'IBM Plex Mono',monospace;
     --radius:16px;
     color-scheme:dark;
@@ -186,7 +186,7 @@ export default function BrandPage() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />

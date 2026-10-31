@@ -78,6 +78,8 @@ const POLL_MAX = 60; // ~3 min ceiling before we tell the buyer to check back
 const TERMINAL = new Set(['paid', 'payment_short', 'paid_unseatable', 'failed', 'expired']);
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+// 04_UI_COPY: money reads `TSh 25,000` (symbol first). Other currency codes pass through.
+const cur = (c: string) => (c === 'TZS' ? 'TSh' : c);
 const formatHoldExpiry = (value?: string) => {
   if (!value) return null;
   const d = new Date(value);
@@ -413,7 +415,7 @@ export default function CheckoutFlow({ open, onClose, eventName, eventId, when, 
                           {t.split ? <span className="zco-badge">SPLIT WITH TUCHANGE</span> : null}
                         </p>
                         <p className="zco-tier-price">
-                          {soldOut ? 'SOLD OUT' : `${fmt(t.unitPrice)} ${t.currency || currency}`}
+                          {soldOut ? 'SOLD OUT' : `${cur(t.currency || currency)} ${fmt(t.unitPrice)}`}
                           {t.split ? <span className="zco-seatnote"> · seats {t.seats || 8}</span> : null}
                           {!soldOut && avail && a <= 5 ? <span className="zco-low"> · {a} left</span> : null}
                         </p>
@@ -445,14 +447,14 @@ export default function CheckoutFlow({ open, onClose, eventName, eventId, when, 
                         {l.q} × {l.tier.name}
                       </span>
                       <span className="zco-val">
-                        {fmt(l.tier.unitPrice * l.q)} {currency}
+                        {cur(currency)} {fmt(l.tier.unitPrice * l.q)}
                       </span>
                     </div>
                   ))}
                   <div className="zco-line zco-est">
                     <span className="zco-lbl">Subtotal</span>
                     <span className="zco-val">
-                      {fmt(estSubtotal)} {currency}
+                      {cur(currency)} {fmt(estSubtotal)}
                     </span>
                   </div>
                   <p className="zco-fineprint">Fees are shown before payment. Availability is confirmed when checkout starts.</p>
@@ -536,7 +538,7 @@ export default function CheckoutFlow({ open, onClose, eventName, eventId, when, 
                 <div className="zco-line zco-total">
                   <span className="zco-lbl">Total to pay</span>
                   <span className="zco-val big">
-                    {fmt(order.total)} {currency}
+                    {cur(currency)} {fmt(order.total)}
                   </span>
                 </div>
                 <p className="zco-fineprint">
@@ -559,7 +561,7 @@ export default function CheckoutFlow({ open, onClose, eventName, eventId, when, 
               ) : null}
 
               <button className="zco-pay" disabled={busy} onClick={submitPay}>
-                {busy ? 'STARTING…' : `PAY ${fmt(order.total)} ${currency}`}
+                {busy ? 'STARTING…' : `PAY ${cur(currency)} ${fmt(order.total)}`}
               </button>
             </>
           ) : null}
