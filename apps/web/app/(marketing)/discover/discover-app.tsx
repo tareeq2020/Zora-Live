@@ -19,6 +19,7 @@ import { RevealImg } from '../../components/reveal-img';
 import { ZBot } from '../../components/zbot';
 import { Placements } from '../../components/placements';
 import { CITIES } from '../../lib/cities';
+import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../components/event-card';
 
 // BS47: KULTUR is invite/earn-only with no app to redeem it in yet — the banner
 // promises something the platform can't deliver on right now. Flagged off
@@ -33,6 +34,8 @@ type Ev = {
   id: string; t: string; art: string; cat: string; city: string; venue: string;
   date: string; time: string; price: number; wknd: boolean; mega: boolean;
   seated: boolean; splittable: boolean; cover?: string;
+  /** BS120: ids of the on-sale web tiers (empty for app-claim events). */
+  tierIds: string[];
   organizer?: string; subdomain?: string; url?: string;
 };
 
@@ -80,6 +83,7 @@ function mapEvent(e: any): Ev {
     // BS101: computed from the real date, not the stored flag.
     wknd: isThisWeekend(e.date), mega: !!e.mega, seated: !!e.seated,
     splittable: tiers.some((t) => t && t.split && !t.disabled),
+    tierIds: tiers.filter((t) => t && t.tierId && !t.disabled).map((t) => String(t.tierId)),
     cover: e.cover || '',
     organizer: e.organizer, subdomain: e.subdomain, url: e.url,
   };
@@ -147,6 +151,8 @@ type Status = 'loading' | 'ready' | 'error';
 
 export function DiscoverApp() {
   const [events, setEvents] = useState<Ev[]>([]);
+  // BS120: live stock per tier for honest card chips. null = unknown → no chip.
+  const [pools, setPools] = useState<Record<string, InventoryPool> | null>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [errCause, setErrCause] = useState('');
   const [activeCity, setActiveCity] = useState('dar');
@@ -203,6 +209,16 @@ export function DiscoverApp() {
       const data = await r.json();
       if (!Array.isArray(data)) throw new Error('the events service sent an unexpected response');
       setEvents(data.map(mapEvent));
+      // Stock is a nice-to-have: a failed read just means no stock chips.
+      fetch('/api/inventory', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { pools?: InventoryPool[] } | null) => {
+          if (!d) return;
+          const map: Record<string, InventoryPool> = {};
+          for (const p of d.pools || []) if (p && p.tierId) map[p.tierId] = p;
+          setPools(map);
+        })
+        .catch(() => {});
       setErrCause('');
       setStatus('ready');
       return true;
@@ -314,35 +330,32 @@ export function DiscoverApp() {
     setSearchText('');
   };
 
+  // BS120: the shared <EventCard>. Still ONE real link (middle-click / keyboard /
+  // SEO) to the event or its storefront; a plain click opens the pass sheet.
+  // Chip = the highest-priority TRUE status: stock of the on-sale tiers, then the
+  // platform pick. App-claim events / unknown stock → no stock chip.
+  const statusOf = (e: Ev) => {
+    const stock = e.tierIds.length ? stockForTiers(e.tierIds, pools) : null;
+    return pickStatus([stock ? stockStatus(stock.remaining, stock.capacity) : null, e.mega ? 'ZORA PICK' : null]);
+  };
   const Card = ({ e, i }: { e: Ev; i: number }) => (
-    <a
-      className="zd-card"
+    <EventCard
       href={hrefFor(e)}
-      data-event-card
-      onClick={(ev) => { ev.preventDefault(); openTicket(i); }}
-    >
-      <div className="zd-cover">
-        {e.cover ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="zd-cover-img" src={e.cover} alt={e.t} loading="lazy" />
-        ) : (
-          <span className="zd-cover-word" aria-hidden>{e.t}</span>
-        )}
-        {e.mega ? <span className="zd-badge zp-chip--zora-pick">ZORA PICK</span> : null}
-      </div>
-      <div className="zd-card-body">
-        <span className="zd-when">{(e.date + (e.time ? ` · ${e.time}` : '')).toUpperCase()}</span>
-        <h3 className="zd-card-t">{e.t}</h3>
-        <span className="zd-where">{[e.venue, cityLabel(e)].filter(Boolean).join(' · ')}</span>
-        <div className="zd-card-foot">
-          <span className="zd-price">From {money(e)}</span>
-          {e.splittable ? <span className="zd-plan">Split with Tuchange</span> : null}
-        </div>
-        <span className="zd-get">
-          GET PASSES<span aria-hidden="true">→</span>
-        </span>
-      </div>
-    </a>
+      name={e.t}
+      artwork={e.cover || undefined}
+      dateLabel={e.date}
+      time={e.time}
+      venue={e.venue}
+      city={cityLabel(e)}
+      priceFrom={e.price ? money(e) : undefined}
+      status={statusOf(e)}
+      installmentHint={e.splittable ? 'Split with Tuchange' : undefined}
+      onClick={(ev) => {
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+        ev.preventDefault();
+        openTicket(i);
+      }}
+    />
   );
 
   const Skeletons = ({ n = 6 }: { n?: number }) => (
