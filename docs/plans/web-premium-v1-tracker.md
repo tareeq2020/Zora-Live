@@ -32,7 +32,7 @@ Last updated: 2026-10-31
 | BS118 | Seat-map + installments migrations numbers reserved; feature-flag helper (`core/flags.ts`, settings-backed) | R0 | 0 | BS116 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/195 | migrations reserved: 0028 seats · 0029 analytics · 0030 ticket design · 0031 installments |
 | BS119 | Design system everywhere: handoff tokens on every buyer page, retire legacy fonts, rewrite DESIGN.md, copy pass | R1 | A | BS115 | F1, DD1 | todo | | |
 | BS120 | Shared event card (storefront + discover), city, status chip rules, installment hint | R1 | A | BS119 | F2, DD2 | todo | | |
-| BS121 | Checkout API: subtotal/fee/currency in response; payment-method groups endpoint | R2 | A | BS116 | A8 | todo | | |
+| BS121 | Checkout API: subtotal/fee/currency in response; payment-method groups endpoint | R2 | A | BS116 | A8 | merged | https://github.com/tareeq2020/Zora-Live/pull/196 | checkout-http e2e PASS |
 | BS122 | Checkout v2 UI: 2 steps, summary column, artwork, fee line, methods Mobile/Card/QR | R2 | A | BS120, BS121 | F3, DD6 | todo | | |
 | BS123 | Analytics capture: beacon + `analytics_daily` / `analytics_visitor_day`, server events (payment_completed, checkout_abandoned), purge job | R2 | C | BS115, BS118 | F4, A10, A11, A22 | todo | | |
 | BS124 | Seat inventory: migration, generation from published plan, versioned diff + 409 guard | R3 | B | BS116, BS118 | F5, A6, A7, A21 | todo | | |
