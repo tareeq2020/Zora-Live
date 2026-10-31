@@ -168,7 +168,7 @@ export interface InstallmentBinding {
 
 /** Thrown for a refused installment attempt; `code` is the API error. */
 export class InstallmentAttemptRefused extends Error {
-  constructor(public readonly code: string, message?: string) {
+  constructor(public readonly code: string, message?: string, public readonly retryAfterSecs?: number) {
     super(message ?? code);
     this.name = 'InstallmentAttemptRefused';
   }
@@ -210,8 +210,14 @@ export async function planInstallmentAttempt(sql: Sql, orderId: string, orderSta
  * while another attempt for that row is still in flight (the buyer would be
  * pushed twice and could pay twice).
  */
+/** x-bridge caps mobile-money pushes at 3 per receivable per 10 minutes (BS133).
+    Enforced here, under the plan lock, for both rails — a refused push is a clear
+    error now instead of a gateway rejection later. */
+export const PUSH_LIMIT = 3;
+export const PUSH_WINDOW_SECS = 600;
+
 export async function openInstallmentAttempt(
-  sql: Sql, orderId: string, binding: InstallmentBinding, method: string, fspId: string,
+  sql: Sql, orderId: string, binding: InstallmentBinding, method: string, fspId: string, provider: string | null = null,
 ): Promise<string> {
   return tx(async (t: Sql) => {
     const [plan] = await t`select status from installment_plan where order_id = ${orderId}::uuid for update`;
@@ -227,11 +233,23 @@ export async function openInstallmentAttempt(
     if (inflight.length) {
       throw new InstallmentAttemptRefused('installment_attempt_in_flight', 'a payment for this installment is already in progress — approve or cancel it first');
     }
+    if (method === 'mobile') {
+      const [{ pushes, oldest }] = await t`
+        select count(*)::int as pushes, min(created_at) as oldest from payment_transaction
+         where order_id = ${orderId}::uuid and method = 'mobile' and schedule_n is not null
+           and created_at > now() - make_interval(secs => ${PUSH_WINDOW_SECS})`;
+      if (pushes >= PUSH_LIMIT) {
+        const retryAfter = Math.max(1, Math.ceil(PUSH_WINDOW_SECS - (Date.now() - new Date(oldest).getTime()) / 1000));
+        throw new InstallmentAttemptRefused('push_rate_limited',
+          `too many mobile-money prompts for this order — try again in ${Math.ceil(retryAfter / 60)} min, or pay by control number`,
+          retryAfter);
+      }
+    }
     const [{ k }] = await t`select count(*)::int as k from payment_transaction where order_id = ${orderId}::uuid`;
     const transactionId = `ZORA-${orderId}-${k + 1}`;
     await t`
-      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status, schedule_n)
-      values (${orderId}::uuid, ${transactionId}, ${method}, ${fspId}, ${binding.amount}, 'created', ${binding.n})`;
+      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status, schedule_n, provider)
+      values (${orderId}::uuid, ${transactionId}, ${method}, ${fspId}, ${binding.amount}, 'created', ${binding.n}, ${provider})`;
     return transactionId;
   }, sql);
 }

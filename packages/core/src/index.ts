@@ -219,8 +219,19 @@ export type {
 export {
   readInstallmentConfig, upsertInstallmentConfig, eventInstallmentContext, createInstallmentOrder,
   hasInstallmentPlan, planInstallmentAttempt, openInstallmentAttempt, applyInstallmentOutcome,
-  installmentSummary, InstallmentAttemptRefused,
+  installmentSummary, InstallmentAttemptRefused, PUSH_LIMIT, PUSH_WINDOW_SECS,
 } from './payments/installments';
 export type {
   CreateInstallmentOrderInput, CreateInstallmentOrderResult, InstallmentBinding, InstallmentSummary,
 } from './payments/installments';
+// BS133: installment provider adapter (x-bridge /v1 receivables; /collection/* + mock today).
+export {
+  createReceivable, payInstallment, parseWebhook, handleReceivableWebhook, signReceivableWebhook,
+  installmentRail, installmentProviderName, receivableWebhookSecret, RECEIVABLE_EVENTS,
+} from './payments/installments-provider';
+export type {
+  InstallmentRail, PayInstallmentInput, ReceivableEvent, ReceivableEventType, ParseWebhookResult, ReceivableWebhookResult,
+} from './payments/installments-provider';
+export { collectViaCollectionApi } from './payments/service';
+export type { CollectAttemptInput, CollectAttemptResult } from './payments/service';
+export { xbridgeRequest, XbridgeHttpError } from './payments/xbridge';
