@@ -364,6 +364,7 @@ export default function StorefrontClient(props: StorefrontProps) {
             open={open}
             onClose={() => setOpen(false)}
             eventName={active?.name || ''}
+            eventId={active?.id}
             when={activeWhen}
             tiers={webTiers}
             accent={accent}

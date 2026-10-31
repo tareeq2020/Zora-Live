@@ -4,6 +4,7 @@ import { GetTicketButton } from './event-cta';
 import type { CheckoutTier } from '../../../components/checkout-flow';
 import styles from './event-page.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
+import { SEATMAP_ENABLED } from '@/app/lib/flags';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
 // slug alias in the API's getEvent, the flagship URL /events/offshore). Lives
@@ -123,7 +124,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
             {cur} {price}
           </b>
         </span>
-        {ev.seated ? (
+        {ev.seated && SEATMAP_ENABLED ? (
           <Link
             href={`/events/${params.id}/seats`}
             style={{
@@ -140,7 +141,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
             CHOOSE YOUR SEATS →
           </Link>
         ) : (
-          <GetTicketButton eventName={ev.name} when={when} tiers={ev.webCheckout?.tiers} />
+          <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} />
         )}
       </div>
 

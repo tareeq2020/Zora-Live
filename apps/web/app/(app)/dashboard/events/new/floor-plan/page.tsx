@@ -345,7 +345,7 @@ const SCRIPT = String.raw`
     if(EVENT_ID && zones.some(z=>!z.tierId)){ toast('Link every zone to a ticket tier before publishing'); return; }
     const cap=zones.reduce((a,z)=>a+capOf(z),0);
     try{
-      const r=await fetch(planApi,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ space:{w:1600,h:900}, zones })});
+      const r=await fetch(planApi,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({ space:{w:1600,h:900}, zones })});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
       toast('Published live — '+zones.length+' zones, '+fmt(cap)+' seats. Buyers see it now.');
     }catch(err){ toast('Publish failed: '+(err.message||err)); }

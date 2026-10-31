@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
+  productRoutePattern,
   sanitizeProductAnalyticsProperties,
   type ProductAnalyticsEvent,
   type ProductAnalyticsProperties,
@@ -50,23 +51,19 @@ export function trackProductEvent(event: ProductAnalyticsEvent, properties: Prod
   }).catch(() => {});
 }
 
+// Install the global at module load (before any component effect runs), so
+// child effects such as seat-map's `web_seatmap_opened` are never dropped.
+if (typeof window !== 'undefined') window.zoraTrack = trackProductEvent;
+
 export default function ProductAnalytics() {
   const pathname = usePathname();
-  const search = useSearchParams();
-
-  useEffect(() => {
-    window.zoraTrack = trackProductEvent;
-    return () => {
-      if (window.zoraTrack === trackProductEvent) delete window.zoraTrack;
-    };
-  }, []);
 
   useEffect(() => {
     if (!pathname) return;
-    trackProductEvent('web_page_viewed', {
-      route: pathname + (search?.toString() ? `?${search.toString()}` : ''),
-    });
-  }, [pathname, search]);
+    // Route PATTERN only (/join/[token]), never the raw path or query string:
+    // dynamic segments carry invite tokens and pass codes.
+    trackProductEvent('web_page_viewed', { route: productRoutePattern(pathname) });
+  }, [pathname]);
 
   return null;
 }

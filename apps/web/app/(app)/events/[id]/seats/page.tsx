@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { SEATMAP_ENABLED } from '@/app/lib/flags';
 import { SeatMap } from './seat-map';
 
 // /events/:id/seats — the real, event-scoped seat-selection route that replaces
@@ -13,5 +15,8 @@ export const metadata: Metadata = {
 };
 
 export default function SeatsPage({ params }: { params: { id: string } }) {
+  // BS115: seat availability is still placeholder data — keep buyers off the map
+  // until real inventory ships (flag OFF by default).
+  if (!SEATMAP_ENABLED) redirect(`/events/${encodeURIComponent(params.id)}`);
   return <SeatMap eventId={params.id} />;
 }

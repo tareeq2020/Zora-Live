@@ -4,6 +4,7 @@ import { GetTicketButton } from '../../../../events/[id]/event-cta';
 import type { CheckoutTier } from '../../../../../components/checkout-flow';
 import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
+import { SEATMAP_ENABLED } from '@/app/lib/flags';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. Zora consumer
 // DARK canvas + Space Grotesk/Inter (the system every consumer screen uses); the
@@ -193,10 +194,10 @@ export default async function TenantEventPage({ params }: { params: { handle: st
           {tiers.length > 0 ? null : (
             <span><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{cur} {price}</b></span>
           )}
-          {ev.seated ? (
+          {ev.seated && SEATMAP_ENABLED ? (
             <Link href={`/events/${encodeURIComponent(ev.id)}/seats`} className={styles.seatsCta}>CHOOSE YOUR SEATS →</Link>
           ) : (
-            <GetTicketButton eventName={ev.name} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
+            <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
           )}
         </div>
 

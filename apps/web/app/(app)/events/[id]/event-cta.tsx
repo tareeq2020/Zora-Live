@@ -13,11 +13,13 @@ import { trackProductEvent } from '../../../components/product-analytics';
        seat-selection link instead). */
 export function GetTicketButton({
   eventName,
+  eventId,
   when,
   tiers,
   accent,
 }: {
   eventName: string;
+  eventId?: string;
   when?: string;
   tiers?: CheckoutTier[];
   /** Organizer brand accent — the CTA + checkout wear it on a branded storefront.
@@ -35,7 +37,7 @@ export function GetTicketButton({
         type="button"
         onClick={() => {
           if (webSellable) {
-            trackProductEvent('web_event_cta_clicked', { eventName, source: 'event_page' });
+            trackProductEvent('web_event_cta_clicked', { eventId, eventName, source: 'event_page' });
             setOpen(true);
           } else {
             setToast(true);
@@ -62,6 +64,7 @@ export function GetTicketButton({
           open={open}
           onClose={() => setOpen(false)}
           eventName={eventName}
+          eventId={eventId}
           when={when}
           tiers={webTiers}
           accent={accent}
