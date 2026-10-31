@@ -13,6 +13,9 @@ import type { SessionMembership } from '../common/session-cookie';
 import { AuditService } from '../audit/audit.module';
 import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import { HANDLE_MAX, handleIssue, handleIssueMessage, normalizeHandle } from '../common/handles';
+import { resolveSessionSecret } from '../common/secret';
+import { verifyTicket } from '../auth/google-flow';
+import { SIGNUP_COOKIE, SIGNUP_PATH, readCookie } from '../auth/google-admin.controller';
 
 /* BS95 (auth Phase 3.5, D4): the synthetic email a signup with no real email gets,
    so every organizer yields a real app_user — MATCHES db/backfill-users.mjs. */
@@ -20,11 +23,14 @@ const EMAIL_FALLBACK_DOMAIN = 'handles.zorapass';
 
 /* BS41 (#4) — ORGANIZER SELF-REGISTRATION over phone-OTP.
 
-   Google OAuth is deliberately absent (LOCKED, deferred): phone is the identity
-   that actually works here, and OAuth is the one genuinely new dependency in the
-   lane. This endpoint is shaped so the provider slots in later behind the same
-   POST without a rewrite — swap "prove the phone" for "prove the Google sub" and
-   everything after it is unchanged.
+   BS148 (owner request 2026-10-31): Google now slots in ALONGSIDE the phone, not
+   instead of it. "Continue with Google" on /dashboard/signup goes through the
+   shared /api/auth/google flow; on a verified identity with no organizer account
+   it parks { sub, email, name } in a short-lived HMAC-signed cookie
+   (zora_g_signup, path /api/org). GET /api/org/google-signup lets the page
+   pre-fill + lock the email/name; POST /api/org/register then takes the email
+   FROM THE TICKET (never the body) and links the sub to the owner user. The phone
+   OTP below is still required — phone stays the verified identity.
 
    The OTP is NOT re-implemented. The code is requested through the existing
    consumer endpoint POST /api/otp/request (same throttle, same SMS sender, same
@@ -66,6 +72,15 @@ export class OrgRegisterController {
       return { handle, available: false, reason: 'taken', message: handleIssueMessage('taken') };
     }
     return { handle, available: true, reason: null, message: `zorapass.com/${handle} is yours.` };
+  }
+
+  /* ── GET /api/org/google-signup (BS148) ─────────────────────────────────────
+     The verified Google identity parked by the callback, for the signup page to
+     pre-fill + lock. { email: null } when there is none (or it expired). */
+  @Get('google-signup')
+  googleSignup(@Req() req: Request) {
+    const t = verifyTicket(resolveSessionSecret(), readCookie(req, SIGNUP_COOKIE));
+    return t ? { email: t.email, name: t.name } : { email: null, name: null };
   }
 
   /* ── POST /api/org/register ───────────────────────────────────────────────
@@ -118,7 +133,9 @@ export class OrgRegisterController {
     }
     const passwordHash = rawPassword ? bcrypt.hashSync(rawPassword, 10) : null;
 
-    const email = body?.email ? String(body.email).trim().slice(0, 160) : null;
+    // BS148: a Google signup ticket fixes the email to what Google verified.
+    const google = verifyTicket(resolveSessionSecret(), readCookie(req, SIGNUP_COOKIE));
+    const email = google ? google.email : body?.email ? String(body.email).trim().slice(0, 160) : null;
 
     // ── prove the phone (single-use; consumed here) ──
     const code = String(body?.code ?? '');
@@ -170,6 +187,11 @@ export class OrgRegisterController {
       username: org.handle,
     });
     await this.members.addMember({ userId: ownerUser.id, organizerId: org.id, role: 'owner' });
+    if (google) {
+      // Future Google sign-ins match by sub first (migration 0034).
+      await this.authUsers.setGoogleSub(ownerUser.id, google.sub);
+      res.clearCookie(SIGNUP_COOKIE, { path: SIGNUP_PATH });
+    }
 
     // The session now ALSO carries the new user + membership so Phase-2 login/roles
     // resolve cleanly (the legacy organizerHandle/role/kycStatus fields stay put so
@@ -193,7 +215,7 @@ export class OrgRegisterController {
       kycStatus: org.kycStatus ?? undefined,
     });
 
-    await this.audit.record('org_self_register', `${org.name} (${org.handle}) · pending verification`, req.ip, org.handle);
+    await this.audit.record('org_self_register', `${org.name} (${org.handle}) · pending verification${google ? ' · via Google' : ''}`, req.ip, org.handle);
 
     return {
       ok: true,
