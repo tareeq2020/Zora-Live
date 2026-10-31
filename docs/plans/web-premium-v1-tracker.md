@@ -27,7 +27,7 @@ Last updated: 2026-10-31
 | — | Sync origin/develop with mirror (Reli-Tech #1–#16) | R0 | — | — | F0.6 | released | — | pushed 485af35 to origin/develop 2026-10-31 |
 | BS114 | Plan, tracker, design handoff into repo | R0 | — | — | — | merged | https://github.com/tareeq2020/Zora-Live/pull/193 | docs only |
 | BS115 | Safety fixes: analytics route pattern + sanitiser allowlist + eventId; floor-plan auth; GA capacity read; seat-map buyer flag; cr-tokens names/font | R0 | 0 | — | F0.1–F0.5, A9 | todo | | |
-| BS116 | Order-status single owner (`core/order-status.ts`) + migrate paid-literal callers + regression e2e | R0 | 0 | — | A1, IRON RULE | todo | | must merge before any lane touches money/scan |
+| BS116 | Order-status single owner (`core/order-status.ts`) + migrate paid-literal callers + regression e2e | R0 | 0 | — | A1, IRON RULE | merged | https://github.com/tareeq2020/Zora-Live/pull/197 | 10 statuses, 9 predicates; 6 money e2e PASS before+after. F7 must land A16 before producing installment_active |
 | BS117 | Mobile: Nest attendee entry (drop Supabase) — merge `codex/week3-mobile-nest-attendee-entry` | R0 | 0 | — | F0.6 | merged | https://github.com/tareeq2020/Zora-Live/pull/194 | mobile typecheck not run (deps) |
 | BS118 | Seat-map + installments migrations numbers reserved; feature-flag helper (`core/flags.ts`, settings-backed) | R0 | 0 | BS116 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/195 | migrations reserved: 0028 seats · 0029 analytics · 0030 ticket design · 0031 installments |
 | BS119 | Design system everywhere: handoff tokens on every buyer page, retire legacy fonts, rewrite DESIGN.md, copy pass | R1 | A | BS115 | F1, DD1 | todo | | |
