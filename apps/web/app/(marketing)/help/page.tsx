@@ -17,7 +17,7 @@ const CSS = `
     --black:#0A0A0B; --ink:#101012; --ink2:#16161A; --hair:#26262B; --hair2:#33333A;
     --bone:#F4F1EA; --mut:#8A877E; --mut2:#B4B1A8;
     --blue:#3D5AFE; --bluewash:#161B3A; --green:#2FA9A0;
-    --sans:'Archivo',system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+    --sans:var(--zp-font-family-sans); --mono:'IBM Plex Mono',monospace;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -109,7 +109,7 @@ export default function HelpPage() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />

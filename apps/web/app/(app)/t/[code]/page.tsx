@@ -33,8 +33,8 @@ async function loadPassRefs(code: string): Promise<string[]> {
 }
 
 export function generateMetadata({ params }: { params: { code: string } }): Metadata {
-  const title = `Your Zora pass · ${params.code}`;
-  const description = 'Claim your pass in the Zora app, or use a basic web pass.';
+  const title = `Your ZoraPass · ${params.code}`;
+  const description = 'Claim your pass in the ZoraPass app, or use a basic web pass.';
   const canonical = `/t/${params.code}`;
   return {
     title,
@@ -50,13 +50,15 @@ export default async function TicketLandingPage({ params }: { params: { code: st
   const code = params.code;
   const codes = await loadPassRefs(code);
   return (
-    <main className={styles.wrap}>
-      <p className={styles.eyebrow}>ZORA · YOUR PASS</p>
-      <PassClaim codes={codes} />
-      <div className={styles.foot}>
-        <span>runs on zora</span>
-        <Link href="/discover">← back to the marketplace</Link>
-      </div>
-    </main>
+    <div className={styles.page}>
+      <main className={styles.wrap}>
+        <p className={styles.eyebrow}>{codes.length > 1 ? 'YOUR PASSES' : 'YOUR PASS'}</p>
+        <PassClaim codes={codes} />
+        <div className={styles.foot}>
+          <span>ZORAPASS</span>
+          <Link href="/discover">← SEE WHAT&apos;S ON</Link>
+        </div>
+      </main>
+    </div>
   );
 }

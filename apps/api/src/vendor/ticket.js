@@ -106,6 +106,10 @@ function tearOff(y, W, pad, t) {
 
 /* ── the template ─────────────────────────────────────────────── */
 function ticketSVG(data = {}, opts = {}) {
+  // BS130: an organizer-branded pass only when the caller hands a resolved
+  // theme (flag zp_pass_design on). Without it the output is byte-identical
+  // to the classic Zora pass below.
+  if (opts.brand) return brandedTicketSVG(data, opts.brand);
   const t = THEMES[opts.theme === 'light' ? 'light' : 'dark'];
   const W = 760, H = 1180, pad = 52, R = 34;
   const innerW = W - pad * 2;
@@ -264,6 +268,189 @@ function ticketSVG(data = {}, opts = {}) {
 </svg>`;
 }
 
+/* ── BS130: the organizer-branded pass (ZoraPass handoff §6 + DD4) ───────────
+   A FIXED frame with organizer colour in three places only: the header band
+   (artwork / accent), the event name and the seat line. The tear line, the QR
+   block, the pass ID, the brightness hint and the ZoraPass mark never change.
+
+   `brand` = {
+     template: 'artwork_top' | 'classic_black' | 'full_colour',
+     accent, accentOnBlack, bgColor,        // from @zora/core resolveTheme
+     brandName, showFields: [...],
+     artworkDataUri, logoDataUri, eventLogoDataUri, sponsorDataUris: [...]
+   }  — images must already be data: URIs (an <img>-loaded SVG can't fetch). */
+const ZP = { black: '#111111', bone: '#F7F5EE', mut: '#BDBDBD', rule: '#4A4A4A', strip: '#1C1C1C' };
+const BSANS = "'Bricolage Grotesque','Space Grotesk','Segoe UI',Arial,sans-serif";
+const HEXRE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const isHex = (v) => HEXRE.test(String(v || ''));
+
+function hexLum(hex) {
+  let h = String(hex).slice(1);
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+// Same rule as core pickTextOn: bone or black at ≥4.5:1, else pure white/black.
+function inkOn(bg) {
+  if (!isHex(bg)) return ZP.bone;
+  const l = hexLum(bg);
+  const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  const black = ratio(l, hexLum(ZP.black));
+  const bone = ratio(l, hexLum(ZP.bone));
+  if (Math.max(black, bone) >= 4.5) return black >= bone ? ZP.black : ZP.bone;
+  return ratio(l, 0) >= ratio(l, 1) ? '#000000' : '#FFFFFF';
+}
+
+function initials(name) {
+  const w = String(name || '').trim().split(/\s+/).filter((x) => /[A-Za-z0-9]/.test(x));
+  if (!w.length) return '';
+  const ws = w.length > 1 && /^the$/i.test(w[0]) ? w.slice(1) : w;
+  return (ws.length > 1 ? ws[0][0] + ws[1][0] : ws[0].slice(0, 2)).toUpperCase();
+}
+
+function brandedTicketSVG(data = {}, brand = {}) {
+  const W = 760, R = 32, pad = 36;
+  const innerW = W - pad * 2;
+  const template = ['artwork_top', 'classic_black', 'full_colour'].includes(brand.template) ? brand.template : 'artwork_top';
+  const accent = isHex(brand.accent) ? brand.accent : '#FFD21F';
+  const show = new Set(Array.isArray(brand.showFields) ? brand.showFields : ['guest_name', 'seat', 'pass_type']);
+  const fill = template === 'classic_black' ? ZP.black : (isHex(brand.bgColor) ? brand.bgColor : accent);
+  const fillInk = inkOn(fill);
+  // body: black for artwork_top / classic_black, the brand fill for full_colour
+  const full = template === 'full_colour';
+  const bodyBg = full ? fill : ZP.black;
+  const bodyInk = full ? fillInk : ZP.bone;
+  const bodyMut = full ? fillInk : ZP.mut;
+  const brandInk = full ? fillInk : (isHex(brand.accentOnBlack) ? brand.accentOnBlack : accent);
+
+  const d = {
+    event: data.event || 'Untitled Event',
+    dateLabel: data.dateLabel || 'Date TBA',
+    venue: data.venue || 'Venue TBA',
+    guest: data.guest || '',
+    ticketId: data.ticketId || 'ZORA-0000-0000',
+    tier: data.tier || '',
+    seat: data.seat || (data.tableNo && data.tableNo !== '—' ? data.tableNo : ''),
+    dressCode: data.dressCode || '',
+    qr: data.qr || `zora://t/${data.ticketId || 'ZORA-0000-0000'}`,
+  };
+
+  const parts = [];
+  const defs = [];
+  const bandH = 300;
+
+  // ── header band (organizer zone 1) ──
+  parts.push(`<rect x="0" y="0" width="${W}" height="${bandH}" fill="${fill}"/>`);
+  if (template !== 'classic_black' && brand.artworkDataUri) {
+    defs.push(`<clipPath id="band"><rect x="0" y="0" width="${W}" height="${bandH}"/></clipPath>`);
+    parts.push(`<image x="0" y="0" width="${W}" height="${bandH}" href="${esc(brand.artworkDataUri)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#band)"/>`);
+  }
+  if (template === 'classic_black') {
+    parts.push(`<rect x="${pad}" y="${bandH - 8}" width="${innerW}" height="6" rx="3" fill="${accent}"/>`);
+  }
+  // organizer logo chip (top-right): the logo image, else the brand initials
+  const chipS = 88, chipX = W - pad - chipS, chipY = 24;
+  const logo = brand.eventLogoDataUri || brand.logoDataUri;
+  if (logo) {
+    defs.push(`<clipPath id="chip"><rect x="${chipX}" y="${chipY}" width="${chipS}" height="${chipS}" rx="20"/></clipPath>`);
+    parts.push(
+      `<rect x="${chipX}" y="${chipY}" width="${chipS}" height="${chipS}" rx="20" fill="${ZP.black}"/>`,
+      `<image x="${chipX}" y="${chipY}" width="${chipS}" height="${chipS}" href="${esc(logo)}" preserveAspectRatio="xMidYMid meet" clip-path="url(#chip)"/>`
+    );
+  } else if (initials(brand.brandName)) {
+    const chipBg = template === 'classic_black' ? accent : ZP.black;
+    const chipInk = template === 'classic_black' ? inkOn(accent) : (isHex(fill) && hexLum(fill) > 0.05 ? fill : ZP.bone);
+    parts.push(
+      `<rect x="${chipX}" y="${chipY}" width="${chipS}" height="${chipS}" rx="20" fill="${chipBg}"/>`,
+      `<text x="${chipX + chipS / 2}" y="${chipY + chipS / 2 + 11}" text-anchor="middle" font-family="${BSANS}" font-weight="800" font-size="32" fill="${chipInk}">${esc(initials(brand.brandName))}</text>`
+    );
+  }
+  // kind pill (bottom-left of the band): "<TIER> · ADMIT 1"
+  if (show.has('pass_type') && d.tier) {
+    const kind = `${d.tier.toUpperCase()} · ADMIT 1`;
+    const pw = Math.min(innerW, Math.round(kind.length * 16.4 + 40));
+    const pillBg = template === 'classic_black' ? accent : ZP.bone;
+    const pillInk = template === 'classic_black' ? inkOn(accent) : ZP.black;
+    parts.push(
+      `<rect x="${pad}" y="${bandH - 80}" width="${pw}" height="50" rx="25" fill="${pillBg}"/>`,
+      `<text x="${pad + 20}" y="${bandH - 47}" font-family="${MONO}" font-size="23" letter-spacing="2.6" fill="${pillInk}">${esc(kind)}</text>`
+    );
+  }
+
+  // ── info block (organizer zones 2 + 3: event name, seat line) ──
+  const infoTop = bandH;
+  const nameLines = wrap(d.event, budget(innerW, 52, true), 3);
+  const nameLH = 56;
+  const rows = [['DATE', d.dateLabel, false], ['VENUE', d.venue, false]];
+  if (show.has('seat') && d.seat) rows.push(['SEAT', String(d.seat).toUpperCase(), true]);
+  if (show.has('guest_name') && d.guest) rows.push(['NAME', d.guest, false]);
+  if (show.has('dress_code') && d.dressCode) rows.push(['DRESS', d.dressCode, false]);
+  const rowLH = 46;
+  const infoH = 32 + 44 + (nameLines.length - 1) * nameLH + 12 + rows.length * rowLH + 28;
+  parts.push(`<rect x="0" y="${infoTop}" width="${W}" height="${infoH}" fill="${bodyBg}"/>`);
+  let y = infoTop + 32 + 44;
+  parts.push(textBlock(nameLines, pad, y, nameLH, `font-family="${BSANS}" font-weight="800" font-size="52" letter-spacing="-1" fill="${brandInk}"`));
+  y += (nameLines.length - 1) * nameLH + 12;
+  const valX = pad + 148;
+  for (const [lab, val, isSeat] of rows) {
+    y += rowLH;
+    parts.push(
+      `<text x="${pad}" y="${y}" font-family="${MONO}" font-size="23" letter-spacing="1.8" fill="${bodyMut}">${esc(lab)}</text>`,
+      `<text x="${valX}" y="${y}" font-family="${MONO}" font-size="28" ${isSeat ? 'font-weight="600" ' : ''}fill="${isSeat ? brandInk : bodyInk}">${esc(wrap(val, budget(W - pad - valX, 28, false), 1)[0])}</text>`
+    );
+  }
+  y = infoTop + infoH;
+
+  // ── FIXED: tear line (2px dashed @1x, 16px notches cut into both edges) ──
+  const tearH = 32, tearY = y + tearH / 2;
+  parts.push(
+    `<rect x="0" y="${y}" width="${W}" height="${tearH}" fill="${ZP.black}"/>`,
+    `<line x1="${pad - 6}" y1="${tearY}" x2="${W - pad + 6}" y2="${tearY}" stroke="${ZP.rule}" stroke-width="4" stroke-dasharray="12 8"/>`
+  );
+  y += tearH;
+
+  // ── FIXED: QR block (white card, 16px padding @1x, mono pass id, hint) ──
+  const qrCard = 432, qrPad = 32, qrTop = y + 24;
+  const qrX = (W - qrCard) / 2;
+  const qrBlockH = 24 + qrCard + 136;
+  parts.push(
+    `<rect x="0" y="${y}" width="${W}" height="${qrBlockH}" fill="${ZP.black}"/>`,
+    `<rect x="${qrX}" y="${qrTop}" width="${qrCard}" height="${qrCard}" rx="24" fill="#FFFFFF"/>`,
+    qrRects(d.qr, qrX + qrPad, qrTop + qrPad, qrCard - qrPad * 2, ZP.black),
+    `<text x="${W / 2}" y="${qrTop + qrCard + 52}" text-anchor="middle" font-family="${MONO}" font-size="30" letter-spacing="2.4" fill="${ZP.bone}">${esc(d.ticketId)}</text>`,
+    `<text x="${W / 2}" y="${qrTop + qrCard + 98}" text-anchor="middle" font-family="${BSANS}" font-size="26" fill="${ZP.mut}">Turn your brightness up</text>`
+  );
+  y += qrBlockH;
+
+  // ── sponsor strip + FIXED ZoraPass mark ──
+  const stripH = 84;
+  parts.push(`<rect x="0" y="${y}" width="${W}" height="${stripH}" fill="${ZP.strip}"/>`);
+  const sponsors = (Array.isArray(brand.sponsorDataUris) ? brand.sponsorDataUris : []).filter(Boolean).slice(0, 4);
+  if (sponsors.length) {
+    parts.push(`<text x="${pad}" y="${y + 50}" font-family="${MONO}" font-size="20" letter-spacing="2.4" fill="${ZP.mut}">WITH</text>`);
+    sponsors.forEach((uri, i) => {
+      parts.push(`<image x="${pad + 80 + i * 116}" y="${y + 18}" width="104" height="48" href="${esc(uri)}" preserveAspectRatio="xMidYMid meet"/>`);
+    });
+  }
+  parts.push(`<text x="${W - pad}" y="${y + 52}" text-anchor="end" font-family="${BSANS}" font-weight="700" font-size="28" letter-spacing="-1" fill="${ZP.bone}">ZoraPass</text>`);
+  y += stripH;
+
+  const H = y;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${BSANS}" data-pass="branded" data-template="${template}">
+  <defs>
+    <mask id="notch"><rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF"/><circle cx="0" cy="${tearY}" r="16" fill="#000000"/><circle cx="${W}" cy="${tearY}" r="16" fill="#000000"/></mask>
+    <clipPath id="card"><rect x="0" y="0" width="${W}" height="${H}" rx="${R}"/></clipPath>
+    ${defs.join('\n    ')}
+  </defs>
+  <g clip-path="url(#card)"><g mask="url(#notch)">
+  ${parts.join('\n  ')}
+  </g></g>
+</svg>`;
+}
+
 /* ── rasterize to PNG ─────────────────────────────────────────── */
 async function ticketPNG(data = {}, opts = {}) {
   const svg = ticketSVG(data, opts);
@@ -277,4 +464,4 @@ async function ticketPNG(data = {}, opts = {}) {
   return resvg.render().asPng();
 }
 
-module.exports = { ticketSVG, ticketPNG, THEMES };
+module.exports = { ticketSVG, ticketPNG, brandedTicketSVG, THEMES };

@@ -5,9 +5,11 @@
    static public/thebrunchcity.html. Distinct from the single-event leaf
    (tenant.html at /@handle/events/:id): this is the organizer's own event
    INDEX. Content is data-driven (organizer + their events resolved from the
-   API); the design tokens are overridden by the published storefront theme.
+   API). BS119: styled on the ZoraPass handoff (bone ground, board black, signal
+   yellow, flat). The organizer supplies the name, logo and banner; their accent
+   colour no longer recolours the page chrome.
 
-   Client component: it owns the Zora checkout sheet (qty / honest no-fee
+   Client component: it owns the ZoraPass checkout sheet (qty / honest no-fee
    pricing / crew split / app-claim step) and the per-event countdowns, exactly
    as the original page did — just expressed as React state instead of imperative
    DOM. The server page (page.tsx) fetches and passes everything in as props. */
@@ -15,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
+import ViewBeacon from '@/app/components/view-beacon';
 
 export type StorefrontEvent = {
   id: string;
@@ -57,28 +60,22 @@ export type StorefrontProps = {
 };
 
 const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
-// Type is FIXED to the Zora consumer system (Space Grotesk / Inter); organizers
-// customise accent + assets, not fonts (STOREFRONT-BRAND-SPEC.md D2). The old
-// per-organizer FONTS map is retired.
+// Type is FIXED to the ZoraPass system (Bricolage Grotesque / Bungee / IBM Plex
+// Mono); organizers customise their name, logo and banner, not fonts or chrome
+// colour (STOREFRONT-BRAND-SPEC.md D2 + the BS119 handoff migration).
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const pad = (n: number) => String(n).padStart(2, '0');
-
-// Darken a hex color (matches the storefront's `shade()` for the accent-deep hover).
-function shade(hex: string, amt: number): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  let r = (n >> 16) & 255,
-    g = (n >> 8) & 255,
-    b = n & 255;
-  const f = amt < 0 ? 0 : 255,
-    p = Math.abs(amt);
-  r = Math.round((f - r) * p + r);
-  g = Math.round((f - g) * p + g);
-  b = Math.round((f - b) * p + b);
-  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-}
+// Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
+const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
+const money = (n: number, c: string) => `${curLabel(c)} ${fmt(n)}`;
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('') || 'Z';
 
 // Best-effort target date for the doors countdown. Events carry a human dateLabel
 // ("Sat 08 Aug") + time ("12:00") but no ISO — reconstruct a Date, rolling to next
@@ -106,7 +103,7 @@ function Countdown({ ev }: { ev: StorefrontEvent }) {
     const tick = () => {
       const d = target - Date.now();
       if (d <= 0) {
-        setLabel('HAPPENING NOW');
+        setLabel('LIVE NOW');
         return;
       }
       setLabel(
@@ -129,14 +126,12 @@ function Countdown({ ev }: { ev: StorefrontEvent }) {
 }
 
 // A poster tile that shows the WHOLE image (event flyers are portrait), never
-// cropped: a blurred, dimmed copy of the same image fills the frame behind, with
-// the full poster contained on top. Bordered, with a load fade-in + hover lift —
-// so partner/sponsor logos baked into the flyer stay fully visible.
-function Poster({ src, variant }: { src: string; variant: 'hero' | 'cover' }) {
+// cropped: the full poster is contained on a flat board-black frame (handoff:
+// artwork sits in a rectangle, never cropped into a brand shape, no blur).
+function Poster({ src, variant, alt }: { src: string; variant: 'hero' | 'cover'; alt: string }) {
   return (
     <div className={`poster ${variant}`}>
-      <div className="poster-bg" style={{ backgroundImage: `url("${src}")` }} aria-hidden />
-      <img className="poster-img" src={src} alt="" loading={variant === 'hero' ? 'eager' : 'lazy'} />
+      <img className="poster-img" src={src} alt={alt} loading={variant === 'hero' ? 'eager' : 'lazy'} />
     </div>
   );
 }
@@ -161,8 +156,9 @@ export default function StorefrontClient(props: StorefrontProps) {
     return () => window.removeEventListener('message', onMsg);
   }, []);
 
+  // The organizer accent is still handed to the live checkout (BS122 owns its
+  // redesign); it no longer recolours the storefront chrome.
   const accent = theme.accent || '#C46A28';
-  const accentDeep = shade(accent, -0.3);
 
   // ── checkout sheet state (faithful to the original) ──
   const [open, setOpen] = useState(false);
@@ -203,41 +199,18 @@ export default function StorefrontClient(props: StorefrontProps) {
     ? [active.dateLabel || 'TBA', active.time, active.venue].filter(Boolean).join(' · ').toUpperCase()
     : '';
 
-  // Per-org LIGHT mode (STOREFRONT-BRAND-SPEC.md D1a): an organizer opts in by
-  // saving BOTH bg + card in their theme. Then the whole canvas + derived text /
-  // hairline / nav tokens flip light; otherwise the fixed Zora consumer dark
-  // canvas holds. Fonts stay locked (D2); only the palette is the organizer's.
-  const light = !!(theme.bg && theme.card);
-  const rootStyle = {
-    ['--accent' as string]: accent,
-    ['--accent-deep' as string]: accentDeep,
-    ['--secondary' as string]: theme.secondary || '#1D6E56',
-    ['--paper' as string]: light ? theme.bg! : '#0A0B10',
-    ['--card' as string]: light ? theme.card! : '#11131E',
-    ['--ink' as string]: light ? '#14161F' : '#EDEFF7',
-    ['--mut' as string]: light ? '#5B6272' : '#9BA3C4',
-    ['--hair' as string]: light ? 'rgba(16,18,27,.12)' : 'rgba(255,255,255,.12)',
-    ['--nav-bg' as string]: light ? 'rgba(255,255,255,.82)' : 'rgba(10,11,16,.85)',
-    ['--display' as string]: "'Space Grotesk',system-ui,sans-serif",
-    ['--body' as string]: "'Inter',system-ui,sans-serif",
-  } as React.CSSProperties;
-
   return (
     <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
+      <ViewBeacon kind="storefront" org={handle} />
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
-      <div className="zora-sf" style={rootStyle}>
-        {/* ── client-branded nav ── */}
+      <div className="zora-sf">
+        {/* ── header: organizer name left, one quiet link right ── */}
         <nav>
           <div className="wrap nav-in">
             <a className="logo" href="#top">
-              <span
-                className="mark"
-                style={theme.logoUrl ? { background: `url(${theme.logoUrl}) center/cover no-repeat` } : undefined}
-              />
+              {theme.logoUrl ? (
+                <span className="mark" style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden />
+              ) : null}
               <span>{brandName}</span>
             </a>
             <div className="nav-actions">
@@ -246,31 +219,50 @@ export default function StorefrontClient(props: StorefrontProps) {
                   MANAGE
                 </Link>
               ) : null}
-              <a className="nav-cta" href="#events">
-                GET PASSES
+              <a className="nav-link" href="#events">
+                What&apos;s on
               </a>
             </div>
           </div>
         </nav>
 
-        {/* ── hero ── */}
+        {/* ── organizer band (black, per the storefront mockup) ── */}
         <header id="top">
-          <div className="wrap">
-            {theme.bannerUrl ? <Poster src={theme.bannerUrl} variant="hero" /> : null}
-            <p className="eyebrow">{eyebrow}</p>
-            <h1>{brandName}</h1>
-            <p className="lede">{lede}</p>
+          <div className="wrap band">
+            {theme.logoUrl ? (
+              <span className="badge badge-img" style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden />
+            ) : (
+              <span className="badge" aria-hidden>
+                {initials(brandName)}
+              </span>
+            )}
+            <div className="band-text">
+              <p className="eyebrow">{eyebrow}</p>
+              <h1>{brandName}</h1>
+              <p className="lede">{lede}</p>
+            </div>
+            {theme.bannerUrl ? (
+              <Poster src={theme.bannerUrl} variant="hero" alt={`${brandName} banner`} />
+            ) : (
+              <img className="stamp" src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg" alt="" aria-hidden="true" />
+            )}
           </div>
         </header>
 
         {/* ── events ── */}
         <section id="events">
           <div className="wrap">
-            <p className="sec-h">
-              UPCOMING — {events.length} EVENT{events.length === 1 ? '' : 'S'}
-            </p>
+            <div className="sec-row">
+              <h2 className="sec-h">WHAT&apos;S ON</h2>
+              <p className="sec-count">
+                {events.length} EVENT{events.length === 1 ? '' : 'S'}
+              </p>
+            </div>
             {events.length === 0 ? (
-              <p className="empty">No upcoming events right now — check back soon.</p>
+              <div className="empty">
+                <p className="empty-h">NOTHING HERE YET.</p>
+                <p>No upcoming events right now. Check back soon.</p>
+              </div>
             ) : (
               <div className="event-grid">
                 {events.map((ev) => {
@@ -285,43 +277,41 @@ export default function StorefrontClient(props: StorefrontProps) {
                     : null;
                   const fromPrice = cheapest ? cheapest.unitPrice : ev.priceFrom || 0;
                   const fromUsd = cheapest?.usd; // BS65: show the USD price in brackets
+                  const href = `/@${handle}/events/${encodeURIComponent(ev.id)}`;
                   return (
                     <article className="event" key={ev.id}>
-                      <Link className="event-cover" href={`/@${handle}/events/${encodeURIComponent(ev.id)}`} aria-label={ev.name}>
-                        {ev.cover ? <Poster src={ev.cover} variant="cover" /> : <div className="poster cover no-cover">{ev.name}</div>}
-                        <span className="status-chip">ON SALE</span>
+                      <Link className="event-cover" href={href} aria-label={ev.name}>
+                        {ev.cover ? (
+                          <Poster src={ev.cover} variant="cover" alt={ev.name} />
+                        ) : (
+                          <div className="poster cover no-cover">{ev.name}</div>
+                        )}
+                        <span className="chip zp-chip--on-sale">ON SALE</span>
                       </Link>
-                      <div className="event-top">
-                        <div>
-                          <p className="meta date">
-                            {(ev.dateLabel || 'TBA').toUpperCase()}
-                            {ev.time ? ` · ${ev.time}` : ''}
-                          </p>
-                          <p className="name">{ev.name}</p>
-                          <p className="meta">
-                            {(ev.venue || 'VENUE TBA').toUpperCase()}
-                            <br />
-                            {(ev.category || 'EVENT').toUpperCase()}
-                            {ev.seated ? ' · SEATED' : ' · GENERAL ADMISSION'}
-                          </p>
-                          <Countdown ev={ev} />
-                        </div>
-                        <div className="right">
-                          <p className="from">FROM</p>
-                          <p className="price">
-                            {fmt(fromPrice)}
-                            <span> {evCur}</span>
-                            {fromUsd ? <small> (${fmt(fromUsd)})</small> : null}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="event-bar">
-                        <Link className="details" href={`/@${handle}/events/${encodeURIComponent(ev.id)}`}>
-                          VIEW DETAILS
+                      <div className="event-body">
+                        <p className="meta date">
+                          {(ev.dateLabel || 'TBA').toUpperCase()}
+                          {ev.time ? ` · ${ev.time}` : ''}
+                        </p>
+                        <Link className="name" href={href}>
+                          {ev.name}
                         </Link>
-                        <button className="get" onClick={() => openCheckout(ev)}>
-                          GET PASSES →
+                        <p className="venue">{ev.venue || 'Venue to be announced'}</p>
+                        <p className="meta kind">
+                          {(ev.category || 'EVENT').toUpperCase()}
+                          {ev.seated ? ' · SEATED' : ' · GENERAL ADMISSION'}
+                        </p>
+                        <Countdown ev={ev} />
+                        <p className="price">
+                          From {money(fromPrice, evCur)}
+                          {fromUsd ? <small> (${fmt(fromUsd)})</small> : null}
+                        </p>
+                        <button type="button" className="get" onClick={() => openCheckout(ev)}>
+                          GET PASSES<span aria-hidden="true">→</span>
                         </button>
+                        <Link className="details" href={href}>
+                          Event details
+                        </Link>
                       </div>
                     </article>
                   );
@@ -342,19 +332,18 @@ export default function StorefrontClient(props: StorefrontProps) {
         {/* ── footer: the platform's trust furniture ── */}
         <footer>
           <div className="wrap foot">
-            <div className="runs">
-              RUNS ON{' '}
-              <span className="zmark">
-                <img
-                  src={light ? '/assets/zora-wordmark-black.png' : '/assets/zora-wordmark-white.png'}
-                  alt="Zora"
-                />
+            <p className="foot-line">YOUR PASS TO WHAT&apos;S ON.</p>
+            <div className="foot-meta">
+              <span className="runs">
+                RUNS ON <img src="/brand/logo/svg/zorapass-wordmark-chalk.svg" alt="ZoraPass" />
               </span>
+              <a className="foot-help" href="/help">
+                Help &amp; Support
+              </a>
+              <p className="legal">
+                © {new Date().getFullYear()} {brandName} · {subdomain}
+              </p>
             </div>
-            <a className="foot-help" href="/help">Help &amp; Support</a>
-            <p className="legal">
-              © {new Date().getFullYear()} {brandName} · {subdomain}
-            </p>
           </div>
         </footer>
 
@@ -371,22 +360,22 @@ export default function StorefrontClient(props: StorefrontProps) {
           />
         )}
 
-        {/* ═══ ZORA CHECKOUT SHEET (app-claim path; hidden when web-sellable) ═══ */}
+        {/* ═══ ZORAPASS CHECKOUT SHEET (app-claim path; hidden when web-sellable) ═══ */}
         <div className={'sheet' + (open && !webSellable ? ' on' : '')} onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
           {active ? (
-            <div className="checkout">
+            <div className="checkout" role="dialog" aria-modal="true" aria-label={`Get passes for ${active.name}`}>
               <div className="co-head">
                 <span className="secure">
-                  SECURE CHECKOUT · <b>ZORA</b>
+                  SECURE CHECKOUT · <b>ZORAPASS</b>
                 </span>
-                <button className="x" aria-label="Close" onClick={() => setOpen(false)}>
+                <button type="button" className="x" aria-label="Close" onClick={() => setOpen(false)}>
                   ×
                 </button>
               </div>
 
               {!paid ? (
                 <div className="co-body">
-                  <div className="co-welcome">A real Zora pass, issued on payment.</div>
+                  <div className="co-welcome">A real ZoraPass pass, issued on payment.</div>
                   <p className="co-event">{active.name}</p>
                   <p className="co-when">
                     {active.dateLabel || 'TBA'}
@@ -394,13 +383,15 @@ export default function StorefrontClient(props: StorefrontProps) {
                   </p>
 
                   <div className="qty">
-                    <span className="lab">Passes</span>
+                    <span className="lab">How many passes?</span>
                     <div className="ctrl">
-                      <button aria-label="Fewer" onClick={() => setQty((q) => Math.max(1, q - 1))}>
+                      <button type="button" aria-label="Fewer" onClick={() => setQty((q) => Math.max(1, q - 1))}>
                         −
                       </button>
-                      <span className="n">{qty}</span>
-                      <button aria-label="More" onClick={() => setQty((q) => Math.min(10, q + 1))}>
+                      <span className="n" aria-live="polite">
+                        {qty}
+                      </span>
+                      <button type="button" aria-label="More" onClick={() => setQty((q) => Math.min(10, q + 1))}>
                         +
                       </button>
                     </div>
@@ -409,45 +400,40 @@ export default function StorefrontClient(props: StorefrontProps) {
                   <div className="honest">
                     <div className="line">
                       <span className="lbl">
-                        {qty} × {fmt(unit)} {cur}
+                        {qty} × {money(unit, cur)}
                       </span>
-                      <span className="val">
-                        {fmt(total)} {cur}
-                      </span>
+                      <span className="val">{money(total, cur)}</span>
                     </div>
                     <div className="total">
                       <span className="lbl">Total</span>
-                      <span className="val">
-                        {fmt(total)} {cur}
-                      </span>
+                      <span className="val">{money(total, cur)}</span>
                     </div>
                   </div>
-                  <div className="crew-toggle" onClick={() => setCrew((c) => !c)}>
+                  <button type="button" className="crew-toggle" aria-pressed={crew} onClick={() => setCrew((c) => !c)}>
                     <span className="ic">6</span>
-                    <div className="ct">
-                      <p className="tt">Split with your crew</p>
-                      <p className="td">Everyone pays their own share. Card or mobile money.</p>
-                    </div>
-                    <span className={'switch' + (crew ? ' on' : '')} />
-                  </div>
+                    <span className="ct">
+                      <span className="tt">Split with Tuchange</span>
+                      <span className="td">Each person pays their own share from their phone.</span>
+                    </span>
+                    <span className={'switch' + (crew ? ' on' : '')} aria-hidden />
+                  </button>
                   <div className={'crew-detail' + (crew ? ' on' : '')}>
                     <div className="split-line">
                       <span>Your share now</span>
-                      <span className="share">
-                        {fmt(Math.round(total / 6))} {cur}
-                      </span>
+                      <span className="share">{money(Math.round(total / 6), cur)}</span>
                     </div>
                     <div className="split-line">
                       <span>5 invites sent on WhatsApp</span>
                       <span>15 min hold</span>
                     </div>
                     <div style={{ marginTop: 8 }}>
-                      Each friend installs Zora and pays their share. Passes issue when the sixth lands.
+                      Each friend installs ZoraPass and pays their share. Passes issue when the sixth lands.
                     </div>
                   </div>
 
-                  <button className="pay" onClick={pay}>
-                    PAY {fmt(total)} {cur}
+                  <button type="button" className="pay" onClick={pay}>
+                    <span>GET PASSES</span>
+                    <span className="pay-amt">{money(total, cur)}</span>
                   </button>
                   <div className="methods">
                     <span>M-PESA</span>
@@ -459,19 +445,19 @@ export default function StorefrontClient(props: StorefrontProps) {
                 </div>
               ) : (
                 <div className="claim on">
-                  <div className="tick">✓</div>
-                  <h3>Paid. You&apos;re on the list.</h3>
+                  <img className="claim-stamp" src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg" alt="" aria-hidden="true" />
+                  <h3>YOU&apos;RE IN.</h3>
                   <p className="code">{orderRef.current}</p>
                   <p>
-                    Your pass is a live object — and it&apos;s{' '}
-                    <span className="waiting">waiting for you in the Zora app.</span> Claiming takes thirty seconds and
-                    unlocks faster entry, resale, and crew split.
+                    Your pass is{' '}
+                    <span className="waiting">waiting for you in the ZoraPass app.</span> Claiming takes thirty seconds and
+                    unlocks faster entry, resale and split payments.
                   </p>
                   <div className="stores">
                     <span className="store">CLAIM ON APP STORE</span>
                     <span className="store">CLAIM ON GOOGLE PLAY</span>
                   </div>
-                  <button className="web" onClick={() => setOpen(false)}>
+                  <button type="button" className="web" onClick={() => setOpen(false)}>
                     or use a basic web pass →
                   </button>
                 </div>
@@ -484,141 +470,166 @@ export default function StorefrontClient(props: StorefrontProps) {
   );
 }
 
+/* ZoraPass handoff, scoped to .zora-sf. FIXED light (bone): primitive tokens only,
+   because <html data-theme> defaults to dark and would flip the semantic --zp-*. */
 const STYLE = `
-.zora-sf{--z-black:var(--zp-color-board-black);--z-bone:var(--zp-color-bone);--z-blue:var(--zp-color-signal-yellow);--z-hair:var(--zp-color-line-light);--z-mut:var(--zp-color-ink-500);--ink:var(--zp-color-board-black);--mut:var(--zp-color-ink-500);--hair:var(--zp-color-line-light);--mono:var(--zp-font-mono);--display:var(--zp-font-display);--body:var(--zp-font-sans);background:var(--zp-color-bone);color:var(--zp-color-board-black);font-family:var(--zp-font-sans);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;min-height:100vh}
+.zora-sf{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sf *{margin:0;padding:0;box-sizing:border-box}
 .zora-sf a{color:inherit;text-decoration:none}
-.zora-sf ::selection{background-color:var(--accent);color:#fff}
+.zora-sf ::selection{background-color:var(--yl);color:var(--bk)}
+.zora-sf :focus-visible{outline:3px solid var(--bk);outline-offset:2px}
 .zora-sf .wrap{max-width:var(--zp-layout-container-max);margin:0 auto;padding:0 var(--zp-layout-gutter-mobile)}
 @media(min-width:768px){.zora-sf .wrap{padding:0 var(--zp-layout-gutter-tablet)}}
 @media(min-width:1100px){.zora-sf .wrap{padding:0 var(--zp-layout-gutter-desktop)}}
 
-.zora-sf nav{border-bottom:1px solid var(--hair);position:sticky;top:0;background:var(--nav-bg);backdrop-filter:blur(10px);z-index:40}
-.zora-sf .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
-.zora-sf .logo{display:flex;align-items:center;gap:11px;font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:-.01em}
-.zora-sf .logo .mark{width:26px;height:26px;border-radius:50%;background-color:var(--accent);flex-shrink:0}
-.zora-sf .nav-actions{display:flex;align-items:center;gap:14px}
-.zora-sf .nav-manage{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--ink);border:1px solid var(--hair);padding:10px 18px;border-radius:99px;transition:border-color .2s}
-.zora-sf .nav-manage:hover{border-color:var(--ink)}
-/* Storefront CTAs wear the ORGANIZER'S accent, not the global Zora aura
-   (STOREFRONT-BRAND-SPEC D6). zora-tokens.css forces .nav-cta to the aura with
-   !important, so this scoped rule (higher specificity) must also be !important to
-   win — otherwise GET PASSES renders magenta on every branded store. */
-.zora-sf .nav-cta{font-family:var(--zp-font-display);font-size:12px;letter-spacing:0;background:var(--zp-color-board-black) !important;background-image:none !important;color:var(--zp-color-signal-yellow) !important;padding:13px 20px;border-radius:var(--zp-radius-lg);transition:background .2s,transform .2s}
-.zora-sf .nav-cta:hover{background:var(--zp-color-ink-800) !important;transform:translateY(-1px)}
+/* header */
+.zora-sf nav{border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bone);z-index:40}
+.zora-sf .nav-in{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
+.zora-sf .logo{display:flex;align-items:center;gap:12px;font-weight:700;font-size:22px;letter-spacing:-.02em;min-height:44px;min-width:0}
+.zora-sf .logo span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zora-sf .logo .mark{width:32px;height:32px;border-radius:8px;background:#fff center/cover no-repeat;border:1px solid var(--line);flex-shrink:0}
+.zora-sf .nav-actions{display:flex;align-items:center;gap:16px;flex-shrink:0}
+.zora-sf .nav-link{font-weight:700;font-size:16px;min-height:44px;display:inline-flex;align-items:center}
+.zora-sf .nav-link:hover{text-decoration:underline}
+.zora-sf .nav-manage{font-family:var(--mono);font-size:13px;letter-spacing:.08em;border:2px solid var(--bk);height:40px;min-width:44px;padding:0 16px;border-radius:var(--zp-radius-pill);display:inline-flex;align-items:center}
+.zora-sf .nav-manage:hover{background:var(--bk);color:var(--yl)}
 
-.zora-sf header{padding:80px 0 56px;border-bottom:1px solid var(--hair);background:var(--zp-surface-brand);color:var(--zp-color-board-black)}
-/* Poster tile — full flyer visible (contain) over a blurred fill of itself, so
-   nothing (incl. baked-in sponsor logos) is ever cropped. Border + load fade-in
-   + hover lift. */
-.zora-sf .poster{position:relative;overflow:hidden;border-radius:var(--zp-radius-lg);border:1px solid var(--hair);background:var(--zp-color-white);animation:posterIn .55s ease both;transition:transform .24s var(--zp-motion-easing-standard),border-color .24s var(--zp-motion-easing-standard)}
-.zora-sf .poster-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(18px) brightness(.92) saturate(1.05);transform:scale(1.18);opacity:.55}
-.zora-sf .poster-img{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain}
-.zora-sf .poster.hero{width:min(440px,86%);aspect-ratio:4/5;margin:0 auto 34px}
-.zora-sf .poster.hero:hover{transform:translateY(-4px);border-color:var(--zp-border-strong)}
-.zora-sf .poster.cover{height:auto;aspect-ratio:4/5;border-radius:var(--zp-radius-md);border:1px solid var(--hair);margin:8px;background:var(--zp-color-board-black)}
-.zora-sf .poster.cover .poster-img{transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-.zora-sf .poster.no-cover{display:flex;align-items:flex-end;padding:18px;font-family:var(--zp-font-display);font-size:26px;line-height:1;text-transform:uppercase;color:var(--zp-color-signal-yellow)}
-@keyframes posterIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.zora-sf .poster{animation:none}.zora-sf .poster.hero:hover,.zora-sf .poster.cover .poster-img{transform:none}}
-.zora-sf .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-600);margin-bottom:22px;text-transform:uppercase}
-.zora-sf h1{font-family:var(--zp-font-display);font-weight:400;font-size:clamp(42px,8vw,72px);line-height:.95;letter-spacing:0;max-width:14ch;text-transform:uppercase}
-.zora-sf h1 em{font-style:normal;color:inherit}
-.zora-sf .lede{font-size:clamp(16px,2vw,19px);color:var(--zp-color-ink-700);max-width:52ch;margin-top:26px;line-height:1.5}
+/* organizer band */
+.zora-sf header{background:var(--bk);color:var(--bone)}
+.zora-sf header :focus-visible{outline-color:var(--yl)}
+.zora-sf .band{display:flex;align-items:center;gap:16px;padding-top:24px;padding-bottom:24px}
+@media(min-width:768px){.zora-sf .band{gap:32px;padding-top:40px;padding-bottom:40px}}
+.zora-sf .badge{width:56px;height:56px;border-radius:12px;background:var(--yl);color:var(--bk);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:20px;flex-shrink:0;align-self:flex-start}
+.zora-sf .badge-img{background:#fff center/cover no-repeat}
+@media(min-width:768px){.zora-sf .badge{width:96px;height:96px;border-radius:16px;font-size:28px;align-self:center}}
+.zora-sf .band-text{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.zora-sf .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--yl);text-transform:uppercase}
+.zora-sf h1{font-weight:800;font-size:24px;letter-spacing:-.02em;line-height:1.08}
+@media(min-width:768px){.zora-sf h1{font-size:40px}}
+.zora-sf .lede{font-size:16px;color:var(--zp-color-ink-300);max-width:56ch;line-height:1.4}
+@media(min-width:768px){.zora-sf .lede{font-size:18px}}
+.zora-sf .stamp{width:128px;height:128px;transform:rotate(-10deg);flex-shrink:0;display:none}
+@media(min-width:768px){.zora-sf .stamp{display:block}}
 
-.zora-sf section{padding:70px 0}
-.zora-sf .sec-h{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut);margin-bottom:30px}
-.zora-sf .empty{color:var(--mut);font-family:var(--mono);font-size:13px;letter-spacing:.04em}
-.zora-sf .event-grid{display:grid;grid-template-columns:1fr;gap:18px}
-@media(min-width:680px){.zora-sf .event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(min-width:1040px){.zora-sf .event-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}}
-.zora-sf .event{background:var(--zp-color-white);border:1px solid var(--hair);border-radius:var(--zp-radius-lg);overflow:hidden;display:flex;flex-direction:column;min-height:100%;transition:border-color .24s var(--zp-motion-easing-standard),transform .24s var(--zp-motion-easing-standard)}
-.zora-sf .event:hover{border-color:var(--zp-border-strong);transform:translateY(-2px)}
-.zora-sf .event:hover .poster.cover .poster-img{transform:scale(1.035)}
+/* poster: full flyer contained on a flat black frame — never cropped, no blur */
+.zora-sf .poster{position:relative;overflow:hidden;background:var(--bk);animation:posterIn .24s var(--zp-motion-easing-standard) both}
+.zora-sf .poster-img{display:block;width:100%;height:100%;object-fit:contain;transition:transform .18s var(--zp-motion-easing-standard)}
+.zora-sf .poster.hero{display:none;width:200px;aspect-ratio:4/5;border-radius:var(--zp-radius-md);border:1px solid var(--zp-color-line-dark);flex-shrink:0}
+@media(min-width:768px){.zora-sf .poster.hero{display:block}}
+.zora-sf .poster.cover{aspect-ratio:4/5;width:100%}
+.zora-sf .poster.no-cover{display:flex;align-items:flex-end;padding:20px;font-family:var(--disp);font-size:24px;line-height:1.05;text-transform:uppercase;color:var(--yl)}
+@keyframes posterIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.zora-sf .poster{animation:none}.zora-sf .poster-img{transition:none}}
+
+/* events */
+.zora-sf section{padding:24px 0 48px}
+@media(min-width:768px){.zora-sf section{padding:32px 0 48px}}
+.zora-sf .sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.zora-sf .sec-h{font-family:var(--disp);font-weight:400;font-size:24px;line-height:1}
+@media(min-width:768px){.zora-sf .sec-h{font-size:32px}}
+.zora-sf .sec-count{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--mut)}
+.zora-sf .empty{display:flex;flex-direction:column;gap:8px;padding:32px 0}
+.zora-sf .empty-h{font-family:var(--disp);font-size:24px}
+.zora-sf .empty p:last-child{color:var(--mut)}
+.zora-sf .event-grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:680px){.zora-sf .event-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}}
+@media(min-width:1040px){.zora-sf .event-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.zora-sf .event{background:var(--zp-color-white);border:1px solid var(--line);border-radius:var(--zp-radius-lg);overflow:hidden;display:flex;flex-direction:column;transition:border-color .18s var(--zp-motion-easing-standard)}
+.zora-sf .event:hover{border-color:var(--bk)}
+.zora-sf .event:hover .poster-img{transform:scale(1.02)}
+@media(prefers-reduced-motion:reduce){.zora-sf .event:hover .poster-img{transform:none}}
 .zora-sf .event-cover{position:relative;display:block}
-.zora-sf .status-chip{position:absolute;left:20px;top:20px;z-index:5;display:inline-flex;align-items:center;min-height:30px;padding:0 12px;border-radius:var(--zp-radius-pill);border:2px solid var(--zp-color-board-black);background:var(--zp-color-signal-yellow);color:var(--zp-color-board-black);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.12em}
-.zora-sf .event-top{padding:20px;display:grid;grid-template-columns:1fr;gap:18px;align-items:start;flex:1}
-.zora-sf .event .name{font-family:var(--zp-font-sans);font-weight:800;font-size:clamp(21px,2.2vw,26px);letter-spacing:-.02em;line-height:1.05;margin-top:8px}
-.zora-sf .event .meta{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--mut);margin-top:10px;line-height:1.65}
-.zora-sf .event .meta.date{margin-top:0;color:var(--zp-color-board-black)}
-.zora-sf .event .meta b{color:var(--ink);font-weight:500}
-.zora-sf .event .right{text-align:left;margin-top:auto}
-.zora-sf .event .from{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.06em}
-.zora-sf .event .price{font-family:var(--mono);font-weight:600;font-size:20px;margin-top:4px}
-.zora-sf .event .price span{font-size:13px}.zora-sf .event .price small{font-size:12px;color:var(--mut)}
-.zora-sf .countdown{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--zp-color-ink-700);margin-top:14px}
-.zora-sf .event-bar{border-top:1px solid var(--hair);padding:16px 20px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.zora-sf .details{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut);transition:color .2s}
-.zora-sf .details:hover{color:var(--ink)}
-.zora-sf .get{font-family:var(--zp-font-display);font-size:12px;letter-spacing:0;background-color:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;min-height:44px;padding:0 18px;border-radius:var(--zp-radius-lg);cursor:pointer;transition:background .2s,transform .2s}
-.zora-sf .get:hover{background-color:var(--zp-color-ink-800);transform:translateY(-1px)}
+.zora-sf .chip{position:absolute;left:12px;top:12px;z-index:2;font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-radius:var(--zp-radius-pill);padding:6px 12px;line-height:1.2}
+.zora-sf .event-body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:6px;flex:1}
+.zora-sf .meta{font-family:var(--mono);font-size:13px;letter-spacing:.08em}
+.zora-sf .meta.kind{font-size:12px;letter-spacing:.12em;color:var(--mut)}
+.zora-sf .event .name{font-weight:700;font-size:20px;letter-spacing:-.02em;line-height:1.15}
+.zora-sf .event .name:hover{text-decoration:underline}
+.zora-sf .venue{font-size:14px;color:var(--mut)}
+.zora-sf .countdown{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-600)}
+.zora-sf .price{font-family:var(--mono);font-weight:600;font-size:16px;margin-top:auto;padding-top:8px}
+.zora-sf .price small{font-size:13px;font-weight:400;color:var(--mut)}
+.zora-sf .get{margin-top:12px;width:100%;height:48px;border:none;border-radius:var(--zp-radius-lg);background:var(--bk);color:var(--yl);display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--disp);font-size:20px;line-height:1;cursor:pointer;transition:background .12s}
+.zora-sf .get:hover{background:var(--zp-color-ink-600)}
+.zora-sf .get:active{transform:translateY(2px)}
+.zora-sf .details{align-self:center;font-weight:700;font-size:14px;min-height:44px;display:inline-flex;align-items:center;padding:0 8px}
+.zora-sf .details:hover{text-decoration:underline}
 
-.zora-sf .about{background:var(--card);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-.zora-sf .about .wrap{padding:64px 24px}
-.zora-sf .about h2{font-family:var(--display);font-weight:500;font-size:clamp(24px,3.5vw,36px);letter-spacing:-.01em;max-width:22ch}
-.zora-sf .about p{color:var(--mut);max-width:56ch;margin-top:18px}
+/* about */
+.zora-sf .about{background:var(--zp-color-white);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.zora-sf .about .wrap{padding-top:48px;padding-bottom:48px}
+.zora-sf .about h2{font-weight:700;font-size:24px;letter-spacing:-.02em;line-height:1.1;max-width:24ch}
+@media(min-width:768px){.zora-sf .about h2{font-size:32px}}
+.zora-sf .about p{color:var(--zp-color-ink-600);max-width:60ch;margin-top:16px;font-size:16px}
 
-.zora-sf footer{padding:50px 0}
-.zora-sf .foot{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
-.zora-sf .runs{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut)}
-.zora-sf .runs .zmark{display:inline-flex;align-items:center}
-.zora-sf .runs .zmark img{height:16px;width:auto;display:block;opacity:.9}
-.zora-sf .foot .foot-help{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut);text-decoration:none}
-.zora-sf .foot .foot-help:hover{color:var(--ink)}
-.zora-sf .foot .legal{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.06em}
+/* footer band */
+.zora-sf footer{background:var(--bk);color:var(--bone);padding:40px 0}
+.zora-sf footer :focus-visible{outline-color:var(--yl)}
+.zora-sf .foot{display:flex;flex-direction:column;gap:24px}
+.zora-sf .foot-line{font-family:var(--disp);font-size:24px;line-height:1.05}
+@media(min-width:768px){.zora-sf .foot-line{font-size:32px}}
+.zora-sf .foot-meta{display:flex;align-items:center;gap:8px 24px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--zp-color-ink-300)}
+.zora-sf .runs{display:inline-flex;align-items:center;gap:10px}
+.zora-sf .runs img{height:18px;width:auto;display:block}
+.zora-sf .foot-help{min-height:44px;display:inline-flex;align-items:center;color:var(--bone)}
+.zora-sf .foot-help:hover{text-decoration:underline}
+.zora-sf .legal{font-size:12px}
 
-.zora-sf .sheet{position:fixed;inset:0;background:rgba(10,10,11,.55);backdrop-filter:blur(4px);display:none;align-items:flex-end;justify-content:center;z-index:90}
+/* app-claim checkout sheet — dark surface, so the primary flips to yellow */
+.zora-sf .sheet{position:fixed;inset:0;background:var(--zp-overlay,rgba(17,17,17,.6));display:none;align-items:flex-end;justify-content:center;z-index:90}
 .zora-sf .sheet.on{display:flex}
 @media(min-width:680px){.zora-sf .sheet{align-items:center}}
-.zora-sf .checkout{background:var(--z-black);color:var(--z-bone);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:94vh;overflow-y:auto}
-@media(min-width:680px){.zora-sf .checkout{border-radius:18px}}
-.zora-sf .co-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--z-hair);position:sticky;top:0;background:var(--z-black)}
-.zora-sf .co-head .secure{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--z-mut)}
-.zora-sf .co-head .secure b{color:var(--z-bone);font-weight:500}
-.zora-sf .co-head .x{background:none;border:none;color:var(--z-mut);font-size:22px;cursor:pointer;line-height:1;padding:0}
+.zora-sf .checkout{background:var(--bk);color:var(--bone);width:100%;max-width:460px;border-radius:16px 16px 0 0;max-height:94vh;overflow-y:auto}
+@media(min-width:680px){.zora-sf .checkout{border-radius:16px}}
+.zora-sf .checkout :focus-visible{outline-color:var(--yl)}
+.zora-sf .co-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 12px 24px;border-bottom:1px solid var(--zp-color-line-dark);position:sticky;top:0;background:var(--bk)}
+.zora-sf .co-head .secure{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-300)}
+.zora-sf .co-head .secure b{color:var(--bone);font-weight:500}
+.zora-sf .co-head .x{background:none;border:none;color:var(--bone);font-size:24px;cursor:pointer;line-height:1;width:44px;height:44px}
 .zora-sf .co-body{padding:24px}
-.zora-sf .co-welcome{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--z-blue);border:1px solid var(--z-blue);border-radius:8px;padding:11px 14px;margin-bottom:22px}
-.zora-sf .co-event{font-weight:600;font-size:19px;letter-spacing:-.01em}
-.zora-sf .co-when{font-family:var(--mono);font-size:11.5px;color:var(--z-mut);letter-spacing:.06em;margin-top:6px}
-.zora-sf .qty{display:flex;align-items:center;justify-content:space-between;margin:26px 0 8px}
-.zora-sf .qty .lab{font-size:14px}
-.zora-sf .qty .ctrl{display:flex;align-items:center;gap:18px}
-.zora-sf .qty button{width:36px;height:36px;border-radius:50%;border:1px solid var(--z-hair);background:none;color:var(--z-bone);font-size:20px;cursor:pointer;line-height:1}
-.zora-sf .qty button:hover{border-color:var(--z-bone)}
-.zora-sf .qty .n{font-family:var(--mono);font-size:20px;min-width:24px;text-align:center}
-.zora-sf .honest{border-top:1px solid var(--z-hair);margin-top:20px;padding-top:20px}
-.zora-sf .honest .line{display:flex;justify-content:space-between;font-family:var(--mono);font-size:13.5px;padding:6px 0}
-.zora-sf .honest .line .lbl{color:var(--z-mut)}
-.zora-sf .honest .fees .val{color:var(--z-blue)}
-.zora-sf .honest .total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--z-hair);margin-top:10px;padding-top:16px}
-.zora-sf .honest .total .lbl{font-size:15px}
-.zora-sf .honest .total .val{font-family:var(--mono);font-size:26px;font-weight:500}
-.zora-sf .nofees{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--z-mut);text-align:center;margin-top:14px}
-.zora-sf .nofees b{color:var(--z-bone);font-weight:500}
-.zora-sf .crew-toggle{display:flex;align-items:center;gap:14px;background:#141416;border:1px solid var(--z-hair);border-radius:12px;padding:16px 18px;margin-top:22px;cursor:pointer}
-.zora-sf .crew-toggle .ic{width:38px;height:38px;border-radius:10px;background:rgba(61,90,254,.14);color:var(--z-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--mono);font-size:15px}
-.zora-sf .crew-toggle .ct{flex:1}
-.zora-sf .crew-toggle .ct .tt{font-size:14px;font-weight:500}
-.zora-sf .crew-toggle .ct .td{font-family:var(--mono);font-size:11px;color:var(--z-mut);letter-spacing:.04em;margin-top:3px}
-.zora-sf .switch{width:44px;height:26px;border-radius:99px;background:var(--z-hair);position:relative;transition:background .2s;flex-shrink:0}
-.zora-sf .switch.on{background:var(--z-blue)}
-.zora-sf .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--z-bone);transition:transform .2s}
-.zora-sf .switch.on::after{transform:translateX(18px)}
-.zora-sf .crew-detail{display:none;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--z-mut);line-height:1.9;border:1px dashed var(--z-hair);border-radius:10px;padding:16px 18px}
+.zora-sf .co-welcome{font-size:14px;color:var(--zp-color-ink-300);border:1px solid var(--zp-color-line-dark);border-radius:12px;padding:12px 16px;margin-bottom:24px}
+.zora-sf .co-event{font-weight:700;font-size:20px;letter-spacing:-.02em}
+.zora-sf .co-when{font-family:var(--mono);font-size:13px;color:var(--zp-color-ink-300);letter-spacing:.08em;margin-top:6px}
+.zora-sf .qty{display:flex;align-items:center;justify-content:space-between;margin:24px 0 8px}
+.zora-sf .qty .lab{font-size:16px;font-weight:700}
+.zora-sf .qty .ctrl{display:flex;align-items:center;gap:12px}
+.zora-sf .qty button{width:48px;height:48px;border-radius:12px;border:2px solid var(--zp-color-line-dark);background:none;color:var(--bone);font-size:20px;cursor:pointer;line-height:1}
+.zora-sf .qty button:hover{border-color:var(--bone)}
+.zora-sf .qty .n{font-family:var(--mono);font-size:20px;min-width:28px;text-align:center}
+.zora-sf .honest{border-top:1px solid var(--zp-color-line-dark);margin-top:20px;padding-top:16px}
+.zora-sf .honest .line{display:flex;justify-content:space-between;font-family:var(--mono);font-size:14px;padding:6px 0}
+.zora-sf .honest .line .lbl{color:var(--zp-color-ink-300)}
+.zora-sf .honest .total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--zp-color-line-dark);margin-top:10px;padding-top:16px}
+.zora-sf .honest .total .lbl{font-size:16px;font-weight:700}
+.zora-sf .honest .total .val{font-family:var(--mono);font-size:24px;font-weight:600}
+.zora-sf .crew-toggle{width:100%;text-align:left;font:inherit;color:inherit;display:flex;align-items:center;gap:14px;background:var(--zp-color-night);border:1px solid var(--zp-color-line-dark);border-radius:16px;padding:16px;margin-top:24px;cursor:pointer}
+.zora-sf .crew-toggle .ic{width:40px;height:40px;border-radius:12px;background:var(--zp-color-mtaa-green);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--mono);font-size:16px}
+.zora-sf .crew-toggle .ct{flex:1;display:flex;flex-direction:column}
+.zora-sf .crew-toggle .tt{font-size:16px;font-weight:700}
+.zora-sf .crew-toggle .td{font-size:14px;color:var(--zp-color-ink-300);margin-top:2px}
+.zora-sf .switch{width:44px;height:26px;border-radius:99px;background:var(--zp-color-ink-600);position:relative;transition:background .12s;flex-shrink:0}
+.zora-sf .switch.on{background:var(--yl)}
+.zora-sf .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bone);transition:transform .12s}
+.zora-sf .switch.on::after{transform:translateX(18px);background:var(--bk)}
+.zora-sf .crew-detail{display:none;margin-top:12px;font-family:var(--mono);font-size:13px;color:var(--zp-color-ink-300);line-height:1.8;border:1px dashed var(--zp-color-line-dark);border-radius:12px;padding:16px}
 .zora-sf .crew-detail.on{display:block}
-.zora-sf .crew-detail .share{color:var(--z-bone)}
-.zora-sf .crew-detail .split-line{display:flex;justify-content:space-between}
-.zora-sf .pay{width:100%;background:var(--z-blue);color:var(--z-bone);border:none;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.14em;padding:17px;border-radius:12px;cursor:pointer;margin-top:22px;transition:background .2s}
-.zora-sf .pay:hover{background:var(--z-bone);color:var(--z-black)}
-.zora-sf .methods{display:flex;justify-content:center;gap:16px;margin-top:18px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--z-mut);flex-wrap:wrap}
-.zora-sf .claim{display:none;padding:40px 28px;text-align:center}
+.zora-sf .crew-detail .share{color:var(--bone)}
+.zora-sf .crew-detail .split-line{display:flex;justify-content:space-between;gap:12px}
+.zora-sf .pay{width:100%;height:56px;background:var(--yl);color:var(--bk);border:none;font-family:var(--disp);font-size:20px;line-height:1;padding:0 24px;border-radius:16px;cursor:pointer;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background .12s}
+.zora-sf .pay .pay-amt{font-family:var(--mono);font-weight:600;font-size:16px}
+.zora-sf .pay:hover{background:var(--zp-color-yellow-press)}
+.zora-sf .pay:active{transform:translateY(2px)}
+.zora-sf .methods{display:flex;justify-content:center;gap:8px 16px;margin-top:16px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--zp-color-ink-300);flex-wrap:wrap}
+.zora-sf .claim{display:none;padding:40px 24px;text-align:center}
 .zora-sf .claim.on{display:block}
-.zora-sf .claim .tick{width:54px;height:54px;border-radius:50%;border:2px solid var(--z-blue);color:var(--z-blue);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 22px}
-.zora-sf .claim h3{font-size:22px;font-weight:600;letter-spacing:-.01em}
-.zora-sf .claim .code{font-family:var(--mono);font-size:15px;color:var(--z-blue);letter-spacing:.14em;margin-top:10px}
-.zora-sf .claim p{font-family:var(--mono);font-size:12px;color:var(--z-mut);letter-spacing:.04em;line-height:1.8;margin-top:18px;max-width:34ch;margin-left:auto;margin-right:auto}
-.zora-sf .claim .waiting{font-weight:500;color:var(--z-bone)}
+.zora-sf .claim-stamp{width:96px;height:96px;transform:rotate(-10deg);margin:0 auto 20px;display:block;animation:slam .18s var(--zp-motion-easing-standard) both}
+@keyframes slam{from{opacity:0;transform:scale(1.3) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(-10deg)}}
+@media(prefers-reduced-motion:reduce){.zora-sf .claim-stamp{animation:none}}
+.zora-sf .claim h3{font-family:var(--disp);font-weight:400;font-size:32px;line-height:1}
+.zora-sf .claim .code{font-family:var(--mono);font-size:16px;color:var(--yl);letter-spacing:.12em;margin-top:12px}
+.zora-sf .claim p{font-size:16px;color:var(--zp-color-ink-300);line-height:1.5;margin-top:16px;max-width:34ch;margin-left:auto;margin-right:auto}
+.zora-sf .claim .waiting{font-weight:700;color:var(--bone)}
 .zora-sf .claim .stores{display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap}
-.zora-sf .claim .store{font-family:var(--mono);font-size:11px;letter-spacing:.06em;border:1px solid var(--z-hair);color:var(--z-bone);padding:13px 20px;border-radius:10px}
-.zora-sf .claim .web{font-family:var(--mono);font-size:11px;color:var(--z-mut);letter-spacing:.06em;margin-top:20px;text-decoration:underline;cursor:pointer;background:none;border:none}
+.zora-sf .claim .store{font-family:var(--mono);font-size:12px;letter-spacing:.08em;border:2px solid var(--zp-color-line-dark);color:var(--bone);padding:12px 16px;border-radius:12px}
+.zora-sf .claim .web{font-size:14px;color:var(--zp-color-ink-300);margin-top:20px;text-decoration:underline;cursor:pointer;background:none;border:none;min-height:44px;padding:0 8px}
 `;

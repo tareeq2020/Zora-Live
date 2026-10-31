@@ -22,7 +22,7 @@ const CSS = `
     --black:#0A0A0B; --ink:#101012; --hair:#222226;
     --bone:#F4F1EA; --mut:#8A877E;
     --blue:#3D5AFE;
-    --sans:'Archivo',system-ui,sans-serif;
+    --sans:var(--zp-font-family-sans);
     --mono:'IBM Plex Mono',monospace;
     --stamp:'Anton',sans-serif;
   }
@@ -149,7 +149,7 @@ export default function HomePage() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link
-        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />

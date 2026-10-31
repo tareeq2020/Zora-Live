@@ -3,11 +3,12 @@
 /* BS8 — the HOST split flow: configure N → sign in (OTP) → create → invite the
    crew (WhatsApp) + pay your own share. N picker is bound to the table capacity
    (preset chips + stepper for any 2..cap; server computes the authoritative
-   shares). See the host storyboard. */
+   shares). See the host storyboard. BS119: ZoraPass flow primitives (zp-flow-css). */
 
 import { useMemo, useState } from 'react';
 import OtpLogin from '../../../components/otp-login';
 import SharePayFlow from '../../../components/share-pay-flow';
+import { ZP_FLOW_CSS } from '../../../components/zp-flow-css';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -44,7 +45,7 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
       if (d.error === 'sold_out') { setNotice('This table just sold out.'); return; }
       if (d.error === 'not_split_enabled') { setNotice("This tier can't be split."); return; }
       setNotice('Could not hold the table. Try again.');
-    } catch { setNotice('Network error — try again.'); }
+    } catch { setNotice('No connection. Try again.'); }
     finally { setBusy(false); }
   }
 
@@ -56,7 +57,7 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
       const d = await res.json().catch(() => ({}));
       if (res.status === 200 && d.orderId) { setPayOrder({ orderId: d.orderId, amount: d.amount }); setStep('paymine'); return; }
       setNotice('Could not start your payment.');
-    } catch { setNotice('Network error — try again.'); }
+    } catch { setNotice('No connection. Try again.'); }
     finally { setBusy(false); }
   }
 
@@ -66,7 +67,7 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
   }
   function whatsappHref(share: CreatedShare): string {
     const url = inviteUrl(share.token!);
-    const text = `I booked a table at ${eventName}. Your share is ${fmt(share.amount)} TZS — pay it here, nobody plays banker: ${url}`;
+    const text = `I booked a table at ${eventName}. Your share is TSh ${fmt(share.amount)} — pay it here, nobody plays banker: ${url}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -80,33 +81,37 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
   }
   const backLabel = step === 'paymine' ? 'Back to invites' : step === 'invite' ? 'Tracker' : 'Back';
 
+  const arrow = (label: string) => (busy ? <span className="spin" aria-label={label} /> : <span aria-hidden="true">→</span>);
+
   return (
-    <div className="cf">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="cf-card">
-        <div className="cf-nav">
-          <button className="cf-back" onClick={goBack}>← {backLabel}</button>
-          <a className="wm" href="/discover" aria-label="Zora — discover">Z<span className="o" />RA</a>
+    <div className="zpf zpf-page cf">
+      <style dangerouslySetInnerHTML={{ __html: ZP_FLOW_CSS + CSS }} />
+      <div className="zpf-card">
+        <div className="zpf-nav">
+          <button className="zpf-back" onClick={goBack}>← {backLabel}</button>
+          <a className="zpf-wm" href="/discover" aria-label="ZoraPass — see what's on">
+            <img src="/brand/logo/svg/zorapass-wordmark-black.svg" alt="ZoraPass" />
+          </a>
         </div>
 
         {step === 'configure' ? (
           <>
-            <div className="eyebrow">{eventName}</div>
-            <h2 className="t">Split the table</h2>
-            <div className="tbl"><span className="nm">VIP Table</span><span className="pr">{fmt(unitPrice)} TZS</span></div>
-            <p className="q">How many of you are splitting it?</p>
-            <div className="chips">{presets.map((x) => <button key={x} className={'chip' + (n === x ? ' on' : '')} onClick={() => setN(x)}>{x}</button>)}</div>
+            <div className="zpf-eyebrow">{eventName}</div>
+            <h2 className="zpf-t">Split the table</h2>
+            <div className="tbl"><span className="nm">VIP Table</span><span className="pr">TSh {fmt(unitPrice)}</span></div>
+            <p className="q" id="cf-n">How many of you are splitting it?</p>
+            <div className="chips" role="radiogroup" aria-labelledby="cf-n">{presets.map((x) => <button key={x} type="button" role="radio" aria-checked={n === x} className={'chip' + (n === x ? ' on' : '')} onClick={() => setN(x)}>{x}</button>)}</div>
             <div className="stepper"><span className="l">OR SET YOUR OWN</span><div className="ctrl">
-              <button className="sb" onClick={() => setN((v) => Math.max(2, v - 1))}>−</button>
-              <span className="nv">{n} {n === 1 ? 'person' : 'people'}</span>
-              <button className="sb" onClick={() => setN((v) => Math.min(capMax, v + 1))}>+</button></div></div>
-            <div className="share"><span className="k">EACH GUEST PAYS</span><span className="v">{fmt(preview.invitee)}</span></div>
+              <button className="sb" aria-label="One fewer" onClick={() => setN((v) => Math.max(2, v - 1))}>−</button>
+              <span className="nv" aria-live="polite">{n} {n === 1 ? 'person' : 'people'}</span>
+              <button className="sb" aria-label="One more" onClick={() => setN((v) => Math.min(capMax, v + 1))}>+</button></div></div>
+            <div className="zpf-amt" style={{ marginTop: 16 }}><span className="k">EACH GUEST PAYS</span><span className="v">TSh {fmt(preview.invitee)}</span></div>
             <p className="hostnote">{preview.host === preview.invitee
-              ? `Splits clean — everyone pays ${fmt(preview.invitee)}.`
-              : `You cover the odd ${fmt(preview.host - preview.invitee)} so it lands exactly on ${fmt(unitPrice)}.`}</p>
-            {notice ? <div className="err">{notice}</div> : null}
-            <button className="btn" disabled={busy} onClick={createSplit}>{busy ? 'Holding…' : 'Hold the table & invite'}</button>
-            <p className="foot">Held for your crew the moment you invite. If it doesn't fill in time, anyone who paid is refunded.</p>
+              ? `Splits clean — everyone pays TSh ${fmt(preview.invitee)}.`
+              : `You cover the odd TSh ${fmt(preview.host - preview.invitee)} so it lands exactly on TSh ${fmt(unitPrice)}.`}</p>
+            {notice ? <div className="zpf-err" role="alert">{notice}</div> : null}
+            <button className="zpf-btn" disabled={busy} onClick={createSplit}>HOLD THE TABLE{arrow('Holding')}</button>
+            <p className="zpf-foot">Held for everyone going the moment you invite. If it doesn&apos;t fill in time, anyone who paid is refunded.</p>
           </>
         ) : null}
 
@@ -116,33 +121,33 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
 
         {step === 'invite' && created ? (
           <>
-            <div className="eyebrow">Table held · {created.shares.filter((s) => !s.isHost).length} shares to fill</div>
-            <h2 className="t">Pull your crew in</h2>
-            <p className="q">Send each person their link. They pay their share in the app — nobody plays banker.</p>
-            <div className="rows">
+            <div className="zpf-eyebrow">Table held · {created.shares.filter((s) => !s.isHost).length} shares to fill</div>
+            <h2 className="zpf-t">Everyone pays their share.</h2>
+            <p className="zpf-sub">Send each person their link. They pay their own share from their phone — nobody plays banker.</p>
+            <div className="zpf-rows">
               {created.shares.map((s) => s.isHost ? (
-                <div className="row" key={s.index}><span className="av host">You</span>
-                  <div className="who"><div className="n">Your share</div><div className="p">{fmt(s.amount)} TZS</div></div></div>
+                <div className="zpf-row" key={s.index}><span className="zpf-av host">You</span>
+                  <div className="zpf-who"><div className="n">Your share</div><div className="p">TSh {fmt(s.amount)}</div></div></div>
               ) : (
-                <div className="row" key={s.index}><span className="av">{s.index}</span>
-                  <div className="who"><div className="n">Share {s.index + 1}</div><div className="p">{fmt(s.amount)} TZS</div></div>
+                <div className="zpf-row" key={s.index}><span className="zpf-av">{s.index}</span>
+                  <div className="zpf-who"><div className="n">Share {s.index + 1}</div><div className="p">TSh {fmt(s.amount)}</div></div>
                   <a className="wa" href={whatsappHref(s)} target="_blank" rel="noopener">WhatsApp</a>
-                  <button className="cp" onClick={() => { navigator.clipboard?.writeText(inviteUrl(s.token!)); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>Copy</button>
+                  <button className="cp" onClick={() => { navigator.clipboard?.writeText(inviteUrl(s.token!)); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>Copy link</button>
                 </div>
               ))}
             </div>
-            {copied ? <p className="copied mono">Link copied</p> : null}
-            <button className="btn" disabled={busy} onClick={payMyShare}>{busy ? 'One sec…' : 'Pay my share now'}</button>
-            <a className="btn2" href={`/split/${created.splitId}`}>I'll pay later — go to tracker</a>
+            {copied ? <p className="copied" role="status">LINK COPIED</p> : null}
+            <button className="zpf-btn" disabled={busy} onClick={payMyShare}>PAY MY SHARE{arrow('Starting payment')}</button>
+            <a className="zpf-btn2" href={`/split/${created.splitId}`}>I&apos;ll pay later — go to tracker</a>
           </>
         ) : null}
 
         {step === 'paymine' && payOrder && created ? (
           <>
-            <div className="eyebrow">Your share</div>
+            <div className="zpf-eyebrow" style={{ marginBottom: 12 }}>Your share</div>
             <SharePayFlow orderId={payOrder.orderId} amount={payOrder.amount} phone={hostPhone} eventName={eventName}
               onPaid={() => { window.location.href = `/split/${created.splitId}`; }} />
-            <a className="btn2" href={`/split/${created.splitId}`}>Skip to tracker</a>
+            <a className="zpf-btn2" href={`/split/${created.splitId}`}>Skip to tracker</a>
           </>
         ) : null}
       </div>
@@ -151,44 +156,25 @@ export default function ConfigureClient({ tierId, eventName, unitPrice, capMax }
 }
 
 const CSS = `
-.cf{--c-bg:#06070B;--c-surface:#11131E;--c-surface2:#171A28;--c-text:#EDEFF7;--c-text2:#9BA3C4;--c-text3:#5C6488;
-  --c-line:rgba(124,160,255,.12);--c-line2:rgba(124,160,255,.22);--c-blue:#4C6FFF;--c-ice:#7CA0FF;--c-cyan:#3FE0FF;--c-indigo:#151A3A;
-  --c-aura:linear-gradient(130deg,#D53AD8 0%,#FF4D7D 48%,#FF9145 100%);--sans:'Inter',system-ui,sans-serif;--disp:'Space Grotesk',var(--sans);--mono:'IBM Plex Mono',monospace;
-  background:var(--c-bg);color:var(--c-text);font-family:var(--sans);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:32px 18px}
-.cf-card{width:100%;max-width:400px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:20px;padding:24px 22px}
-.cf-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.cf-back{background:none;border:1px solid var(--c-line2);color:var(--c-text2);border-radius:9px;padding:7px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer}
-.cf-back:hover{border-color:var(--c-blue);color:var(--c-ice)}
-.wm{font-family:var(--disp);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:18px;display:inline-flex;align-items:center;color:var(--c-text2);text-decoration:none}
-.wm .o{width:.62em;height:.62em;margin:0 .05em;border-radius:50%;background:var(--c-aura);display:inline-block;box-shadow:0 0 10px rgba(255,90,120,.4)}
-.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--c-text3);text-transform:uppercase}
-.t{font-family:var(--disp);font-weight:600;font-size:23px;letter-spacing:-.01em;margin:8px 0 10px}
-.tbl{display:flex;justify-content:space-between;align-items:baseline;background:var(--c-surface2);border:1px solid var(--c-line);border-radius:14px;padding:14px 15px}
-.tbl .nm{font-family:var(--disp);font-weight:600;font-size:15px}.tbl .pr{font-family:var(--mono);font-size:14px}
-.q{color:var(--c-text2);font-size:13px;margin:16px 0 8px}
-.chips{display:flex;gap:8px}
-.chip{flex:1;background:var(--c-surface2);border:1px solid var(--c-line);color:var(--c-text2);border-radius:10px;padding:11px 0;font-family:var(--mono);font-size:14px;cursor:pointer}
-.chip.on{border-color:var(--c-blue);color:var(--c-ice);background:rgba(76,111,255,.1)}
-.stepper{display:flex;align-items:center;justify-content:space-between;background:var(--c-surface2);border:1px solid var(--c-line);border-radius:12px;padding:10px 12px;margin-top:10px}
-.stepper .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--c-text3)}
-.stepper .ctrl{display:flex;align-items:center;gap:14px}
-.stepper .sb{width:34px;height:34px;border-radius:9px;border:1px solid var(--c-line2);background:var(--c-bg);color:var(--c-text);font-size:19px;cursor:pointer}
-.stepper .nv{font-family:var(--mono);font-size:14px;min-width:82px;text-align:center}
-.share{display:flex;justify-content:space-between;align-items:baseline;background:var(--c-surface2);border:1px solid var(--c-line);border-radius:12px;padding:15px 16px;margin-top:16px}
-.share .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--c-text2)}
-.share .v{font-family:var(--mono);font-size:22px;color:var(--c-ice)}
-.hostnote{font-family:var(--mono);font-size:11px;color:var(--c-text2);letter-spacing:.03em;margin-top:9px;line-height:1.7}
-.err{background:rgba(255,145,69,.1);border:1px solid rgba(255,145,69,.35);color:#FF9145;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:12px}
-.btn{display:block;width:100%;text-align:center;font-family:var(--disp);font-weight:600;font-size:14.5px;padding:15px;border-radius:13px;border:none;cursor:pointer;background:var(--c-aura);color:#fff;box-shadow:0 8px 26px rgba(255,77,125,.28);margin-top:16px}
-.btn:disabled{opacity:.6}
-.btn2{display:block;text-align:center;background:transparent;color:var(--c-text2);border:1px solid var(--c-line2);border-radius:13px;padding:13px;margin-top:10px;font-family:var(--mono);font-size:12px;cursor:pointer;text-decoration:none}
-.foot{text-align:center;color:var(--c-text3);font-family:var(--mono);font-size:10px;margin-top:12px;line-height:1.7}
-.rows{margin-top:14px;display:flex;flex-direction:column;gap:1px;border:1px solid var(--c-line);border-radius:14px;overflow:hidden}
-.row{display:flex;align-items:center;gap:10px;padding:12px 13px;background:var(--c-surface)}
-.av{width:30px;height:30px;border-radius:50%;background:var(--c-surface2);color:var(--c-text3);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:600;font-size:12px;flex:0 0 auto}
-.av.host{background:var(--c-aura);color:#fff;font-size:11px}
-.who{flex:1;min-width:0}.who .n{font-size:13.5px;font-weight:500}.who .p{font-family:var(--mono);font-size:11px;color:var(--c-text3)}
-.wa{background:#1FA855;color:#fff;font-family:var(--disp);font-weight:600;font-size:11px;padding:7px 11px;border-radius:9px;text-decoration:none}
-.cp{background:none;border:1px solid var(--c-line2);color:var(--c-ice);border-radius:9px;padding:7px 10px;font-family:var(--mono);font-size:10.5px;cursor:pointer}
-.copied{text-align:center;color:var(--c-ice);font-size:11px;margin-top:8px}
+.cf .tbl{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border:2px solid var(--ink);border-radius:16px;padding:14px 16px}
+.cf .tbl .nm{font-weight:700;font-size:18px}
+.cf .tbl .pr{font-family:var(--zp-font-family-mono);font-weight:600;font-size:16px}
+.cf .q{color:var(--mut);font-size:16px;margin:16px 0 8px}
+.cf .chips{display:flex;gap:8px}
+.cf .chip{flex:1;min-height:44px;border-radius:999px;border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--zp-font-family-mono);font-size:16px;cursor:pointer}
+.cf .chip:hover{background:var(--sunken)}
+.cf .chip.on{background:var(--zp-color-board-black);color:var(--yellow)}
+.cf .stepper{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-top:12px}
+.cf .stepper .l{font-family:var(--zp-font-family-mono);font-size:12px;letter-spacing:.12em;color:var(--mut)}
+.cf .stepper .ctrl{display:flex;align-items:center;gap:8px}
+.cf .stepper .sb{width:48px;height:48px;border-radius:12px;border:2px solid var(--ink);background:transparent;color:var(--ink);font-size:20px;cursor:pointer}
+.cf .stepper .sb:hover{background:var(--sunken)}
+.cf .stepper .nv{font-family:var(--zp-font-family-mono);font-size:16px;min-width:88px;text-align:center}
+.cf .hostnote{font-size:14px;color:var(--mut);margin:8px 0 0;line-height:1.5}
+.cf .wa,.cf .cp{min-height:44px;padding:0 12px;border-radius:12px;display:inline-flex;align-items:center;font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;font-family:var(--zp-font-family-sans)}
+.cf .wa{background:var(--zp-color-board-black);color:var(--yellow);border:2px solid var(--zp-color-board-black)}
+.cf .wa:hover{background:var(--zp-color-ink-600)}
+.cf .cp{background:transparent;color:var(--ink);border:2px solid var(--ink)}
+.cf .cp:hover{background:var(--sunken)}
+.cf .copied{text-align:center;font-family:var(--zp-font-family-mono);font-size:12px;letter-spacing:.12em;color:var(--ink);margin:12px 0 0}
 `;

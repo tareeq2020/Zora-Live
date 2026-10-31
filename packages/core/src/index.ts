@@ -123,7 +123,7 @@ export type { PayoutMethod, CanonicalBank, CanonicalMno } from './fsp-registry';
 export { sendSms, smsConfigSummary, logSmsStartup, gsmSafe } from './sms';
 export { publicWebOrigin } from './origins';
 export type { SmsDriver, SmsResult } from './sms';
-export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
+export { sendEmail, sendCredentialEmail, buildCredentialEmailHtml, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
@@ -190,3 +190,19 @@ export type { FlagName, FlagRule, FlagRules, FlagContext } from './flags';
 // BS124: seat inventory (seat identity + state; capacity stays in inventory_pool).
 export { expandPlanSeats, diffSeats, publishSeatMap, readSeatAvailability, rowLabel } from './seat-inventory';
 export type { SeatState, SeatRowSpec, StoredSeat, SeatDiff, PublishSeatMapResult, SeatAvailabilityRow } from './seat-inventory';
+// BS123: first-party storefront analytics + server product events.
+export { recordView, purgeVisitorDays, classifySource, isBotUserAgent, visitorHash, captureServerEvent, ANALYTICS_SOURCES } from './analytics-capture';
+export type { AnalyticsSource, RecordViewInput } from './analytics-capture';
+// BS130 (F6/A14): the shared theme resolver (share cards + branded passes).
+export {
+  PASS_TEMPLATES, PASS_SHOW_FIELDS, ZP_BLACK, ZP_BONE, ZP_YELLOW, ZORA_PASS_DEFAULTS,
+  isHexColour, luminance, contrastRatio, pickTextOn, normaliseTemplate, normaliseShowFields,
+  mergeTheme, loadStorefrontTheme, loadTicketDesign, resolveTheme, emailBrandForEvent,
+} from './theme-resolve';
+export type {
+  PassTemplate, PassShowField, ThemeDefaults, StorefrontThemeLayer, EventThemeLayer,
+  TicketDesignFields, TicketDesignLayer, TicketDesignRecord, ResolvedTheme, EmailBrand,
+} from './theme-resolve';
+// BS128/BS129: storefront analytics reads (organizer + admin consoles).
+export { readStorefrontAnalytics, storefrontRangeDays } from './analytics-read';
+export type { StorefrontAnalytics, AnalyticsRangeDays } from './analytics-read';

@@ -30,6 +30,7 @@ import { CompsModule } from './comps/comps.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { SplitsModule } from './splits/splits.module';
 import { SeatsModule } from './seats/seats.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './common/roles.guard';
 
@@ -66,6 +67,7 @@ import { RolesGuard } from './common/roles.guard';
     ConsumerModule,
     SplitsModule,
     SeatsModule,
+    AnalyticsModule,
   ],
   /* BS93 (Phase 2, E4): the RBAC guard is GLOBAL but a no-op unless a route carries
      @Roles(...) — so it cooperates with (never replaces) OrganizerGuard/SessionGuard. */

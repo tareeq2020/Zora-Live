@@ -6,9 +6,11 @@
      GET  /api/orders/:orderId/status  → poll to terminal
    On 'paid' the share is settled (the buyer is IN); the whole TABLE completing
    and issuing the pass is a separate event the tracker/SMS surfaces — so 'paid'
-   here calls onPaid(), it does NOT claim a ticket. Consumer dark language. */
+   here calls onPaid(), it does NOT claim a ticket. BS119: ZoraPass flow primitives
+   (zp-flow-css) — bone ground, black primary with a yellow Bungee label. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ZP_FLOW_CSS } from './zp-flow-css';
 
 const NETWORKS = [
   { id: 'VODACOM', label: 'M-Pesa' },
@@ -77,66 +79,68 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
       });
       if (res.status !== 200) {
         const d = await res.json().catch(() => ({}));
-        setNotice(d.error === 'not_payable' ? 'This share is no longer payable.' : 'Could not start the payment. Try again.');
+        setNotice(d.error === 'not_payable' ? 'This share is no longer payable.' : "That payment didn't go through. Try again, or use another method.");
         return;
       }
       setStatusVal('pending');
       setStep('poll');
       startPolling();
-    } catch { setNotice('Network error — try again.'); }
+    } catch { setNotice('No connection. Try again.'); }
     finally { setBusy(false); }
   }
 
+  const arrow = (label: string) => (busy ? <span className="spin" aria-label={label} /> : <span aria-hidden="true">→</span>);
+
   return (
-    <div className="spf">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      {notice ? <div className="spf-notice">{notice}</div> : null}
+    <div className="zpf spf">
+      <style dangerouslySetInnerHTML={{ __html: ZP_FLOW_CSS + CSS }} />
+      {notice ? <div className="zpf-err" role="alert" style={{ marginTop: 0, marginBottom: 16 }}>{notice}</div> : null}
 
       {step === 'method' ? (
         <>
-          <div className="spf-amt"><span className="k">YOUR SHARE</span><span className="v">{fmt(amount)} <small>TZS</small></span></div>
-          <p className="spf-lead">Pay with mobile money — we text a prompt to the number below; approve it with your PIN. Your money goes straight to the table.</p>
-          <label className="spf-lab">MOBILE-MONEY NUMBER</label>
-          <div className="spf-field"><span className="pfx">+255</span>
-            <input inputMode="tel" autoFocus placeholder="712 345 678" value={payPhone} onChange={(e) => setPayPhone(e.target.value)} /></div>
-          <label className="spf-lab" style={{ marginTop: 14 }}>NETWORK</label>
-          <div className="spf-pm">
+          <div className="zpf-amt"><span className="k">YOUR SHARE</span><span className="v">TSh {fmt(amount)}</span></div>
+          <p className="zpf-sub" style={{ margin: '16px 0 0' }}>Pay with mobile money. We text a prompt to the number below; approve it with your PIN. Your money goes straight to the table.</p>
+          <label className="zpf-lab" htmlFor="spf-phone">Mobile-money number</label>
+          <div className="zpf-field"><span className="pfx">+255</span>
+            <input id="spf-phone" inputMode="tel" autoFocus placeholder="712 345 678" value={payPhone} onChange={(e) => setPayPhone(e.target.value)} /></div>
+          <span className="zpf-lab" id="spf-net">Network</span>
+          <div className="spf-pm" role="radiogroup" aria-labelledby="spf-net">
             {NETWORKS.map((n) => (
-              <button key={n.id} className={'spf-m' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>{n.label}</button>
+              <button key={n.id} type="button" role="radio" aria-checked={network === n.id} className={'spf-m' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>{n.label}</button>
             ))}
           </div>
-          <button className="spf-btn" disabled={busy} onClick={submitPay}>{busy ? 'Sending…' : `Send me the payment prompt`}</button>
+          <button className="zpf-btn" disabled={busy} onClick={submitPay}>PAY MY SHARE{arrow('Sending')}</button>
         </>
       ) : null}
 
       {step === 'poll' ? (
-        <div className="spf-wait">
-          <div className="spf-spin" />
+        <div className="spf-wait" aria-live="polite">
+          <div className="zpf-spinner" />
           <h3>Check your phone</h3>
-          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b>+255 {payPhone}</b> with your PIN.</p>
-          <p className="spf-muted">Waiting for confirmation… this can take a minute. Keep this open.</p>
-          <button className="spf-ghost" onClick={() => { stopPolling(); setStep('method'); }}>Didn't get it? Try again</button>
+          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b className="mono">+255 {payPhone}</b> with your PIN.</p>
+          <p className="spf-muted">Waiting for confirmation. This can take a minute — keep this open.</p>
+          <button className="zpf-btn2" onClick={() => { stopPolling(); setStep('method'); }}>Didn&apos;t get it? Try again</button>
         </div>
       ) : null}
 
       {step === 'result' ? (
-        <div className="spf-wait">
+        <div className="spf-wait" aria-live="polite">
           {statusVal === 'payment_short' ? (
             <>
               <h3>Came up short</h3>
-              <p>We only received part of your {fmt(amount)} TZS. Your seat's still open — re-pay your share to keep it.</p>
-              <button className="spf-btn" onClick={() => setStep('method')}>Re-pay my share</button>
+              <p>We only received part of your <span className="mono">TSh {fmt(amount)}</span>. Your seat&apos;s still open — pay your share again to keep it.</p>
+              <button className="zpf-btn" onClick={() => setStep('method')}>PAY MY SHARE<span aria-hidden="true">→</span></button>
             </>
           ) : statusVal === 'slow' ? (
             <>
               <h3>Still processing</h3>
-              <p>Mobile money can be slow. We'll text you the moment it clears — you can close this.</p>
+              <p>Mobile money can be slow. We&apos;ll text you the moment it clears — you can close this.</p>
             </>
           ) : (
             <>
-              <h3>That didn't go through</h3>
-              <p>You weren't charged. Give it another go.</p>
-              <button className="spf-btn" onClick={() => setStep('method')}>Try again</button>
+              <h3>That payment didn&apos;t go through</h3>
+              <p>Nothing was charged. Try again, or use another method.</p>
+              <button className="zpf-btn" onClick={() => setStep('method')}>TRY AGAIN<span aria-hidden="true">→</span></button>
             </>
           )}
         </div>
@@ -146,32 +150,16 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
 }
 
 const CSS = `
-.spf{--c-bg:#0A0B10;--c-surface:#11131E;--c-surface2:#171A28;--c-text:#EDEFF7;--c-text2:#9BA3C4;--c-text3:#5C6488;
-  --c-line:rgba(124,160,255,.12);--c-line2:rgba(124,160,255,.22);--c-blue:#4C6FFF;--c-ice:#7CA0FF;
-  --c-aura:linear-gradient(130deg,#D53AD8 0%,#FF4D7D 48%,#FF9145 100%);
-  --sans:'Inter',system-ui,sans-serif;--disp:'Space Grotesk',var(--sans);--mono:'IBM Plex Mono',monospace;
-  color:var(--c-text);font-family:var(--sans)}
-.spf-notice{background:rgba(255,145,69,.1);border:1px solid rgba(255,145,69,.35);color:#FF9145;border-radius:10px;padding:11px 13px;font-size:13px;margin-bottom:14px}
-.spf-amt{display:flex;justify-content:space-between;align-items:baseline;background:var(--c-surface2);border:1px solid var(--c-line2);border-radius:14px;padding:16px}
-.spf-amt .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--c-text2)}
-.spf-amt .v{font-family:var(--disp);font-weight:700;font-size:26px}
-.spf-amt .v small{font-size:14px;color:var(--c-text2);font-weight:500}
-.spf-lead{color:var(--c-text2);font-size:13px;line-height:1.6;margin:14px 0}
-.spf-lab{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--c-text3);margin:0 0 8px}
-.spf-field{background:var(--c-surface2);border:1px solid var(--c-line);border-radius:12px;padding:14px 15px;display:flex;align-items:center;gap:10px}
-.spf-field:focus-within{border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(76,111,255,.16)}
-.spf-field .pfx{font-family:var(--mono);color:var(--c-text2);font-size:15px}
-.spf-field input{background:none;border:none;outline:none;color:var(--c-text);font-family:var(--mono);font-size:16px;width:100%}
-.spf-pm{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.spf-m{flex:1;min-width:calc(50% - 4px);background:var(--c-surface2);border:1px solid var(--c-line);border-radius:11px;padding:12px;font-family:var(--mono);font-size:11.5px;color:var(--c-text2);cursor:pointer}
-.spf-m.on{border-color:var(--c-blue);color:var(--c-ice);background:rgba(76,111,255,.1)}
-.spf-btn{display:block;width:100%;text-align:center;font-family:var(--disp);font-weight:600;font-size:14.5px;padding:15px;border-radius:13px;border:none;cursor:pointer;background:var(--c-aura);color:#fff;box-shadow:0 8px 26px rgba(255,77,125,.28)}
-.spf-btn:disabled{opacity:.6}
-.spf-ghost{display:block;width:100%;text-align:center;background:transparent;color:var(--c-text2);border:1px solid var(--c-line2);border-radius:13px;padding:13px;margin-top:12px;font-family:var(--mono);font-size:12px;cursor:pointer}
-.spf-wait{text-align:center;padding:14px 0}
-.spf-wait h3{font-family:var(--disp);font-weight:600;font-size:20px;margin-bottom:8px}
-.spf-wait p{color:var(--c-text2);font-size:13.5px;line-height:1.6;margin-bottom:6px}
-.spf-muted{color:var(--c-text3);font-size:12px}
-.spf-spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--c-line2);border-top-color:var(--c-ice);margin:0 auto 16px;animation:spf-rot 0.8s linear infinite}
-@keyframes spf-rot{to{transform:rotate(360deg)}}
+.spf .mono{font-family:var(--zp-font-family-mono)}
+.spf-pm{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.spf-m{min-height:48px;padding:0 12px;border-radius:999px;border:2px solid var(--ink);background:transparent;color:var(--ink);
+  font-family:var(--zp-font-family-sans);font-weight:700;font-size:16px;cursor:pointer}
+.spf-m:hover{background:var(--sunken)}
+.spf-m.on{background:var(--zp-color-board-black);color:var(--yellow)}
+.spf-wait{text-align:center;padding:16px 0}
+.spf-wait .zpf-spinner{margin-bottom:16px}
+.spf-wait h3{font-weight:800;font-size:24px;letter-spacing:-.02em;margin:0 0 8px}
+.spf-wait p{color:var(--mut);font-size:16px;line-height:1.45;margin:0 0 8px}
+.spf-wait p b{color:var(--ink)}
+.spf-muted{font-size:14px}
 `;

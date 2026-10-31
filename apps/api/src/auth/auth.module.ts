@@ -9,6 +9,7 @@ import { SessionService } from '../common/session.module';
 import { SessionGuard } from '../common/session.guard';
 import { normalizeTzPhone, isValidTzMsisdn } from '../common/phone';
 import type { SessionMembership } from '../common/session-cookie';
+import { GoogleAdminController } from './google-admin.controller';
 
 const ADMIN_FALLBACK = { username: 'admin', passwordHash: '' };
 
@@ -332,5 +333,5 @@ export class AuthController {
   }
 }
 
-@Module({ controllers: [AuthController] })
+@Module({ controllers: [AuthController, GoogleAdminController] })
 export class AuthModule {}

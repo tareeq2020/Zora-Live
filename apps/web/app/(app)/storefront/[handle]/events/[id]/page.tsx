@@ -5,12 +5,13 @@ import type { CheckoutTier } from '../../../../../components/checkout-flow';
 import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import ViewBeacon from '@/app/components/view-beacon';
 
-// The BRANDED white-label single-event leaf: /@handle/events/:id. Zora consumer
-// DARK canvas + Space Grotesk/Inter (the system every consumer screen uses); the
-// organizer supplies only the ACCENT, LOGO, BANNER (+ a per-event cover). One hero
-// (cover overrides banner). GET TICKET opens the real <CheckoutFlow> in the accent.
-// See STOREFRONT-BRAND-SPEC.md.
+// The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
+// system (BS119): bone ground, Bricolage Grotesque / Bungee / IBM Plex Mono, flat.
+// The organizer supplies the NAME, LOGO, BANNER (+ a per-event cover); the accent is
+// only handed to the checkout. One hero (cover overrides banner). GET PASSES opens
+// the real <CheckoutFlow>. See STOREFRONT-BRAND-SPEC.md.
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,7 @@ async function fetchTheme(handle: string): Promise<StorefrontTheme> {
 
 export async function generateMetadata({ params }: { params: { handle: string; id: string } }): Promise<Metadata> {
   const [ev, org, theme] = await Promise.all([fetchEvent(params.id), fetchTenant(params.handle), fetchTheme(params.handle)]);
-  if (!ev) return { title: 'Event — Zora white-label store' };
+  if (!ev) return { title: 'Event — ZoraPass' };
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
   const title = `${ev.name} — ${orgName}`;
   const description = ev.tagline || `${ev.name} on ${orgName}.`;
@@ -75,146 +76,146 @@ export default async function TenantEventPage({ params }: { params: { handle: st
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
   const subdomain = org?.subdomain || ev.subdomain || '';
   const cur = CUR[ev.city || ''] || 'TZS';
-  const price = (ev.priceFrom != null ? ev.priceFrom : 0).toLocaleString();
+  // Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
+  const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
+  const fmtN = (n: number) => n.toLocaleString('en-US');
+  const price = fmtN(ev.priceFrom != null ? ev.priceFrom : 0);
   const when = [ev.dateLabel || 'TBA', ev.time, ev.venue].filter(Boolean).join(' · ').toUpperCase();
 
+  // Handed to the checkout only (BS122 owns its redesign); the page chrome is fixed.
   const accent = theme.accent || '#4C6FFF';
-  // Accent + secondary are always organizer-driven. Per-org LIGHT mode
-  // (STOREFRONT-BRAND-SPEC.md D1a): if the org saved bg + card, flip the canvas
-  // and derived text/hairline tokens light; else the fixed Zora dark holds.
-  const light = !!(theme.bg && theme.card);
-  const themeVars = {
-    ['--accent']: accent,
-    ['--secondary']: theme.secondary || '#3FE0FF',
-    ...(light
-      ? {
-          ['--bg']: theme.bg!,
-          ['--surface']: theme.card!,
-          ['--surface2']: theme.card!,
-          ['--ink']: '#14161F',
-          ['--mut']: '#5B6272',
-          ['--mut2']: '#8A90A6',
-          ['--hair']: 'rgba(16,18,27,.12)',
-          ['--hair2']: 'rgba(16,18,27,.2)',
-        }
-      : {}),
-  } as React.CSSProperties;
 
-  // ONE hero: per-event cover overrides the store banner; else an accent gradient.
+  // ONE hero: per-event cover overrides the store banner; else a flat black frame.
   const heroImg = ev.cover || theme.bannerUrl || '';
 
   // BS22: every published package is shown on the leaf (not just the FROM price),
-  // splittable ones flagged with a badge + a direct entry into the split flow.
+  // splittable ones carry a direct entry into the split flow.
   const tiers = (ev.webCheckout?.tiers || []).filter((t) => t.tierId && !t.disabled);
+  const storeHref = `/@${params.handle}`;
+
+  const topbar = (
+    <header className={styles.topbar}>
+      <div className={styles.topbarIn}>
+        <Link href={storeHref} className={styles.store}>
+          {theme.logoUrl ? (
+            <span className={styles.logo} style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden />
+          ) : (
+            <span className={styles.badge} aria-hidden>{orgName.charAt(0).toUpperCase()}</span>
+          )}
+          <span style={{ minWidth: 0 }}>
+            <span className={styles.sn} style={{ display: 'block' }}>{orgName}</span>
+            {subdomain ? <span className={styles.su} style={{ display: 'block' }}>{subdomain}</span> : null}
+          </span>
+        </Link>
+        <Link href={storeHref} className={styles.back}>← ALL EVENTS</Link>
+      </div>
+    </header>
+  );
 
   // BS24: a web-sellable event with every tier disabled has nothing on sale — don't
-  // advertise a stale FROM price + dead GET TICKET. Show a "not on sale" state (the
+  // advertise a stale FROM price + dead GET PASSES. Show a "not on sale" state (the
   // storefront index already drops it from the listing). App-claim events unaffected.
   const hasWebCatalog = (ev.webCheckout?.tiers || []).some((t) => t.tierId);
   if (hasWebCatalog && tiers.length === 0) {
     return (
-      <main className={styles.page} style={{ ['--accent']: accent } as React.CSSProperties}>
+      <main className={styles.page}>
+        {topbar}
         <div className={styles.wrap}>
-          <div className={styles.notFound}>Tickets for “{ev.name}” aren’t on sale right now. Check back soon.</div>
+          <div className={styles.notFound}>Passes for “{ev.name}” aren’t on sale right now. Check back soon.</div>
         </div>
       </main>
     );
   }
 
-  const fmtN = (n: number) => n.toLocaleString('en-US');
   const splitHrefFor = (t: CheckoutTier) =>
     `/split/new?tier=${encodeURIComponent(t.tierId)}&event=${encodeURIComponent(ev.name)}&price=${t.unitPrice}&cap=${t.seats || 8}`;
 
   return (
-    <main className={styles.page} style={themeVars}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
+    <main className={styles.page}>
+      <ViewBeacon kind="event" org={params.handle} event={params.id} />
+      {topbar}
       <div className={styles.wrap}>
-        <div className={styles.topbar}>
-          <div className={styles.store}>
-            {theme.logoUrl ? (
-              <span className={styles.logo} style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-label={orgName} />
+        <div className={styles.main}>
+          {/* Single hero — the full flyer contained on a black frame so nothing is
+              cropped. Logo brand-mark bottom-left, ZORAPASS stamp bottom-right. */}
+          <div className={`${styles.hero}${heroImg ? '' : ' ' + styles.heroFallback}`}>
+            {heroImg ? (
+              <img className={styles.heroImg} src={heroImg} alt={ev.name} />
             ) : (
-              <div className={styles.badge}>{orgName.charAt(0)}</div>
+              <span className={styles.heroFallbackName} aria-hidden>{ev.name}</span>
             )}
-            <div>
-              <div className={styles.sn}>{orgName}</div>
-              {subdomain ? <div className={styles.su}>{subdomain}</div> : null}
-            </div>
+            {theme.logoUrl ? <span className={styles.brandmark} style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden /> : null}
+            <img className={styles.stamp} src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg" alt="" aria-hidden="true" />
           </div>
+
+          <p className={styles.eyebrow}>{(ev.category || 'EVENT').toUpperCase()}{ev.city ? ` · ${ev.city.toUpperCase()}` : ''}</p>
+          <h1 className={styles.title}>{ev.name}</h1>
+          <div className={styles.by}>by {orgName}</div>
+          {ev.tagline ? <p className={styles.tagline}>{ev.tagline}</p> : null}
+
+          <dl className={styles.meta}>
+            <dt className={styles.metaKey}>DATE</dt>
+            <dd className={styles.metaVal}>{(ev.dateLabel || 'TBA').toUpperCase()}</dd>
+            {ev.time ? (
+              <>
+                <dt className={styles.metaKey}>TIME</dt>
+                <dd className={styles.metaVal}>{ev.time}</dd>
+              </>
+            ) : null}
+            <dt className={styles.metaKey}>VENUE</dt>
+            <dd className={styles.metaVal}>{ev.venue || 'TBA'}</dd>
+          </dl>
         </div>
 
-        {/* Single hero — the full flyer (contain) over a blurred fill of itself so
-            nothing is cropped; else an accent gradient. Logo brand-mark bottom-left. */}
-        <div className={`${styles.hero}${heroImg ? '' : ' ' + styles.heroFallback}`}>
-          {heroImg ? (
+        <aside className={styles.aside} aria-label="Passes">
+          {tiers.length > 0 ? (
             <>
-              <div className={styles.heroBg} style={{ backgroundImage: `url("${heroImg}")` }} aria-hidden />
-              <img className={styles.heroImg} src={heroImg} alt="" />
+              <p className={styles.pkgHead}>CHOOSE YOUR PASSES</p>
+              <div className={styles.packages}>
+                {tiers.map((t) => (
+                  <div className={styles.pkg} key={t.tierId}>
+                    <div className={styles.pkgTop}>
+                      <span className={styles.pkgName}>{t.name}</span>
+                      <span className={styles.pkgPrice}>{curLabel(t.currency || cur)} {fmtN(t.unitPrice)}{t.usd ? ` ($${fmtN(t.usd)})` : ''}</span>
+                    </div>
+                    {t.split ? (
+                      <div className={styles.pkgSplitRow}>
+                        <span className={styles.pkgSplitNote}>Seats {t.seats || 8} · everyone pays their share.</span>
+                        <Link href={splitHrefFor(t)} className={styles.pkgSplitCta}>Split with Tuchange</Link>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </>
           ) : null}
-          {theme.logoUrl ? <span className={styles.brandmark} style={{ backgroundImage: `url(${theme.logoUrl})` }} aria-hidden /> : null}
-        </div>
 
-        <p className={styles.eyebrow}>{(ev.category || 'EVENT').toUpperCase()} · {(ev.city || '').toUpperCase()}</p>
-        <h1 className={styles.title}>{ev.name}</h1>
-        {ev.tagline ? <p className={styles.tagline}>{ev.tagline}</p> : null}
-
-        <div className={styles.meta}>
-          <div><div className={styles.metaKey}>DATE</div><div className={styles.metaVal}>{ev.dateLabel || 'TBA'}{ev.time ? ` · ${ev.time}` : ''}</div></div>
-          <div><div className={styles.metaKey}>VENUE</div><div className={styles.metaVal}>{ev.venue || 'TBA'}</div></div>
-        </div>
-
-        {tiers.length > 0 ? (
-          <div className={styles.packages}>
-            <p className={styles.pkgHead}>{tiers.length} PACKAGE{tiers.length === 1 ? '' : 'S'}</p>
-            {tiers.map((t) => (
-              <div className={`${styles.pkg}${t.split ? ' ' + styles.pkgSplit : ''}`} key={t.tierId}>
-                <div className={styles.pkgTop}>
-                  <span className={styles.pkgName}>
-                    {t.name}
-                    {t.split ? <span className={styles.pkgBadge}>SPLITTABLE</span> : null}
-                  </span>
-                  <span className={styles.pkgPrice}>{t.currency || cur} {fmtN(t.unitPrice)}{t.usd ? ` ($${fmtN(t.usd)})` : ''}</span>
-                </div>
-                {t.split ? (
-                  <div className={styles.pkgSplitRow}>
-                    <span className={styles.pkgSplitNote}>Seats {t.seats || 8} · everyone pays their own share</span>
-                    <Link href={splitHrefFor(t)} className={styles.pkgSplitCta}>Split this table →</Link>
-                  </div>
-                ) : null}
+          <div className={styles.buy}>
+            {tiers.length > 0 ? null : (
+              <span className={styles.price}><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{curLabel(cur)} {price}</b></span>
+            )}
+            {ev.seated && SEATMAP_ENABLED ? (
+              <Link href={`/events/${encodeURIComponent(ev.id)}/seats`} className={styles.seatsCta}>
+                GET PASSES<span aria-hidden="true">→</span>
+              </Link>
+            ) : (
+              <div className={styles.ctaWrap}>
+                <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
               </div>
-            ))}
+            )}
           </div>
-        ) : null}
+        </aside>
+      </div>
 
-        <div className={`${styles.buy}${tiers.length > 0 ? ' ' + styles.buyFull : ''}`}>
-          {tiers.length > 0 ? null : (
-            <span><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{cur} {price}</b></span>
-          )}
-          {ev.seated && SEATMAP_ENABLED ? (
-            <Link href={`/events/${encodeURIComponent(ev.id)}/seats`} className={styles.seatsCta}>CHOOSE YOUR SEATS →</Link>
-          ) : (
-            <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
-          )}
-        </div>
-
-        <div className={styles.foot}>
-          <span className={styles.runs}>
-            runs on{' '}
-            <img
-              className={styles.runsMark}
-              src={light ? '/assets/zora-wordmark-black.png' : '/assets/zora-wordmark-white.png'}
-              alt="Zora"
-            />
-          </span>
-          <span className={styles.footLinks}>
-            <Link href="/help">Help &amp; Support</Link>
-            <Link href={`/@${params.handle}`}>← back to the store</Link>
-          </span>
-        </div>
+      <div className={styles.foot}>
+        <span className={styles.runs}>
+          RUNS ON{' '}
+          <img className={styles.runsMark} src="/brand/logo/svg/zorapass-wordmark-black.svg" alt="ZoraPass" />
+        </span>
+        <span className={styles.footLinks}>
+          <Link href="/help">Help &amp; Support</Link>
+          <Link href={storeHref}>← Back to the store</Link>
+        </span>
       </div>
     </main>
   );

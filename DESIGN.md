@@ -1,115 +1,84 @@
-# ZORA — Design system
+# ZoraPass — Design system
 
-Distilled from `apps/web/public/zora-tokens.css` and the shipped surfaces during
-`/plan-design-review` (2026-07-23). This is the calibration reference for all
-design work: reuse it, don't redesign it.
+**Source of truth: [`docs/ZoraPass-Design-System-Handoff/`](docs/ZoraPass-Design-System-Handoff/00_START_HERE.md)**
+(Stamp & Signal, v1.0, 23 Sep 2026). Start with `00_START_HERE.md`, then
+`03_COMPONENTS/components.md`, `04_UI_COPY/ui-copy.md`, `05_SCREENS/screens.md`.
+If this file and the handoff disagree, the handoff wins. This page is the short
+version for engineers working in this repo (rewritten in BS119; replaces the
+2026-07 obsidian / sunrise-aura system, which is retired).
 
-## Surfaces (three planes)
-Zora runs three intentional visual planes. Pick by audience, never mix on one screen.
+## In the code
+- Tokens: `apps/web/public/brand/design-tokens/zorapass.css` (`--zp-*`, generated —
+  don't edit by hand) + `fonts.css`, loaded globally in `apps/web/app/layout.tsx`.
+- `apps/web/public/zora-tokens.css` is a legacy alias layer only (`--c-*`, `--sans`,
+  `.wordmark`) mapped onto `--zp-*`. New UI uses `--zp-*` directly.
+- Logo + stamps: `apps/web/public/brand/logo/svg/`, `apps/web/public/brand/stamps/svg/`.
+- No Tailwind. Each page is a self-contained scoped `<style>` block or CSS module.
+- `<html data-theme>` defaults to `dark`, which flips the *semantic* `--zp-surface*`
+  tokens. Fixed-light buyer pages therefore use the *primitive* tokens
+  (`--zp-color-bone`, `--zp-color-board-black`, `--zp-color-signal-yellow`, …).
 
-| | **Consumer** (fan-facing) | **Control-room** (organizer + admin) | **Door** (scanner) |
-|---|---|---|---|
-| Where | discovery, storefront, event, checkout, split, tickets | `/dashboard/*`, drop editor, sales, `/admin/*` | the gate-scanner PWA |
-| Base | dark obsidian `#0A0B10` | **light paper `#F4F1EA` (default) · dark `#0A0A0B` (toggle)** | dark utility `#0A0B10` |
-| Feel | premium nightlife, aura-lit | calm, data-forward, precise | glanceable traffic-light: brand chrome, utility core |
+## Non-negotiables
+- **Fonts — three, no others.** Bungee = display only, ALL CAPS, 1–4 words, **never
+  below 20px**. Bricolage Grotesque = headlines, body, UI, the logo. IBM Plex Mono =
+  dates, times, prices, counts, codes, pass IDs, micro-labels.
+- **Colour.** Signal Yellow `#FFD21F` · Board Black `#111111` · Bone `#F7F5EE`.
+  Neutrals from the tokens. Alert Red `#B42318` only for problems. No new colours.
+- **Flat and printed.** No gradients, no decorative shadows, no blur/glass, no glow.
+  Corners: 16px cards and buttons, 12px inputs, pills for chips.
+- **Logo:** "ZoraPass", one word, Bricolage Bold, −0.035em. Never "Zora Pass", never "Zora" alone.
+- **Stamp:** an SVG image at −10°, default state ZORAPASS. A status stamp only when true.
+  Hero, confirmation, pass, check-in, empty states — not on every card.
 
-**Control-room theme note (2026-08-19, supersedes the 2026-08-05 "unify to dark"):** the
-control-room (org + admin dashboards) is **theme-toggleable** — a **calm light** default
-+ a **true dark** alternate, driven by ONE token set (see *Control-Room v2*). This
-reverses the earlier plan to force the control-room dark: organizers work here for hours,
-and a light data-forward default (mookh-informed) reads as calm software you run a business
-on, while dark stays one tap away. Consumer stays fixed-dark (the shipped nightlife brand);
-the per-org storefront keeps its opt-in light (BS-Weekender, D1a). #7 "light/dark works
-everywhere" = every surface has ONE correct, QA-able mode + the dashboards get both.
+## Surfaces
+| | **Consumer** (buyer) | **Organizer console** | **Admin** | **Door** (scanner) |
+|---|---|---|---|---|
+| Where | Discover, storefront, event, checkout, confirmation, pass, split/join | `/dashboard/*` | `/admin/*` | gate-scanner PWA |
+| Ground | Bone, black ink, yellow accent. Pass + confirmation are black. | Bone ground, **black sidebar** | Black ground | Black utility |
+| Rule | One ground, one ink, one accent per screen | Data in mono; **one yellow accent per chart**; numbers are the design | Same components, dark | Glanceable result |
 
-## Consumer palette (dark, default)
-- bg `#0A0B10` · bg2 `#0D0F17` · surface `#11131E` · surface2 `#171A28`
-- text `#EDEFF7` · text2 `#9BA3C4` · text3 `#5C6488`
-- hairlines `rgba(124,160,255,.12)` / `.22`
-- **blue anchor** `#4C6FFF` (structural, focus) · ice `#7CA0FF` · cyan `#3FE0FF` (success/paid)
-- **sunrise aura** `linear-gradient(130deg,#D53AD8,#FF4D7D,#FF9145)` — RESERVED for primary actions + the logo "O". Never decorative.
-- glass `rgba(13,15,23,.62)` + `backdrop-filter:blur(12px)`
+## Components (from `03_COMPONENTS`)
+- **Primary button:** black block, yellow Bungee label (≥20px), right arrow 12px after
+  the label (right-aligned when full width). On dark it flips: yellow block, black label.
+  lg 56 / md 48 / sm 40px; full width on mobile. Hover darken, active 2px down,
+  focus-visible 3px outline at 2px offset. One primary per view.
+- **Secondary:** transparent, 2px black border (bone on dark), Bricolage Bold.
+- **Status chip:** pill, IBM Plex Mono 12–13px, .12em, uppercase, 2px border on light
+  fills (`.zp-chip--*`). One per card. Labels, not buttons.
+- **Filter chip:** 40px pill, 2px border, selected = black fill + yellow label.
+- **Event card:** whole card is one link; artwork 4:5 or 16:9 (never cropped into a
+  shape); mono meta → Bricolage Bold 20 name → venue 14 secondary → mono price;
+  "GET PASSES →" strip as the last row. Sold out stays visible, dimmed, SOLD OUT chip.
+- **Pass:** black, bone ink, kind label mono → event name → mono rows → tear line → QR
+  on white (≥200px) with a readable mono pass ID → brightness hint → stamp.
+- **Inputs:** 48/56px, radius 12, 2px border, white, 16px text, mono label above,
+  errors in words (never colour only). Phone defaults to +255.
+- **Organizer statuses:** mono text with a square marker, not chips.
 
-## Organizer palette (light "paper")
-- paper `#F4F1EA` · card `#FBF9F4` · ink `#0A0A0B` · hair `#DDD8CB` · mut `#8A877E`
-- blue `#3D5AFE` + bluewash `#E8EBFE` · green `#1D9E75` · red `#D85A30` · amber `#EF9F27`
-- white input fields on paper; sticky blurred top bar
+## Copy (from `04_UI_COPY`)
+- Buy CTA is **GET PASSES**. Never BUY NOW, PURCHASE, BOOK NOW, Get tickets.
+- Status words only from the handoff list (ON SALE, FEW LEFT, SOLD OUT, …), and only
+  when true (FEW LEFT < 20% left, ALMOST GONE < 10%, SOLD OUT = 0).
+- Money: `TSh 25,000`, `From TSh 25,000`, in mono, thousands separators always.
+- Bungee lines are caps and short; everything else sentence case. Second person.
+  No exclamation marks, no emoji, no campaign lines (ADMIT US., TUKO WANGAPI?) in product.
+- Errors: say what happened, then what to do; never blame.
 
-## Door / scanner (dark utility — "brand chrome, utility core")
-The gate-scanner PWA. Zora's dark shell + type, but the cinematic layer (shimmer,
-particles, aura-gradient text, ambient motion) is DROPPED at the result — legibility,
-battery, and 0.5s read beat polish at a door. Serves DESIGN.md rules 3 + 4b.
-- Canvas `#0A0B10` · Space Grotesk for the giant result word · IBM Plex Mono for pass
-  details (name · tier · ref) · Inter body · the aura-`O` wordmark tiny in the top strip.
-- **Result = full-screen solid-color takeover** (glanceable across a crowd), auto-dismiss ~2s / tap:
-  - VALID → **solid green** (a true go-green, NOT brand magenta), huge ✓ + name/tier, haptic + blip.
-  - ALREADY USED / INVALID / WRONG EVENT → **solid red**, big ✕ + plain reason + who/when ("SCANNED 21:14 · AGENT 4").
-  - NEEDS SUPERVISOR → **the aura gradient** (the one place brand color earns its keep = "escalate").
-- Chrome: thin top strip only — event · agent role/scope · an **offline dot** (agent HMAC-verify is offline-capable; amber when the confirm step can't reach the server).
-- Motion near-zero: a fast confident slam-in on the result; respect reduced-motion; no ambient animation.
-- Supervisor screen = a calm dark queue of scanned-pending credentials → big CONFIRM → "wristband issued".
+## Door / scanner
+Brand chrome, utility core. Black canvas; Bricolage Grotesque for the giant result
+word, IBM Plex Mono for pass details. Result = full-screen solid-colour takeover,
+auto-dismiss ~2s: VALID solid green (Mtaa Green) · ALREADY USED / INVALID / WRONG
+EVENT solid red with a plain reason + who/when · NEEDS SUPERVISOR yellow with black
+text. Thin top strip (event · agent · offline dot). Near-zero motion; reduced-motion respected.
 
-## Control-Room v2 — data-forward dashboards (2026-08-19)
-The org + admin dashboards. Mookh-informed (`mookh.com/features`): numbers are the hero,
-one clear story per screen, calm whitespace over chart-walls. Reuses existing type + the
-blue anchor; adds a theme-toggle token set and a small data-component vocabulary.
-
-**Theme tokens (ONE set, flips on `data-theme`).** Light default / dark alternate:
-- Light: `--paper #F4F1EA` · `--card #FFF` · `--card2 #FBF9F4` · `--ink #14161C` · `--ink2 #5B6270` · `--mut #8A8778` · `--hair #E7E2D5`
-- Dark: `--paper #0A0A0B` · `--card #141416` · `--card2 #101012` · `--ink #F4F1EA` · `--ink2 #B4B1A8` · `--mut #8A877E` · `--hair #222226`
-- Shared: blue anchor `#3D5AFE` (focus/structure) · green `#1D9E75` paid · amber `#C98A12` pending · red `#D85A30` refund · cyan `#0E8FB0` scanned. Aura stays primary-action / logo-O only.
-- KPI-tile tints (semantic wash, theme-aware): `--wash-blue/green/amber/cyan` — solid pastels on light, ~14% alpha on dark.
-
-**Shell.** Left **sidebar** (Home · Sales · Events · Payouts · Comps · Storefront; admin adds
-Overview · Organizers · Events-manager · Orders · Scanner-users · Broadcasts · Payments · Access)
-+ a slim sticky **top bar** (store name · theme toggle). One shell, both consoles.
-
-**Data components (reuse, don't reinvent):**
-- **KPI stat-tile row** — 3–5 tiles; IBM Plex Mono value (big, `tabular-nums`), mono uppercase
-  label, a semantic tint bar, a small delta (▲ green / ▼ red / — mut). Revenue · Tickets sold ·
-  Avg order · Conversion % · Checked-in.
-- **Hero chart** — ONE metric (revenue over time), smooth filled area in the blue anchor, with a
-  range switch (7D/14D/30D/ALL) + EXPORT. Not a wall of charts.
-- **Data table** — mono numerics, semantic **status pills** (paid=cyan · pending=amber ·
-  refund=red · live/draft), sort/filter/export. **Collapses to stacked cards ≤900px** (rule 3).
-- **Admin events-manager (#6)** — replaces the single-drop `DropPanel`: a list of every event
-  with owner · status · per-event enable/disable (archive/unarchive). Pairs with the backend fix
-  where **org suspension cascades** to hide that org's events from public reads.
-
-**Density / motion.** 8px base, comfortable-but-dense card padding, rounded cards (`16–18px`).
-Minimal-functional: subtle number count-up + chart draw-in on load; respect `prefers-reduced-motion`.
-
-**Reference preview:** the approved direction (light + dark) — `/tmp/zora-dashboard-preview.html`.
-
-## Type
-- **Space Grotesk** (400–700) — geometric headings, consumer wordmark, big numbers.
-- **Inter** (400–600) — consumer body.
-- **Archivo** (400–700) — organizer/control-room sans.
-- **IBM Plex Mono** — labels, codes, money, timers, meta. Uppercase, wide tracking (`.1–.28em`).
-- Display "stamp" fonts (Anton) survive where deliberately set (OFFSHORE/KULTUR).
-
-## The wordmark
-`ZORA` uppercase geometric; the **O is a gradient circle** (aura fill, soft glow), theme-aware. Consumer: white letters on dark. Organizer: the login renders `zora` with a blue "o".
-
-## Components (reuse, don't reinvent)
-- **Buttons:** `.btn.aura` (primary, gradient) · blue (secondary structural) · `.ghost` (outline). Organizer primary = ink `.publish` button, hover→blue.
-- **Bottom-sheet cards** (consumer): seat-map/checkout selection sheets.
-- **Toggle:** `.togglebar` + `.switch` pill (organizer) — the split-enable toggle reuses this verbatim.
-- **Numbered section headers** `.block-h` with a filled circle index (organizer).
-- **Fields:** dark `#171A28` with blue focus ring (consumer) · white with hair border (organizer).
-- **Pills/tags:** cyan=paid, blue/ice=you, aura=host, muted=pending; organizer forming=bluewash, complete=green, refund=red.
+## Accessibility (ship gate — `03_COMPONENTS` §11)
+Body ≥16px, nothing <12px · 44×44 targets · visible focus ring on everything
+interactive · status never by colour alone · artwork alt text names the event,
+decorative stamps `aria-hidden` · pass ID readable as text · test at 200% zoom.
 
 ## Rules
-1. Aura gradient = primary action or the logo O. Nothing else.
-2. Mono for anything numeric or system (money, codes, timers, labels).
-3. Consumer is mobile-first (fans are on phones); ≥44px touch targets; no hover-only affordances.
-4. Every screen ships all states: default / loading / empty / error / disabled / success. Empty and error are features, not afterthoughts.
-4b. **Highest-stakes info gets the highest legibility.** Money, refund terms, countdowns, and attempt-caps must NOT sit in the smallest/lowest-contrast text (`text3`/~10px). Use `text2`+ at ≥11.5px; keep tap targets ≥44px even for "Nudge / Re-send / Change" pills.
-5. Money & trust copy is plain and honest — never bury refund/timing behavior.
-6. Clarity over consistency when they conflict; subtraction by default.
-
-## Voice
-Confident, plain, a little swagger; trust-forward on money. Canon lines:
-"No booking fees — our cut comes from organizers, not you." · "Nobody plays banker." · "Your number is your ticket." · "The table's yours."
-(Superseded 2026-08-05 — BS32: dropped the false "no fees at checkout" claim; the payment provider may add its own fee, so we only promise no ZORA booking fee.)
-Avoid corporate/hype. See `.context/bill-split-copy-deck.md` for the full string set.
+1. Mono for anything numeric or system.
+2. Mobile-first; no hover-only affordances.
+3. Every screen ships default / loading (skeletons) / empty / error / disabled / success.
+4. Money, refund terms and countdowns get the highest legibility, never the smallest text.
+5. Money and trust copy is plain and honest; never promise what the system can't do.

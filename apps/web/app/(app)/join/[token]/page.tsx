@@ -8,7 +8,7 @@ import JoinInvitee from './join-invitee';
 export const dynamic = 'force-dynamic';
 
 export function generateMetadata(): Metadata {
-  const title = 'Join the table · Zora';
+  const title = 'Join the table · ZoraPass';
   return {
     title,
     description: "You've been invited to split a table. Pay your share in seconds.",
@@ -19,10 +19,6 @@ export function generateMetadata(): Metadata {
 export default function JoinPage({ params }: { params: { token: string } }) {
   return (
     <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
       <JoinInvitee token={params.token} />
     </>
   );

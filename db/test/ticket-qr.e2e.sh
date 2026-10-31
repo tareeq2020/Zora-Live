@@ -113,4 +113,47 @@ done
 [ "$d4" = "0" ] && echo "  ✓ pass shows event name, date, venue + ref (no Untitled/TBA placeholders)" || fail=1
 
 echo ""
+echo "== T5 — BS130: flag zp_pass_design OFF for this org → the classic pass, byte-identical =="
+ORGID=$(psql_one "select id from organizer where handle='thebrunchcity'")
+psql_one "insert into theme (organizer_id, accent) values ('$ORGID', '#7FD1AE') on conflict (organizer_id) do update set accent='#7FD1AE'" >/dev/null
+# flag on for SOMEONE ELSE only — this org must still get exactly the pre-BS130 pass
+curl -s -b "$SNAP/admin" -X PUT "$BASE/api/settings/flags" -H 'content-type: application/json' \
+  -d '{"flags":{"zp_pass_design":{"on":false,"orgs":["someone-else"]}}}' >/dev/null
+curl -s "$BASE/api/tickets/$REF.svg" -o "$SNAP/pass-off.svg"
+d5=0
+cmp -s "$SVG" "$SNAP/pass-off.svg" || { echo "  ✗ flag-off pass differs from the pre-flag pass"; d5=1; }
+grep -qF 'THE TICKET IS THE PRODUCT' "$SNAP/pass-off.svg" || { echo "  ✗ classic footer missing"; d5=1; }
+grep -qF 'data-pass="branded"' "$SNAP/pass-off.svg" && { echo "  ✗ branded pass leaked with the flag off"; d5=1; }
+grep -qiF '#7FD1AE' "$SNAP/pass-off.svg" && { echo "  ✗ organizer accent leaked with the flag off"; d5=1; }
+[ "$d5" = "0" ] && echo "  ✓ flag off → classic pass unchanged (storefront accent ignored)" || fail=1
+
+echo ""
+echo "== T6 — flag ON → storefront accent on the pass; QR still the signed payload =="
+curl -s -b "$SNAP/admin" -X PUT "$BASE/api/settings/flags" -H 'content-type: application/json' \
+  -d '{"flags":{"zp_pass_design":{"orgs":["thebrunchcity"]}}}' >/dev/null
+curl -s "$BASE/api/tickets/$REF.svg" -o "$SNAP/pass-on.svg"
+d6=0
+grep -qF 'data-pass="branded"' "$SNAP/pass-on.svg" || { echo "  ✗ not the branded pass"; d6=1; }
+grep -qF 'fill="#7FD1AE"' "$SNAP/pass-on.svg" || { echo "  ✗ storefront accent not applied"; d6=1; }
+for want in "Brunch A" "Sat, 6 Sep" "$REF" "ZoraPass" "Turn your brightness up"; do
+  grep -qF "$want" "$SNAP/pass-on.svg" || { echo "  ✗ missing on branded pass: $want"; d6=1; }
+done
+GOT6=$(node "$ROOT/db/test/qrdecode.mjs" "$SNAP/pass-on.svg")
+[ "$GOT6" = "$EXPECT" ] || { echo "  ✗ branded QR = $GOT6"; d6=1; }
+curl -s -o /dev/null -w '%{http_code} %{content_type}' "$BASE/api/tickets/$REF.png" | grep -q '^200 image/png' || { echo "  ✗ branded PNG did not render"; d6=1; }
+[ "$d6" = "0" ] && echo "  ✓ flag on → branded pass with the storefront accent, QR still scannable, PNG renders" || fail=1
+
+echo ""
+echo "== T7 — published ticket_design beats the storefront; an unpublished draft never shows =="
+psql_one "insert into ticket_design (event_id, template, accent, status, draft, published_at)
+          values ('ev-A', 'classic_black', '#F4A259', 'published', '{\"accent\":\"#3D5AFE\"}', now())" >/dev/null
+curl -s "$BASE/api/tickets/$REF.svg" -o "$SNAP/pass-td.svg"
+d7=0
+grep -qF 'data-template="classic_black"' "$SNAP/pass-td.svg" || { echo "  ✗ published template not applied"; d7=1; }
+grep -qF '#F4A259' "$SNAP/pass-td.svg" || { echo "  ✗ published accent not applied"; d7=1; }
+grep -qF '#3D5AFE' "$SNAP/pass-td.svg" && { echo "  ✗ DRAFT accent leaked to buyers"; d7=1; }
+[ "$(node "$ROOT/db/test/qrdecode.mjs" "$SNAP/pass-td.svg")" = "$EXPECT" ] || { echo "  ✗ QR broken on classic_black"; d7=1; }
+[ "$d7" = "0" ] && echo "  ✓ published design wins, draft stays private, QR fixed" || fail=1
+
+echo ""
 [ "$fail" = "0" ] && echo "TICKET QR E2E: PASS (web pass carries the signed, scannable QR + real event details)" || { echo "TICKET QR E2E: FAIL"; exit 1; }
