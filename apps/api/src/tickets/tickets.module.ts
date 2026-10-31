@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { db, qrPayload } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { TICKET_FIELDS } from '../common/defaults';
+import { PassBrandService } from './pass-brand.service';
 
 // Vendored, framework-agnostic renderer (copied verbatim from lib/ticket.js).
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -10,11 +11,12 @@ const { ticketSVG, ticketPNG } = require('../vendor/ticket');
 
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly entities: EntityStore) {}
+  constructor(private readonly entities: EntityStore, private readonly brand: PassBrandService) {}
 
   // A stored ticket (tickets collection) rendered by code; any field overridable
   // via query string for live preview in the organizer studio.
-  private async resolveTicket(code: string, query: Record<string, any>) {
+  private async resolveTicket(code: string, query: Record<string, any>): Promise<{ data: Record<string, any>; event?: Record<string, any> }> {
+    let event: Record<string, any> | undefined;
     const store = await this.entities.read<Record<string, any>>('tickets', {});
     const base = code && store[code] ? store[code] : {};
     const data: Record<string, any> = { ...base };
@@ -32,15 +34,17 @@ export class TicketsController {
     // an unknown code keeps the vendor defaults.
     if (code) {
       try {
+        // `c.*` (not a fixed list) so seat columns are read when they exist
+        // (BS125 adds seat_id / seat_label) and simply absent before that.
         const [cred] = (await db()`
-          select c.code, c.signature, c.public_ref, c.event_id, c.tier_id,
-                 c.holder_name, pt.name as tier_name
+          select c.*, pt.name as tier_name
             from credential c
             left join product_tier pt on pt.id = c.tier_id
            where upper(c.public_ref) = upper(${code}) or c.code = ${code}
            limit 1`) as {
           code: string; signature: string; public_ref: string | null;
           event_id: string | null; holder_name: string | null; tier_name: string | null;
+          seat_label?: string | null; seat_id?: string | null; zone_label?: string | null; table_label?: string | null;
         }[];
         if (cred) {
           if ((query.qr == null || query.qr === '') && cred.code && cred.signature) {
@@ -49,11 +53,8 @@ export class TicketsController {
           const setIfEmpty = (k: string, v: unknown) => {
             if (v != null && v !== '' && (data[k] == null || data[k] === '')) data[k] = v;
           };
-          let ev: Record<string, any> | undefined;
-          if (cred.event_id) {
-            const events = await this.entities.read<any[]>('events', []);
-            ev = Array.isArray(events) ? events.find((e) => e && e.id === cred.event_id) : undefined;
-          }
+          const ev = await this.brand.event(cred.event_id);
+          event = ev;
           setIfEmpty('event', ev?.name);
           setIfEmpty('dateLabel', ev?.dateLabel);
           setIfEmpty('venue', ev?.venue);
@@ -61,27 +62,38 @@ export class TicketsController {
           setIfEmpty('tier', cred.tier_name);
           setIfEmpty('guest', cred.holder_name);
           if (cred.public_ref) setIfEmpty('ticketId', cred.public_ref);
+          // BS130: seat / zone / table onto the pass when the credential has them.
+          const seat = [cred.zone_label, cred.table_label, cred.seat_label].filter((x) => x && String(x).trim()).join(' · ');
+          if (seat) { setIfEmpty('seat', seat); setIfEmpty('tableNo', seat); }
+          setIfEmpty('dressCode', ev?.dressCode);
         }
       } catch {
         // DB hiccup: fall back to defaults rather than fail the image.
       }
     }
-    return data;
+    return { data, event };
+  }
+
+  // BS130: flag zp_pass_design on for this event's organizer → branded pass;
+  // off (or no real credential) → the classic pass, unchanged.
+  private async render(code: string, query: Record<string, any>) {
+    const { data, event } = await this.resolveTicket(code, query);
+    const brand = event ? await this.brand.forEvent(event).catch(() => null) : null;
+    return { data, opts: brand ? { brand } : { theme: query.theme } };
   }
 
   @Get(':code.svg')
   async svg(@Param('code') code: string, @Query() query: Record<string, any>, @Res() res: Response) {
-    const svg = ticketSVG(await this.resolveTicket(code, query), { theme: query.theme });
+    const { data, opts } = await this.render(code, query);
+    const svg = ticketSVG(data, opts);
     res.type('image/svg+xml').set('Cache-Control', 'no-store').send(svg);
   }
 
   @Get(':code.png')
   async png(@Param('code') code: string, @Query() query: Record<string, any>, @Res() res: Response) {
     try {
-      const png = await ticketPNG(await this.resolveTicket(code, query), {
-        theme: query.theme,
-        scale: Math.min(3, Number(query.scale) || 2),
-      });
+      const { data, opts } = await this.render(code, query);
+      const png = await ticketPNG(data, { ...opts, scale: Math.min(3, Number(query.scale) || 2) });
       res.type('image/png').set('Cache-Control', 'no-store').set('Content-Disposition', `inline; filename="${code}.png"`).send(png);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -126,5 +138,5 @@ export class PassesController {
   }
 }
 
-@Module({ controllers: [TicketsController, PassesController] })
+@Module({ controllers: [TicketsController, PassesController], providers: [PassBrandService], exports: [PassBrandService] })
 export class TicketsModule {}
