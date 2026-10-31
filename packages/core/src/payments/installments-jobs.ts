@@ -314,3 +314,25 @@ export async function recordInstallmentRefund(sql: Sql, orderId: string, referen
     return { ok: true, orderId, refunded: Number(p.refund_due) };
   }, sql);
 }
+
+/* ── BS136: organizer "Send reminder" (manual nudge) ─────────────────────── */
+
+/** Text + deliver one reminder for the order's next unpaid row, right now (no
+    quiet-hours or once-per-row latch — the caller owns its own rate limit).
+    Returns false when the plan is not active or nothing is left to pay. */
+export async function sendManualInstallmentReminder(sql: Sql, orderId: string, now: Date = new Date()): Promise<{ sent: boolean; sms: boolean; email: boolean }> {
+  const today = eatToday(now);
+  const [r] = await sql`
+    select s.n, to_char(s.due_date, 'YYYY-MM-DD') as due, s.amount, p.count, p.currency, p.grace_days
+      from installment_schedule s join installment_plan p on p.order_id = s.order_id
+     where s.order_id = ${orderId}::uuid and p.status = 'active' and s.status <> 'paid'
+     order by s.n limit 1`;
+  if (!r) return { sent: false, sms: false, email: false };
+  const kind: ReminderKind = r.due < today ? 'missed' : r.due === today ? 'due' : 'pre3';
+  const who = await buyerContact(sql, orderId);
+  const text = reminderText(kind, who?.eventName ?? 'Your booking', Number(r.n), Number(r.count),
+    fmtMoney(Number(r.amount), r.currency), r.due, installmentPayLink(orderId), addDays(r.due, Number(r.grace_days)));
+  const subject = kind === 'missed' ? 'Payment missed — keep your booking' : kind === 'due' ? 'Your payment is due today' : 'Your next payment is coming up';
+  const out = await deliver(sql, orderId, subject, text);
+  return { sent: true, ...out };
+}

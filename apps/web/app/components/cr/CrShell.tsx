@@ -22,7 +22,36 @@ import { CrNavIcon } from './CrNavIcon';
 import { CrOrgSwitcher } from './CrOrgSwitcher';
 import { CrAccountMenu } from './CrAccountMenu';
 
-export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean; icon?: string };
+/** `gate`: a same-origin URL answering `{ enabled: boolean }`; the item is hidden
+    until it answers true (feature-flagged pages; a 404/failed read keeps it hidden). */
+export type CrNavItem = { href: string; label: string; accent?: boolean; exact?: boolean; icon?: string; gate?: string };
+
+// One read per gate URL per page load, shared by every shell instance.
+const gateCache = new Map<string, Promise<boolean>>();
+function readGate(url: string): Promise<boolean> {
+  let p = gateCache.get(url);
+  if (!p) {
+    p = fetch(url, { cache: 'no-store', credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.enabled === true)
+      .catch(() => false);
+    gateCache.set(url, p);
+  }
+  return p;
+}
+
+function useGatedNav(nav: CrNavItem[]): CrNavItem[] {
+  const gates = Array.from(new Set(nav.map((n) => n.gate).filter((g): g is string => !!g)));
+  const key = gates.join('|');
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    let alive = true;
+    for (const g of gates) readGate(g).then((on) => { if (alive) setOpen((o) => (o[g] === on ? o : { ...o, [g]: on })); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return gates.length ? nav.filter((n) => !n.gate || open[n.gate]) : nav;
+}
 
 export type CrShellProps = {
   nav: CrNavItem[];
@@ -44,7 +73,8 @@ function activeHref(nav: CrNavItem[], pathname: string): string {
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])';
 
-export function CrShell({ nav, brand, topbarTitle, topbarExtra, footer, children }: CrShellProps) {
+export function CrShell({ nav: navAll, brand, topbarTitle, topbarExtra, footer, children }: CrShellProps) {
+  const nav = useGatedNav(navAll);
   const pathname = usePathname() || '';
   const active = activeHref(nav, pathname);
 
