@@ -177,7 +177,7 @@ export class CheckoutController {
      (POST /checkout/:orderId/pay, which binds to schedule row 1) moves it to
      installment_active. Nothing here charges money. */
   @Post('checkout/installments')
-  async checkoutInstallments(@Body() body: any, @Res() res: Response) {
+  async checkoutInstallments(@Body() body: any, @Req() req: Request, @Res() res: Response) {
     const bad = checkoutBodyError(body);
     if (bad) return res.status(400).json({ error: bad });
     const { phone, email, cart } = body;
@@ -210,6 +210,17 @@ export class CheckoutController {
       const holdTtl = Number.isInteger(settings?.hold_ttl_seconds) ? settings.hold_ttl_seconds : 900;
       const normPhone = normalizeTzPhone(phone);
       const commissionRate = await this.commission.forTier(cart[0].tier);
+
+      // BS134: like pay-in-full (BS126), a buyer re-entering a seated checkout in
+      // the same browser is never blocked by their own earlier unpaid seat hold.
+      const wantSeats: string[] = cart.flatMap((l: any) => (Array.isArray(l.seatIds) ? l.seatIds : []));
+      if (wantSeats.length) {
+        const prevToken = readNamedCookie(req, 'zora_checkout');
+        const prev = prevToken ? (verifySession(prevToken, resolveSessionSecret()) as any) : null;
+        if (prev?.orderId && prev.phone === normPhone) {
+          try { await releaseOwnSeatHold(sql, String(prev.orderId), wantSeats); } catch { /* best effort */ }
+        }
+      }
 
       const result = await createInstallmentOrder(sql, {
         phone: normPhone,

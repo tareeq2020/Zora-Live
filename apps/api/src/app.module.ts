@@ -32,6 +32,7 @@ import { SplitsModule } from './splits/splits.module';
 import { SeatsModule } from './seats/seats.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
+import { InstallmentsModule } from './installments/installments.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './common/roles.guard';
 
@@ -70,6 +71,7 @@ import { RolesGuard } from './common/roles.guard';
     SeatsModule,
     AnalyticsModule,
     HealthModule,
+    InstallmentsModule,
   ],
   /* BS93 (Phase 2, E4): the RBAC guard is GLOBAL but a no-op unless a route carries
      @Roles(...) — so it cooperates with (never replaces) OrganizerGuard/SessionGuard. */
