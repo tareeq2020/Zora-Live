@@ -178,7 +178,10 @@ export async function installmentPayView(sql: Sql, orderId: string): Promise<Ins
      group by oi.product_tier_id, pt.name order by pt.name`;
   let seats: any[] = [];
   try {
-    seats = await sql`select tier_id, label from seat_inventory where hold_order_id = ${orderId}::uuid order by label`;
+    // BS144: read from order_seat — hold_order_id is cleared once seats are sold.
+    seats = await sql`select si.tier_id, si.label from order_seat os
+                        join seat_inventory si on si.event_id = os.event_id and si.seat_id = os.seat_id
+                       where os.order_id = ${orderId}::uuid order by si.label`;
   } catch { seats = []; }
   const lines = items.map((r: any) => ({
     tier: r.tier, name: r.name || r.tier, quantity: Number(r.qty),
