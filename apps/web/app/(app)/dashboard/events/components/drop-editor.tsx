@@ -50,6 +50,7 @@ import {
 } from '../lib/drops';
 import { uploadImage } from '../lib/media-upload';
 import PassDesignTab from './pass-design-tab';
+import InstallmentsTab from './installments-tab';
 
 // BS75 (Lane) — RE-SKIN onto Control-Room v2. This surface is now wrapped in the
 // shared <CrShell> (sidebar + top bar + theme toggle) and every local palette var
@@ -219,8 +220,11 @@ export default function DropEditor(props: DropEditorProps) {
   const [form, setForm] = useState<DropForm>(emptyForm);
   // BS131 (F6): "Pass design" tab — edit mode only, and only when the
   // zp_pass_design flag is on for this org/event (the API reports `enabled`).
-  const [tab, setTab] = useState<'details' | 'pass'>('details');
+  const [tab, setTab] = useState<'details' | 'pass' | 'installments'>('details');
   const [passDesignOn, setPassDesignOn] = useState(false);
+  // BS136 (F7): "Installments" tab — same rule, zp_installments (API `enabled`).
+  // An API without the endpoint (404) simply never shows the tab.
+  const [installmentsOn, setInstallmentsOn] = useState(false);
   useEffect(() => {
     if (!isEdit) return;
     let alive = true;
@@ -228,6 +232,10 @@ export default function DropEditor(props: DropEditorProps) {
     fetch(`/api/org/events/${encodeURIComponent(id)}/ticket-design`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive) setPassDesignOn(d?.enabled === true); })
+      .catch(() => {});
+    fetch(`/api/org/events/${encodeURIComponent(id)}/installments`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setInstallmentsOn(d?.enabled === true); })
       .catch(() => {});
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -481,17 +489,26 @@ export default function DropEditor(props: DropEditorProps) {
 
   return (
     <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
-      {isEdit && passDesignOn ? (
+      {isEdit && (passDesignOn || installmentsOn) ? (
         <nav className="edtabs" aria-label="Event editor">
           <button type="button" aria-current={tab === 'details' ? 'page' : undefined} onClick={() => setTab('details')}>
             Details
           </button>
-          <button type="button" aria-current={tab === 'pass' ? 'page' : undefined} onClick={() => setTab('pass')}>
-            Pass design
-          </button>
+          {installmentsOn ? (
+            <button type="button" aria-current={tab === 'installments' ? 'page' : undefined} onClick={() => setTab('installments')}>
+              Installments
+            </button>
+          ) : null}
+          {passDesignOn ? (
+            <button type="button" aria-current={tab === 'pass' ? 'page' : undefined} onClick={() => setTab('pass')}>
+              Pass design
+            </button>
+          ) : null}
         </nav>
       ) : null}
-      {isEdit && passDesignOn && tab === 'pass' ? (
+      {isEdit && installmentsOn && tab === 'installments' ? (
+        <InstallmentsTab eventId={(props as { eventId: string }).eventId} eventName={form.name} />
+      ) : isEdit && passDesignOn && tab === 'pass' ? (
         <PassDesignTab eventId={(props as { eventId: string }).eventId} eventName={form.name} eventCover={form.cover} />
       ) : (
       <>

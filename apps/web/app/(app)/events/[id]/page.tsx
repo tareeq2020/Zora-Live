@@ -6,6 +6,7 @@ import styles from './event-page.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
+import { fetchInstallmentOffer, InstallmentOfferNote } from '@/app/components/installment-offer';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
 // slug alias in the API's getEvent, the flagship URL /events/offshore). Lives
@@ -91,7 +92,11 @@ export default async function EventPage({ params }: { params: { id: string } }) 
   }
 
   // BS126: live seat map only when zp_seatmap is on AND seats are published.
-  const seatmap = await seatmapEnabledFor(ev.id || params.id, ev.organizerHandle);
+  const [seatmap, instOffer] = await Promise.all([
+    seatmapEnabledFor(ev.id || params.id, ev.organizerHandle),
+    // BS134: installment note — absent when the flag/offer is off or the API is older.
+    fetchInstallmentOffer(ev.id || params.id),
+  ]);
   const cur = CUR[ev.city || ''] || 'TZS';
   // 04_UI_COPY money: `TSh 25,000`, symbol first, thousands separators.
   const curLabel = cur === 'TZS' ? 'TSh' : cur;
@@ -161,6 +166,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
           <b className={styles.priceVal}>
             {curLabel} {price}
           </b>
+          <InstallmentOfferNote offer={instOffer} />
           {seatmap ? (
             <Link href={`/events/${params.id}/seats`} className={styles.primary}>
               GET PASSES<span className={styles.arrow} aria-hidden="true">→</span>

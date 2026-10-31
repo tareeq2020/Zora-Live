@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../../components/checkout-flow';
+import { CITIES } from '../../../../lib/cities';
 
 /* BS126 — the live buyer seat map (Web Premium v1, F5 / DD3).
 
    Replaces the BS115 imperative SVG port and its placeholder availability.
    Everything shown comes from the server:
      • GET /api/events/:id            — name, date, venue, tiers (prices)
-     • GET /api/events/:id/floorplan  — zones (seated / table / GA)
+     • GET /api/events/:id/seatmap    — PUBLISHED zones (seated / table / GA) — BS143
      • GET /api/events/:id/seats      — live seat state, polled every 5s while the
                                         tab is visible (If-None-Match → 304)
      • GET /api/inventory             — GA remaining per tier
@@ -35,7 +36,7 @@ type Seat = {
   state: SeatState;
 };
 type Zone = { id: string; name: string; type: 'ga' | 'seated' | 'table'; x: number; y: number; tierId?: string; price?: number; capacity?: number };
-type EventInfo = { id?: string; name?: string; dateLabel?: string; venue?: string; organizerHandle?: string; webCheckout?: { tiers?: CheckoutTier[] } };
+type EventInfo = { id?: string; name?: string; dateLabel?: string; venue?: string; city?: string; cover?: string; organizerHandle?: string; webCheckout?: { tiers?: CheckoutTier[] } };
 
 const POLL_MS = 5000;
 const MAX_ITEMS = 10;
@@ -82,6 +83,7 @@ export function SeatMap({ eventId }: { eventId: string }) {
   const [bestN, setBestN] = useState(2);
   const etag = useRef<string | null>(null);
   const holdRef = useRef<number | null>(null);
+  const paidRef = useRef(false); // BS137: picks just paid for (now sold — not "taken")
   holdRef.current = holdUntil;
 
   const tiers = useMemo(() => (ev?.webCheckout?.tiers || []).filter((t) => t && t.tierId && !t.disabled), [ev]);
@@ -112,7 +114,7 @@ export function SeatMap({ eventId }: { eventId: string }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!dead && d) setEv(d); })
       .catch(() => {});
-    fetch('/api/events/' + encodeURIComponent(eventId) + '/floorplan', { cache: 'no-store' })
+    fetch('/api/events/' + encodeURIComponent(eventId) + '/seatmap', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
         if (dead || !p || !Array.isArray(p.zones)) return;
@@ -196,13 +198,16 @@ export function SeatMap({ eventId }: { eventId: string }) {
   // A pick someone else took (seen on poll) drops out with the DD3 message —
   // unless it is held by OUR checkout (its hold is live).
   useEffect(() => {
-    if (!seats || holdRef.current) return;
+    if (!seats || holdRef.current || paidRef.current) return;
     const gone = picks.filter((id) => {
       const s = seatById.get(id);
       return !s || s.state !== 'available';
     });
     if (!gone.length) return;
     setPicks((p) => p.filter((id) => !gone.includes(id)));
+    // BS137: like a 409 seat_taken, close an open checkout (no hold yet) so the
+    // buyer sees the message and re-picks instead of facing an empty cart.
+    setCheckoutOpen(false);
     const s = seatById.get(gone[0]);
     setMessage({ strong: TAKEN_COPY(s ? s.label : gone[0]), rest: TAKEN_REST });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -394,7 +399,12 @@ export function SeatMap({ eventId }: { eventId: string }) {
     const t = iso ? new Date(iso).getTime() : NaN;
     setHoldUntil(Number.isFinite(t) ? t : null);
   }, []);
-  const onCloseCheckout = useCallback(() => setCheckoutOpen(false), []);
+  // BS137: clear the paid picks when the buyer closes the result, not while it is
+  // showing — the open checkout still reads them for its summary and pass labels.
+  const onCloseCheckout = useCallback(() => {
+    setCheckoutOpen(false);
+    if (paidRef.current) { paidRef.current = false; setPicks([]); setGa({}); }
+  }, []);
 
   const ago = updatedAt ? Math.max(0, Math.round((now - updatedAt) / 1000)) : null;
   const holdLeft = holdUntil ? Math.max(0, Math.floor((holdUntil - now) / 1000)) : null;
@@ -663,11 +673,13 @@ export function SeatMap({ eventId }: { eventId: string }) {
         organizerHandle={ev?.organizerHandle}
         dateLabel={ev?.dateLabel}
         venue={ev?.venue}
+        city={CITIES.find((c) => c.id === ev?.city)?.city || ev?.city}
+        artwork={ev?.cover}
         onSeatTaken={onSeatTaken}
         onHold={onHold}
         onResult={(status) => {
           if (status === 'paid') {
-            setPicks([]); setGa({}); setHoldUntil(null);
+            paidRef.current = true; setHoldUntil(null);
             setMessage({ strong: 'Paid. Your passes are live.', rest: 'Each pass shows its seat.' });
           }
         }}

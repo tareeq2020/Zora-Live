@@ -3,12 +3,13 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, handleReceivableWebhook, type FspRouteMap, type PaymentMethod,
+  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type FspRouteMap, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
 import { resolveSessionSecret } from '../common/secret';
 import { DEFAULT_SETTINGS } from '../common/defaults';
+import { canReadBuyerOrder } from '../common/order-access';
 
 /* PR-9: the payment HTTP edge. The state machine + apply-exactly-once logic lives
    in @zora/core; this controller is the thin edge:
@@ -163,7 +164,10 @@ export class PaymentsController {
     }
 
     // BS132: an installment order also reports its plan ("Booked — X of N paid").
-    const installments = await installmentSummary(sql, orderId);
+    // BS134: amounts only for the buyer (checkout cookie / verified buyer session) —
+    // the order id alone travels in SMS links.
+    const owner = await installmentOrderOwner(sql, orderId);
+    const installments = owner && canReadBuyerOrder(req, orderId, owner) ? await installmentSummary(sql, orderId) : null;
     return res.status(200).json({ status: order.status, credentials, ...(installments ? { installments } : {}) });
   }
 

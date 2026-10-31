@@ -6,21 +6,21 @@
 **Status key:** `todo` · `wip` · `review` · `merged` (on develop) · `released` (on main + mirror) · `blocked`
 **Flags:** each feature ships dark and is turned on per release. Flag names are in the Flag column.
 
-Last updated: 2026-10-31
+Last updated: 2026-10-31 (final train)
 
 ## Releases
 
 | Release | Contents | Flag(s) | State |
 |---|---|---|---|
 | R0 Safety + sync | BS114–BS118, BS121, BS124–BS125, BS139 | — | released 2026-10-31 · PR #203 |
-| R1 New look | BS119–BS120 | `zp_look_v2` | wip |
-| R2 Checkout v2 + tracking | BS121–BS123 | `zp_checkout_v2` | todo |
-| R3 Seat maps | BS124–BS127 | `zp_seatmap` (per event) | merged — ready to promote |
-| R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | todo |
-| R5 Installments | BS132–BS136 | `zp_installments` (per org, OFF until x-bridge /v1 R3 ≈ 21 Nov) | todo |
-| R6 Hardening + x-bridge /v1 | BS137–BS138 | — | todo |
-| R8 Backend on Render (api.zorapass.com) | BS142 | — | merged — cutover pending (owner) |
-| R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | wip |
+| R1 New look | BS119–BS120 | `zp_look_v2` | released (PR #214) |
+| R2 Checkout v2 + tracking | BS121–BS123 | `zp_checkout_v2` | released (PR #214) — flag off until backend deploy |
+| R3 Seat maps | BS124–BS127, BS143 | `zp_seatmap` (per event) | released (PR #218 + final train) |
+| R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | released (PR #213) |
+| R5 Installments | BS132–BS136, BS144 | `zp_installments` (per org) | released DARK (final train) — keep OFF until x-bridge /v1 (BS138) |
+| R6 Hardening + x-bridge /v1 | BS137 ✅, BS138 ⛔, BS145–BS146 todo | — | partial |
+| R8 Backend on Render (api.zorapass.com) | BS142 | — | released (PR #223) — owner cutover pending |
+| R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | released (PR #213) — needs OAuth keys |
 
 ## PRs
 
@@ -47,16 +47,20 @@ Last updated: 2026-10-31
 | BS131 | Pass design tab (draft → publish) + branded web pass + email | R4 | C | BS130 | F6 | merged | https://github.com/tareeq2020/Zora-Live/pull/206 | ticket-design e2e PASS; EMAIL/WALLET preview toggles not built; logo PNG/JPEG only |
 | BS132 | Installments core: plan/schedule tables, schedule maths, statuses, held→reserved, earnings by collected money | R5 | A | BS116, BS118 | F7, A2, A3, A16, A19 | merged | https://github.com/tareeq2020/Zora-Live/pull/215 | migration 0031; installments + payouts + money regression e2e PASS; refunds after default are manual (ops) |
 | BS133 | Installment provider adapter (x-bridge /v1 receivables; mock until R3 sandbox) + webhook handler | R5 | A | BS132 | A4, A20 | merged | https://github.com/tareeq2020/Zora-Live/pull/217 | migration 0033; mock-only until x-bridge sandbox (TODO(xbridge-v1) markers); webhook HMAC |
-| BS134 | Installment checkout + confirmation + "booked" pass state (no QR until paid) | R5 | A | BS122, BS132 | A5, DD5 | todo | | |
+| BS134 | Installment checkout + confirmation + "booked" pass state (no QR until paid) | R5 | A | BS122, BS132 | A5, DD5 | merged | https://github.com/tareeq2020/Zora-Live/pull/224 | quote = stored schedule; /pay needs cookie or OTP; buyer e2e 27/27 |
 | BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | merged | https://github.com/tareeq2020/Zora-Live/pull/219 | locked default close; refund recorded as pending for ops; jobs e2e PASS |
-| BS136 | Organizer installment settings + orders view; admin enable switch + fee | R5 | A | BS132 | F7 | todo | | |
-| BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | todo | | |
+| BS136 | Organizer installment settings + orders view; admin enable switch + fee | R5 | A | BS132 | F7 | merged | https://github.com/tareeq2020/Zora-Live/pull/221 | org tab + page, reminders 1/day, admin refund queue; org e2e PASS |
+| BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | merged | https://github.com/tareeq2020/Zora-Live/pull/225 | QA R1–R4: 9 bugs fixed (fonts never loaded!) + installments double-sidebar; open: buyer map reads draft plan → BS143 |
 | BS138 | Payments: move from x-bridge /collection/* to /v1 before x-bridge release 4 (≈ 28 Nov) | R6 | A | x-bridge /v1 live | new | blocked | | x-bridge switches /collection/* off at its R4 |
 | BS139 | R0 review follow-ups: flags lists out of public GET /settings, generic PUT can't write flags, seat-plan NaN/size guards | R0 | 0 | BS118 | review | merged | https://github.com/tareeq2020/Zora-Live/pull/202 | homepage→/discover kept (intentional Reli-Tech change) |
 
 | BS140 | Admin feature-flags page (`/admin/console/flags`) + `GET /api/settings/flags` (admin) | R1 | 0 | BS118 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/209 | needed to switch each release on |
 | BS141 | Admin Google sign-in as the default (password kept as break-glass); allowlist via settings.adminGoogleEmails / ADMIN_GOOGLE_EMAILS / ADMIN_GOOGLE_DOMAIN | R7 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/211 | needs Google OAuth client + callback <web>/api/auth/google/callback |
 | BS142 | Render Blueprint (`render.yaml`: zora-api web + zora-worker + env group), `/api/health`, api.zorapass.com, cutover runbook `docs/deploy/render.md` | R8 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/222 | owner: create Blueprint from Reli-Tech/zora, DNS CNAME api → zora-api.onrender.com, Vercel API_URL |
+| BS143 | Buyer seat map reads the PUBLISHED plan (`GET /api/events/:id/seatmap`, written on publish), never the builder draft | R3 | B | BS127 | QA finding (BS137) | merged | https://github.com/tareeq2020/Zora-Live/pull/226 | seat e2e extended |
+| BS144 | Final review fixes: seat map falls back for events published before BS143; pay page seat labels from order_seat | R5 | 0 | BS143 | final review | merged | https://github.com/tareeq2020/Zora-Live/pull/227 | follow-ups below |
+| BS145 | FOLLOW-UP (security): /api/orders/:id/status returns QR codes to anyone with the order id (pre-existing; order ids now in installment SMS). Gate qr/code on canReadBuyerOrder after checking mobile app + split-share flows | R6 | 0 | — | final review | todo | | must test mobile checkout + Tuchange shares first |
+| BS146 | FOLLOW-UP: quiet hours for organizer "Send reminder"; cancel stale pending installment_plan when releaseOwnSeatHold expires its order; batch the public installments/offers read | R6 | A | — | final review | todo | | minor |
 ## Decisions log
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
 - 2026-10-31 · Owner: add Google login as the default for admins (R7 / BS141).
@@ -66,3 +70,8 @@ Last updated: 2026-10-31
 | Date | Release | origin/main | mirror/main | API + worker redeployed (PM2 until R8 cutover, then Render auto-deploy) |
 |---|---|---|---|---|
 | 2026-10-31 | R0 | 23f2cb0 | 23f2cb0 | PENDING manual: migrations 0028 + 0032, pm2 reload zora-api zora-worker |
+| 2026-10-31 | train 2 (R1 partial, R4, R7) | 92c713b | 92c713b | pending |
+| 2026-10-31 | train 3 (R1, R2) | 6825c10 | 6825c10 | pending |
+| 2026-10-31 | train 4 (R3) | 3c266b9 | 3c266b9 | pending |
+| 2026-10-31 | train 5 (R5 backend) | 3c101a8 | 3c101a8 | pending (migrations 0028–0033) |
+| 2026-10-31 | R8 Render blueprint | 52eaceb | 52eaceb | n/a |

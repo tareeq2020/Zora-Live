@@ -19,6 +19,7 @@ import { RevealImg } from '../../components/reveal-img';
 import { ZBot } from '../../components/zbot';
 import { Placements } from '../../components/placements';
 import { CITIES } from '../../lib/cities';
+import { fetchCardOffers, hintText, type CardOffer } from '../../lib/installments';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../components/event-card';
 
 // BS47: KULTUR is invite/earn-only with no app to redeem it in yet — the banner
@@ -153,6 +154,8 @@ export function DiscoverApp() {
   const [events, setEvents] = useState<Ev[]>([]);
   // BS120: live stock per tier for honest card chips. null = unknown → no chip.
   const [pools, setPools] = useState<Record<string, InventoryPool> | null>(null);
+  // BS134: installment hints for the cards (one request; failure → none).
+  const [instOffers, setInstOffers] = useState<Record<string, CardOffer>>({});
   const [status, setStatus] = useState<Status>('loading');
   const [errCause, setErrCause] = useState('');
   const [activeCity, setActiveCity] = useState('dar');
@@ -208,7 +211,10 @@ export function DiscoverApp() {
       if (!r.ok) throw new Error(`the events service replied ${r.status}`);
       const data = await r.json();
       if (!Array.isArray(data)) throw new Error('the events service sent an unexpected response');
-      setEvents(data.map(mapEvent));
+      const mapped = data.map(mapEvent);
+      setEvents(mapped);
+      // BS134: installment hints — nice-to-have, like stock.
+      fetchCardOffers(mapped.filter((e: Ev) => e.tierIds.length).map((e: Ev) => e.id)).then(setInstOffers);
       // Stock is a nice-to-have: a failed read just means no stock chips.
       fetch('/api/inventory', { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
@@ -349,7 +355,7 @@ export function DiscoverApp() {
       city={cityLabel(e)}
       priceFrom={e.price ? money(e) : undefined}
       status={statusOf(e)}
-      installmentHint={e.splittable ? 'Split with Tuchange' : undefined}
+      installmentHint={instOffers[e.id] ? hintText(instOffers[e.id]) : e.splittable ? 'Split with Tuchange' : undefined}
       onClick={(ev) => {
         if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
         ev.preventDefault();

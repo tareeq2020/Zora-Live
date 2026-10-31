@@ -50,6 +50,8 @@
   font-size: clamp(40px, 10vw, 64px); line-height: .95; color: var(--yellow);
 }
 .lead { margin: 0; font-size: 18px; max-width: 40ch; }
+/* BS137: on a phone the stamp reaches the lead line — keep text clear of it. */
+@media (max-width: 599px) { .lead { padding-right: 104px; } }
 
 .rows {
   margin: 8px 0 0; display: grid; grid-template-columns: 96px 1fr; row-gap: 10px;

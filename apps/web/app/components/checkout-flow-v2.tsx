@@ -23,7 +23,14 @@
      checkout response without subtotal/fee → total only.
      GET /api/settings feeRate (pre-order estimate) missing → no fee estimate.
    The amount charged is always the server's `total`; if it differs from the
-   amount on the button when the order is created, we stop and show it first. */
+   amount on the button when the order is created, we stop and show it first.
+
+   BS134 (F7): step 2 offers "Pay in installments" when the server quotes a plan
+   for this cart (GET /api/events/:id/installments/quote — flag zp_installments +
+   the organizer's offer). No quote (flag off, tier not offered, old API, 404) →
+   the option is simply absent. Choosing it creates the order through
+   POST /api/checkout/installments and the same pay call charges the deposit
+   (row 1); the result is "Booked — 1 of N paid." with CHECK MY PASS → /pay/:id. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -31,12 +38,23 @@ import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { trackProductEvent } from './product-analytics';
 import { stockStatus } from './event-card';
 import type { CheckoutFlowProps, CheckoutTier } from './checkout-types';
+import { dayLabel, ruleText, type InstallmentQuote, type ScheduleRow } from '../lib/installments';
 
 type Step = 'passes' | 'details' | 'poll' | 'done';
 type Method = 'mobile' | 'billpay' | 'card';
 type MethodGroup = { id: Method; label: string };
 type Pool = { tierId: string; available: number; capacity?: number };
-type Order = { orderId: string; total: number; subtotal?: number; fee?: number; currency?: string; holdExpiresAt?: string };
+type Order = {
+  orderId: string;
+  total: number;
+  subtotal?: number;
+  fee?: number;
+  currency?: string;
+  holdExpiresAt?: string;
+  /** BS134: present when the order is an installment plan (deposit = row 1). */
+  installments?: { deposit: number; finalDue: string; graceDays: number; schedule: ScheduleRow[] };
+};
+type Plan = 'full' | 'installments';
 type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string; seatLabel?: string };
 type Notice = { kind: 'error' | 'info'; text: string } | null;
 
@@ -156,6 +174,11 @@ export default function CheckoutFlowV2({
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [statusVal, setStatusVal] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  // BS134: installments — the server quote for the current cart, and the choice.
+  const [quote, setQuote] = useState<InstallmentQuote | null>(null);
+  const [plan, setPlan] = useState<Plan>('full');
+  const [booked, setBooked] = useState<{ paidCount: number; count: number; schedule: ScheduleRow[] } | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCount = useRef(0);
 
@@ -182,6 +205,9 @@ export default function CheckoutFlowV2({
     setRedirectUrl(null);
     setStatusVal(null);
     setCredentials([]);
+    setQuote(null);
+    setPlan('full');
+    setBooked(null);
     setBusy(false);
     pollCount.current = 0;
     setPools(null);
@@ -225,10 +251,27 @@ export default function CheckoutFlowV2({
   useEffect(() => () => stopPolling(), [stopPolling]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && step !== 'poll' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && step !== 'poll') onClose();
+      // BS137: keep Tab inside the modal (aria-modal alone does not stop it).
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const els = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter((el) => el.offsetParent !== null);
+      if (!els.length) return;
+      const first = els[0], last = els[els.length - 1];
+      const inside = dialogRef.current.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (!inside || document.activeElement === last)) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, step]);
+  // BS137: move focus into the dialog when it opens, and back where it was on close.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => prev?.focus?.();
+  }, [open]);
 
   // ── hold countdown ──
   const holdLeft = useCountdown(order?.holdExpiresAt);
@@ -251,10 +294,48 @@ export default function CheckoutFlowV2({
   const estFee = feeRate != null ? Math.round(estSubtotal * feeRate) : null;
   const splitLine = lines.find((l) => l.tier.split);
 
+  // BS134: ask the server for an installment quote for this exact cart once the
+  // buyer reaches step 2. Any failure → no installment option (pay in full only).
+  const cartKey = lines.map((l) => `${l.tier.tierId}:${l.q}`).join(',');
+  useEffect(() => {
+    if (!open || step !== 'details' || !eventId || !lines.length || order) return;
+    let live = true;
+    const qs = new URLSearchParams({
+      tier: lines.map((l) => l.tier.tierId).join(','),
+      qty: lines.map((l) => String(l.q)).join(','),
+    });
+    fetch(`/api/events/${encodeURIComponent(eventId)}/installments/quote?${qs.toString()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: (InstallmentQuote & { offered?: boolean }) | null) => {
+        if (!live) return;
+        const ok = !!d && d.offered === true && Array.isArray(d.schedule) && d.schedule.length >= 2 && typeof d.deposit === 'number';
+        setQuote(ok ? d : null);
+        if (!ok) setPlan('full');
+      })
+      .catch(() => {
+        if (live) {
+          setQuote(null);
+          setPlan('full');
+        }
+      });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, step, eventId, cartKey, order]);
+
   // Figures shown in the summary: server-authoritative once the order exists.
-  const subtotal = order ? order.subtotal ?? null : estSubtotal;
-  const fee = order ? order.fee ?? null : estFee;
-  const total = order ? order.total : estSubtotal + (estFee || 0);
+  // BS134: with installments chosen, the server quote is authoritative pre-order.
+  const fromQuote = !order && plan === 'installments' && quote ? quote : null;
+  const subtotal = order ? order.subtotal ?? null : fromQuote ? fromQuote.subtotal : estSubtotal;
+  const fee = order ? order.fee ?? null : fromQuote ? fromQuote.fee : estFee;
+  const total = order ? order.total : fromQuote ? fromQuote.total : estSubtotal + (estFee || 0);
+  // BS134: installments — the deposit is what PAY charges now.
+  const instOn = plan === 'installments' && (!!order?.installments || (!order && !!quote));
+  const instSchedule: ScheduleRow[] = order?.installments?.schedule || quote?.schedule || [];
+  const dueToday = instOn ? order?.installments?.deposit ?? quote?.deposit ?? null : null;
+  const instGrace = order?.installments?.graceDays ?? quote?.graceDays ?? 0;
+  const payNow = dueToday != null ? dueToday : total;
 
   function setTierQty(t: CheckoutTier, next: number) {
     if (t.seatIds?.length) return; // seat picks fix the quantity
@@ -288,7 +369,8 @@ export default function CheckoutFlowV2({
 
   // ── POST /api/checkout (body identical to v1, plus seatIds when picked) ──
   async function createOrder(): Promise<Order | null> {
-    const res = await fetch('/api/checkout', {
+    const viaInstallments = plan === 'installments' && !!quote;
+    const res = await fetch(viaInstallments ? '/api/checkout/installments' : '/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -313,7 +395,15 @@ export default function CheckoutFlowV2({
         fee: typeof d.fee === 'number' ? d.fee : undefined,
         currency: d.currency,
         holdExpiresAt: d.holdExpiresAt,
+        ...(d.installments && Array.isArray(d.installments.schedule) ? { installments: d.installments } : {}),
       };
+      if (viaInstallments && !o.installments) {
+        // An API that ignored the plan would charge the full total — never do that.
+        setNotice({ kind: 'error', text: 'Installments aren’t available right now. Pay in full instead.' });
+        setQuote(null);
+        setPlan('full');
+        return null;
+      }
       setOrder(o);
       onHold?.(d.holdExpiresAt || null);
       trackProductEvent('web_checkout_started', { eventId, eventName, count: passCount, amount: d.total, currency, method });
@@ -335,6 +425,16 @@ export default function CheckoutFlowV2({
         setNotice({ kind: 'error', text: COPY.soldOut });
       }
       setStep('passes');
+      return null;
+    }
+    if (viaInstallments && (res.status === 403 || res.status === 422 || res.status === 404)) {
+      const d = await res.json().catch(() => ({}));
+      setQuote(null);
+      setPlan('full');
+      setNotice({
+        kind: 'error',
+        text: d.error === 'schedule_rejected' && d.message ? d.message : 'Installments aren’t available for this order. Pay in full instead.',
+      });
       return null;
     }
     if (res.status === 503) {
@@ -368,6 +468,12 @@ export default function CheckoutFlowV2({
     });
     if (res.status !== 200) {
       const d = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        const secs = Number(res.headers.get('Retry-After')) || Number(d.retryAfterSecs) || 600;
+        const mins = Math.max(1, Math.ceil(secs / 60));
+        setNotice({ kind: 'error', text: `Too many payment prompts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` });
+        return;
+      }
       if (d.error === 'order_not_found' || d.error === 'not_payable') {
         setOrder(null);
         setNotice({ kind: 'error', text: COPY.expired });
@@ -384,7 +490,7 @@ export default function CheckoutFlowV2({
       return;
     }
     const d = await res.json();
-    trackProductEvent('web_payment_started', { eventId, eventName, amount: o.total, currency, method });
+    trackProductEvent('web_payment_started', { eventId, eventName, amount: o.installments ? o.installments.deposit : o.total, currency, method });
     setBillPayNumber(d.billPayNumber || null);
     setRedirectUrl(d.redirectUrl || null);
     if (method === 'card' && d.redirectUrl) window.open(d.redirectUrl, '_blank', 'noopener');
@@ -402,12 +508,19 @@ export default function CheckoutFlowV2({
       let o = order;
       if (!o) {
         const shown = total;
+        const shownToday = dueToday;
+        const shownQuoteTotal = quote?.total;
         o = await createOrder();
         if (!o) return;
         // Never charge a number the buyer hasn't seen: if the server's total
         // differs from the button (e.g. a service fee we couldn't estimate),
         // stop here — the summary and button now show the real total.
-        if (o.total !== shown) {
+        if (o.installments) {
+          if (o.installments.deposit !== shownToday || o.total !== shownQuoteTotal) {
+            setNotice({ kind: 'info', text: `Due today is ${money(o.installments.deposit)} of ${money(o.total)}. Check it, then pay.` });
+            return;
+          }
+        } else if (o.total !== shown) {
           setNotice({ kind: 'info', text: `Your total is ${money(o.total)}. Check it, then pay.` });
           return;
         }
@@ -429,8 +542,24 @@ export default function CheckoutFlowV2({
       try {
         const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, { cache: 'no-store' });
         if (res.ok) {
-          const d = (await res.json()) as { status: string; credentials?: Credential[] };
+          const d = (await res.json()) as {
+            status: string;
+            credentials?: Credential[];
+            installments?: { paidCount: number; count: number; schedule: ScheduleRow[] };
+          };
           setStatusVal(d.status);
+          // BS134: a cleared deposit moves the order to installment_active — booked.
+          if (d.status === 'installment_active') {
+            stopPolling();
+            onResult?.(d.status);
+            setBooked(
+              d.installments && Array.isArray(d.installments.schedule)
+                ? { paidCount: d.installments.paidCount, count: d.installments.count, schedule: d.installments.schedule }
+                : null,
+            );
+            setStep('done');
+            return;
+          }
           if (TERMINAL.has(d.status)) {
             stopPolling();
             onResult?.(d.status);
@@ -473,7 +602,7 @@ export default function CheckoutFlowV2({
   const when = [(dateLabel || '').toUpperCase(), time].filter(Boolean).join(' · ');
   const where = [venue, city].filter(Boolean).join(' · ');
   const inFlow = step === 'passes' || step === 'details';
-  const ctaLabel = step === 'passes' ? 'CONTINUE' : `PAY ${curLabel(currency).toUpperCase()} ${fmt(total)}`;
+  const ctaLabel = step === 'passes' ? 'CONTINUE' : `PAY ${curLabel(currency).toUpperCase()} ${fmt(payNow)}`;
   const ctaDisabled = busy || !passCount || (step === 'details' && holdLeft === 0);
   const onCta = step === 'passes' ? toDetails : pay;
   const ctaHint =
@@ -499,22 +628,35 @@ export default function CheckoutFlowV2({
             </div>
           ))
         : null}
-      {subtotal != null && (!compact || (fee != null && fee > 0)) ? (
+      {subtotal != null && (!compact || (fee != null && fee > 0 && !instOn)) ? (
         <div className="zc2-row zc2-sub">
           <span>Subtotal</span>
           <span className="zc2-num">{money(subtotal)}</span>
         </div>
       ) : null}
-      {fee != null && fee > 0 ? (
+      {fee != null && fee > 0 && !(compact && instOn) ? (
         <div className="zc2-row zc2-sub">
           <span>Service fee</span>
           <span className="zc2-num">{money(fee)}</span>
         </div>
       ) : null}
-      <div className="zc2-total">
-        <span>Total</span>
-        <span className="zc2-num">{passCount ? money(total) : '—'}</span>
-      </div>
+      {instOn && dueToday != null ? (
+        <>
+          <div className="zc2-row zc2-sub">
+            <span>{compact && fee != null && fee > 0 ? `Total incl. ${money(fee)} fee` : 'Total'}</span>
+            <span className="zc2-num">{money(total)}</span>
+          </div>
+          <div className="zc2-total">
+            <span>Due today</span>
+            <span className="zc2-num">{money(dueToday)}</span>
+          </div>
+        </>
+      ) : (
+        <div className="zc2-total">
+          <span>Total</span>
+          <span className="zc2-num">{passCount ? money(total) : '—'}</span>
+        </div>
+      )}
       {fee === 0 ? (
         <p className="zc2-fine">All fees included.</p>
       ) : fee == null && !order ? (
@@ -543,7 +685,7 @@ export default function CheckoutFlowV2({
   );
 
   return (
-    <div className="zc2" role="dialog" aria-modal="true" aria-label={`Get passes for ${eventName}`}>
+    <div className="zc2" role="dialog" aria-modal="true" aria-label={`Get passes for ${eventName}`} ref={dialogRef} tabIndex={-1}>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <header className="zc2-head">
         {step === 'details' ? (
@@ -702,6 +844,61 @@ export default function CheckoutFlowV2({
                 </label>
               </div>
 
+              {quote || order?.installments ? (
+                <fieldset className="zc2-plans">
+                  <legend>How do you want to pay?</legend>
+                  <label className={'zc2-plan' + (plan === 'full' ? ' on' : '')}>
+                    <span className="zc2-plan-top">
+                      <input
+                        type="radio"
+                        name="zc2-plan"
+                        checked={plan === 'full'}
+                        disabled={!!order}
+                        onChange={() => setPlan('full')}
+                      />
+                      <span className="zc2-plan-txt">
+                        <span className="zc2-plan-l">Pay in full</span>
+                        <span className="zc2-plan-d">Your pass arrives straight away.</span>
+                      </span>
+                      <span className="zc2-num zc2-plan-amt">{money(order ? total : quote?.total ?? total)}</span>
+                    </span>
+                  </label>
+                  <label className={'zc2-plan' + (plan === 'installments' ? ' on' : '')}>
+                    <span className="zc2-plan-top">
+                      <input
+                        type="radio"
+                        name="zc2-plan"
+                        checked={plan === 'installments'}
+                        disabled={!!order}
+                        onChange={() => setPlan('installments')}
+                      />
+                      <span className="zc2-plan-txt">
+                        <span className="zc2-plan-l">Pay in installments</span>
+                        <span className="zc2-plan-d">
+                          Deposit today, the rest before the event. Your pass arrives when it&apos;s paid in full.
+                        </span>
+                      </span>
+                      <span className="zc2-num zc2-plan-amt">
+                        {money(order?.installments?.deposit ?? quote?.deposit ?? 0)} today
+                      </span>
+                    </span>
+                    {plan === 'installments' ? (
+                      <>
+                        <span className="zc2-sched">
+                          {instSchedule.map((r) => (
+                            <span className={'zc2-sched-row' + (r.n === 1 ? ' now' : '')} key={r.n}>
+                              <span className="zc2-sched-k">{r.n === 1 ? 'TODAY' : dayLabel(r.dueDate)}</span>
+                              <span className="zc2-num">{money(r.amount)}</span>
+                            </span>
+                          ))}
+                        </span>
+                        <span className="zc2-plan-rule">{ruleText(instGrace)}</span>
+                      </>
+                    ) : null}
+                  </label>
+                </fieldset>
+              ) : null}
+
               <fieldset className="zc2-methods">
                 <legend>Pay with</legend>
                 <div className="zc2-method-list" role="radiogroup">
@@ -767,12 +964,26 @@ export default function CheckoutFlowV2({
           {/* ── RESULT ── */}
           {step === 'done' ? (
             <Result
+              booked={
+                statusVal === 'installment_active'
+                  ? {
+                      orderId: order?.orderId || '',
+                      paidCount: booked?.paidCount ?? 1,
+                      count: booked?.count ?? instSchedule.length,
+                      schedule: booked?.schedule?.length ? booked.schedule : instSchedule,
+                      passCount,
+                      phone: phone.length === 9 ? `+255 ${groupPhone(phone)}` : '',
+                      money,
+                    }
+                  : null
+              }
               statusVal={statusVal}
               credentials={credentials}
               eventName={eventName}
               when={when}
               where={where}
               lines={lines.map((l) => `${l.q} × ${l.tier.name}`).join(', ')}
+              tierName={(id) => tiers.find((t) => t.tierId === id)?.name || id}
               onClose={onClose}
               onRetry={retryPayment}
               onStartAgain={startAgain}
@@ -812,27 +1023,83 @@ export default function CheckoutFlowV2({
   );
 }
 
+type Booked = {
+  orderId: string;
+  paidCount: number;
+  count: number;
+  schedule: ScheduleRow[];
+  passCount: number;
+  phone: string;
+  money: (n: number) => string;
+};
+
+/* BS134: installment deposit cleared (Confirm mockup, right half). Bricolage —
+   never Bungee — for the headline; the schedule is mono rows, paid rows yellow. */
+function BookedResult({ b }: { b: Booked }) {
+  const paid = Math.max(1, b.paidCount);
+  return (
+    <div className="zc2-booked">
+      <span className="zc2-booked-k">
+        INSTALLMENTS · {paid} OF {b.count} PAID
+      </span>
+      <h2 className="zc2-booked-h">
+        Booked — {paid} of {b.count} paid.
+      </h2>
+      <p className="zc2-booked-p">
+        {b.passCount > 1
+          ? `Your ${b.passCount} passes are held for you. They arrive the moment the last payment clears.`
+          : 'Your pass is held for you. It arrives the moment the last payment clears.'}
+      </p>
+      <div className="zc2-booked-rows">
+        {b.schedule.map((r) => {
+          const isPaid = r.status ? r.status === 'paid' : r.n === 1;
+          return (
+            <div className={'zc2-booked-row' + (isPaid ? ' paid' : '')} key={r.n}>
+              <span>{isPaid ? (r.n === 1 ? 'PAID · TODAY' : `PAID · ${dayLabel(r.dueDate)}`) : `DUE · ${dayLabel(r.dueDate)}`}</span>
+              <span>{b.money(r.amount)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="zc2-booked-note">
+        We&apos;ll text {b.phone || 'you'} three days before each date with a link to pay. You can pay early any time.
+      </p>
+      {b.orderId ? (
+        <a className="zc2-primary zc2-booked-cta" href={`/pay/${encodeURIComponent(b.orderId)}`}>
+          <span>CHECK MY PASS</span>
+          <span aria-hidden="true">→</span>
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function Result({
+  booked,
   statusVal,
   credentials,
   eventName,
   when,
   where,
   lines,
+  tierName,
   onClose,
   onRetry,
   onStartAgain,
 }: {
+  booked: Booked | null;
   statusVal: string | null;
   credentials: Credential[];
   eventName: string;
   when: string;
   where: string;
   lines: string;
+  tierName: (tierId: string) => string;
   onClose: () => void;
   onRetry: () => void;
   onStartAgain: () => void;
 }) {
+  if (booked) return <BookedResult b={booked} />;
   if (statusVal === 'paid') {
     const good = credentials.filter((c) => c.state !== 'revoked');
     return (
@@ -870,7 +1137,7 @@ function Result({
               <div className="zc2-qr-img">
                 <QRCodeSVG value={c.qr} size={200} level="M" includeMargin={false} bgColor="#FFFFFF" fgColor="#111111" />
               </div>
-              <p className="zc2-qr-tier">{c.tier}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
+              <p className="zc2-qr-tier">{tierName(c.tier)}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
               <p className="zc2-qr-ref">{c.publicRef}</p>
             </div>
           ))}
@@ -939,6 +1206,7 @@ function validationMessage(err?: string): string {
    Every rule is .zc2-prefixed twice-deep so the reset below never outranks it. */
 const STYLE = `
 .zc2{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--wh:var(--zp-color-white);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--ink2:var(--zp-color-ink-600);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);position:fixed;inset:0;z-index:120;background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;overflow-y:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.zc2:focus{outline:none}
 .zc2 *{margin:0;padding:0;box-sizing:border-box}
 .zc2 :focus-visible{outline:3px solid var(--bk);outline-offset:2px}
 .zc2 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
@@ -1098,12 +1366,13 @@ const STYLE = `
 .zc2 .zc2-in{position:relative;background:var(--bk);color:var(--bone);border-radius:var(--zp-radius-lg);padding:32px 24px;display:flex;flex-direction:column;gap:16px}
 @media(min-width:960px){.zc2 .zc2-in{padding:48px}}
 .zc2 .zc2-in :focus-visible{outline-color:var(--yl)}
-.zc2 .zc2-in-stamp{position:absolute;right:24px;top:24px;width:96px;height:96px;transform:rotate(-10deg);animation:zc2slam .18s cubic-bezier(.2,.7,.2,1) both}
+.zc2 .zc2-in-stamp{position:absolute;right:16px;top:16px;width:80px;height:80px;transform:rotate(-10deg);animation:zc2slam .18s cubic-bezier(.2,.7,.2,1) both}
+@media(min-width:960px){.zc2 .zc2-in-stamp{right:24px;top:24px;width:96px;height:96px}}
 @keyframes zc2slam{from{opacity:0;transform:scale(1.3) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(-10deg)}}
 @media(prefers-reduced-motion:reduce){.zc2 .zc2-in-stamp{animation:none}.zc2 .zc2-spin{animation-duration:2s}}
 .zc2 .zc2-in-k{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-300,#BDBDBD)}
-.zc2 .zc2-in-h{font-family:var(--disp);font-weight:400;font-size:48px;line-height:.95;color:var(--yl)}
-@media(min-width:960px){.zc2 .zc2-in-h{font-size:72px}}
+.zc2 .zc2-in-h{font-family:var(--disp);font-weight:400;font-size:48px;line-height:.95;color:var(--yl);padding-right:88px}
+@media(min-width:960px){.zc2 .zc2-in-h{font-size:72px;padding-right:0}}
 .zc2 .zc2-in-p{font-size:18px;max-width:40ch}
 .zc2 .zc2-in-dl{display:grid;grid-template-columns:90px 1fr;row-gap:8px;font-family:var(--mono);font-size:15px}
 .zc2 .zc2-in-dl dt{color:var(--zp-color-ink-300,#BDBDBD);font-size:12px;letter-spacing:.08em;padding-top:2px}
@@ -1113,6 +1382,54 @@ const STYLE = `
 .zc2 .zc2-qr-tier{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
 .zc2 .zc2-qr-ref{font-family:var(--mono);font-size:14px;letter-spacing:.06em}
 .zc2 .zc2-in .zc2-primary{max-width:320px}
+
+/* BS134 — how do you want to pay? (CheckoutPay / CheckoutPhonePay mockups) */
+.zc2 .zc2-plans{border:none;display:flex;flex-direction:column;gap:10px}
+.zc2 .zc2-plans legend{font-size:18px;font-weight:700;margin-bottom:10px}
+@media(min-width:960px){.zc2 .zc2-plans{gap:12px}.zc2 .zc2-plans legend{font-size:20px;margin-bottom:12px}}
+.zc2 .zc2-plan{display:flex;flex-direction:column;gap:12px;background:var(--wh);border:1px solid var(--line);border-radius:var(--zp-radius-lg);padding:14px;cursor:pointer}
+@media(min-width:960px){.zc2 .zc2-plan{padding:16px 20px;gap:14px}}
+.zc2 .zc2-plan.on{border:2px solid var(--bk)}
+.zc2 .zc2-plan-top{display:flex;gap:12px;align-items:flex-start}
+@media(min-width:960px){.zc2 .zc2-plan-top{gap:16px}}
+.zc2 .zc2-plan input{appearance:none;-webkit-appearance:none;width:22px;height:22px;flex:none;margin:1px 0 0;border:2px solid var(--bk);border-radius:50%;background:var(--wh);cursor:pointer}
+.zc2 .zc2-plan input:checked{background:var(--bk);box-shadow:inset 0 0 0 4px var(--wh)}
+.zc2 .zc2-plan input:disabled{cursor:not-allowed;opacity:.5}
+.zc2 .zc2-plan-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.zc2 .zc2-plan-l{font-weight:700;font-size:16px}
+@media(min-width:960px){.zc2 .zc2-plan-l{font-size:18px}}
+.zc2 .zc2-plan-d{font-size:14px;color:var(--mut)}
+.zc2 .zc2-plan-amt{font-size:15px;font-weight:600;text-align:right}
+@media(min-width:960px){.zc2 .zc2-plan-amt{font-size:16px}}
+.zc2 .zc2-sched{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.zc2 .zc2-sched-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;font-family:var(--mono);font-size:14px;background:var(--wh)}
+.zc2 .zc2-sched-row + .zc2-sched-row{border-top:1px solid var(--line)}
+.zc2 .zc2-sched-row.now{background:var(--yl)}
+.zc2 .zc2-sched-k{letter-spacing:.08em}
+@media(min-width:960px){
+  .zc2 .zc2-sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;border:none;border-radius:0}
+  .zc2 .zc2-sched-row{flex-direction:column;gap:4px;border-radius:12px;padding:12px;background:var(--bone);font-size:16px;font-weight:600}
+  .zc2 .zc2-sched-row + .zc2-sched-row{border-top:none}
+  .zc2 .zc2-sched-row.now{background:var(--yl)}
+  .zc2 .zc2-sched-k{font-size:12px;letter-spacing:.12em;font-weight:400}
+}
+.zc2 .zc2-plan-rule{font-size:13px;color:var(--ink2)}
+@media(min-width:960px){.zc2 .zc2-plan-rule{font-size:14px}}
+
+/* BS134 — installment confirmation (Confirm mockup, right half): bone, Bricolage */
+.zc2 .zc2-booked{display:flex;flex-direction:column;gap:16px;background:var(--bone);border:2px solid var(--bk);border-radius:var(--zp-radius-lg);padding:32px 24px}
+@media(min-width:960px){.zc2 .zc2-booked{padding:48px;gap:20px}}
+.zc2 .zc2-booked-k{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut)}
+.zc2 .zc2-booked-h{font-family:var(--sans);font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1.02}
+@media(min-width:960px){.zc2 .zc2-booked-h{font-size:56px}}
+.zc2 .zc2-booked-p{font-size:18px;max-width:460px}
+@media(min-width:960px){.zc2 .zc2-booked-p{font-size:20px}}
+.zc2 .zc2-booked-rows{display:flex;flex-direction:column;border:2px solid var(--bk);border-radius:var(--zp-radius-lg);overflow:hidden;max-width:480px}
+.zc2 .zc2-booked-row{display:flex;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--wh);font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.zc2 .zc2-booked-row + .zc2-booked-row{border-top:1px solid var(--line)}
+.zc2 .zc2-booked-row.paid{background:var(--yl)}
+.zc2 .zc2-booked-note{font-size:15px;color:var(--ink2);max-width:480px}
+.zc2 a.zc2-booked-cta{max-width:320px;text-decoration:none;margin-top:8px}
 
 /* result — problems (never Bungee for errors) */
 .zc2 .zc2-fail{display:flex;flex-direction:column;gap:12px;background:var(--wh);border:2px solid var(--bk);border-radius:var(--zp-radius-lg);padding:24px}

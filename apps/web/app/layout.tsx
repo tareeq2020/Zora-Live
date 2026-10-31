@@ -39,6 +39,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_CR_THEME }} />
+        {/* BS137: the ZoraPass faces. fonts.css carries an @import, but bundling puts
+            it after other rules, where browsers ignore it — so load them here. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        />
       </head>
       <body>
         <ThemeProvider>
