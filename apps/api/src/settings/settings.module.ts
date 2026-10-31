@@ -117,6 +117,14 @@ export class SettingsController {
     return resolveFlags(current.flags, { org: org || null, event: event || null });
   }
 
+  // BS140: admin read of the raw flag rules (pilot lists) for the flags page.
+  @UseGuards(SessionGuard)
+  @Get('settings/flags')
+  async readFlags() {
+    const current = await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS);
+    return { flags: sanitizeFlagRules(current.flags) };
+  }
+
   // BS118: admin-only flag rules save. Replaces settings.flags wholesale with the
   // sanitized rules (unknown flags and junk fields dropped).
   @UseGuards(SessionGuard)

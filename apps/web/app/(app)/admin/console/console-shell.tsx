@@ -34,6 +34,7 @@ const NAV: CrNavItem[] = [
   { href: '/admin/console/payouts', label: 'Payouts', icon: 'payouts' },
   { href: '/admin/console/scanner', label: 'Scanner users', icon: 'scanner' },
   { href: '/admin/console/payments', label: 'Payments routing', icon: 'payments' },
+  { href: '/admin/console/flags', label: 'Feature flags', icon: 'access' },
   { href: '/admin/console/media', label: 'Media', icon: 'media' },
   { href: '/admin/console/access', label: 'Access', icon: 'access' },
 ];
