@@ -235,3 +235,9 @@ export type {
 export { collectViaCollectionApi } from './payments/service';
 export type { CollectAttemptInput, CollectAttemptResult } from './payments/service';
 export { xbridgeRequest, XbridgeHttpError } from './payments/xbridge';
+// BS135: installment worker jobs — reminders, locked default close, refund booking.
+export {
+  sendInstallmentReminders, closeDefaultedPlans, cancelStalePendingPlans, runInstallmentJobs,
+  recordInstallmentRefund, installmentPayLink, REMINDER_HOURS, CLOSING_MAX_HOURS,
+} from './payments/installments-jobs';
+export type { ReminderKind, DefaultCloseResult, RecordInstallmentRefundResult } from './payments/installments-jobs';
