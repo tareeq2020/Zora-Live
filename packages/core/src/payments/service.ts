@@ -22,6 +22,7 @@ import { sendCredentialEmail } from '../email';
 import { publicWebOrigin } from '../origins';
 import { alertOps } from '../ops';
 import { isCommissionRate } from '../commission';
+import { ORDER_STATUS, PASS_ISSUING_STATUSES, isPayable, issuesPasses } from '../order-status';
 import {
   onShareSuccessful, onShareShort, onShareFailed, notifyShareReceived, notifySplitCompleteByOrder,
 } from '../split';
@@ -216,7 +217,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   const [order] = await sql`
     select target_value, status, customer_id from "order" where id = ${orderId}`;
   if (!order) throw new Error('order not found');
-  if (order.status !== 'pending' && order.status !== 'failed') {
+  if (!isPayable(order.status)) { // BS116: pending | failed (+ installment_active, not produced yet — A16)
     throw new Error(`order not payable (status ${order.status})`);
   }
   // A retry re-HOLDS inventory for a failed order whose holds were released.
@@ -340,7 +341,7 @@ export async function applyOutcome(
       // GUARD 2 (order-level): a successful on an already-paid order = duplicate
       // COLLECTION by a different txn. Mark this txn paid + record what it took,
       // alert ops to refund, but reconvert NOTHING and reissue NOTHING.
-      if (ord?.status === 'paid') {
+      if (ord?.status === ORDER_STATUS.PAID) {
         await t`update payment_transaction set status='successful',
                   collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
                 where transaction_id=${transactionId}`;
@@ -401,7 +402,7 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
       ? Number(status.collectedAmount ?? status.amount ?? 0)
       : null;
   const orderStatus = await applyOutcome(sql, transactionId, outcome, collected);
-  if (orderStatus === 'paid') await notifyOrderPaid(sql, txr.order_id);
+  if (orderStatus === ORDER_STATUS.PAID) await notifyOrderPaid(sql, txr.order_id);
   else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
   else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
   return outcome;
@@ -512,7 +513,7 @@ async function deliverBuyerTickets(sql: Sql, orderId: string, target?: DeliveryT
 export async function notifyOrderPaid(sql: Sql, orderId: string): Promise<void> {
   const [claimed] = await sql`
     update "order" set notified_at = now()
-     where id = ${orderId} and status = 'paid' and notified_at is null
+     where id = ${orderId} and status = any(${[...PASS_ISSUING_STATUSES]}) and notified_at is null
     returning id`;
   if (!claimed) return; // already notified, or not paid
 
@@ -541,7 +542,7 @@ export async function resendOrderTickets(sql: Sql, orderId: string, target?: Del
 > {
   const [ord] = await sql`select status from "order" where id = ${orderId}`;
   if (!ord) return { ok: false, reason: 'not_found' };
-  if (ord.status !== 'paid') return { ok: false, reason: 'not_paid' };
+  if (!issuesPasses(ord.status)) return { ok: false, reason: 'not_paid' };
   const result = await deliverBuyerTickets(sql, orderId, target);
   if (!result) return { ok: false, reason: 'not_found' };
   return { ok: true, result };
@@ -728,7 +729,7 @@ export async function voidGateSale(sql: Sql, orderId: string, sellerId: string):
       select o.id, o.status, o.channel from "order" o
        where o.id = ${orderId} and o.sold_by = ${sellerId} for update`;
     if (!ord) return { ok: false, reason: 'not_found' };
-    if (ord.status !== 'paid' || !String(ord.channel || '').startsWith('gate_')) return { ok: false, reason: 'not_void_able' };
+    if (ord.status !== ORDER_STATUS.PAID || !String(ord.channel || '').startsWith('gate_')) return { ok: false, reason: 'not_void_able' };
 
     const inUse = await t`
       select 1 from credential c join order_item oi on oi.id = c.order_item_id

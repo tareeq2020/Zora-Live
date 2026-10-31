@@ -14,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { db, tx, poolSnapshots, type PoolSnapshot, type Sql } from '@zora/core';
+import { db, tx, poolSnapshots, BUYER_MONEY_STATUSES, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { Roles } from '../common/roles.guard';
 import { EntityStore } from '../storage/entity-store';
@@ -56,7 +56,8 @@ interface TierInput {
   usd?: number; // BS87: USD anchor (Option B) — charge = round(usd * admin usdRate)
 }
 
-const PAID_STATES = ['paid', 'paid_unseatable', 'payment_short'];
+/** BS116: orders holding buyer money block archiving — owned by @zora/core order-status. */
+const PAID_STATES = [...BUYER_MONEY_STATUSES];
 
 function slugify(s: string): string {
   return (

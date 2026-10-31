@@ -19,13 +19,15 @@
      netting, so refunded money is never withdrawable (eng review OV1).
    - Currencies are never summed together (I7). */
 import { netOf, resolveCommissionRate } from './commission';
+import { REVENUE_STATUSES, countsAsSold } from './order-status';
 
 type Sql = any;
 
 /** Statuses that still hold organizer money. 'refunded' is included so the debit
     is APPLIED (its refunded_amount cancels its gross); leaving it out would drop
-    the refund instead of subtracting it. */
-export const EARNING_STATUSES = ['paid', 'refunded'] as const;
+    the refund instead of subtracting it. BS116: derived from order-status
+    (`countsAsRevenue`) — kept under this name for existing importers. */
+export const EARNING_STATUSES: readonly string[] = REVENUE_STATUSES;
 /** A settled seat, and a seat whose money was repaid (read so it nets to zero). */
 export const SETTLED_SHARE_STATES = ['paid', 'refunded'] as const;
 
@@ -169,7 +171,7 @@ export function foldMoneyByCurrency(
     b.refunded += m.refunded;
     b.weighted += m.gross * m.rate;
     if (m.gross > 0) b.rates.add(m.rate);
-    if (m.status === 'paid') b.orders += 1;
+    if (countsAsSold(m.status)) b.orders += 1;
   }
   return out;
 }

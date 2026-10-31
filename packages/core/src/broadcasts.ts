@@ -45,6 +45,7 @@ import { tx } from './db';
 import { sendSms } from './sms';
 import { escapeHtml, sendEmail } from './email';
 import { publicWebOrigin } from './origins';
+import { BROADCAST_STATUSES } from './order-status';
 
 type Sql = any;
 
@@ -60,7 +61,7 @@ export type BroadcastStatus = 'queued' | 'sending' | 'sent' | 'failed';
     seat needs ops attention — precisely the people an organizer most needs to
     be able to message. A `refunded` order is NOT here: someone who got their
     money back did not opt into the guest list. */
-export const BROADCAST_AUDIENCE_STATUSES = ['paid', 'paid_unseatable', 'payment_short'] as const;
+export const BROADCAST_AUDIENCE_STATUSES: readonly string[] = BROADCAST_STATUSES; // BS116: derived (`isBroadcastAudience`)
 
 /**
  * A resolved audience.
