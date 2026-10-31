@@ -48,6 +48,8 @@ import {
   usableTiers,
   validate,
 } from '../lib/drops';
+import { uploadImage } from '../lib/media-upload';
+import PassDesignTab from './pass-design-tab';
 
 // BS75 (Lane) — RE-SKIN onto Control-Room v2. This surface is now wrapped in the
 // shared <CrShell> (sidebar + top bar + theme toggle) and every local palette var
@@ -176,6 +178,10 @@ const STYLE = `
 .zora-dropedit .fatal a{color:var(--blue);text-decoration:underline}
 .zora-dropedit .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--hair);border-top-color:var(--blue);border-radius:50%;animation:zde-spin .7s linear infinite;vertical-align:-1px;margin-right:8px}
 @keyframes zde-spin{to{transform:rotate(360deg)}}
+.zora-dropedit .edtabs{display:flex;gap:28px;max-width:1080px;margin:0 auto;padding:16px 0 0;border-bottom:1px solid var(--hair)}
+.zora-dropedit .edtabs button{background:none;border:0;border-bottom:3px solid transparent;padding:0 0 12px;font-family:var(--zp-font-sans);font-weight:700;font-size:15px;color:var(--mut);cursor:pointer}
+.zora-dropedit .edtabs button[aria-current="page"]{color:var(--bone);border-bottom-color:var(--bone)}
+.zora-dropedit .edtabs button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 `;
 
 const fmt = (n: number) => n.toLocaleString('en-US');
@@ -211,6 +217,21 @@ export default function DropEditor(props: DropEditorProps) {
   const [orgName, setOrgName] = useState<string | null>(null); // BS75: CrShell topbar label (/api/org/me → { name })
   const [usdRate, setUsdRate] = useState<number>(2700); // BS87: admin USD→TZS rate (GET /api/settings)
   const [form, setForm] = useState<DropForm>(emptyForm);
+  // BS131 (F6): "Pass design" tab — edit mode only, and only when the
+  // zp_pass_design flag is on for this org/event (the API reports `enabled`).
+  const [tab, setTab] = useState<'details' | 'pass'>('details');
+  const [passDesignOn, setPassDesignOn] = useState(false);
+  useEffect(() => {
+    if (!isEdit) return;
+    let alive = true;
+    const id = (props as { eventId: string }).eventId;
+    fetch(`/api/org/events/${encodeURIComponent(id)}/ticket-design`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setPassDesignOn(d?.enabled === true); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Stable idempotency key for the lifetime of this form instance (create).
   const idemKeyRef = useRef<string>('');
@@ -300,15 +321,7 @@ export default function DropEditor(props: DropEditorProps) {
     if (file.size > 8 * 1024 * 1024) { setServerError('Cover image must be under 8MB.'); return; }
     setCoverBusy(true); setServerError('');
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file);
-      });
-      const resp = await fetch('/api/upload', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: file.name, dataUrl }),
-      });
-      const d = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(d.error || 'Upload failed');
-      set('cover', d.url);
+      set('cover', await uploadImage(file, { label: 'Cover' }));
     } catch (e: any) { setServerError(String(e?.message || e)); }
     finally { setCoverBusy(false); }
   }
@@ -468,6 +481,20 @@ export default function DropEditor(props: DropEditorProps) {
 
   return (
     <Shell topbarTitle={topTitle} topbarExtra={topExtra}>
+      {isEdit && passDesignOn ? (
+        <nav className="edtabs" aria-label="Event editor">
+          <button type="button" aria-current={tab === 'details' ? 'page' : undefined} onClick={() => setTab('details')}>
+            Details
+          </button>
+          <button type="button" aria-current={tab === 'pass' ? 'page' : undefined} onClick={() => setTab('pass')}>
+            Pass design
+          </button>
+        </nav>
+      ) : null}
+      {isEdit && passDesignOn && tab === 'pass' ? (
+        <PassDesignTab eventId={(props as { eventId: string }).eventId} eventName={form.name} eventCover={form.cover} />
+      ) : (
+      <>
       <div className="editbar">
         <button className="publish" onClick={handleSubmit} disabled={submitBusy}>
           {submitBusy ? (
@@ -925,6 +952,8 @@ export default function DropEditor(props: DropEditorProps) {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* delete confirm dialog */}
       {confirmOpen ? (

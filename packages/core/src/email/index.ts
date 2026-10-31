@@ -105,21 +105,20 @@ export interface CredentialEmailData {
   buyerName: string;
   eventName: string;
   tickets: CredentialTicket[];
+  /** BS131: organizer branding (flag zp_pass_design). Absent → today's email. */
+  brand?: { accent: string; onAccent: string; brandName?: string; logoUrl?: string } | null;
 }
 
-/** Send the buyer their ticket(s): one HTML block per ticket with the QR inline
-    (CID qr-<publicRef>) plus the readable ref (either admits at the gate), and
-    the printable PDF attached. Render failures NEVER block the send. */
-export async function sendCredentialEmail(
-  to: string,
-  data: CredentialEmailData,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<EmailResult> {
+const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/** The credential email body + its inline QR attachments (pure; exported for tests). */
+export function buildCredentialEmailHtml(data: CredentialEmailData): { html: string; attachments: EmailAttachment[] } {
   const buyerName = escapeHtml(data.buyerName);
   const eventName = escapeHtml(data.eventName);
   const tickets = Array.isArray(data.tickets) ? data.tickets : [];
 
   const attachments: EmailAttachment[] = [];
+  const b = data.brand && HEX_RE.test(data.brand.accent) && HEX_RE.test(data.brand.onAccent) ? data.brand : null;
 
   const blocks = tickets.map((t) => {
     const ref = escapeHtml(t.publicRef);
@@ -133,7 +132,9 @@ export async function sendCredentialEmail(
     return `
       <table role="presentation" width="100%" style="margin:0 0 24px;border:1px solid #e5e5ea;border-radius:12px;">
         <tr><td style="padding:20px;">
-          <div style="font-size:16px;font-weight:700;color:#0f0f14;">${eventName}</div>
+          ${b
+            ? `<div style="font-size:16px;font-weight:700;color:${b.onAccent};background-color:${b.accent};border-radius:8px;padding:10px 12px;">${eventName}</div>`
+            : `<div style="font-size:16px;font-weight:700;color:#0f0f14;">${eventName}</div>`}
           <div style="font-size:13px;color:#6a6a72;margin:2px 0 14px;">${tier}</div>
           ${qrHtml}
           <div style="font-size:11px;color:#6a6a72;margin:14px 0 2px;text-transform:uppercase;letter-spacing:.05em;">Reference (show this at the gate)</div>
@@ -144,11 +145,26 @@ export async function sendCredentialEmail(
 
   const html = `<!doctype html>
 <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f0f14;">
-  <div style="font-size:22px;font-weight:800;letter-spacing:.1em;">ZORA</div>
+  ${b && b.logoUrl && /^https:\/\//i.test(b.logoUrl)
+    ? `<img src="${escapeHtml(b.logoUrl)}" alt="${escapeHtml(b.brandName || '')}" height="40" style="display:block;border:0;height:40px;width:auto;" />`
+    : `<div style="font-size:22px;font-weight:800;letter-spacing:.1em;">ZORA</div>`}
   <p style="font-size:15px;line-height:1.5;">Hi ${buyerName}, your ${tickets.length === 1 ? 'ticket is' : 'tickets are'} ready. Present the QR code or read out your reference at the gate — either works.</p>
   ${blocks}
   <p style="font-size:12px;color:#6a6a72;">A printable PDF of your ${tickets.length === 1 ? 'ticket' : 'tickets'} is attached.</p>
 </div>`;
+  return { html, attachments };
+}
+
+/** Send the buyer their ticket(s): one HTML block per ticket with the QR inline
+    (CID qr-<publicRef>) plus the readable ref (either admits at the gate), and
+    the printable PDF attached. Render failures NEVER block the send. */
+export async function sendCredentialEmail(
+  to: string,
+  data: CredentialEmailData,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<EmailResult> {
+  const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+  const { html, attachments } = buildCredentialEmailHtml(data);
 
   // RENDER-FAILURE ISOLATION: never let a PDF build error block delivery.
   try {
