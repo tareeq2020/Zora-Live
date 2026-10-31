@@ -75,20 +75,29 @@ export class OrgCompsController {
     return rows.map((r: any) => this.shape(r));
   }
 
-  /** POST /api/org/comps { name, phone?, email?, eventId, tier, qty } — issue + deliver. */
+  /** POST /api/org/comps { name, phone?, email?, eventId, tier, qty, seatIds? } — issue + deliver.
+      BS127: with seatIds the comp takes exactly those seats (qty derived) and
+      each pass names its seat; 409 seat_taken if any is sold or held. */
   @Post()
   async issue(@Req() req: Request, @Body() body: any) {
     const handle = req.actingHandle as string;
     const name = String(body?.name ?? '').trim();
     const tierId = String(body?.tier ?? '').trim();
-    const qty = Math.floor(Number(body?.qty));
+    const seatIds: string[] | undefined = Array.isArray(body?.seatIds) ? body.seatIds : undefined;
+    if (seatIds && (!seatIds.length || seatIds.length > 50 || seatIds.some((x: unknown) => typeof x !== 'string' || !x || x.length > 120))) {
+      throw new BadRequestException({ error: 'invalid_seats', message: 'Pick 1–50 seats.' });
+    }
+    const qty = seatIds ? seatIds.length : Math.floor(Number(body?.qty));
     if (!name) throw new BadRequestException({ error: 'name_required', message: 'Enter the recipient name.' });
     if (!tierId) throw new BadRequestException({ error: 'tier_required', message: 'Choose a ticket tier.' });
     if (!Number.isFinite(qty) || qty < 1 || qty > 50) throw new BadRequestException({ error: 'qty_invalid', message: 'Quantity must be 1–50.' });
     const { phone, email } = parseContacts(body);
 
     const { eventId, eventName, tierName } = await this.resolveOwnedTier(handle, tierId);
-    const result = await createComp(db(), { tier: tierId, quantity: qty, recipientName: name, phone, email });
+    const result = await createComp(db(), { tier: tierId, quantity: qty, recipientName: name, phone, email, ...(seatIds ? { seatIds } : {}) });
+    if (!result.ok && result.reason === 'seat_taken') {
+      throw new ConflictException({ error: 'seat_taken', seats: result.seats, message: 'Some of those seats are sold or held in a checkout.' });
+    }
     if (!result.ok) {
       throw new ConflictException({ error: 'sold_out', message: `Not enough seats left in ${tierName} for ${qty} comp${qty === 1 ? '' : 's'}.` });
     }
@@ -97,7 +106,7 @@ export class OrgCompsController {
     const delivery = deliveryStatus(phone, email, result.delivery);
     const [row] = await db()`
       insert into comp (order_id, organizer_handle, recipient_name, phone, email, contact, channel, event_id, event_name, tier_name, qty, delivery)
-      values (${result.orderId}, ${handle}, ${name}, ${phone}, ${email}, ${contactLabel(phone, email)}, ${channel}, ${eventId}, ${eventName}, ${tierName}, ${qty}, ${delivery})
+      values (${result.orderId}, ${handle}, ${name}, ${phone}, ${email}, ${contactLabel(phone, email)}, ${channel}, ${eventId}, ${eventName}, ${tierName}, ${result.ticketCount}, ${delivery})
       returning id, recipient_name, phone, email, contact, channel, event_name, tier_name, qty, delivery, issued_at`;
     await this.audit.record('comp.issue', `${qty}× ${tierName} · ${eventName} → ${name} (${contactLabel(phone, email)}) [${channel}: ${delivery}]`, req.ip, handle);
     return this.shape(row);

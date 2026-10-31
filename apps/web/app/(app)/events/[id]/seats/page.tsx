@@ -1,22 +1,34 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import { SeatMap } from './seat-map';
 
-// /events/:id/seats — the real, event-scoped seat-selection route that replaces
-// the global seatmap.html?ev=NAME page. In the (app) plane (no marketing chrome);
-// the map itself is a full-viewport client takeover.
+// /events/:id/seats — the event-scoped live seat map (BS126). Shown only when the
+// zp_seatmap flag (or env override) is on for the event AND it has published
+// seats; otherwise the buyer goes back to the event page's normal checkout.
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Choose your seats — ZORA',
-  description: 'Pick your exact seat or standing zone on the floor plan. Pinch to zoom, tap to select.',
+  title: 'Choose your seats — ZoraPass',
+  description: 'Pick your exact seat, table or standing zone. Live availability.',
 };
 
-export default function SeatsPage({ params }: { params: { id: string } }) {
-  // BS115: seat availability is still placeholder data — keep buyers off the map
-  // until real inventory ships (flag OFF by default).
-  if (!SEATMAP_ENABLED) redirect(`/events/${encodeURIComponent(params.id)}`);
+const API_URL = process.env.API_URL || 'http://localhost:4101';
+
+async function organizerOf(id: string): Promise<{ id: string; org: string | null }> {
+  try {
+    const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(id)}`, { cache: 'no-store' });
+    if (!res.ok) return { id, org: null };
+    const ev = await res.json();
+    return { id: typeof ev?.id === 'string' && ev.id ? ev.id : id, org: ev?.organizerHandle || null };
+  } catch {
+    return { id, org: null };
+  }
+}
+
+export default async function SeatsPage({ params }: { params: { id: string } }) {
+  const ev = await organizerOf(params.id);
+  if (!(await seatmapEnabledFor(ev.id, ev.org))) redirect(`/events/${encodeURIComponent(params.id)}`);
   return <SeatMap eventId={params.id} />;
 }

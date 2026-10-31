@@ -8,7 +8,7 @@
    dangerouslySetInnerHTML, original script run once on mount. Styles scoped
    under `.zora-seatbuilder`; the DASHBOARD breadcrumb points to /dashboard. */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CrShell } from '@/app/components/cr';
 import { ORG_NAV, ORG_BRAND } from '../../../components/org-nav';
 
@@ -47,7 +47,7 @@ const STYLE = `
 .zora-seatbuilder .tool-sep{width:1px;height:22px;background:var(--hair);margin:0 4px}
 .zora-seatbuilder .canvas-wrap{position:relative;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:var(--ink);aspect-ratio:16/9}
 .zora-seatbuilder .canvas-wrap.grid-on{background-image:linear-gradient(var(--hair) 1px,transparent 1px),linear-gradient(90deg,var(--hair) 1px,transparent 1px);background-size:5% 8.9%}
-.zora-seatbuilder .map-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.9}
+.zora-seatbuilder .map-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.3}
 .zora-seatbuilder .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--mut);gap:8px;pointer-events:none}
 .zora-seatbuilder .empty-map svg{width:34px;height:34px;stroke:var(--mut);fill:none;stroke-width:1.6}
 .zora-seatbuilder .empty-map .et{font-size:14px;font-weight:500;color:var(--bone)}
@@ -94,6 +94,49 @@ const STYLE = `
 .zora-seatbuilder .btn:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)}
 .zora-seatbuilder .btn.sec{background:none;border:1px solid var(--hair);color:var(--mut)}
 .zora-seatbuilder .btn.sec:hover{border-color:var(--blue);color:var(--blue);background:none}
+/* BS127 — publish state, conflict banner, live seat manager (OrgFloorPlan mockup). */
+.zora-seatbuilder .livever{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--mut);align-self:center}
+.zora-seatbuilder .pub-lg{background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;border-radius:16px;font-family:var(--zp-font-family-display);font-size:20px;height:48px;padding:0 20px;cursor:pointer}
+.zora-seatbuilder .pub-lg:hover{background:#262626}
+.zora-seatbuilder .pub-lg:disabled{opacity:.5;cursor:wait}
+.zora-seatbuilder button:focus-visible,.zora-seatbuilder input:focus-visible{outline:3px solid var(--cr-ink);outline-offset:2px}
+.zora-seatbuilder .conflict{background:#FFFFFF;color:#111111;border:2px solid #B42318;border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.45}
+.zora-seatbuilder .conflict strong{color:#B42318}
+.zora-seatbuilder .conflict[hidden]{display:none}
+.zora-seatbuilder .seatpane{display:flex;flex-direction:column;gap:10px}
+.zora-seatbuilder .seltool{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#111111;color:#F7F5EE;border-radius:12px;padding:8px 10px 8px 16px}
+.zora-seatbuilder .seltool[hidden]{display:none}
+.zora-seatbuilder .seltool .st-sum{font-family:var(--mono);font-size:13px;flex-grow:1}
+.zora-seatbuilder .seltool button{height:40px;padding:0 14px;border-radius:10px;border:2px solid #F7F5EE;background:transparent;color:#F7F5EE;font-weight:700;font-size:14px;cursor:pointer}
+.zora-seatbuilder .seltool button.yel{background:#FFD21F;border-color:#FFD21F;color:#111111}
+.zora-seatbuilder .seltool button:disabled{opacity:.35;cursor:not-allowed}
+.zora-seatbuilder .actform{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:12px}
+.zora-seatbuilder .actform[hidden]{display:none}
+.zora-seatbuilder .actform .in{width:auto;flex:1 1 160px;min-height:44px}
+.zora-seatbuilder .actform .af-lab{flex-basis:100%;font-size:13px;font-weight:700;color:var(--bone)}
+.zora-seatbuilder .seatcard{background:#FFFFFF;color:#111111;border:2px solid #111111;border-radius:16px;padding:12px;overflow-x:auto}
+.zora-seatbuilder .seatcard .sc-h{font-family:var(--mono);font-size:12px;letter-spacing:.08em;margin-bottom:8px}
+.zora-seatbuilder .sm-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+.zora-seatbuilder .sm-rl{width:16px;flex:none;font-family:var(--mono);font-size:12px}
+.zora-seatbuilder .sm{flex:none;width:28px;height:28px;padding:0;border-radius:6px;font-family:var(--mono);font-size:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.zora-seatbuilder .sm.tbl{width:auto;min-width:64px;height:48px;border-radius:999px;padding:0 10px}
+.zora-seatbuilder .sm-tables{display:flex;flex-wrap:wrap;gap:10px}
+.zora-seatbuilder .s-available{border:2px solid #111111;background:#FFFFFF;color:#111111}
+.zora-seatbuilder .s-sold{border:2px solid #111111;background:#111111;color:#F7F5EE}
+.zora-seatbuilder .s-held{border:2px dashed #4A4A4A;background:#D9D6CC;color:#111111}
+.zora-seatbuilder .s-reserved{border:2px solid #4A4A4A;background:#4A4A4A;color:#F7F5EE}
+.zora-seatbuilder .s-blocked{border:2px solid #B42318;background:#F7F5EE;color:#B42318}
+.zora-seatbuilder .sm.sel{background:#FFD21F;color:#111111;border:2px solid #111111;box-shadow:inset 0 0 0 2px #FFD21F}
+.zora-seatbuilder .key{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--bone)}
+.zora-seatbuilder .key span{display:flex;gap:6px;align-items:center}
+.zora-seatbuilder .key i{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:12px}
+.zora-seatbuilder .counts{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:13px}
+.zora-seatbuilder .counts div{display:flex;justify-content:space-between}
+.zora-seatbuilder .counts .tot{font-weight:600}
+.zora-seatbuilder fieldset.pm{border:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
+.zora-seatbuilder fieldset.pm legend{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--bone)}
+.zora-seatbuilder fieldset.pm label{display:flex;gap:8px;align-items:center;font-family:var(--sans);font-size:15px;letter-spacing:0;color:var(--bone);margin:0;min-height:32px}
+.zora-seatbuilder fieldset.pm input{width:18px;height:18px;accent-color:#111111}
 .zora-seatbuilder .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--bone);color:var(--black);font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:13px 24px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
 .zora-seatbuilder .toast.show{opacity:1}
 `;
@@ -103,8 +146,9 @@ const MARKUP = `
   <div class="top-in">
     <span class="title">FLOOR PLAN BUILDER</span>
     <div class="top-actions">
+      <span class="livever" id="livever" aria-live="polite"></span>
       <button class="ghost" id="preview">PREVIEW AS BUYER</button>
-      <button class="pub" id="publish">PUBLISH MAP</button>
+      <button class="pub-lg" id="publish">PUBLISH MAP</button>
     </div>
   </div>
 </div>
@@ -112,8 +156,8 @@ const MARKUP = `
 <div class="grid">
   <div class="stage">
     <div class="upload-row">
-      <button class="up-btn" id="up-btn"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>UPLOAD VENUE MAP (SVG / PNG / JPG)</button>
-      <input type="file" id="up-file" accept="image/*,.svg" hidden>
+      <button class="up-btn" id="up-btn"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>UPLOAD VENUE MAP (PNG / JPG / WEBP)</button>
+      <input type="file" id="up-file" accept="image/png,image/jpeg,image/webp" hidden>
       <span class="up-name" id="up-name"></span>
     </div>
 
@@ -135,6 +179,28 @@ const MARKUP = `
       </div>
       <svg id="overlay" viewBox="0 0 1600 900" preserveAspectRatio="none"></svg>
     </div>
+
+    <div class="conflict" id="conflict" role="alert" hidden></div>
+
+    <div class="seatpane" id="seatpane">
+      <div class="seltool" id="seltool" role="toolbar" aria-label="Selected seats" hidden>
+        <span class="st-sum" id="st-sum"></span>
+        <button id="a-block">Block</button>
+        <button id="a-reserve" class="yel">Reserve for…</button>
+        <button id="a-comp">Give as comps</button>
+        <button id="a-release">Release</button>
+      </div>
+      <div class="actform" id="actform" hidden></div>
+      <div class="seatcard" id="seatcard"><p class="sc-h">SEATS</p><p class="no-sel" style="color:#4A4A4A">Pick a seated or table zone to manage its seats.</p></div>
+      <div class="key" aria-label="Seat key">
+        <span><i class="s-available"></i>Available</span>
+        <span><i class="s-sold"></i>Sold</span>
+        <span><i class="s-reserved">R</i>Reserved</span>
+        <span><i class="s-held"></i>Held in a checkout</span>
+        <span><i class="s-blocked">×</i>Blocked</span>
+        <span><i class="s-available" style="background:#FFD21F"></i>Selected</span>
+      </div>
+    </div>
   </div>
 
   <div class="panel">
@@ -148,6 +214,11 @@ const MARKUP = `
     <div>
       <p class="p-h" style="margin-bottom:12px">ZONES</p>
       <div class="zlist" id="zlist"></div>
+    </div>
+
+    <div>
+      <p class="p-h" style="margin-bottom:12px">SEATS TODAY</p>
+      <div class="counts" id="counts"><p class="no-sel">Publish the map to see live seats.</p></div>
     </div>
 
     <div class="summary">
@@ -195,19 +266,39 @@ const SCRIPT = String.raw`
 
   /* ── upload ── */
   $('up-btn').onclick=()=>$('up-file').click();
+  // BS127: the venue map goes through the media module (POST /api/upload) and
+  // its URL is saved on the plan (plan.mapImageUrl), drawn under the zones at 30%.
+  let mapImageUrl='';
+  function showMap(url){ if(!url) return; $('map-img').src=url; $('map-img').style.display='block'; $('empty-map').style.display='none'; }
   $('up-file').onchange=e=>{
     const f=e.target.files[0]; if(!f) return;
+    if(f.size>8*1024*1024){ toast('That image is over 8MB'); return; }
     const rd=new FileReader();
-    rd.onload=ev=>{ $('map-img').src=ev.target.result; $('map-img').style.display='block'; $('empty-map').style.display='none'; $('up-name').textContent='✓ '+f.name; };
+    rd.onload=async ev=>{
+      $('up-name').textContent='Uploading '+f.name+'…';
+      try{
+        const r=await fetch('/api/upload',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.name,dataUrl:ev.target.result})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok||!d.url) throw new Error(d.error||d.message||'Upload failed');
+        mapImageUrl=d.url; showMap(d.url); $('up-name').textContent='✓ '+f.name; touch();
+      }catch(err){ $('up-name').textContent=''; toast('Upload failed: '+(err.message||err)); }
+    };
     rd.readAsDataURL(f);
   };
+
+  /* ── BS127: live version + unpublished-edits marker ── */
+  let liveVersion=0, dirty=false;
+  function renderVer(){
+    $('livever').textContent = liveVersion ? ('LIVE VERSION '+liveVersion+(dirty?' · EDITS UNPUBLISHED':'')) : (EVENT_ID ? 'NOT PUBLISHED YET' : '');
+  }
+  function touch(){ dirty=true; renderVer(); }
 
   /* ── tools ── */
   function setTool(t){ tool=t; $('t-draw').classList.toggle('on',t==='draw'); $('t-select').classList.toggle('on',t==='select'); $('overlay').classList.toggle('select',t==='select'); }
   $('t-draw').onclick=()=>setTool('draw');
   $('t-select').onclick=()=>setTool('select');
   $('t-grid').onclick=()=>{ $('canvas').classList.toggle('grid-on'); $('t-grid').classList.toggle('on'); };
-  $('t-clear').onclick=()=>{ if(zones.length&&!confirm('Remove all zones?'))return; zones=[]; sel=null; render(); renderEditor(); toast('Cleared'); };
+  $('t-clear').onclick=()=>{ if(zones.length&&!confirm('Remove all zones?'))return; zones=[]; sel=null; render(); renderEditor(); touch(); toast('Cleared'); };
   $('t-sample').onclick=loadSample;
 
   /* ── draw / select on overlay ── */
@@ -229,7 +320,7 @@ const SCRIPT = String.raw`
     if(w<40||h<30){ render(); return; }
     const z={ id:'z'+(nextId++), name:'Zone '+(zones.length+1), type:'seated', x,y,w,h, color:COLORS[zones.length%COLORS.length], tierId:defaultTierId(), price:50000, rows:10, perRow:20, cap:200, tables:16, perTable:8 };
     syncPriceFromTier(z);
-    zones.push(z); selectZone(z.id); toast('Zone added — set its details');
+    zones.push(z); selectZone(z.id); touch(); toast('Zone added — set its details');
   });
 
   /* ── render zones on overlay ── */
@@ -257,12 +348,13 @@ const SCRIPT = String.raw`
       ov.appendChild(r);
     }
     renderList(); renderSummary();
+    $('empty-map').style.display = (zones.length || mapImageUrl) ? 'none' : '';
   }
 
   function capOf(z){ return z.type==='ga' ? (z.cap||0) : z.type==='table' ? ((z.tables||0)*(z.perTable||0)) : (z.rows*z.perRow); }
 
   /* ── editor ── */
-  function selectZone(id){ sel=id; setTool('select'); render(); renderEditor(); }
+  function selectZone(id){ sel=id; setTool('select'); render(); renderEditor(); if(seatSel.size){ seatSel.clear(); } renderSeats(); }
   function renderEditor(){
     const z=zones.find(x=>x.id===sel);
     const box=$('editor');
@@ -284,7 +376,10 @@ const SCRIPT = String.raw`
         '<div class="field"><label>SEATS / TABLE</label><input class="in" id="e-pertable" type="number" min="1" value="'+(z.perTable||8)+'"></div>'+
       '</div></div>'+
       '<div id="e-ga" style="'+(z.type==='ga'?'':'display:none')+'"><div class="field"><label>STANDING CAPACITY</label><input class="in" id="e-cap" type="number" min="0" value="'+(z.cap||0)+'"></div></div>'+
-      '<div class="field"><label>'+(z.type==='table'?'PRICE PER TABLE (TZS)':'PRICE (TZS)')+'</label><input class="in" id="e-price" type="number" min="0" value="'+z.price+'"></div>'+
+      (z.type==='table'?'<fieldset class="pm"><legend>For tables, charge</legend>'+
+        '<label><input type="radio" name="e-pm" value="per_table"'+(z.priceMode!=='per_seat'?' checked':'')+'>Per table</label>'+
+        '<label><input type="radio" name="e-pm" value="per_seat"'+(z.priceMode==='per_seat'?' checked':'')+'>Per seat</label></fieldset>':'')+
+      '<div class="field"><label>'+(z.type==='table'?(z.priceMode==='per_seat'?'PRICE PER SEAT (TZS)':'PRICE PER TABLE (TZS)'):'PRICE (TZS)')+'</label><input class="in" id="e-price" type="number" min="0" value="'+z.price+'"></div>'+
       '<div class="field"><label>COLOUR</label><div class="swatches" id="e-sw">'+COLORS.map(c=>'<span class="sw'+(c===z.color?' on':'')+'" style="background:'+c+'" data-c="'+c+'"></span>').join('')+'</div></div>'+
       '<div class="cap-pill"><span>'+(z.type==='table'?'Tables · total seats':'This zone holds')+'</span><b>'+(z.type==='table'?(fmt(z.tables||0)+' tables · '+fmt(capOf(z))+' seats'):(fmt(capOf(z))+' tickets'))+'</b></div>';
 
@@ -293,17 +388,18 @@ const SCRIPT = String.raw`
       if(z.type==='seated'){ z.rows=Math.max(1,parseInt($('e-rows').value)||1); z.perRow=Math.max(1,parseInt($('e-per').value)||1); }
       else if(z.type==='table'){ z.tables=Math.max(1,parseInt($('e-tables').value)||1); z.perTable=Math.max(1,parseInt($('e-pertable').value)||1); }
       else { z.cap=parseInt($('e-cap').value)||0; }
-      capText(); render(); };
+      capText(); render(); touch(); };
     $('e-name').oninput=upd; $('e-price').oninput=upd;
-    $('e-tier').onchange=()=>{ z.tierId=$('e-tier').value||''; syncPriceFromTier(z); renderEditor(); render(); };
+    $('e-tier').onchange=()=>{ z.tierId=$('e-tier').value||''; syncPriceFromTier(z); renderEditor(); render(); touch(); };
+    box.querySelectorAll('input[name="e-pm"]').forEach(r=>{ r.onchange=()=>{ z.priceMode=r.value==='per_seat'?'per_seat':'per_table'; renderEditor(); render(); touch(); }; });
     $('e-type').onchange=()=>{ z.type=$('e-type').value;
       if(z.type==='table'){ if(!z.tables)z.tables=16; if(!z.perTable)z.perTable=8; }
       if(z.type==='ga'&&!z.cap)z.cap=(z.rows||10)*(z.perRow||20);
-      renderEditor(); render(); };
+      renderEditor(); render(); touch(); };
     if($('e-rows')){ $('e-rows').oninput=upd; $('e-per').oninput=upd; }
     if($('e-tables')){ $('e-tables').oninput=upd; $('e-pertable').oninput=upd; }
     if($('e-cap')) $('e-cap').oninput=upd;
-    $('e-sw').onclick=e=>{ const c=e.target.getAttribute('data-c'); if(c){ z.color=c; renderEditor(); render(); } };
+    $('e-sw').onclick=e=>{ const c=e.target.getAttribute('data-c'); if(c){ z.color=c; renderEditor(); render(); touch(); } };
   }
 
   function renderList(){
@@ -317,7 +413,7 @@ const SCRIPT = String.raw`
   }
   $('zlist').addEventListener('click', e=>{
     const del=e.target.getAttribute('data-del');
-    if(del){ zones=zones.filter(z=>z.id!==del); if(sel===del)sel=null; render(); renderEditor(); return; }
+    if(del){ zones=zones.filter(z=>z.id!==del); if(sel===del)sel=null; render(); renderEditor(); touch(); return; }
     const item=e.target.closest('.zitem'); if(item) selectZone(item.getAttribute('data-z'));
   });
 
@@ -336,27 +432,178 @@ const SCRIPT = String.raw`
       {id:'z'+(nextId++),name:'Lawn GA',type:'ga',x:150,y:700,w:1300,h:150,color:COLORS[4],tierId:defaultTierId(),price:55000,cap:5000,rows:10,perRow:20}
     ];
     zones.forEach(syncPriceFromTier);
-    sel=zones[0].id; render(); renderEditor(); toast('Sample stadium loaded — edit any zone');
+    sel=zones[0].id; render(); renderEditor(); touch(); toast('Sample stadium loaded — edit any zone');
   }
 
   /* ── publish / preview ── */
+  function conflictCopy(list){
+    const removed=list.every(c=>c.reason==='removed');
+    const rowOf=l=>{ const m=/^([A-Z]+)\d+$/.exec(l||''); return m?m[1]:null; };
+    const rows=Array.from(new Set(list.map(c=>rowOf(c.label))));
+    const head = removed && rows.length===1 && rows[0] ? "Can't remove row "+rows[0]+' yet.' : removed ? "Can't remove those seats yet." : "Can't change those seats yet.";
+    const WORD={sold:'sold',held:'held in a checkout',reserved:'reserved',blocked:'blocked'};
+    const byState={}; list.forEach(c=>{ (byState[c.state]=byState[c.state]||[]).push(c.label); });
+    const join=a=>a.length<=1?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+    const parts=Object.keys(byState).map(st=>{ const ls=byState[st].slice(0,8); const more=byState[st].length-ls.length; return (byState[st].length===1?'Seat ':'Seats ')+join(ls)+(more>0?' and '+more+' more':'')+(byState[st].length===1?' is ':' are ')+(WORD[st]||st)+'.'; });
+    const anyGuests=list.some(c=>c.state==='sold'||c.state==='held');
+    const tail = anyGuests ? (removed ? ' Move those guests or keep the row.' : ' Move those guests first.') : ' Release them first, or keep them as they are.';
+    return '<strong>'+esc(head)+'</strong> '+esc(parts.join(' ')+tail)+' Your edits are saved; the live map is unchanged.';
+  }
   async function publish(){
     if(!zones.length){ toast('Draw at least one zone first'); return; }
     if(EVENT_ID && zones.some(z=>!z.tierId)){ toast('Link every zone to a ticket tier before publishing'); return; }
     const cap=zones.reduce((a,z)=>a+capOf(z),0);
+    const btn=$('publish'); btn.disabled=true;
+    $('conflict').hidden=true;
     try{
-      const r=await fetch(planApi,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({ space:{w:1600,h:900}, zones })});
+      const body={ space:{w:1600,h:900}, zones };
+      if(mapImageUrl) body.mapImageUrl=mapImageUrl;
+      const r=await fetch(planApi,{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const d=await r.json(); if(!r.ok) throw new Error(d.error||'Publish failed');
-      toast('Published live — '+zones.length+' zones, '+fmt(cap)+' seats. Buyers see it now.');
+      if(!EVENT_ID){ toast('Saved — '+zones.length+' zones, '+fmt(cap)+' seats.'); return; }
+      // BS127: turn the saved plan into live seat inventory (versioned).
+      const pr=await fetch('/api/org/events/'+encodeURIComponent(EVENT_ID)+'/seatmap/publish',{method:'POST',credentials:'same-origin'});
+      const pd=await pr.json().catch(()=>({}));
+      if(pr.status===409 && Array.isArray(pd.conflicts)){
+        $('conflict').innerHTML=conflictCopy(pd.conflicts); $('conflict').hidden=false; dirty=true; renderVer();
+        return;
+      }
+      if(!pr.ok) throw new Error(pd.error||'Publish failed');
+      liveVersion=pd.version||liveVersion; dirty=false; renderVer();
+      toast('Published live — version '+liveVersion+', '+fmt(pd.seats||0)+' seats. Buyers see it now.');
+      loadSeats();
     }catch(err){ toast('Publish failed: '+(err.message||err)); }
+    finally{ btn.disabled=false; }
   }
+
+  /* ── BS127: live seat manager (block / reserve / comps / release) ── */
+  let orgSeats=[]; const seatSel=new Set(); let pending=null;
+  const STATE_WORD={available:'available',sold:'sold',held:'held in a checkout',reserved:'reserved',blocked:'blocked'};
+  async function loadSeats(){
+    if(!EVENT_ID) return;
+    try{
+      const r=await fetch('/api/org/events/'+encodeURIComponent(EVENT_ID)+'/seats',{cache:'no-store',credentials:'same-origin'});
+      if(!r.ok) return;
+      const d=await r.json();
+      orgSeats=Array.isArray(d.seats)?d.seats:[];
+      liveVersion=d.version||0; renderVer();
+      const c=d.counts||{};
+      $('counts').innerHTML = orgSeats.length ?
+        ['SOLD:sold','HELD NOW:held','RESERVED:reserved','BLOCKED:blocked'].map(x=>{ const [l,k]=x.split(':'); return '<div><span>'+l+'</span><span>'+fmt(c[k]||0)+'</span></div>'; }).join('')+
+        '<div class="tot"><span>AVAILABLE</span><span>'+fmt(c.available||0)+'</span></div>'
+        : '<p class="no-sel">Publish the map to see live seats.</p>';
+      for(const id of Array.from(seatSel)){ if(!orgSeats.some(s=>s.seatId===id)) seatSel.delete(id); }
+      renderSeats();
+    }catch(e){ /* keep the last view */ }
+  }
+  const rowOfSeat=s=>{ if(s.rowLabel) return {r:s.rowLabel,n:s.seatNumber}; const m=/^([A-Z]+)(\d+)$/.exec(s.label||''); return m?{r:m[1],n:+m[2]}:{r:'',n:s.seatNumber}; };
+  function renderSeats(){
+    const z=zones.find(x=>x.id===sel);
+    const card=$('seatcard');
+    if(!z || z.type==='ga'){ card.innerHTML='<p class="sc-h">SEATS</p><p class="no-sel" style="color:#4A4A4A">Pick a seated or table zone to manage its seats.</p>'; renderSelTool(); return; }
+    const list=orgSeats.filter(s=>s.zoneId===z.id);
+    if(!list.length){ card.innerHTML='<p class="sc-h">'+esc(z.name.toUpperCase())+'</p><p class="no-sel" style="color:#4A4A4A">Publish the map to manage this zone\'s seats.</p>'; renderSelTool(); return; }
+    const btn=s=>{ const st=s.state; const on=seatSel.has(s.seatId); const rc=rowOfSeat(s);
+      const name = s.kind==='table' ? s.label+', seats '+s.seatsCount : (rc.r?'Row '+rc.r+' seat '+rc.n:'Seat '+s.label);
+      const mark = on?'✓':st==='reserved'?'R':st==='blocked'?'×':'';
+      const lab = s.kind==='table' ? esc((s.label.replace(/^Table\s*/,'T'))+(mark?' '+mark:'')) : mark;
+      return '<button type="button" class="sm s-'+st+(s.kind==='table'?' tbl':'')+(on?' sel':'')+'" data-seat="'+esc(s.seatId)+'" aria-pressed="'+on+'" aria-label="'+esc(name+', '+STATE_WORD[st]+(s.reservedNote?' — '+s.reservedNote:''))+'" title="'+esc(s.reservedNote||'')+'">'+lab+'</button>'; };
+    let html='<p class="sc-h">'+esc(z.name.toUpperCase())+' · '+(z.type==='table'?(list.length+' TABLES'):(new Set(list.map(s=>rowOfSeat(s).r)).size+' ROWS'))+'</p>';
+    if(z.type==='table'){ html+='<div class="sm-tables">'+list.map(btn).join('')+'</div>'; }
+    else{
+      const rows={}; list.forEach(s=>{ const r=rowOfSeat(s).r; (rows[r]=rows[r]||[]).push(s); });
+      Object.keys(rows).sort((a,b)=>a.length-b.length||a.localeCompare(b)).forEach(r=>{
+        html+='<div class="sm-row"><span class="sm-rl" aria-hidden="true">'+esc(r)+'</span>'+rows[r].sort((a,b)=>(rowOfSeat(a).n||0)-(rowOfSeat(b).n||0)).map(btn).join('')+'</div>';
+      });
+    }
+    card.innerHTML=html;
+    renderSelTool();
+  }
+  // onclick (not addEventListener): idempotent if the script is mounted twice
+  $('seatcard').onclick=(e=>{
+    const b=e.target.closest('[data-seat]'); if(!b) return;
+    const id=b.getAttribute('data-seat');
+    if(seatSel.has(id)) seatSel.delete(id); else seatSel.add(id);
+    closeForm(); renderSeats();
+  });
+  function selSeats(){ return orgSeats.filter(s=>seatSel.has(s.seatId)); }
+  function selSummary(list){
+    const n=list.length; if(!n) return '';
+    const noun=list.every(s=>s.kind==='table')?(n===1?'TABLE':'TABLES'):(n===1?'SEAT':'SEATS');
+    const rows=Array.from(new Set(list.map(s=>rowOfSeat(s).r)));
+    let where='';
+    if(list.every(s=>s.kind==='table')) where=list.map(s=>s.label.replace(/^Table\s*/,'T')).join(', ');
+    else if(rows.length===1 && rows[0]){
+      const nums=list.map(s=>rowOfSeat(s).n).sort((a,b)=>a-b);
+      const contiguous=nums.every((v,i)=>i===0||v===nums[i-1]+1);
+      where='ROW '+rows[0]+' '+(contiguous&&nums.length>1?nums[0]+'–'+nums[nums.length-1]:nums.join(', '));
+    } else where=list.slice(0,6).map(s=>s.label).join(', ')+(n>6?' …':'');
+    return n+' '+noun+' SELECTED · '+where;
+  }
+  function renderSelTool(){
+    const list=selSeats();
+    $('seltool').hidden=!list.length;
+    if(!list.length){ closeForm(); return; }
+    $('st-sum').textContent=selSummary(list);
+    const allFree=list.every(s=>s.state==='available');
+    const allHeld=list.every(s=>s.state==='blocked'||s.state==='reserved');
+    const compable=list.every(s=>s.state==='available'||s.state==='blocked'||s.state==='reserved') && new Set(list.map(s=>s.tierId)).size===1 && !!list[0].tierId;
+    $('a-block').disabled=!allFree; $('a-reserve').disabled=!allFree; $('a-release').disabled=!allHeld; $('a-comp').disabled=!compable;
+    $('a-block').title=allFree?'':'Only available seats can be blocked';
+    $('a-release').title=allHeld?'':'Only blocked or reserved seats can be released';
+    $('a-comp').title=compable?'':'Comps need free, blocked or reserved seats of one pass type';
+  }
+  function closeForm(){ pending=null; $('actform').hidden=true; $('actform').innerHTML=''; }
+  function openForm(kind){
+    pending=kind; const f=$('actform'); f.hidden=false;
+    if(kind==='reserve'){
+      f.innerHTML='<span class="af-lab">Reserve for…</span><input class="in" id="af-note" maxlength="200" placeholder="Who is it for? e.g. Sponsor table" aria-label="Who the seats are reserved for"><button class="btn" id="af-go">RESERVE</button><button class="btn sec" id="af-x">CANCEL</button>';
+    } else {
+      f.innerHTML='<span class="af-lab">Give as comps — each pass names its seat</span><input class="in" id="af-name" placeholder="Guest name" aria-label="Guest name"><input class="in" id="af-phone" inputmode="tel" placeholder="+255 7XX XXX XXX" aria-label="Phone"><input class="in" id="af-email" type="email" placeholder="Email (optional)" aria-label="Email"><button class="btn" id="af-go">SEND COMPS</button><button class="btn sec" id="af-x">CANCEL</button>';
+    }
+    $('af-x').onclick=closeForm; $('af-go').onclick=()=>kind==='reserve'?doAction('reserve'):doComp();
+    const first=f.querySelector('input'); if(first) first.focus();
+  }
+  async function doAction(action){
+    const ids=Array.from(seatSel); if(!ids.length) return;
+    const note=action==='reserve'&&$('af-note')?$('af-note').value.trim():'';
+    try{
+      const r=await fetch('/api/org/events/'+encodeURIComponent(EVENT_ID)+'/seats/actions',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,seatIds:ids,note:note||undefined})});
+      const d=await r.json().catch(()=>({}));
+      if(r.status===409 && d.error==='seat_state'){ toast('Not done — '+(d.seats||[]).slice(0,4).map(s=>s.label+' is '+(STATE_WORD[s.state]||s.state)).join(', ')); await loadSeats(); return; }
+      if(r.status===409 && d.error==='no_capacity'){ toast('Not done — that pass type has no free capacity left to hold back'); return; }
+      if(!r.ok) throw new Error(d.error||'failed');
+      toast((action==='block'?'Blocked ':action==='reserve'?'Reserved ':'Released ')+ids.length+(ids.length===1?' seat':' seats'));
+      seatSel.clear(); closeForm(); await loadSeats();
+    }catch(err){ toast('Could not update seats: '+(err.message||err)); }
+  }
+  async function doComp(){
+    const list=selSeats(); if(!list.length) return;
+    const name=$('af-name').value.trim(), phone=$('af-phone').value.trim(), email=$('af-email').value.trim();
+    if(!name){ toast('Enter the guest name'); return; }
+    if(!phone&&!email){ toast('Enter a phone or an email'); return; }
+    try{
+      const r=await fetch('/api/org/comps',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone:phone||undefined,email:email||undefined,eventId:EVENT_ID,tier:list[0].tierId,seatIds:list.map(s=>s.seatId)})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ toast(d.message||'Could not send comps'); await loadSeats(); return; }
+      toast('Comps sent to '+name+' — '+list.length+(list.length===1?' seat':' seats'));
+      seatSel.clear(); closeForm(); await loadSeats();
+    }catch(err){ toast('Could not send comps: '+(err.message||err)); }
+  }
+  $('a-block').onclick=()=>doAction('block');
+  $('a-release').onclick=()=>doAction('release');
+  $('a-reserve').onclick=()=>openForm('reserve');
+  $('a-comp').onclick=()=>openForm('comp');
   function openBuyer(){
     if(!EVENT_ID){ toast('Open this builder from a saved event to preview the buyer seat map'); return; }
     location.href = buyerHref;
   }
   function loadPlan(plan){
+    if(plan && plan.mapImageUrl){ mapImageUrl=plan.mapImageUrl; showMap(mapImageUrl); }
     if(!plan || !Array.isArray(plan.zones)) return;
-    zones = plan.zones.map((z, i) => ({...z, id:z.id||('z'+(i+1)), color:z.color||COLORS[i%COLORS.length]}));
+    // the API normalises GA capacity to capacity; the builder edits cap (legacy key)
+    zones = plan.zones.map((z, i) => ({...z, id:z.id||('z'+(i+1)), color:z.color||COLORS[i%COLORS.length], cap:Number(z.cap ?? z.capacity ?? 0), price:Number(z.price ?? 0)}));
+    zones.forEach(syncPriceFromTier);
     nextId = zones.reduce((max,z)=>Math.max(max, Number(String(z.id||'').replace(/^z/,''))||0), 0) + 1;
     sel = zones[0]?.id || null;
     render(); renderEditor();
@@ -379,6 +626,9 @@ const SCRIPT = String.raw`
       }
     }catch(e){ /* builder still works offline */ }
     render(); renderEditor();
+    await loadSeats();
+    // held seats come and go with checkouts — refresh while the tab is visible
+    setInterval(()=>{ if(!document.hidden && !pending) loadSeats(); }, 15000);
   }
   $('publish').onclick=publish; $('publish2').onclick=publish;
   $('preview').onclick=openBuyer; $('preview2').onclick=openBuyer;
@@ -403,7 +653,16 @@ export default function FloorPlanBuilderPage() {
     };
   }, []);
 
+  // BS127: the markup is written into the host imperatively (React never owns
+  // its children), then the script binds to it. With dangerouslySetInnerHTML the
+  // nodes the script bound to could be swapped by a later React pass, leaving
+  // every button and the canvas unbound. Runs once per host.
+  const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const host = hostRef.current as (HTMLDivElement & { __zsb?: boolean }) | null;
+    if (!host || host.__zsb) return;
+    host.__zsb = true;
+    host.innerHTML = MARKUP;
     try {
       // eslint-disable-next-line no-new-func
       new Function(SCRIPT)();
@@ -427,7 +686,7 @@ export default function FloorPlanBuilderPage() {
       }
     >
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
-      <div className="zora-seatbuilder" dangerouslySetInnerHTML={{ __html: MARKUP }} />
+      <div className="zora-seatbuilder" ref={hostRef} />
     </CrShell>
   );
 }

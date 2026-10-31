@@ -117,7 +117,7 @@ export class PaymentsController {
     if (!order) return res.status(404).json({ error: 'order_not_found' });
 
     const creds = await sql`
-      select c.tier_id, c.state, c.code, c.signature, c.public_ref
+      select c.tier_id, c.state, c.code, c.signature, c.public_ref, c.seat_label
         from credential c join order_item oi on oi.id = c.order_item_id
        where oi.order_id = ${orderId}
        order by c.tier_id, c.seat_index`;
@@ -127,6 +127,7 @@ export class PaymentsController {
       qr: qrPayload(c.code, c.signature),
       code: c.code,
       publicRef: c.public_ref,
+      ...(c.seat_label ? { seatLabel: c.seat_label } : {}),
     }));
 
     // Payer auto-verify: a paid order whose zora_checkout cookie matches this order
