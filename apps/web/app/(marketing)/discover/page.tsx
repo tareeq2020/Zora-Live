@@ -31,10 +31,13 @@ const CSS = `
   font-family:var(--sans); font-size:16px; line-height:1.35; -webkit-font-smoothing:antialiased;
 }
 .zd *{margin:0;padding:0;box-sizing:border-box}
-.zd a{color:inherit;text-decoration:none}
+/* BS147: :where() keeps this reset at zero specificity so every link-button
+   (.zd-aura-btn etc.) keeps its own colour — ".zd a" used to beat them and
+   e.g. START SELLING rendered bone text on its yellow fill. */
+:where(.zd) a{color:inherit;text-decoration:none}
 /* NOTE: no background/border reset here — a ".zd button" rule outranks the
    single-class component rules below. Each button sets its own background+border. */
-.zd button,.zd input{font:inherit;color:inherit}
+:where(.zd) button,:where(.zd) input{font:inherit;color:inherit}
 .zd ::selection{background:var(--yellow);color:var(--ink)}
 .zd :focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .zd-wrap{width:100%;max-width:1200px;margin:0 auto;padding:0 16px}
@@ -90,10 +93,9 @@ const CSS = `
 .zd-box .zd-mag{left:16px;width:18px;height:18px}
 .zd-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:none;background:transparent;border-radius:12px;color:var(--mut);font-size:24px;line-height:1;cursor:pointer}
 .zd-clear:hover{color:var(--ink)}
-.zd-go{height:56px;padding:0 24px;border-radius:16px;background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--sans);font-weight:700;font-size:16px;cursor:pointer}
-.zd-go:hover:not(:disabled){background:var(--sunken)}
+.zd-go{height:56px;padding:0 24px;border-radius:16px;background:var(--ink);border:2px solid var(--ink);color:var(--yellow);font-family:var(--sans);font-weight:700;font-size:16px;letter-spacing:.04em;cursor:pointer}
+.zd-go:hover{background:var(--zp-color-ink-800)}
 @media(max-width:520px){.zd-go{width:100%}}
-.zd-go:disabled{background:var(--zp-color-ink-300);border-color:var(--zp-color-ink-300);color:var(--mut);cursor:not-allowed}
 
 /* ── featured ── */
 .zd-featured{padding:8px 0 4px}
@@ -224,6 +226,10 @@ const CSS = `
 .zd .zbot-fab:hover{background:var(--ink2)}
 .zd .zbot-fab svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
 .zd .zbot-fab.hide{display:none}
+/* BS147: compact round icon on phones so it never covers a card or headline;
+   the page keeps clear space at the bottom for it. */
+@media (max-width:680px){.zbot-fab{width:48px;height:48px;padding:0;justify-content:center;border-radius:999px}.zbot-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+.zd{padding-bottom:88px}
 
 @media(prefers-reduced-motion:reduce){
   .zd-feat,.zd-aura-btn,.zd-tk-pay,.zd-toast,.zd-feat-media img{transition:opacity 120ms}

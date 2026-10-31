@@ -323,7 +323,7 @@ export default function StorefrontClient(props: StorefrontProps) {
 const STYLE = `
 .zora-sf{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sf *{margin:0;padding:0;box-sizing:border-box}
-.zora-sf a{color:inherit;text-decoration:none}
+:where(.zora-sf) a{color:inherit;text-decoration:none} /* BS147: zero specificity, see discover */
 .zora-sf ::selection{background-color:var(--yl);color:var(--bk)}
 .zora-sf :focus-visible{outline:3px solid var(--bk);outline-offset:2px}
 .zora-sf .wrap{max-width:var(--zp-layout-container-max);margin:0 auto;padding:0 var(--zp-layout-gutter-mobile)}

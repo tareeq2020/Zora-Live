@@ -1209,8 +1209,8 @@ const STYLE = `
 .zc2:focus{outline:none}
 .zc2 *{margin:0;padding:0;box-sizing:border-box}
 .zc2 :focus-visible{outline:3px solid var(--bk);outline-offset:2px}
-.zc2 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-.zc2 a{color:inherit}
+:where(.zc2) button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:where(.zc2) a{color:inherit}
 
 /* header */
 .zc2 .zc2-head{position:sticky;top:0;z-index:3;background:var(--bone);height:56px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 4px;border-bottom:1px solid var(--line)}

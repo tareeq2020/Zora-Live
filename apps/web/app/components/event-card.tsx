@@ -1,3 +1,5 @@
+'use client';
+
 /* PR-BS120 — the ONE shared event card (storefront grid + Discover).
 
    Spec: docs/ZoraPass-Design-System-Handoff/03_COMPONENTS/components.md §4 and the
@@ -124,6 +126,11 @@ export type EventCardProps = {
   priority?: boolean;
 };
 
+// BS147: landscape artwork → the card frame switches to 16:9 (see .art[data-wide]).
+function markWide(i: HTMLImageElement) {
+  if (i.naturalWidth > i.naturalHeight * 1.15) i.closest('[data-art]')?.setAttribute('data-wide', '');
+}
+
 export function EventCard({
   href,
   name,
@@ -152,11 +159,20 @@ export function EventCard({
       data-event-card
       aria-label={`${name}${status ? ` — ${status.toLowerCase()}` : ''}. ${cta === 'GET PASSES' ? 'Get passes' : 'Join the waitlist'}`}
     >
-      <div className={styles.art}>
+      <div className={styles.art} data-art="">
         <div className={styles.artInner}>
           {artwork ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img className={styles.artImg} src={artwork} alt={name} loading={priority ? 'eager' : 'lazy'} />
+            <img
+              className={styles.artImg}
+              src={artwork}
+              alt={name}
+              loading={priority ? 'eager' : 'lazy'}
+              // BS147: landscape artwork gets a 16:9 frame (shown whole, no bars,
+              // no crop); portrait/square posters keep the 4:5 frame.
+              ref={(i) => { if (i && i.complete) markWide(i); }}
+              onLoad={(e) => markWide(e.currentTarget)}
+            />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img className={styles.stamp} src="/brand/stamps/svg/zp-stamp-zorapass-dar-signal.svg" alt="" aria-hidden="true" />

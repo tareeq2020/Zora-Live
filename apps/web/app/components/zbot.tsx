@@ -15,11 +15,11 @@ export type ZBotHandle = { open: () => void };
 export const ZBot = forwardRef<ZBotHandle>(function ZBot(_props, _ref) {
   return (
     <div className="zbot" id="zbot">
-      <a className="zbot-fab" id="zbot-fab" href={WHATSAPP_HREF} target="_blank" rel="noopener noreferrer">
+      <a className="zbot-fab" id="zbot-fab" href={WHATSAPP_HREF} target="_blank" rel="noopener noreferrer" aria-label="Chat with ZoraPass on WhatsApp">
         <svg viewBox="0 0 24 24">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
-        WhatsApp
+        <span className="zbot-label">WhatsApp</span>
       </a>
     </div>
   );

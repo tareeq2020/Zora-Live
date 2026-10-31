@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import StorefrontClient, { type StorefrontEvent, type StorefrontTheme } from './storefront-client';
 import type { InventoryPool } from '../../../components/event-card';
 import { shareCardImage } from '@/app/lib/share-card';
+import { eventDateLabel, isPastEvent } from '@/app/lib/event-date';
 
 // PR-F5 — the tenant STOREFRONT INDEX route. The middleware rewrites the /@handle
 // front door (and a tenant subdomain's "/") to /storefront/:handle, which lands
@@ -51,7 +52,12 @@ async function fetchEvents(handle: string): Promise<StorefrontEvent[]> {
     const res = await fetch(`${API_URL}/api/events`, { cache: 'no-store' });
     if (!res.ok) return [];
     const all = (await res.json()) as Array<StorefrontEvent & { organizerHandle?: string }>;
-    return all.filter((ev) => ev.organizerHandle === handle).filter(hasSomethingOnSale);
+    // BS147: only what's ON (past dates drop off) and one consistent date label.
+    return all
+      .filter((ev) => ev.organizerHandle === handle)
+      .filter(hasSomethingOnSale)
+      .filter((ev) => !isPastEvent((ev as { date?: string }).date))
+      .map((ev) => ({ ...ev, dateLabel: eventDateLabel((ev as { date?: string }).date, ev.dateLabel) }));
   } catch {
     return [];
   }
@@ -130,7 +136,7 @@ export default async function StorefrontPage({ params }: { params: { handle: str
   const cityLabel = (CITY_LABEL[cityCode] || cityCode).toUpperCase();
   const eyebrow = cityLabel ? `${cityLabel} · STOREFRONT` : 'STOREFRONT';
   const lede = `Live events from ${brandName}. Passes run on ZoraPass, and your table is your table.`;
-  const aboutHeading = `Every ${brandName} event, in one place.`;
+  const aboutHeading = `Every event from ${brandName}, in one place.`; // BS147: reads right for "The Brunch City"
   const aboutBody =
     `This is the ${brandName} storefront — the full index of upcoming events. Passes are issued ` +
     `and honoured by ZoraPass, and your pass lives in your pocket.`;

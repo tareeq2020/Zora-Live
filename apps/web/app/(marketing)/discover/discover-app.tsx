@@ -21,6 +21,7 @@ import { Placements } from '../../components/placements';
 import { CITIES } from '../../lib/cities';
 import { fetchCardOffers, hintText, type CardOffer } from '../../lib/installments';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../components/event-card';
+import { eventDateLabel, isPastEvent } from '../../lib/event-date';
 
 // BS47: KULTUR is invite/earn-only with no app to redeem it in yet — the banner
 // promises something the platform can't deliver on right now. Flagged off
@@ -33,7 +34,7 @@ const CAT_LABEL: Record<string, string> = { 'This Weekend': 'This weekend' };
 
 type Ev = {
   id: string; t: string; art: string; cat: string; city: string; venue: string;
-  date: string; time: string; price: number; wknd: boolean; mega: boolean;
+  date: string; iso: string; time: string; price: number; wknd: boolean; mega: boolean;
   seated: boolean; splittable: boolean; cover?: string;
   /** BS120: ids of the on-sale web tiers (empty for app-claim events). */
   tierIds: string[];
@@ -79,7 +80,7 @@ function mapEvent(e: any): Ev {
   return {
     id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: e.category || 'Festivals',
     // Display prefers the organizer's label; falls back to the structured date.
-    city: e.city, venue: e.venue, date: e.dateLabel || isoToLabel(e.date) || '', time: e.time || '',
+    city: e.city, venue: e.venue, date: eventDateLabel(e.date, e.dateLabel || isoToLabel(e.date)), iso: e.date || '', time: e.time || '',
     price: e.priceFrom != null ? e.priceFrom : e.price || 0,
     // BS101: computed from the real date, not the stored flag.
     wknd: isThisWeekend(e.date), mega: !!e.mega, seated: !!e.seated,
@@ -211,7 +212,8 @@ export function DiscoverApp() {
       if (!r.ok) throw new Error(`the events service replied ${r.status}`);
       const data = await r.json();
       if (!Array.isArray(data)) throw new Error('the events service sent an unexpected response');
-      const mapped = data.map(mapEvent);
+      // BS147: the marketplace lists what's ON — past events drop off.
+      const mapped = data.map(mapEvent).filter((e: Ev) => !isPastEvent(e.iso));
       setEvents(mapped);
       // BS134: installment hints — nice-to-have, like stock.
       fetchCardOffers(mapped.filter((e: Ev) => e.tierIds.length).map((e: Ev) => e.id)).then(setInstOffers);
@@ -294,6 +296,7 @@ export function DiscoverApp() {
   // "Lagos" works as a query too. An empty query keeps the exact city-scoped
   // behaviour as before.
   const searching = !!query;
+  const filtered = activeCat !== 'All' || !!query;
   const indexed = events.map((e, i) => ({ e, i }));
   let list = searching ? indexed : indexed.filter(({ e }) => e.city === activeCity);
   if (activeCat === 'This Weekend') list = list.filter(({ e }) => e.wknd);
@@ -308,9 +311,6 @@ export function DiscoverApp() {
   const cityCount = events.filter((e) => e.city === activeCity).length;
   // Split into two grids only when there's enough to fill the first one (3 across
   // on desktop); a 4-event city reads better as one full row than as 2 + 2.
-  const top = list.length <= 6 ? list : list.slice(0, Math.ceil(list.length / 2));
-  const bottom = list.slice(top.length);
-  const filtered = activeCat !== 'All' || !!query;
 
   /* ── featured ──
      Scoped to the CITY on screen: a Dar headliner on top of a Lagos listing read
@@ -325,9 +325,22 @@ export function DiscoverApp() {
     return { idx: pick.i, badge: mega ? 'ZORA PICK' : '', e: pick.e };
   }, [events, activeCity]);
 
+  // BS147: the featured event already has the hero — don't repeat it in the grid
+  // (unless the buyer is filtering/searching, where every match should list).
+  if (!filtered && feat) list = list.filter(({ i }) => i !== feat.idx);
+  const top = list.length <= 6 ? list : list.slice(0, Math.ceil(list.length / 2));
+  const bottom = list.slice(top.length);
+
   // Every card is a REAL link (middle-click / keyboard / SEO) to the event or its
   // white-label storefront; the click is intercepted to open the ticket sheet.
-  const hrefFor = (e: Ev) => e.url || `/events/${encodeURIComponent(e.id)}`;
+  // BS147: always an on-site path. An API that still sends a tenant subdomain
+  // (http://<handle>.zorapass.com/…, no wildcard DNS) is mapped to /@handle/….
+  const hrefFor = (e: Ev) => {
+    const u = e.url || '';
+    const m = /^https?:\/\/([a-z0-9-]+)\.zorapass\.com(\/.*)?$/i.exec(u);
+    if (m) return `/@${m[1]}${m[2] || ''}`;
+    return u.startsWith('/') ? u : `/events/${encodeURIComponent(e.id)}`;
+  };
   const openTicket = (i: number) => setSheet({ open: true, idx: i, href: hrefFor(events[i]) });
   const closeTicket = () => setSheet({ open: false, idx: null, href: null });
 
@@ -482,11 +495,16 @@ export function DiscoverApp() {
               className="zd-go"
               id="hero-go"
               type="button"
-              disabled={!query}
               title={query ? 'Jump to the results' : 'Type something to search'}
-              onClick={() =>
-                gridSecRef.current?.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' })
-              }
+              onClick={() => {
+                // BS147: never a dead-looking button — with no query, put the
+                // cursor in the search box instead.
+                if (!query) {
+                  (document.getElementById('hero-search') as HTMLInputElement | null)?.focus();
+                  return;
+                }
+                gridSecRef.current?.scrollIntoView({ behavior: prefersReduced() ? 'auto' : 'smooth', block: 'start' });
+              }}
             >
               SEARCH
             </button>
