@@ -328,7 +328,7 @@ function initSeatMap(host: HTMLElement, eventId: string): () => void {
 
   function transformZone(z: any) {
     const b: any = { id: z.id, name: z.name || 'Zone', type: z.type || 'seated', x: +z.x || 0, y: +z.y || 0, w: +z.w || 100, h: +z.h || 100, color: z.color || '#3D5AFE', price: +z.price || 0, tierId: z.tierId || null };
-    if (z.type === 'ga') return Object.assign(b, { cap: Math.max(0, +z.cap || 0), sold: 0 });
+    if (z.type === 'ga') return Object.assign(b, { cap: Math.max(0, +(z.capacity ?? z.cap) || 0), sold: 0 }); // core normalises to `capacity` (seatmap.ts); `cap` is the legacy key
     if (z.type === 'table') return Object.assign(b, { tables: Math.max(1, +z.tables || 1), perTable: Math.max(1, +z.perTable || 1) });
     return Object.assign(b, { rows: Math.max(1, +z.rows || 1), perRow: Math.max(1, +z.perRow || 1) });
   }

@@ -35,12 +35,18 @@ type Primitive = string | number | boolean | null;
 export type ProductAnalyticsProperties = Record<string, Primitive | Primitive[] | undefined>;
 
 const BLOCKED_KEY = /(email|phone|msisdn|name|password|secret|token|cookie|qr|code|signature|ticket|credential|payment|card|mno|payer|holder)/i;
+// Allowlisted keys that would otherwise trip BLOCKED_KEY (`name` matches
+// `eventName`/`tierName`). Public catalogue names, never personal names.
+const BLOCK_EXEMPT = new Set(['eventName', 'tierName']);
 const ALLOWED_SCALAR = /^(surface|role|route|screen|eventId|eventName|organizerHandle|tierId|tierName|city|status|outcome|method|currency|count|quantity|amount|hasSeatMap|isSeated|source|errorType|eventCount|scannerRole|canSell)$/;
 
 export function sanitizeProductAnalyticsProperties(input: ProductAnalyticsProperties = {}): ProductAnalyticsProperties {
   const out: ProductAnalyticsProperties = {};
   for (const [key, value] of Object.entries(input)) {
-    if (BLOCKED_KEY.test(key) || !ALLOWED_SCALAR.test(key)) continue;
+    // Allowlist first; the blocklist still guards every allowlisted key except
+    // the explicit exemptions above.
+    if (!ALLOWED_SCALAR.test(key)) continue;
+    if (BLOCKED_KEY.test(key) && !BLOCK_EXEMPT.has(key)) continue;
     if (value == null) {
       out[key] = value ?? null;
     } else if (Array.isArray(value)) {
@@ -50,4 +56,27 @@ export function sanitizeProductAnalyticsProperties(input: ProductAnalyticsProper
     }
   }
   return out;
+}
+
+// Dynamic path segments carry invite tokens, pass codes and ids. Analytics only
+// ever sees the route PATTERN (and never the query string).
+const ROUTE_PATTERNS: Array<[RegExp, string]> = [
+  [/^\/join\/[^/]+/, '/join/[token]'],
+  [/^\/join-team\/[^/]+/, '/join-team/[token]'],
+  [/^\/t\/[^/]+/, '/t/[code]'],
+  [/^\/split\/[^/]+/, '/split/[id]'],
+  [/^\/dashboard\/events\/[^/]+/, '/dashboard/events/[id]'],
+  [/^\/events\/[^/]+/, '/events/[id]'],
+  [/^\/storefront\/[^/]+\/events\/[^/]+/, '/storefront/[handle]/events/[id]'],
+  [/^\/storefront\/[^/]+/, '/storefront/[handle]'],
+  [/^\/@[^/]+\/events\/[^/]+/, '/@[handle]/events/[id]'],
+  [/^\/@[^/]+/, '/@[handle]'],
+];
+
+export function productRoutePattern(path: string): string {
+  const pathname = (path || '/').split(/[?#]/)[0] || '/';
+  for (const [re, pattern] of ROUTE_PATTERNS) {
+    if (re.test(pathname)) return pathname.replace(re, pattern);
+  }
+  return pathname;
 }

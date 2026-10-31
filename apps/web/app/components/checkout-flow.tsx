@@ -45,6 +45,8 @@ export type CheckoutFlowProps = {
   open: boolean;
   onClose: () => void;
   eventName: string;
+  /** Event id — sent with every checkout analytics event. */
+  eventId?: string;
   when?: string; // "SAT 08 AUG · 12:00 · THE VENUE"
   tiers: CheckoutTier[];
   /** Brand accent (organizer theme). Overrides the default electric blue on all
@@ -83,7 +85,7 @@ const formatHoldExpiry = (value?: string) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
+export default function CheckoutFlow({ open, onClose, eventName, eventId, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
   // BS22: splittable tiers link into the dedicated split flow (the aura-branded
@@ -133,7 +135,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   // ── reset every time the sheet opens ──
   useEffect(() => {
     if (!open) return;
-    trackProductEvent('web_checkout_opened', { eventName, count: tiers.length, source: 'checkout_flow' });
+    trackProductEvent('web_checkout_opened', { eventId, eventName, count: tiers.length, source: 'checkout_flow' });
     setStep('cart');
     setQty(tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
     setOrder(null);
@@ -241,6 +243,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
         const d = (await res.json()) as Order;
         setOrder({ orderId: d.orderId, total: d.total, holdExpiresAt: d.holdExpiresAt });
         trackProductEvent('web_checkout_started', {
+          eventId,
           eventName,
           count: cartLines.reduce((n, l) => n + l.q, 0),
           amount: d.total,
@@ -311,7 +314,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
         return;
       }
       const d = await res.json();
-      trackProductEvent('web_payment_started', { eventName, amount: order.total, currency, method });
+      trackProductEvent('web_payment_started', { eventId, eventName, amount: order.total, currency, method });
       setBillPayNumber(d.billPayNumber || null);
       setRedirectUrl(d.redirectUrl || null);
       if (method === 'card' && d.redirectUrl) {
