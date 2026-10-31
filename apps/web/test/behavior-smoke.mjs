@@ -77,7 +77,7 @@ async function run() {
     // needing a seeded session. The authed render of the real KPI/drops home is
     // covered by /qa once an organizer session exists.
     await assertRenders(WEB, '/dashboard', {
-      marker: 'SELLER SIGN-IN',
+      marker: 'Organizer sign-in',
       name: '/dashboard (anon) -> seller sign-in gate',
     });
 
@@ -86,7 +86,7 @@ async function run() {
     // both resolves (renders, not 404) AND enforces its gate. (Authed content is
     // exercised by /qa with a real org session.)
     await assertRenders(WEB, '/dashboard/sales', {
-      marker: 'ORGANIZER HANDLE',
+      marker: 'Organizer sign-in',
       name: "'/dashboard/sales' resolves + gates anon to organizer sign-in",
     });
 
