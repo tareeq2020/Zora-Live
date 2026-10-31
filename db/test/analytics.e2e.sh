@@ -21,6 +21,7 @@ B="http://localhost:$API_PORT/api/v/track"; UA='Mozilla/5.0 (iPhone; CPU iPhone 
 check() { if [ "$2" = "$3" ]; then echo "  ✓ $1 → $2"; else echo "  ✗ $1 → $2 (want $3)"; fail=1; fi; }
 post() { curl -s -o /dev/null -w '%{http_code}' -X POST "$B" -H 'content-type: application/json' -A "$1" -d "$2"; }
 q() { psql "$URL" -tAc "$1"; }
+check "health 200" "$(curl -s -o /dev/null -w %{http_code} http://localhost:$API_PORT/api/health)" 200
 check "storefront view" "$(post "$UA" '{"kind":"storefront","org":"thebrunchcity","anonId":"a1","referrer":"https://l.instagram.com"}')" 204
 post "$UA" '{"kind":"storefront","org":"thebrunchcity","anonId":"a1","referrer":"https://l.instagram.com"}' >/dev/null
 post "$UA" '{"kind":"storefront","org":"thebrunchcity","anonId":"a2","utm":"whatsapp"}' >/dev/null

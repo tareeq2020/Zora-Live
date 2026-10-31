@@ -19,6 +19,7 @@ Last updated: 2026-10-31
 | R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | todo |
 | R5 Installments | BS132–BS136 | `zp_installments` (per org, OFF until x-bridge /v1 R3 ≈ 21 Nov) | todo |
 | R6 Hardening + x-bridge /v1 | BS137–BS138 | — | todo |
+| R8 Backend on Render (api.zorapass.com) | BS142 | — | merged — cutover pending (owner) |
 | R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | wip |
 
 ## PRs
@@ -55,11 +56,13 @@ Last updated: 2026-10-31
 
 | BS140 | Admin feature-flags page (`/admin/console/flags`) + `GET /api/settings/flags` (admin) | R1 | 0 | BS118 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/209 | needed to switch each release on |
 | BS141 | Admin Google sign-in as the default (password kept as break-glass); allowlist via settings.adminGoogleEmails / ADMIN_GOOGLE_EMAILS / ADMIN_GOOGLE_DOMAIN | R7 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/211 | needs Google OAuth client + callback <web>/api/auth/google/callback |
+| BS142 | Render Blueprint (`render.yaml`: zora-api web + zora-worker + env group), `/api/health`, api.zorapass.com, cutover runbook `docs/deploy/render.md` | R8 | 0 | — | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/222 | owner: create Blueprint from Reli-Tech/zora, DNS CNAME api → zora-api.onrender.com, Vercel API_URL |
 ## Decisions log
+- 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
 - 2026-10-31 · Owner: add Google login as the default for admins (R7 / BS141).
 - 2026-10-31 · Seat maps in v1 · x-bridge runs installments (receivables /v1, R3 ≈ 21 Nov; schedules/deposit stay Zora-side) · missed payment = release + refund minus service fee · methods from x-bridge grouped Mobile money / Card / QR · follow design handoff strictly.
 
 ## Deploy log
-| Date | Release | origin/main | mirror/main | API + worker redeployed |
+| Date | Release | origin/main | mirror/main | API + worker redeployed (PM2 until R8 cutover, then Render auto-deploy) |
 |---|---|---|---|---|
 | 2026-10-31 | R0 | 23f2cb0 | 23f2cb0 | PENDING manual: migrations 0028 + 0032, pm2 reload zora-api zora-worker |
