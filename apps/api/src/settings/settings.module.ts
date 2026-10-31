@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Module, Put, UseGuards } from '@nestjs/common';
-import { FSP_IDS, PAYMENT_METHODS, type FspId, type FspRouteMap } from '@zora/core';
+import { BadRequestException, Body, Controller, Get, Module, Put, Query, UseGuards } from '@nestjs/common';
+import { FSP_IDS, PAYMENT_METHODS, resolveFlags, sanitizeFlagRules, type FspId, type FspRouteMap } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { SessionGuard } from '../common/session.guard';
 import { DEFAULT_SETTINGS } from '../common/defaults';
@@ -102,6 +102,25 @@ export class SettingsController {
     const current = await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS);
     await this.entities.write('settings', { ...current, fspRouteMap });
     return { fspRouteMap };
+  }
+
+  // BS118: public resolved feature flags for one context (organizer handle and/or
+  // event id). Only booleans leave the server — never the org/event lists.
+  @Get('flags')
+  async flags(@Query('org') org?: string, @Query('event') event?: string) {
+    const current = await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS);
+    return resolveFlags(current.flags, { org: org || null, event: event || null });
+  }
+
+  // BS118: admin-only flag rules save. Replaces settings.flags wholesale with the
+  // sanitized rules (unknown flags and junk fields dropped).
+  @UseGuards(SessionGuard)
+  @Put('settings/flags')
+  async updateFlags(@Body() body: any) {
+    const flags = sanitizeFlagRules(body?.flags);
+    const current = await this.entities.read<Record<string, unknown>>('settings', DEFAULT_SETTINGS);
+    await this.entities.write('settings', { ...current, flags });
+    return { flags };
   }
 
   // BS47: admin-only, validated which-methods-are-offered save. Merges onto the
