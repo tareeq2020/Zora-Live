@@ -28,5 +28,16 @@ for (const f of files) {
   check(`${f}: link/button colour reset is zero-specificity`, !bad, `wrap it as :where(.scope) a{color:inherit} (found "${bad && bad[0].trim()}")`);
 }
 
+// BS149: the same specificity trap anywhere in apps/web, and undefined --zp-* tokens.
+import { readdirSync, statSync } from 'node:fs';
+const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
+const src = walk(join(web, 'app')).filter((p) => /\.(tsx?|css)$/.test(p));
+const trap = src.filter((p) => /^\s*\.[a-zA-Z][\w-]* (a|button|input)\s*[,{][^}]*color:\s*inherit/m.test(readFileSync(p, 'utf8')));
+check('no scope-level link/button colour reset outranks button classes (whole app)', trap.length === 0, 'use :where(.scope) in: ' + trap.map((p) => p.slice(web.length + 1)).join(', '));
+const defined = new Set([...read('public/brand/design-tokens/zorapass.css').matchAll(/(--zp-[a-z0-9-]+)\s*:/g), ...read('public/zora-tokens.css').matchAll(/(--zp-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+const used = new Set(src.flatMap((p) => [...readFileSync(p, 'utf8').matchAll(/var\((--zp-[a-z0-9-]+)/g)].map((m) => m[1])));
+const undef = [...used].filter((v) => !defined.has(v));
+check('every var(--zp-*) used in apps/web is defined', undef.length === 0, 'undefined: ' + undef.join(', '));
+
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

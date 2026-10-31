@@ -65,7 +65,7 @@ const STYLE = `
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 .zora-dropedit *{margin:0;padding:0;box-sizing:border-box}
-.zora-dropedit a{color:inherit;text-decoration:none}
+:where(.zora-dropedit) a{color:inherit;text-decoration:none}
 .zora-dropedit .mono{font-family:var(--mono)}
 .zora-dropedit ::selection{background:var(--blue);color:#fff}
 .zora-dropedit .editbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:10px;max-width:1080px;margin:0 auto;padding:12px 0;background:var(--cr-paper)}

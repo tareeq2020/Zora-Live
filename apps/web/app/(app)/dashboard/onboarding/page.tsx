@@ -27,7 +27,7 @@ const STYLE = `
   --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-onboard *{margin:0;padding:0;box-sizing:border-box}
-.zora-onboard a{color:inherit;text-decoration:none}
+:where(.zora-onboard) a{color:inherit;text-decoration:none}
 .zora-onboard .mono{font-family:var(--mono)}
 .zora-onboard ::selection{background:var(--blue);color:#fff}
 .zora-onboard .top{display:flex;align-items:center;justify-content:space-between;padding:22px 32px;max-width:1000px;margin:0 auto}

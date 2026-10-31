@@ -26,7 +26,7 @@ const STYLE = `
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .zora-seatbuilder *{margin:0;padding:0;box-sizing:border-box}
-.zora-seatbuilder a{color:inherit;text-decoration:none}
+:where(.zora-seatbuilder) a{color:inherit;text-decoration:none}
 .zora-seatbuilder .mono{font-family:var(--mono)}
 .zora-seatbuilder button{font-family:inherit}
 .zora-seatbuilder .top{display:flex;align-items:center;gap:14px;margin-bottom:16px}

@@ -4,6 +4,7 @@
    defaults to dark and would flip the semantic --zp-surface/--zp-text-* tokens. Flat:
    no gradients, no shadows, no blur. */
 .page {
+  color-scheme: light; /* BS149: native controls stay light on bone */
   --bg: var(--zp-color-bone);
   --ink: var(--zp-color-board-black);
   --raised: var(--zp-color-white);

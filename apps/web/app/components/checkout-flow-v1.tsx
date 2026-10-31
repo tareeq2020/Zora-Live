@@ -755,7 +755,7 @@ function payErrorMessage(err?: string): string {
 }
 
 const STYLE = `
-	.zco{position:fixed;inset:0;background:var(--zp-overlay,rgba(17,17,17,.6));display:flex;align-items:flex-end;justify-content:center;z-index:120;font-family:var(--zp-font-sans)}
+	.zco{color-scheme:light;position:fixed;inset:0;background:var(--zp-overlay,rgba(17,17,17,.6));display:flex;align-items:flex-end;justify-content:center;z-index:120;font-family:var(--zp-font-sans)}
 	@media(min-width:680px){.zco{align-items:center;padding:24px}}
 	.zco *{margin:0;padding:0;box-sizing:border-box}
 	.zco-card{--z-black:var(--zp-color-board-black);--z-bone:var(--zp-color-bone);--z-yellow:var(--zp-color-signal-yellow);--z-hair:var(--zp-color-line-light);--z-mut:var(--zp-color-ink-500);--mono:var(--zp-font-mono);background:var(--zp-color-bone);color:var(--zp-color-board-black);width:100%;max-width:520px;border:1px solid var(--zp-color-board-black);border-radius:var(--zp-radius-xl) var(--zp-radius-xl) 0 0;max-height:94vh;overflow-y:auto}
@@ -814,7 +814,7 @@ const STYLE = `
 	.zco-net-card.on{border-color:var(--zp-border-strong);background:var(--zp-color-signal-yellow)}
 	.zco-check{display:flex;align-items:center;gap:11px;margin-top:22px;font-size:14px;color:var(--zp-color-board-black);cursor:pointer}
 	.zco-check input{width:20px;height:20px;accent-color:var(--zp-color-board-black);flex-shrink:0}
-	.zco-pay{width:100%;background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;font-family:var(--zp-font-display);font-size:14px;font-weight:400;letter-spacing:0;padding:18px;border-radius:var(--zp-radius-lg);cursor:pointer;margin-top:24px;transition:background .2s,transform .2s}
+	.zco-pay{width:100%;background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;font-family:var(--zp-font-family-display);font-size:20px;font-weight:400;letter-spacing:0;padding:18px;border-radius:var(--zp-radius-lg);cursor:pointer;margin-top:24px;transition:background .2s,transform .2s}
 	.zco-pay:hover:not(:disabled){background:var(--zp-color-ink-800);transform:translateY(-1px)}
 	.zco-pay:disabled{opacity:.45;cursor:not-allowed}
 	.zco-web{width:100%;background:none;border:none;color:var(--z-mut);font-family:var(--mono);font-size:12px;letter-spacing:.06em;margin-top:16px;text-decoration:underline;cursor:pointer}

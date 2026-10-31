@@ -32,6 +32,22 @@ const CATS = ['All', 'This Weekend', 'Concerts', 'Festivals', 'Nightlife', 'Dayt
 // Display labels are sentence case (04_UI_COPY rule 2); the filter keys stay as-is.
 const CAT_LABEL: Record<string, string> = { 'This Weekend': 'This weekend' };
 
+// BS149: organizers type free-text categories ("Live Concert", "Daytime
+// Dancehall Party", "Nighhtime"); the filter chips are a fixed set, so map the
+// text onto a chip (keywords first, then start time) — otherwise every chip
+// filtered to nothing.
+export function categoryBucket(raw: string | null | undefined, time?: string | null): string {
+  const t = String(raw || '').toLowerCase();
+  if (/festival|fest\b/.test(t)) return 'Festivals';
+  if (/concert|live|gig|band|music|tour|acoustic|jazz|orchestra/.test(t)) return 'Concerts';
+  if (/art|exhibit|gallery|theat|comedy|film|cinema|poetry|spoken|museum|culture/.test(t)) return 'Arts';
+  if (/brunch|day|pool|picnic|beach|sunday|afternoon|lunch/.test(t)) return 'Daytime';
+  if (/night|nite|nighh|club|rave|dj|late|after ?party/.test(t)) return 'Nightlife';
+  const h = Number(String(time || '').split(':')[0]);
+  if (Number.isFinite(h) && String(time || '').includes(':')) return h >= 18 || h < 5 ? 'Nightlife' : 'Daytime';
+  return 'Nightlife';
+}
+
 type Ev = {
   id: string; t: string; art: string; cat: string; city: string; venue: string;
   date: string; iso: string; time: string; price: number; wknd: boolean; mega: boolean;
@@ -78,7 +94,7 @@ function mapEvent(e: any): Ev {
   // surfaces that as a card badge so a group can spot a splittable table early.
   const tiers: any[] = Array.isArray(e?.webCheckout?.tiers) ? e.webCheckout.tiers : []; // eslint-disable-line @typescript-eslint/no-explicit-any
   return {
-    id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: e.category || 'Festivals',
+    id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: categoryBucket(e.category, e.time),
     // Display prefers the organizer's label; falls back to the structured date.
     city: e.city, venue: e.venue, date: eventDateLabel(e.date, e.dateLabel || isoToLabel(e.date)), iso: e.date || '', time: e.time || '',
     price: e.priceFrom != null ? e.priceFrom : e.price || 0,
