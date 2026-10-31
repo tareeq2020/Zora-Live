@@ -178,6 +178,7 @@ export default function CheckoutFlowV2({
   const [quote, setQuote] = useState<InstallmentQuote | null>(null);
   const [plan, setPlan] = useState<Plan>('full');
   const [booked, setBooked] = useState<{ paidCount: number; count: number; schedule: ScheduleRow[] } | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCount = useRef(0);
 
@@ -250,10 +251,27 @@ export default function CheckoutFlowV2({
   useEffect(() => () => stopPolling(), [stopPolling]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && step !== 'poll' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && step !== 'poll') onClose();
+      // BS137: keep Tab inside the modal (aria-modal alone does not stop it).
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const els = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter((el) => el.offsetParent !== null);
+      if (!els.length) return;
+      const first = els[0], last = els[els.length - 1];
+      const inside = dialogRef.current.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (!inside || document.activeElement === last)) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, step]);
+  // BS137: move focus into the dialog when it opens, and back where it was on close.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => prev?.focus?.();
+  }, [open]);
 
   // ── hold countdown ──
   const holdLeft = useCountdown(order?.holdExpiresAt);
@@ -667,7 +685,7 @@ export default function CheckoutFlowV2({
   );
 
   return (
-    <div className="zc2" role="dialog" aria-modal="true" aria-label={`Get passes for ${eventName}`}>
+    <div className="zc2" role="dialog" aria-modal="true" aria-label={`Get passes for ${eventName}`} ref={dialogRef} tabIndex={-1}>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <header className="zc2-head">
         {step === 'details' ? (
@@ -965,6 +983,7 @@ export default function CheckoutFlowV2({
               when={when}
               where={where}
               lines={lines.map((l) => `${l.q} × ${l.tier.name}`).join(', ')}
+              tierName={(id) => tiers.find((t) => t.tierId === id)?.name || id}
               onClose={onClose}
               onRetry={retryPayment}
               onStartAgain={startAgain}
@@ -1063,6 +1082,7 @@ function Result({
   when,
   where,
   lines,
+  tierName,
   onClose,
   onRetry,
   onStartAgain,
@@ -1074,6 +1094,7 @@ function Result({
   when: string;
   where: string;
   lines: string;
+  tierName: (tierId: string) => string;
   onClose: () => void;
   onRetry: () => void;
   onStartAgain: () => void;
@@ -1116,7 +1137,7 @@ function Result({
               <div className="zc2-qr-img">
                 <QRCodeSVG value={c.qr} size={200} level="M" includeMargin={false} bgColor="#FFFFFF" fgColor="#111111" />
               </div>
-              <p className="zc2-qr-tier">{c.tier}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
+              <p className="zc2-qr-tier">{tierName(c.tier)}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
               <p className="zc2-qr-ref">{c.publicRef}</p>
             </div>
           ))}
@@ -1185,6 +1206,7 @@ function validationMessage(err?: string): string {
    Every rule is .zc2-prefixed twice-deep so the reset below never outranks it. */
 const STYLE = `
 .zc2{--bk:var(--zp-color-board-black);--bone:var(--zp-color-bone);--yl:var(--zp-color-signal-yellow);--wh:var(--zp-color-white);--line:var(--zp-color-line-light);--mut:var(--zp-color-ink-500);--ink2:var(--zp-color-ink-600);--mono:var(--zp-font-family-mono);--disp:var(--zp-font-family-display);--sans:var(--zp-font-family-sans);position:fixed;inset:0;z-index:120;background:var(--bone);color:var(--bk);font-family:var(--sans);font-size:16px;line-height:1.4;overflow-y:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+.zc2:focus{outline:none}
 .zc2 *{margin:0;padding:0;box-sizing:border-box}
 .zc2 :focus-visible{outline:3px solid var(--bk);outline-offset:2px}
 .zc2 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
@@ -1344,12 +1366,13 @@ const STYLE = `
 .zc2 .zc2-in{position:relative;background:var(--bk);color:var(--bone);border-radius:var(--zp-radius-lg);padding:32px 24px;display:flex;flex-direction:column;gap:16px}
 @media(min-width:960px){.zc2 .zc2-in{padding:48px}}
 .zc2 .zc2-in :focus-visible{outline-color:var(--yl)}
-.zc2 .zc2-in-stamp{position:absolute;right:24px;top:24px;width:96px;height:96px;transform:rotate(-10deg);animation:zc2slam .18s cubic-bezier(.2,.7,.2,1) both}
+.zc2 .zc2-in-stamp{position:absolute;right:16px;top:16px;width:80px;height:80px;transform:rotate(-10deg);animation:zc2slam .18s cubic-bezier(.2,.7,.2,1) both}
+@media(min-width:960px){.zc2 .zc2-in-stamp{right:24px;top:24px;width:96px;height:96px}}
 @keyframes zc2slam{from{opacity:0;transform:scale(1.3) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(-10deg)}}
 @media(prefers-reduced-motion:reduce){.zc2 .zc2-in-stamp{animation:none}.zc2 .zc2-spin{animation-duration:2s}}
 .zc2 .zc2-in-k{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--zp-color-ink-300,#BDBDBD)}
-.zc2 .zc2-in-h{font-family:var(--disp);font-weight:400;font-size:48px;line-height:.95;color:var(--yl)}
-@media(min-width:960px){.zc2 .zc2-in-h{font-size:72px}}
+.zc2 .zc2-in-h{font-family:var(--disp);font-weight:400;font-size:48px;line-height:.95;color:var(--yl);padding-right:88px}
+@media(min-width:960px){.zc2 .zc2-in-h{font-size:72px;padding-right:0}}
 .zc2 .zc2-in-p{font-size:18px;max-width:40ch}
 .zc2 .zc2-in-dl{display:grid;grid-template-columns:90px 1fr;row-gap:8px;font-family:var(--mono);font-size:15px}
 .zc2 .zc2-in-dl dt{color:var(--zp-color-ink-300,#BDBDBD);font-size:12px;letter-spacing:.08em;padding-top:2px}
