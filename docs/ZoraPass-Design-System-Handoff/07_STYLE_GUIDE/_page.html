@@ -1,0 +1,497 @@
+<title>ZoraPass Stamp &amp; Signal</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --signal:#FFD21F; --signal-press:#E6BD1B; --board:#111111; --bone:#F7F5EE; --night:#1C1C1C;
+    --mtaa:#0F7B3F; --bahari:#1597D4; --alert:#B42318; --white:#FFFFFF;
+    --ink-500:#4A4A4A; --ink-300:#BDBDBD;
+    --surface:#F7F5EE; --surface-raised:#FFFFFF; --surface-sunken:#EFEDE4; --surface-inverse:#111111;
+    --text:#111111; --text-2:#4A4A4A; --text-inverse:#F7F5EE; --line:#D9D6CC; --line-strong:#111111;
+    --font-display:'Bungee','Arial Black',sans-serif;
+    --font-sans:'Bricolage Grotesque','Inter',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+    --gutter:20px; --max:1100px;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --surface:#111111; --surface-raised:#1C1C1C; --surface-sunken:#000000; --surface-inverse:#F7F5EE;
+    --text:#F7F5EE; --text-2:#BDBDBD; --text-inverse:#111111; --line:#333333; --line-strong:#F7F5EE;
+  }}
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface:#111111; --surface-raised:#1C1C1C; --surface-sunken:#000000; --surface-inverse:#F7F5EE;
+    --text:#F7F5EE; --text-2:#BDBDBD; --text-inverse:#111111; --line:#333333; --line-strong:#F7F5EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--surface);color:var(--text);font-family:var(--font-sans);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--max);margin:0 auto;padding-inline:var(--gutter)}
+  section{border-top:1px solid var(--line);padding-block:56px}
+  section:first-of-type{border-top:0}
+  h2{font-family:var(--font-display);font-size:clamp(28px,5vw,44px);line-height:.95;margin:.1em 0 .35em;text-transform:uppercase;text-wrap:balance}
+  h3{font-family:var(--font-sans);font-weight:700;font-size:20px;letter-spacing:-.015em;margin:32px 0 12px}
+  p{max-width:62ch;margin:0 0 14px}
+  .lede{font-size:18px;color:var(--text-2)}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2);display:flex;gap:10px;align-items:center}
+  .eyebrow b{color:#111111;background:var(--signal);padding:2px 7px;border-radius:4px;font-weight:600}
+  code,.mono{font-family:var(--font-mono);font-size:13px}
+  .grid{display:grid;gap:16px}
+  .note{font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+
+  /* header */
+  header.hero{background:var(--signal);color:var(--board);padding-block:40px 44px;border-bottom:3px solid var(--board)}
+  .hero-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  .logo{font-family:var(--font-sans);font-weight:700;letter-spacing:-.035em;font-size:26px;color:var(--board)}
+  .hero h1{font-family:var(--font-display);font-size:clamp(40px,10vw,84px);line-height:.92;margin:26px 0 10px;text-transform:uppercase}
+  .hero p{color:#3A3A3A;max-width:54ch}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .tag{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--board);border-radius:999px;padding:6px 12px}
+  .toggle{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;background:var(--board);color:var(--signal);border:0;border-radius:999px;padding:10px 16px;cursor:pointer}
+  .toggle:focus-visible{outline:3px solid var(--board);outline-offset:2px}
+
+  /* swatches */
+  .swatches{grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}
+  .sw{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface-raised)}
+  .sw .chip-color{height:92px;display:flex;align-items:flex-end;padding:10px}
+  .sw .meta{padding:12px 14px 14px}
+  .sw .name{font-weight:700;font-size:15px}
+  .sw .hex{font-family:var(--font-mono);font-size:12px;color:var(--text-2);letter-spacing:.04em}
+  .sw .role{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.3}
+  .ratio{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;border-radius:4px;padding:2px 6px}
+
+  /* type specimens */
+  .spec{border-top:1px solid var(--line);padding:18px 0;display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:baseline}
+  .spec .k{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
+  .d-xl{font-family:var(--font-display);font-size:clamp(34px,7vw,64px);line-height:.95;text-transform:uppercase}
+  .d-m{font-family:var(--font-display);font-size:30px;line-height:.98;text-transform:uppercase}
+  .h-1{font-family:var(--font-sans);font-weight:700;font-size:34px;line-height:1.08;letter-spacing:-.02em}
+  .h-3{font-family:var(--font-sans);font-weight:700;font-size:22px;line-height:1.1;letter-spacing:-.015em}
+  .b-1{font-size:16px;line-height:1.35}
+  .m-1{font-family:var(--font-mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+
+  /* components */
+  .demo{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0 6px}
+  .btn{font-family:var(--font-display);text-transform:uppercase;font-size:15px;border:2px solid transparent;border-radius:16px;height:48px;padding:0 20px;display:inline-flex;align-items:center;gap:12px;cursor:pointer;background:var(--board);color:var(--signal);transition:transform .12s cubic-bezier(.2,.7,.2,1),background .12s}
+  .btn:hover{background:#000}
+  .btn:active{transform:translateY(2px)}
+  .btn:focus-visible{outline:3px solid var(--line-strong);outline-offset:2px}
+  .btn svg{flex:none}
+  .btn--secondary{background:transparent;color:var(--text);border-color:var(--line-strong)}
+  .btn--danger{background:var(--alert);color:#fff}
+  .btn--disabled{background:var(--ink-300);color:var(--ink-500);cursor:not-allowed}
+  .btn--sm{height:40px;font-size:13px;border-radius:12px}
+  .btn--lg{height:56px;font-size:17px}
+  .on-dark{background:var(--board);padding:20px;border-radius:16px}
+  .on-dark .btn{background:var(--signal);color:var(--board)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:var(--font-mono);font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;border-radius:999px;padding:6px 12px;border:2px solid transparent;white-space:nowrap}
+  .field{max-width:380px}
+  .field label{display:block;font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);margin-bottom:6px}
+  .field input{width:100%;height:48px;border-radius:12px;border:2px solid var(--line);background:var(--surface-raised);color:var(--text);padding:0 14px;font-family:var(--font-sans);font-size:16px}
+  .field input:focus{outline:3px solid var(--line-strong);outline-offset:2px;border-color:var(--line-strong)}
+  .field .help{font-size:14px;color:var(--text-2);margin-top:6px}
+  .field.error input{border-color:var(--alert)}
+  .field.error .help{color:var(--alert)}
+
+  .card{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;overflow:hidden;max-width:320px}
+  .card .art{aspect-ratio:4/5;background:var(--board);position:relative;display:flex;align-items:flex-end;padding:12px}
+  .card .art .chip{position:absolute;top:12px;left:12px}
+  .card .art span{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:#5a5a5a;text-transform:uppercase}
+  .card .body{padding:14px}
+  .card .when{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
+  .card .title{font-weight:700;font-size:19px;letter-spacing:-.015em;margin:6px 0 2px}
+  .card .where{font-size:14px;color:var(--text-2)}
+  .card .price{font-family:var(--font-mono);font-size:15px;margin-top:10px}
+
+  .board{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface-raised)}
+  .row{display:grid;grid-template-columns:46px 1fr auto;gap:12px;align-items:center;padding:14px 16px;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .day{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;color:var(--text-2)}
+  .row .name{font-weight:700;font-size:16px;letter-spacing:-.01em}
+  .row .area{font-size:13px;color:var(--text-2)}
+  .row .right{display:flex;align-items:center;gap:10px}
+  .row .time{font-family:var(--font-mono);font-size:13px}
+
+  .stampwrap{display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+  .stamp{width:118px;height:118px;transform:rotate(-10deg)}
+  .stamp svg{width:100%;height:100%;display:block}
+  .slam{animation:slam .18s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes slam{from{transform:rotate(-20deg) scale(1.3);opacity:0}to{transform:rotate(-10deg) scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){.slam{animation:none}}
+  .stamp-on-black{background:var(--board);border-radius:16px;padding:16px}
+
+  /* pass */
+  .pass{background:var(--board);color:var(--bone);border-radius:16px;max-width:340px;overflow:hidden;border:1px solid #333}
+  .pass .top{padding:18px 18px 12px}
+  .pass .kind{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;color:var(--signal);text-transform:uppercase}
+  .pass .ev{font-family:var(--font-sans);font-weight:700;font-size:24px;line-height:1.05;letter-spacing:-.02em;margin:8px 0 14px}
+  .pass .rows{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-family:var(--font-mono);font-size:12px;letter-spacing:.06em}
+  .pass .rows b{display:block;color:#8d8d8d;font-weight:500;font-size:10px;letter-spacing:.14em;margin-bottom:3px}
+  .tear{position:relative;height:22px;margin:16px 0 0}
+  .tear::before{content:"";position:absolute;inset:50% 14px auto;border-top:2px dashed #4a4a4a}
+  .tear i{position:absolute;top:50%;width:22px;height:22px;background:var(--surface);border-radius:50%;transform:translateY(-50%)}
+  .tear i.l{left:-11px}.tear i.r{right:-11px}
+  .pass .qr{padding:0 18px 20px;display:flex;gap:16px;align-items:flex-end}
+  .qrbox{background:#fff;border-radius:12px;padding:10px;flex:none;width:152px}
+  .pass .pid{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:#8d8d8d}
+  .pass .hint{font-size:13px;color:#bdbdbd;margin-top:6px}
+
+  /* screens */
+  .screens{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+  .phone{background:var(--board);border-radius:28px;padding:10px;border:1px solid #2a2a2a}
+  .phone .inner{background:var(--bone);border-radius:20px;overflow:hidden;height:520px;display:flex;flex-direction:column}
+  .phone .inner.dark{background:var(--board);color:var(--bone)}
+  .ph-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .inner.dark .ph-bar{border-color:#333}
+  .ph-body{padding:14px;overflow:hidden;flex:1}
+  .ph-title{font-family:var(--font-display);font-size:26px;line-height:.95;text-transform:uppercase;margin:4px 0 10px}
+  .mini-row{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:13px}
+  .inner.dark .mini-row{border-color:#333}
+  .mini-row .n{font-weight:700}
+  .mini-row .t{font-family:var(--font-mono);font-size:11px;color:var(--text-2)}
+  .inner.dark .mini-row .t{color:#bdbdbd}
+  .ph-cta{margin-top:12px;display:flex;justify-content:space-between;align-items:center;background:var(--board);color:var(--signal);border-radius:14px;padding:12px 14px;font-family:var(--font-display);font-size:13px;text-transform:uppercase}
+  .inner.dark .ph-cta{background:var(--signal);color:var(--board)}
+  .ph-art{background:#1c1c1c;border-radius:12px;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;color:#5a5a5a;text-transform:uppercase;margin-bottom:10px}
+  .ph-meta{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+  .inner.dark .ph-meta{color:#bdbdbd}
+  .ph-caption{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);margin-top:10px;text-align:center}
+  .stepper{display:flex;align-items:center;gap:12px;border:2px solid var(--line);border-radius:12px;padding:6px 10px;width:fit-content}
+  .stepper b{font-family:var(--font-mono);font-size:15px;min-width:18px;text-align:center}
+  .stepper span{width:26px;height:26px;border-radius:8px;background:var(--board);color:var(--signal);display:grid;place-items:center;font-size:15px;font-family:var(--font-mono)}
+
+  /* tables */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px}
+  table{border-collapse:collapse;width:100%;min-width:520px;background:var(--surface-raised)}
+  th,td{text-align:left;padding:12px 14px;border-top:1px solid var(--line);font-size:14px;vertical-align:top}
+  th{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);border-top:0}
+  td code{background:var(--surface-sunken);padding:2px 6px;border-radius:6px}
+
+  .dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .do,.dont{border-radius:16px;padding:18px;border:2px solid}
+  .do{border-color:var(--mtaa)}
+  .dont{border-color:var(--alert)}
+  .do h4,.dont h4{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 10px}
+  .do h4{color:var(--mtaa)}.dont h4{color:var(--alert)}
+  .do ul,.dont ul{margin:0;padding-left:18px}
+  .do li,.dont li{margin-bottom:7px;font-size:15px}
+  footer{background:var(--board);color:var(--bone);padding-block:40px}
+  footer a{color:var(--signal)}
+  .foot-grid{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-top">
+      <div class="logo">ZoraPass</div>
+      <button class="toggle" id="themeBtn" type="button">Dark preview</button>
+    </div>
+    <h1>Stamp<br>&amp; Signal.</h1>
+    <p class="lede">The ZoraPass design system for the website and the app. Ticketing and live entertainment, for one person or many.</p>
+    <div class="hero-meta">
+      <span class="tag">Version 1.0</span>
+      <span class="tag">23 Sept 2026</span>
+      <span class="tag">Tokens · Components · Screens</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>01</b> Foundation</div>
+    <h2>Your pass to what's on.</h2>
+    <p class="lede">Everything in the interface serves one path: <strong>discover → choose → buy → experience</strong>. The event is the hero. ZoraPass is the frame around it — the yellow, the black, the stamp, the mono data. Campaign lines like ADMIT US. live in marketing and never appear in the product.</p>
+    <div class="stampwrap" style="margin-top:26px">
+      <div class="stamp slam" id="stamp1"><!--STAMP:zorapass-dar-black--></div>
+      <div class="stamp-on-black"><div class="stamp"><!--STAMP:zorapass-dar-signal--></div></div>
+      <div>
+        <h3 style="margin-top:0">The stamp is the second mark</h3>
+        <p>Default state: <strong>ZORAPASS</strong>. Status states (SOLD OUT, FEW LEFT, CHECKED IN) are used only when they are true. Always at −10°, never re-coloured, never on every card in a list.</p>
+        <button class="btn btn--sm" id="slamBtn" type="button">Replay the stamp slam</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>02</b> Colour</div>
+    <h2>Three that carry it.</h2>
+    <p>Signal Yellow is the brand's signature ground, not a warning colour. Board Black is the ink and the night. Bone is the paper. The supporting three are for states only, and Alert Red only for problems.</p>
+    <div class="grid swatches" style="margin-top:22px">
+      <div class="sw"><div class="chip-color" style="background:#FFD21F"><span class="ratio" style="background:#111;color:#FFD21F">13.0:1 on black</span></div><div class="meta"><div class="name">Signal Yellow</div><div class="hex">#FFD21F</div><div class="role">The signature ground. Black text only.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#111111"><span class="ratio" style="background:#F7F5EE;color:#111">17.3:1 on bone</span></div><div class="meta"><div class="name">Board Black</div><div class="hex">#111111</div><div class="role">Ink, primary buttons, night surfaces.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#F7F5EE;border-bottom:1px solid #D9D6CC"><span class="ratio" style="background:#111;color:#F7F5EE">Paper</span></div><div class="meta"><div class="name">Bone</div><div class="hex">#F7F5EE</div><div class="role">Light surface. Warmer and calmer than white.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#0F7B3F"><span class="ratio" style="background:#fff;color:#0F7B3F">5.4:1 white</span></div><div class="meta"><div class="name">Mtaa Green</div><div class="hex">#0F7B3F</div><div class="role">Success: we're in, checked in, paid.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#1597D4"><span class="ratio" style="background:#111;color:#1597D4">5.8:1 black</span></div><div class="meta"><div class="name">Bahari Blue</div><div class="hex">#1597D4</div><div class="role">Info: waitlist, new. Black text only.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#B42318"><span class="ratio" style="background:#fff;color:#B42318">6.6:1 white</span></div><div class="meta"><div class="name">Alert Red</div><div class="hex">#B42318</div><div class="role">Cancelled, postponed, live now, errors.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#1C1C1C"></div><div class="meta"><div class="name">Night</div><div class="hex">#1C1C1C</div><div class="role">Raised surface in the dark theme.</div></div></div>
+      <div class="sw"><div class="chip-color" style="background:#D9D6CC"></div><div class="meta"><div class="name">Line</div><div class="hex">#D9D6CC</div><div class="role">Hairlines and borders on bone.</div></div></div>
+    </div>
+    <p class="note" style="margin-top:16px">Careful: Bahari Blue on white is 3.3:1. Use it as a background with black text, or for large text only.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>03</b> Type</div>
+    <h2>Three faces, fixed roles.</h2>
+    <div class="spec"><div class="k">Bungee · display xl</div><div class="d-xl">What's on?</div></div>
+    <div class="spec"><div class="k">Bungee · display m</div><div class="d-m">Few left.</div></div>
+    <div class="spec"><div class="k">Bricolage Bold · h1</div><div class="h-1">Afro House Rooftop</div></div>
+    <div class="spec"><div class="k">Bricolage Bold · h3</div><div class="h-3">Know before you go</div></div>
+    <div class="spec"><div class="k">Bricolage · body</div><div class="b-1">Concerts, festivals, nights out and new experiences. Get your pass in the app, scan once at the gate, and you're in.</div></div>
+    <div class="spec"><div class="k">IBM Plex Mono · meta</div><div class="m-1">Fri 23 Oct · 21:00 · The Terrace, Masaki</div></div>
+    <div class="spec"><div class="k">IBM Plex Mono · data</div><div class="mono" style="font-size:16px">TSh 25,000 · ZP-1023-0918 · ADMIT 4</div></div>
+    <p style="margin-top:24px">Bungee is display only: caps, one to four words, never below 20px, never in a sentence. Bricolage Grotesque carries headlines, body and the logo (−0.035em). IBM Plex Mono carries every number, code, time and micro-label.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>04</b> Components</div>
+    <h2>The parts, built.</h2>
+
+    <h3>Buttons</h3>
+    <div class="demo">
+      <button class="btn btn--lg" type="button">Get passes <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M0 6h15.5L11 1.5 12.5 0 20 7l-7.5 7L11 12.5 15.5 8H0z" fill="currentColor"/></svg></button>
+      <button class="btn" type="button">Open my pass <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M0 6h15.5L11 1.5 12.5 0 20 7l-7.5 7L11 12.5 15.5 8H0z" fill="currentColor"/></svg></button>
+      <button class="btn btn--secondary" type="button">See the lineup</button>
+      <button class="btn btn--danger btn--sm" type="button">Cancel booking</button>
+      <button class="btn btn--disabled btn--sm" type="button" disabled>Sold out</button>
+    </div>
+    <div class="on-dark demo" style="margin-top:8px">
+      <button class="btn" type="button">Get passes <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M0 6h15.5L11 1.5 12.5 0 20 7l-7.5 7L11 12.5 15.5 8H0z" fill="currentColor"/></svg></button>
+      <span class="note" style="color:#bdbdbd">On black, the primary button flips to yellow.</span>
+    </div>
+
+    <h3>Status chips</h3>
+    <div class="chips">
+      <span class="chip" style="background:#FFD21F;color:#111;border-color:#111">Now on ZoraPass</span>
+      <span class="chip" style="background:#F7F5EE;color:#111;border-color:#111">Just announced</span>
+      <span class="chip" style="background:#FFD21F;color:#111;border-color:#111">On sale</span>
+      <span class="chip" style="background:#111;color:#FFD21F">Limited</span>
+      <span class="chip" style="background:#111;color:#FFD21F">Few left</span>
+      <span class="chip" style="background:#111;color:#FFD21F">Almost gone</span>
+      <span class="chip" style="background:#F7F5EE;color:#111;border-color:#111;text-decoration:line-through">Sold out</span>
+      <span class="chip" style="background:#1597D4;color:#111">Waitlist</span>
+      <span class="chip" style="background:#0F7B3F;color:#fff">We're in</span>
+      <span class="chip" style="background:#0F7B3F;color:#fff">Checked in</span>
+      <span class="chip" style="background:#B42318;color:#fff">Live now</span>
+      <span class="chip" style="background:#B42318;color:#fff">Postponed</span>
+      <span class="chip" style="background:#F7F5EE;color:#111;border-color:#111">Next up</span>
+      <span class="chip" style="background:#FFD21F;color:#111;border-color:#111">Zora pick</span>
+      <span class="chip" style="background:#fff;color:#111;border-color:#111">Verified event</span>
+    </div>
+    <p class="note" style="margin-top:12px">One chip per card. Priority: cancelled → postponed → sold out → almost gone → few left → live now → on sale.</p>
+
+    <h3>Event card, board row, input</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+      <div class="card">
+        <div class="art"><span class="chip" style="background:#111;color:#FFD21F">Few left</span><span>Event artwork 4:5</span></div>
+        <div class="body">
+          <div class="when">Fri 23 Oct · 21:00</div>
+          <div class="title">Afro House Rooftop</div>
+          <div class="where">The Terrace, Masaki</div>
+          <div class="price">From TSh 25,000</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div class="board">
+          <div class="row"><span class="day">Wed</span><span><span class="name">Jazz on the Deck</span><br><span class="area">Oyster Bay</span></span><span class="right"><span class="time">19:30</span></span></div>
+          <div class="row"><span class="day">Fri</span><span><span class="name">Afro House Rooftop</span><br><span class="area">Masaki</span></span><span class="right"><span class="chip" style="background:#FFD21F;color:#111;border-color:#111">On sale</span><span class="time">21:00</span></span></div>
+          <div class="row"><span class="day">Sat</span><span><span class="name">Bongo Flava Live</span><br><span class="area">Kinondoni</span></span><span class="right"><span class="chip" style="background:#1597D4;color:#111">Waitlist</span><span class="time">20:00</span></span></div>
+        </div>
+        <div class="field error" style="margin-top:20px">
+          <label for="phoneDemo">Phone number</label>
+          <input id="phoneDemo" type="tel" value="+255 712 000 000" aria-describedby="phoneHelp">
+          <div class="help" id="phoneHelp">That code didn't match. Check the message and try again.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>The pass</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+      <div class="pass">
+        <div class="top">
+          <div class="kind">Me +3 · Admit 4</div>
+          <div class="ev">Afro House Rooftop</div>
+          <div class="rows">
+            <div><b>Date</b>Fri 23 Oct</div><div><b>Doors</b>20:00</div>
+            <div><b>Venue</b>The Terrace, Masaki</div><div><b>Tier</b>General × 4</div>
+          </div>
+          <div class="tear"><i class="l"></i><i class="r"></i></div>
+        </div>
+        <div class="qr">
+          <div class="qrbox"><!--QR--></div>
+          <div>
+            <div class="pid">ZP-1023-0918</div>
+            <div class="hint">Turn your brightness up.<br>Scan once. You're in.</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:250px">
+        <p>The pass is the one screen people show at a door in the dark. Black surface, bone ink, a real tear line, a QR of at least 200px on white, a mono pass ID, and the stamp bottom-right. It has to render offline, from cache.</p>
+        <div class="stampwrap"><div class="stamp-on-black"><div class="stamp"><!--STAMP:checked-in-dar-chalk--></div></div><div class="stamp-on-black"><div class="stamp"><!--STAMP:sold-out-dar-signal--></div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>05</b> Screens</div>
+    <h2>The money path.</h2>
+    <p>What's on → event → checkout → pass. Build these four first; everything else is support.</p>
+    <div class="screens" style="margin-top:24px">
+      <div>
+        <div class="phone"><div class="inner">
+          <div class="ph-bar"><span>ZoraPass</span><span>Dar ▾</span></div>
+          <div class="ph-body">
+            <div class="ph-meta">Week 43 · 19–25 Oct</div>
+            <div class="ph-title">This week<br>in Dar.</div>
+            <div class="mini-row"><span><span class="n">Jazz on the Deck</span><br><span class="t">Oyster Bay</span></span><span class="t">19:30</span></div>
+            <div class="mini-row"><span><span class="n">Comedy Night</span><br><span class="t">Mikocheni</span></span><span class="t">20:00</span></div>
+            <div class="mini-row"><span><span class="n">Afro House Rooftop</span><br><span class="t">Masaki</span></span><span class="chip" style="background:#111;color:#FFD21F;font-size:10px;padding:4px 8px">Few left</span></div>
+            <div class="mini-row"><span><span class="n">Bongo Flava Live</span><br><span class="t">Kinondoni</span></span><span class="t">20:00</span></div>
+            <div class="ph-cta"><span>See all events</span><span>→</span></div>
+          </div>
+        </div></div>
+        <div class="ph-caption">01 · What's on</div>
+      </div>
+      <div>
+        <div class="phone"><div class="inner">
+          <div class="ph-bar"><span>← Back</span><span>Share</span></div>
+          <div class="ph-body">
+            <div class="ph-art">Event artwork</div>
+            <span class="chip" style="background:#FFD21F;color:#111;border-color:#111;font-size:10px;padding:4px 8px">On sale</span>
+            <div style="font-weight:700;font-size:20px;letter-spacing:-.02em;margin:8px 0 4px">Afro House Rooftop</div>
+            <div class="ph-meta">Fri 23 Oct · 21:00 · The Terrace, Masaki</div>
+            <div class="mini-row"><span><span class="n">Early bird</span><br><span class="t">First 100</span></span><span class="t">TSh 18,000</span></div>
+            <div class="mini-row"><span><span class="n">General</span><br><span class="t">Entry from 20:00</span></span><span class="t">TSh 25,000</span></div>
+            <div class="ph-cta"><span>Get passes</span><span>→</span></div>
+          </div>
+        </div></div>
+        <div class="ph-caption">02 · Event</div>
+      </div>
+      <div>
+        <div class="phone"><div class="inner">
+          <div class="ph-bar"><span>← Back</span><span>Step 1 of 3</span></div>
+          <div class="ph-body">
+            <div class="ph-title">How many<br>passes?</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0">
+              <span><span class="n" style="font-weight:700">General</span><br><span class="ph-meta">TSh 25,000 each</span></span>
+              <span class="stepper"><span>−</span><b>4</b><span>+</span></span>
+            </div>
+            <div class="mini-row"><span class="n">One checkout for everyone going</span><span class="t">✓</span></div>
+            <div class="mini-row"><span class="n">Split with Tuchange</span><span class="chip" style="background:#0F7B3F;color:#fff;font-size:10px;padding:4px 8px">New</span></div>
+            <div class="mini-row"><span>Total · 4 passes</span><span class="t">TSh 100,000</span></div>
+            <div class="ph-cta"><span>Continue</span><span>→</span></div>
+            <div class="ph-meta" style="margin-top:8px">All fees included.</div>
+          </div>
+        </div></div>
+        <div class="ph-caption">03 · Checkout</div>
+      </div>
+      <div>
+        <div class="phone"><div class="inner dark">
+          <div class="ph-bar"><span>My pass</span><span>Wallet</span></div>
+          <div class="ph-body" style="display:flex;flex-direction:column;justify-content:center;text-align:center">
+            <div class="ph-title" style="color:#FFD21F">You're in.</div>
+            <div class="ph-meta" style="margin-bottom:12px">Afro House Rooftop · Me +3</div>
+            <div style="background:#fff;border-radius:12px;padding:10px;width:150px;margin:0 auto"><!--QR--></div>
+            <div class="ph-meta" style="margin-top:10px">ZP-1023-0918</div>
+            <div class="stamp" style="width:86px;height:86px;margin:14px auto 0"><!--STAMP:zorapass-dar-signal--></div>
+            <div class="ph-cta" style="margin-top:14px"><span>Add to wallet</span><span>→</span></div>
+          </div>
+        </div></div>
+        <div class="ph-caption">04 · Pass</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>06</b> Tokens</div>
+    <h2>Values, not vibes.</h2>
+    <p><code>02_DESIGN_TOKENS/tokens.json</code> is the source of truth. Everything else in that folder is generated from it by <code>build-tokens.py</code>: CSS variables, SCSS, a Tailwind preset, JS/React Native, Dart, Swift and Kotlin.</p>
+    <div class="tablewrap" style="margin-top:18px">
+      <table>
+        <thead><tr><th>Group</th><th>Values</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Spacing</td><td><code>4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64 · 80</code></td><td>8px rhythm. 24 between blocks, 48–64 between sections.</td></tr>
+          <tr><td>Radius</td><td><code>6 · 8 · 12 · 16 · 24 · pill</code></td><td>16 for cards and buttons, 12 for inputs, pill for chips.</td></tr>
+          <tr><td>Controls</td><td><code>40 · 48 · 56</code></td><td>Touch target never under 44.</td></tr>
+          <tr><td>Breakpoints</td><td><code>360 · 480 · 768 · 1024 · 1280 · 1440</code></td><td>4 / 8 / 12 column grid, container 1200.</td></tr>
+          <tr><td>Motion</td><td><code>120 · 180 · 240 · 400ms</code></td><td>Easing <code>cubic-bezier(.2,.7,.2,1)</code>. Stamp slam 180ms.</td></tr>
+          <tr><td>Stamp</td><td><code>64 · 96 · 128px</code></td><td>Always −10°, black / signal / chalk only.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow"><b>07</b> Rules</div>
+    <h2>Keep it ZoraPass.</h2>
+    <div class="dos" style="margin-top:20px">
+      <div class="do">
+        <h4>Do</h4>
+        <ul>
+          <li>Let the event's artwork lead. ZoraPass frames it.</li>
+          <li>Say GET PASSES. One primary action per screen.</li>
+          <li>Show the true status, always, in words as well as colour.</li>
+          <li>Use mono for every number, code and time.</li>
+          <li>Offer groups where it helps: the stepper, the split, the invite.</li>
+          <li>Make the pass work offline, bright and one tap away.</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>Don't</h4>
+        <ul>
+          <li>Put ADMIT US. or TUKO WANGAPI? anywhere in the product.</li>
+          <li>Write "BUY NOW", "SUBMIT" or "LEARN MORE".</li>
+          <li>Set Bungee in a sentence, an error or body copy.</li>
+          <li>Invent colours, gradients, glows or decorative shadows.</li>
+          <li>Call the user a squad, or force group language on a solo buyer.</li>
+          <li>Show a status stamp that isn't true.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>
+      <div class="logo" style="color:var(--bone)">ZoraPass</div>
+      <p class="note" style="color:#bdbdbd;margin-top:8px">Stamp &amp; Signal · design system v1.0 · 23 September 2026</p>
+    </div>
+    <p class="note" style="color:#bdbdbd;max-width:42ch">Full specs in the handoff folder: tokens, components, UI copy, screens and assets. Strategy lives in the Brand Direction (Final).</p>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    var root = document.documentElement;
+    function isDark() {
+      var t = root.getAttribute('data-theme');
+      if (t) return t === 'dark';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    function sync() { btn.textContent = isDark() ? 'Light preview' : 'Dark preview'; }
+    btn.addEventListener('click', function () {
+      root.setAttribute('data-theme', isDark() ? 'light' : 'dark');
+      sync();
+    });
+    sync();
+    var slam = document.getElementById('slamBtn'), st = document.getElementById('stamp1');
+    slam.addEventListener('click', function () {
+      st.classList.remove('slam');
+      void st.offsetWidth;
+      st.classList.add('slam');
+    });
+  })();
+</script>
