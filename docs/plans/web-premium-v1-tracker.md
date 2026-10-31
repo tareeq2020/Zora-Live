@@ -6,21 +6,21 @@
 **Status key:** `todo` · `wip` · `review` · `merged` (on develop) · `released` (on main + mirror) · `blocked`
 **Flags:** each feature ships dark and is turned on per release. Flag names are in the Flag column.
 
-Last updated: 2026-10-31
+Last updated: 2026-10-31 (final train)
 
 ## Releases
 
 | Release | Contents | Flag(s) | State |
 |---|---|---|---|
 | R0 Safety + sync | BS114–BS118, BS121, BS124–BS125, BS139 | — | released 2026-10-31 · PR #203 |
-| R1 New look | BS119–BS120 | `zp_look_v2` | wip |
-| R2 Checkout v2 + tracking | BS121–BS123 | `zp_checkout_v2` | todo |
-| R3 Seat maps | BS124–BS127 | `zp_seatmap` (per event) | merged — ready to promote |
-| R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | todo |
-| R5 Installments | BS132–BS136 | `zp_installments` (per org, OFF until x-bridge /v1 R3 ≈ 21 Nov) | todo |
-| R6 Hardening + x-bridge /v1 | BS137–BS138 | — | todo |
-| R8 Backend on Render (api.zorapass.com) | BS142 | — | merged — cutover pending (owner) |
-| R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | wip |
+| R1 New look | BS119–BS120 | `zp_look_v2` | released (PR #214) |
+| R2 Checkout v2 + tracking | BS121–BS123 | `zp_checkout_v2` | released (PR #214) — flag off until backend deploy |
+| R3 Seat maps | BS124–BS127, BS143 | `zp_seatmap` (per event) | released (PR #218 + final train) |
+| R4 Analytics + branded passes | BS128–BS131 | `zp_analytics`, `zp_pass_design` (per org) | released (PR #213) |
+| R5 Installments | BS132–BS136, BS144 | `zp_installments` (per org) | released DARK (final train) — keep OFF until x-bridge /v1 (BS138) |
+| R6 Hardening + x-bridge /v1 | BS137 ✅, BS138 ⛔, BS145–BS146 todo | — | partial |
+| R8 Backend on Render (api.zorapass.com) | BS142 | — | released (PR #223) — owner cutover pending |
+| R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | released (PR #213) — needs OAuth keys |
 
 ## PRs
 
@@ -70,3 +70,8 @@ Last updated: 2026-10-31
 | Date | Release | origin/main | mirror/main | API + worker redeployed (PM2 until R8 cutover, then Render auto-deploy) |
 |---|---|---|---|---|
 | 2026-10-31 | R0 | 23f2cb0 | 23f2cb0 | PENDING manual: migrations 0028 + 0032, pm2 reload zora-api zora-worker |
+| 2026-10-31 | train 2 (R1 partial, R4, R7) | 92c713b | 92c713b | pending |
+| 2026-10-31 | train 3 (R1, R2) | 6825c10 | 6825c10 | pending |
+| 2026-10-31 | train 4 (R3) | 3c266b9 | 3c266b9 | pending |
+| 2026-10-31 | train 5 (R5 backend) | 3c101a8 | 3c101a8 | pending (migrations 0028–0033) |
+| 2026-10-31 | R8 Render blueprint | 52eaceb | 52eaceb | n/a |
