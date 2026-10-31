@@ -123,7 +123,7 @@ export type { PayoutMethod, CanonicalBank, CanonicalMno } from './fsp-registry';
 export { sendSms, smsConfigSummary, logSmsStartup, gsmSafe } from './sms';
 export { publicWebOrigin } from './origins';
 export type { SmsDriver, SmsResult } from './sms';
-export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
+export { sendEmail, sendCredentialEmail, buildCredentialEmailHtml, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
@@ -197,9 +197,9 @@ export type { AnalyticsSource, RecordViewInput } from './analytics-capture';
 export {
   PASS_TEMPLATES, PASS_SHOW_FIELDS, ZP_BLACK, ZP_BONE, ZP_YELLOW, ZORA_PASS_DEFAULTS,
   isHexColour, luminance, contrastRatio, pickTextOn, normaliseTemplate, normaliseShowFields,
-  mergeTheme, loadStorefrontTheme, loadTicketDesign, resolveTheme,
+  mergeTheme, loadStorefrontTheme, loadTicketDesign, resolveTheme, emailBrandForEvent,
 } from './theme-resolve';
 export type {
   PassTemplate, PassShowField, ThemeDefaults, StorefrontThemeLayer, EventThemeLayer,
-  TicketDesignFields, TicketDesignLayer, TicketDesignRecord, ResolvedTheme,
+  TicketDesignFields, TicketDesignLayer, TicketDesignRecord, ResolvedTheme, EmailBrand,
 } from './theme-resolve';

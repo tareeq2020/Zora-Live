@@ -75,3 +75,18 @@ test('accentOnBlack falls back to bone when the accent is too dark for the black
   assert.equal(mergeTheme({ design: { accent: '#F4A259' } }).accentOnBlack, '#F4A259');
   assert.equal(mergeTheme({ design: { accent: '#1D2A6E' } }).accentOnBlack, ZP_BONE);
 });
+
+test('credential email: unchanged without brand, accent + logo with brand (BS131)', async () => {
+  const { buildCredentialEmailHtml } = await import('../dist/email/index.js');
+  const base = { buyerName: 'Amina', eventName: 'Brunch A', tickets: [{ publicRef: 'ABC-123', tier: 'GA', qrPng: null }] };
+  const plain = buildCredentialEmailHtml(base).html;
+  assert.match(plain, />ZORA</);
+  assert.doesNotMatch(plain, /background-color:#/);
+  assert.equal(buildCredentialEmailHtml({ ...base, brand: null }).html, plain, 'null brand = identical');
+  const branded = buildCredentialEmailHtml({ ...base, brand: { accent: '#F4A259', onAccent: '#111111', brandName: 'The Brunch City', logoUrl: 'https://cdn.example/logo.png' } }).html;
+  assert.match(branded, /color:#111111;background-color:#F4A259/);
+  assert.match(branded, /<img src="https:\/\/cdn\.example\/logo\.png" alt="The Brunch City"/);
+  // a bad colour never reaches the HTML
+  const bad = buildCredentialEmailHtml({ ...base, brand: { accent: 'red;x:y', onAccent: '#111111' } }).html;
+  assert.equal(bad, plain);
+});

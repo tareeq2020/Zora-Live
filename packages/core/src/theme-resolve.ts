@@ -17,6 +17,7 @@
    at contrast ≥ 4.5:1 (WCAG AA); pure white/black only if neither does. */
 
 import { db } from './db';
+import { isFlagOn } from './flags';
 
 export const PASS_TEMPLATES = ['artwork_top', 'classic_black', 'full_colour'] as const;
 export type PassTemplate = (typeof PASS_TEMPLATES)[number];
@@ -335,4 +336,48 @@ export async function resolveTheme(opts: {
     event: opts.event ? { coverUrl: opts.event.cover ?? null, updatedAt: opts.event.updatedAt ?? null } : null,
     design,
   });
+}
+
+/* ── BS131: brand for buyer email (flag-gated) ───────────────────────────────
+   Core has no Nest/EntityStore, so read the two collection blobs directly:
+   `settings` (flags) and `events` (organizerHandle — C3: ownership lives in the
+   blob, not event.organizer_id). Flag off, unknown event, or any error → null,
+   and the email keeps today's styling exactly. */
+export interface EmailBrand {
+  accent: string;
+  onAccent: string;
+  brandName: string;
+  logoUrl: string;
+}
+
+async function readBlob<T>(name: string, fallback: T): Promise<T> {
+  const rows = await db()<{ data: string }[]>`select data from collection_store where name = ${name}`;
+  if (!rows[0]) return fallback;
+  try { return JSON.parse(rows[0].data) as T; } catch { return fallback; }
+}
+
+export async function emailBrandForEvent(eventId: string | null | undefined): Promise<EmailBrand | null> {
+  if (!eventId) return null;
+  try {
+    const events = await readBlob<any[]>('events', []);
+    const ev = Array.isArray(events) ? events.find((e) => e && e.id === eventId) : null;
+    const handle: string | null = ev?.organizerHandle || null;
+    const settings = await readBlob<Record<string, unknown>>('settings', {});
+    if (!isFlagOn(settings?.flags, 'zp_pass_design', { org: handle, event: eventId })) return null;
+    let orgId: string | null = null;
+    let orgName = '';
+    if (handle) {
+      const o = await db()<{ id: string; name: string | null }[]>`select id, name from organizer where handle = ${handle}`;
+      orgId = o[0]?.id ?? null;
+      orgName = o[0]?.name ?? '';
+    }
+    const t = await resolveTheme({
+      organizerId: orgId, brandFallback: orgName,
+      event: { id: eventId, cover: ev?.cover ?? null }, includeDesign: true,
+    });
+    const logo = /^https:\/\//i.test(t.eventLogoUrl) ? t.eventLogoUrl : /^https:\/\//i.test(t.logoUrl) ? t.logoUrl : '';
+    return { accent: isHexColour(t.accent) ? t.accent : ZP_YELLOW, onAccent: t.onAccent, brandName: t.brandName, logoUrl: logo };
+  } catch {
+    return null;
+  }
 }

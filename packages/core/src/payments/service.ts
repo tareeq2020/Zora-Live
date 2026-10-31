@@ -20,6 +20,7 @@ import {
 import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
+import { emailBrandForEvent } from '../theme-resolve';
 import { publicWebOrigin } from '../origins';
 import { alertOps } from '../ops';
 import { isCommissionRate } from '../commission';
@@ -592,7 +593,8 @@ async function deliverBuyerTickets(sql: Sql, orderId: string, target?: DeliveryT
   let email: TicketDeliveryResult['email'] = 'skipped';
   try {
     if (toEmail) {
-      await sendCredentialEmail(toEmail, { buyerName: toName, eventName: row.event_name, tickets });
+      const brand = await emailBrandForEvent(row.event_id); // BS131: null unless zp_pass_design
+      await sendCredentialEmail(toEmail, { buyerName: toName, eventName: row.event_name, tickets, brand });
       email = 'sent';
     }
   } catch (e) { console.error('confirm email failed', e); email = 'skipped'; }

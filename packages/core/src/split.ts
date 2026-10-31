@@ -21,6 +21,7 @@ import { generateCode, generatePublicRef, signCredential, ticketSigningKeys, qrP
 import { alertOps } from './ops';
 import { sendSms } from './sms';
 import { sendCredentialEmail } from './email';
+import { emailBrandForEvent } from './theme-resolve';
 import { isCommissionRate } from './commission';
 
 type Sql = any;
@@ -330,8 +331,9 @@ export async function notifySplitCompleteByOrder(sql: Sql, orderId: string): Pro
 }
 
 export async function notifySplitComplete(sql: Sql, splitId: string): Promise<void> {
-  const [ev] = await sql`select e.name as event_name from table_split ts join event e on e.id = ts.event_id where ts.id = ${splitId}`;
+  const [ev] = await sql`select e.id as event_id, e.name as event_name from table_split ts join event e on e.id = ts.event_id where ts.id = ${splitId}`;
   const eventName = ev?.event_name ?? 'your event';
+  const brand = await emailBrandForEvent(ev?.event_id); // BS131: null unless zp_pass_design
   const rows = await sql`
     select cr.code, cr.signature, cr.public_ref, cr.tier_id, c.phone, c.email, c.name
       from credential cr
@@ -346,7 +348,7 @@ export async function notifySplitComplete(sql: Sql, splitId: string): Promise<vo
     catch (e) { console.error('split complete SMS failed', e); }
     try {
       if (r.email) await sendCredentialEmail(r.email, {
-        buyerName: r.name ?? 'there', eventName,
+        buyerName: r.name ?? 'there', eventName, brand,
         tickets: [{ publicRef: r.public_ref ?? '', tier: r.tier_id, qrPng }],
       });
     } catch (e) { console.error('split complete email failed', e); }
