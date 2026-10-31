@@ -46,6 +46,9 @@ export async function tryRehold(sql: Sql, orderId: string, ttlSecs: number): Pro
     split/table orders (no order_item). Idempotent-ish via greatest(0, …). */
 export async function releaseOrderInventory(sql: Sql, orderId: string): Promise<void> {
   await sql`select release_order_inventory(${orderId}::uuid)`;
+  // BS125: a refunded seated order puts its seats back on the map.
+  await sql`update seat_inventory set state = 'available', sold_order_id = null, updated_at = now()
+             where sold_order_id = ${orderId}::uuid and state = 'sold'`;
 }
 
 /** Soft reserved-bucket hold (available → reserved). Returns reservation id or null. */

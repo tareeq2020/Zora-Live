@@ -72,4 +72,51 @@ echo "== 5. auth =="
 check "anon publish" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/org/events/$EV/seatmap/publish")" 401
 check "other org's event" "$(pub "$SNAP/org" offshore-001 | tail -1)" 404
 
+echo "== 6. seats through checkout (BS125) =="
+psql "$URL" -q <<SQL
+insert into event (id, name) values ('$EV', 'Brunch Vol 09') on conflict do nothing;
+insert into product_tier (id, event_id, name, capacity) values ('t-lt', '$EV', 'Long table', 6), ('t-vip', '$EV', 'VIP table', 2) on conflict do nothing;
+insert into price_version (tier_id, price, currency) values ('t-lt', 90000, 'TZS'), ('t-vip', 600000, 'TZS');
+insert into inventory_pool (product_tier_id, capacity, available_count) values ('t-lt', 6, 6), ('t-vip', 2, 2) on conflict do nothing;
+SQL
+check "restore 2 rows" "$(putplan 2)" 200
+check "republish 2 rows" "$(pub "$SNAP/org" $EV | tail -1)" 200
+co() { # jar cart-json
+  curl -s -c "$1" -b "$1" -X POST "$BASE/api/checkout" -H 'content-type: application/json' \
+    -d "{\"phone\":\"0712345678\",\"email\":\"b@example.com\",\"ageAttested\":true,\"cart\":$2}" -w "\n%{http_code}"; }
+payfull() { # jar order
+  curl -s -b "$1" -X POST "$BASE/api/checkout/$2/pay" -H 'content-type: application/json' -d '{"method":"mobile","payerPhone":"0712345678"}' >/dev/null
+  curl -s "$BASE/api/orders/$2/status" | jget status; }
+R=$(co "$SNAP/b1" '[{"tier":"t-lt","quantity":99,"seatIds":["lt-A1","lt-A2"]}]')
+check "checkout 2 seats" "$(echo "$R" | tail -1)" 200
+O1=$(echo "$R" | head -1 | jget orderId)
+check "total from seats (2 × 90k)" "$(echo "$R" | head -1 | jget subtotal)" 180000
+check "order_item qty from seats" "$(psqlq "select quantity from order_item where order_id='$O1'")" 2
+check "seats held" "$(psqlq "select count(*) from seat_inventory where hold_order_id='$O1' and state='held'")" 2
+R=$(co "$SNAP/b2" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-A2"]}]')
+check "same seat → 409" "$(echo "$R" | tail -1)" 409
+check "names the seat" "$(echo "$R" | head -1 | grep -o lt-A2 | head -1)" lt-A2
+check "no orphan tier hold from the 409" "$(psqlq "select available_count from inventory_pool where product_tier_id='t-lt'")" 4
+check "pay → paid" "$(payfull "$SNAP/b1" "$O1")" paid
+check "seats sold" "$(psqlq "select count(*) from seat_inventory where sold_order_id='$O1' and state='sold'")" 2
+check "credentials name seats" "$(psqlq "select string_agg(seat_label, ',' order by seat_label) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O1'")" "A1,A2"
+
+echo "== 7. table of 6 priced per table =="
+R=$(co "$SNAP/b3" '[{"tier":"t-vip","quantity":1,"seatIds":["vip-T1"]}]'); O3=$(echo "$R" | head -1 | jget orderId)
+check "table checkout" "$(echo "$R" | tail -1)" 200
+check "1 table = qty 1" "$(psqlq "select quantity from order_item where order_id='$O3'")" 1
+check "pay → paid" "$(payfull "$SNAP/b3" "$O3")" paid
+check "6 passes for the table" "$(psqlq "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O3'")" 6
+check "pass label" "$(psqlq "select seat_label from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O3' order by seat_index limit 1")" "Table 1 · Seat 1"
+
+echo "== 8. expired hold can be re-taken; late money → paid_unseatable =="
+R=$(co "$SNAP/b4" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-B1"]}]'); O4=$(echo "$R" | head -1 | jget orderId)
+curl -s -b "$SNAP/b4" -X POST "$BASE/api/checkout/$O4/pay" -H 'content-type: application/json' -d '{"method":"mobile","payerPhone":"0712345678"}' >/dev/null
+psqlq "update seat_inventory set hold_expires_at = now() - interval '1 minute' where seat_id='lt-B1'" >/dev/null
+R=$(co "$SNAP/b5" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-B1"]}]'); O5=$(echo "$R" | head -1 | jget orderId)
+check "re-take expired seat" "$(echo "$R" | tail -1)" 200
+check "late payer → paid_unseatable" "$(curl -s "$BASE/api/orders/$O4/status" | jget status)" paid_unseatable
+check "late payer got no passes" "$(psqlq "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O4'")" 0
+check "seat still held by new buyer" "$(psqlq "select hold_order_id from seat_inventory where seat_id='lt-B1'")" "$O5"
+
 [ "$fail" = 0 ] && echo "SEAT INVENTORY E2E: PASS" || { echo "SEAT INVENTORY E2E: FAIL"; tail -30 "$SNAP/api.log"; exit 1; }

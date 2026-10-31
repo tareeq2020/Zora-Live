@@ -59,7 +59,11 @@ export class CheckoutController {
     for (const line of cart) {
       const badTier = !line || typeof line.tier !== 'string' || !line.tier.trim();
       const badQty = !Number.isInteger(line?.quantity) || line.quantity < 1;
-      if (badTier || badQty) return res.status(400).json({ error: 'invalid_cart_line' });
+      // BS125: optional seat ids for a seated tier (server derives the quantity).
+      const badSeats = line?.seatIds !== undefined &&
+        (!Array.isArray(line.seatIds) || line.seatIds.length === 0 || line.seatIds.length > 50 ||
+         line.seatIds.some((x: unknown) => typeof x !== 'string' || !x || x.length > 120));
+      if (badTier || badQty || badSeats) return res.status(400).json({ error: 'invalid_cart_line' });
     }
 
     // 2) Load-shed valve — BEFORE any DB. Reject a surge in-memory.
@@ -93,12 +97,13 @@ export class CheckoutController {
       const result = await createGaVipOrder(db(), {
         phone: normPhone,
         email: String(email).trim(),
-        cart: cart.map((l: any) => ({ tier: l.tier, quantity: l.quantity })),
+        cart: cart.map((l: any) => ({ tier: l.tier, quantity: l.quantity, ...(Array.isArray(l.seatIds) ? { seatIds: l.seatIds } : {}) })),
         feeRate,
         holdTtl,
         commissionRate,
       });
 
+      if (!result.ok && result.reason === 'seat_taken') return res.status(409).json({ error: 'seat_taken', seats: result.seats });
       if (!result.ok) return res.status(409).json({ error: 'sold_out', tier: result.tier });
 
       // 5) Bind the pending order to the buyer via a signed, httpOnly cookie.
