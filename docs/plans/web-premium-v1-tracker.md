@@ -41,7 +41,7 @@ Last updated: 2026-10-31
 | BS127 | Organizer builder: block / reserve / comps / release, venue image upload, price mode | R3 | B | BS124 | F5, DD8 | todo | | |
 | BS128 | Organizer storefront analytics page + API | R4 | C | BS123 | F4, DD7 | todo | | |
 | BS129 | Admin platform analytics page + API | R4 | C | BS123 | F4 | todo | | |
-| BS130 | Theme resolver (core) + `ticket_design` + renderer branding + seat on pass | R4 | C | BS116 | F6, A14, DD4 | todo | | |
+| BS130 | Theme resolver (core) + `ticket_design` + renderer branding + seat on pass | R4 | C | BS116 | F6, A14, DD4 | merged | https://github.com/tareeq2020/Zora-Live/pull/204 | migration 0030; flag off = byte-identical pass; ticket-qr e2e PASS |
 | BS131 | Pass design tab (draft → publish) + branded web pass + email | R4 | C | BS130 | F6 | todo | | |
 | BS132 | Installments core: plan/schedule tables, schedule maths, statuses, held→reserved, earnings by collected money | R5 | A | BS116, BS118 | F7, A2, A3, A16, A19 | todo | | |
 | BS133 | Installment provider adapter (x-bridge /v1 receivables; mock until R3 sandbox) + webhook handler | R5 | A | BS132 | A4, A20 | todo | | real wiring blocked on x-bridge /v1 |
