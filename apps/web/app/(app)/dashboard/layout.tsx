@@ -28,6 +28,7 @@ const OWN_CHROME = [
   '/dashboard/team', // BS94 — the Team surface renders its own Control-Room v2 <CrShell>
   '/dashboard/account', // BS96 — the Account surface renders its own Control-Room v2 <CrShell>
   '/dashboard/help', // BS77 — renders its own Control-Room v2 <CrShell>
+  '/dashboard/analytics', // BS128 — renders its own Control-Room v2 <CrShell>
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

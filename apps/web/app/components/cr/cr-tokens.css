@@ -515,7 +515,8 @@
   letter-spacing: -0.01em;
   word-break: break-word;
 }
-.cr-kpi-value .cr-kpi-unit {
+.cr-kpi-value .cr-kpi-unit,
+.cr-chart-metric .cr-kpi-unit {
   font-size: 13px;
   color: var(--cr-ink2);
   margin-left: 4px;
