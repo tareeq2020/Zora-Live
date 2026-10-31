@@ -89,13 +89,15 @@ export interface SeatDiff {
   insert: SeatRowSpec[];
   /** Existing seats whose label/tier/size changed and that are safe to update. */
   update: SeatRowSpec[];
-  /** Existing available/blocked seats no longer in the plan. */
+  /** Existing available seats no longer in the plan. */
   remove: string[];
-  /** Seats the edit would remove or re-tier while held, sold or reserved. */
+  /** Seats the edit would remove or re-tier while held, sold, reserved or blocked. */
   conflicts: { seatId: string; label: string; state: SeatState; reason: 'removed' | 'retiered' | 'resized' }[];
 }
 
-const LOCKED: SeatState[] = ['held', 'sold', 'reserved'];
+// BS127: a blocked seat holds tier capacity (inventory_pool.blocked_count), so
+// it is locked too — the organizer releases it before removing or re-tiering it.
+const LOCKED: SeatState[] = ['held', 'sold', 'reserved', 'blocked'];
 
 export function diffSeats(existing: StoredSeat[], desired: SeatRowSpec[]): SeatDiff {
   const byId = new Map(existing.map((s) => [s.seatId, s]));
@@ -138,7 +140,7 @@ export async function publishSeatMap(sql: Sql, eventId: string, plan: unknown, a
 
     const [{ v }] = await t`select coalesce(max(version), 0) + 1 as v from seatmap_version where event_id = ${eventId}`;
     const version = Number(v);
-    if (diff.remove.length) await t`delete from seat_inventory where event_id = ${eventId} and seat_id = any(${diff.remove}) and state in ('available', 'blocked')`;
+    if (diff.remove.length) await t`delete from seat_inventory where event_id = ${eventId} and seat_id = any(${diff.remove}) and state = 'available'`;
     for (const s of diff.update) {
       await t`update seat_inventory set zone_id = ${s.zoneId}, label = ${s.label}, row_label = ${s.rowLabel}, seat_number = ${s.seatNumber},
                 tier_id = ${s.tierId}, seats_count = ${s.seatsCount}, price_mode = ${s.priceMode}, layout_version = ${version}, updated_at = now()
@@ -205,4 +207,117 @@ export async function releaseOwnSeatHold(sql: Sql, prevOrderId: string, seatIds:
     await t`update "order" set status = 'expired' where id = ${prevOrderId}::uuid and status = 'pending'`;
     return true;
   });
+}
+
+/* ── BS127: organizer seat actions ─────────────────────────────────────────
+
+   block   available → blocked   (pool: available → blocked_count)
+   reserve available → reserved  (pool: available → reserved_count, with a note)
+   release blocked/reserved → available (pool counts move back)
+   Never touches sold or live-held seats. A seat's pool weight matches checkout:
+   a seat or a per-table table = 1, a per-seat table = its seat count. The pool
+   moves are conditional so a count can never go negative; everything runs in one
+   transaction serialised with publishes for the event. */
+
+export type SeatAction = 'block' | 'reserve' | 'release';
+
+export type SeatActionResult =
+  | { ok: true; action: SeatAction; changed: number; seats: string[] }
+  | { ok: false; error: 'seat_state'; seats: { seatId: string; label: string; state: string }[] }
+  | { ok: false; error: 'no_capacity'; tier: string };
+
+class SeatActionAbort extends Error {
+  constructor(public readonly result: SeatActionResult) { super('seat_action_abort'); }
+}
+
+const poolUnits = (r: any) => (r.kind === 'table' && r.price_mode === 'per_seat' ? Number(r.seats_count) : 1);
+
+export async function applySeatAction(sql: Sql, eventId: string, action: SeatAction, seatIds: string[], note?: string | null): Promise<SeatActionResult> {
+  const ids = Array.from(new Set(seatIds.map(String))).slice(0, 500);
+  try {
+    return await sql.begin(async (t: Sql) => {
+      await t`select pg_advisory_xact_lock(hashtext(${'seatmap:' + eventId}))`;
+      const rows = await t`
+        select seat_id, label, kind, tier_id, seats_count, price_mode, state,
+               (state = 'held' and hold_expires_at <= now()) as lapsed
+          from seat_inventory where event_id = ${eventId} and seat_id = any(${ids}) for update`;
+      const byId = new Map(rows.map((r: any) => [r.seat_id, r]));
+      const bad: { seatId: string; label: string; state: string }[] = [];
+      for (const id of ids) {
+        const r: any = byId.get(id);
+        if (!r) { bad.push({ seatId: id, label: id, state: 'missing' }); continue; }
+        const free = r.state === 'available' || r.lapsed;
+        const ok = action === 'release' ? r.state === 'blocked' || r.state === 'reserved' : free;
+        if (!ok) bad.push({ seatId: id, label: r.label, state: r.state });
+      }
+      if (bad.length) throw new SeatActionAbort({ ok: false, error: 'seat_state', seats: bad });
+
+      // pool moves, per tier (and per source bucket on release)
+      const groups = new Map<string, number>();
+      for (const r of rows as any[]) {
+        if (!r.tier_id) continue;
+        const bucket = action === 'release' ? r.state : action === 'block' ? 'blocked' : 'reserved';
+        const k = r.tier_id + '|' + bucket;
+        groups.set(k, (groups.get(k) || 0) + poolUnits(r));
+      }
+      for (const [k, n] of groups) {
+        const [tier, bucket] = k.split('|');
+        if (action === 'release') {
+          if (bucket === 'blocked') {
+            await t`update inventory_pool set available_count = available_count + least(${n}::int, blocked_count),
+                      blocked_count = blocked_count - least(${n}::int, blocked_count) where product_tier_id = ${tier}`;
+          } else {
+            await t`update inventory_pool set available_count = available_count + least(${n}::int, reserved_count),
+                      reserved_count = reserved_count - least(${n}::int, reserved_count) where product_tier_id = ${tier}`;
+          }
+        } else {
+          const moved = bucket === 'blocked'
+            ? await t`update inventory_pool set available_count = available_count - ${n}::int, blocked_count = blocked_count + ${n}::int
+                       where product_tier_id = ${tier} and available_count >= ${n}::int returning 1`
+            : await t`update inventory_pool set available_count = available_count - ${n}::int, reserved_count = reserved_count + ${n}::int
+                       where product_tier_id = ${tier} and available_count >= ${n}::int returning 1`;
+          if (!moved.length) {
+            const [pool] = await t`select 1 from inventory_pool where product_tier_id = ${tier}`;
+            if (pool) throw new SeatActionAbort({ ok: false, error: 'no_capacity', tier });
+          }
+        }
+      }
+
+      const target = action === 'block' ? 'blocked' : action === 'reserve' ? 'reserved' : 'available';
+      const reservedNote = action === 'reserve' ? (note ? String(note).slice(0, 200) : null) : null;
+      await t`update seat_inventory set state = ${target}, reserved_note = ${reservedNote},
+                hold_order_id = null, hold_expires_at = null, updated_at = now()
+               where event_id = ${eventId} and seat_id = any(${ids})`;
+      return { ok: true, action, changed: ids.length, seats: ids } as const;
+    });
+  } catch (e) {
+    if (e instanceof SeatActionAbort) return e.result;
+    throw e;
+  }
+}
+
+export interface OrgSeatRow {
+  seatId: string; zoneId: string; kind: 'seat' | 'table'; label: string;
+  rowLabel: string | null; seatNumber: number | null; tierId: string | null;
+  seatsCount: number; priceMode: 'per_seat' | 'per_table';
+  state: SeatState; reservedNote: string | null;
+}
+
+/** BS127: the owner's view — real states (blocked stays blocked), notes, counts. */
+export async function readOrgSeats(sql: Sql, eventId: string): Promise<{ version: number; publishedAt: string | null; seats: OrgSeatRow[]; counts: Record<'sold' | 'held' | 'reserved' | 'blocked' | 'available', number> }> {
+  const [ver] = await sql`select version, published_at from seatmap_version where event_id = ${eventId} order by version desc limit 1`;
+  const rows = await sql`
+    select seat_id, zone_id, kind, label, row_label, seat_number, tier_id, seats_count, price_mode, reserved_note,
+           case when state = 'held' and hold_expires_at <= now() then 'available' else state end as state
+      from seat_inventory where event_id = ${eventId} order by zone_id, seat_number nulls last, seat_id`;
+  const counts = { sold: 0, held: 0, reserved: 0, blocked: 0, available: 0 };
+  const seats: OrgSeatRow[] = rows.map((r: any) => {
+    counts[r.state as keyof typeof counts] += 1;
+    return {
+      seatId: r.seat_id, zoneId: r.zone_id, kind: r.kind, label: r.label, rowLabel: r.row_label ?? null,
+      seatNumber: r.seat_number == null ? null : Number(r.seat_number), tierId: r.tier_id, seatsCount: r.seats_count,
+      priceMode: r.price_mode, state: r.state, reservedNote: r.reserved_note ?? null,
+    };
+  });
+  return { version: ver ? Number(ver.version) : 0, publishedAt: ver?.published_at ? new Date(ver.published_at).toISOString() : null, seats, counts };
 }

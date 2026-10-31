@@ -49,6 +49,8 @@ export interface SeatMapZone {
   perRow?: number;
   tables?: number;
   perTable?: number;
+  /** BS127: table zones charge per table (default) or per seat. */
+  priceMode?: 'per_table' | 'per_seat';
   seats?: SeatMapSeat[];
   tableItems?: SeatMapTable[];
 }
@@ -156,6 +158,7 @@ function normalizeSeatMapZone(zone: any): SeatMapZone {
   } else if (type === 'table') {
     normalized.tables = Math.max(1, Number(zone?.tables ?? 1));
     normalized.perTable = Math.max(1, Number(zone?.perTable ?? 1));
+    normalized.priceMode = zone?.priceMode === 'per_seat' ? 'per_seat' : 'per_table';
     if (Array.isArray(zone?.tableItems)) {
       normalized.tableItems = zone.tableItems.slice(0, MAX_ZONE_SEATS).map((table: any) => ({
         id: String(table?.id ?? ''),

@@ -137,4 +137,49 @@ check "old order released" "$(psqlq "select status from \"order\" where id='$O6'
 check "A3 now held by the new order" "$(psqlq "select hold_order_id from seat_inventory where seat_id='lt-A3'")" "$O7"
 check "pool: old hold returned, new 2 taken" "$(psqlq "select available_count from inventory_pool where product_tier_id='t-lt'")" "$((AV0 - 2))"
 
+echo "== 10. organizer seat actions (BS127) =="
+act() { # jar event json
+  curl -s -b "$1" -X POST "$BASE/api/org/events/$2/seats/actions" -H 'content-type: application/json' -d "$3" -w "\n%{http_code}"; }
+pool() { psqlq "select available_count||'/'||blocked_count||'/'||reserved_count from inventory_pool where product_tier_id='$1'"; }
+LT0=$(psqlq "select available_count from inventory_pool where product_tier_id='t-lt'")
+R=$(act "$SNAP/org" $EV '{"action":"block","seatIds":["lt-B3"]}'); check "block B3" "$(echo "$R" | tail -1)" 200
+check "pool: available → blocked" "$(pool t-lt)" "$((LT0 - 1))/1/0"
+check "buyer sees B3 reserved" "$(curl -s "$BASE/api/events/$EV/seats" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).seats.find(x=>x.seatId==="lt-B3").state))')" reserved
+O=$(curl -s -b "$SNAP/org" "$BASE/api/org/events/$EV/seats")
+check "owner sees blocked" "$(echo "$O" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const o=JSON.parse(s);process.stdout.write(o.seats.find(x=>x.seatId==="lt-B3").state+":"+o.counts.blocked)})')" "blocked:1"
+check "buyer checkout of blocked seat → 409" "$(co "$SNAP/b8" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-B3"]}]' | tail -1)" 409
+R=$(act "$SNAP/org" $EV '{"action":"block","seatIds":["lt-A1"]}'); check "can't block a sold seat" "$(echo "$R" | tail -1)" 409
+check "names the sold seat" "$(echo "$R" | head -1 | grep -o '"state":"sold"' | head -1)" '"state":"sold"'
+R=$(act "$SNAP/org" $EV '{"action":"release","seatIds":["lt-A1"]}'); check "can't release a sold seat" "$(echo "$R" | tail -1)" 409
+R=$(act "$SNAP/org" $EV '{"action":"release","seatIds":["lt-A3"]}'); check "can't release a held seat" "$(echo "$R" | tail -1)" 409
+R=$(act "$SNAP/org" $EV '{"action":"release","seatIds":["lt-B3"]}'); check "release B3" "$(echo "$R" | tail -1)" 200
+check "pool back" "$(pool t-lt)" "$LT0/0/0"
+check "B3 available again" "$(psqlq "select state from seat_inventory where seat_id='lt-B3'")" available
+check "anon → 401" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/org/events/$EV/seats/actions" -H 'content-type: application/json' -d '{"action":"block","seatIds":["lt-B3"]}')" 401
+check "other org's event → 404" "$(act "$SNAP/org" offshore-001 '{"action":"block","seatIds":["x"]}' | tail -1)" 404
+check "bad action → 400" "$(act "$SNAP/org" $EV '{"action":"sell","seatIds":["lt-B3"]}' | tail -1)" 400
+VIP0=$(psqlq "select available_count from inventory_pool where product_tier_id='t-vip'")
+R=$(act "$SNAP/org" $EV '{"action":"reserve","seatIds":["vip-T2"],"note":"Sponsor table"}'); check "reserve T2 with note" "$(echo "$R" | tail -1)" 200
+check "pool: available → reserved" "$(pool t-vip)" "$((VIP0 - 1))/0/1"
+check "note stored" "$(psqlq "select reserved_note from seat_inventory where seat_id='vip-T2'")" "Sponsor table"
+
+echo "== 11. comps for seats (BS127) =="
+R=$(curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' \
+  -d '{"name":"Sponsor","phone":"0712345678","tier":"t-vip","seatIds":["vip-T2"]}' -w "\n%{http_code}")
+check "comp the reserved table" "$(echo "$R" | tail -1)" 200
+CO=$(psqlq "select sold_order_id from seat_inventory where seat_id='vip-T2' and state='sold'")
+check "table sold to the comp order" "$(psqlq "select type from \"order\" where id='$CO'")" comp
+check "6 passes name the table" "$(psqlq "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$CO' and seat_label like 'Table 2 · Seat %'")" 6
+check "pool: reserved → sold" "$(pool t-vip)" "$((VIP0 - 1))/0/0"
+R=$(curl -s -b "$SNAP/org" -X POST "$BASE/api/org/comps" -H 'content-type: application/json' \
+  -d '{"name":"Late","phone":"0712345678","tier":"t-lt","seatIds":["lt-A1"]}' -w "\n%{http_code}")
+check "comp a sold seat → 409" "$(echo "$R" | tail -1)" 409
+
+echo "== 12. price mode reaches inventory (BS127) =="
+PM=$(plan 2 | sed 's/"perTable":6,/"perTable":6,"priceMode":"per_seat",/')
+check "save per-seat tables" "$(curl -s -o /dev/null -w "%{http_code}" -b "$SNAP/org" -X PUT -H 'content-type: application/json' -d "$PM" "$BASE/api/events/$EV/floorplan")" 200
+check "plan keeps priceMode" "$(curl -s "$BASE/api/events/$EV/floorplan" | grep -o '"priceMode":"per_seat"' | head -1)" '"priceMode":"per_seat"'
+check "republish" "$(pub "$SNAP/org" $EV | tail -1)" 200
+check "seats per_seat" "$(psqlq "select price_mode from seat_inventory where seat_id='vip-T1'")" per_seat
+
 [ "$fail" = 0 ] && echo "SEAT INVENTORY E2E: PASS" || { echo "SEAT INVENTORY E2E: FAIL"; tail -30 "$SNAP/api.log"; exit 1; }

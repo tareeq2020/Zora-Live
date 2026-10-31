@@ -664,17 +664,22 @@ export interface CreateCompInput {
   phone?: string | null;
   /** Email destination. Delivered to BOTH when both are given (BS105). */
   email?: string | null;
+  /** BS127: comp these exact seats/tables (same tier). Quantity is derived from
+      them; reserved/blocked seats are released into the comp in the same tx. */
+  seatIds?: string[];
 }
 
 export type CreateCompResult =
   | { ok: true; orderId: string; eventId: string; ticketCount: number; delivery: TicketDeliveryResult | null }
-  | { ok: false; reason: 'sold_out'; tier: string };
+  | { ok: false; reason: 'sold_out'; tier: string }
+  | { ok: false; reason: 'seat_taken'; seats: string[] };
 
 /** Issue `quantity` comps of `tier` to one recipient. Draws down real inventory
     (convertHolds), mints credentials, and delivers them (SMS/email). Sold-out is
     a typed refusal (nothing is written); the seat really moves to SOLD. */
 export async function createComp(sql: Sql, input: CreateCompInput): Promise<CreateCompResult> {
-  const quantity = Math.max(1, Math.floor(Number(input.quantity) || 0));
+  let quantity = Math.max(1, Math.floor(Number(input.quantity) || 0));
+  const seatIds = Array.isArray(input.seatIds) ? Array.from(new Set(input.seatIds.map(String))).slice(0, 50) : [];
   const phone = input.phone ? String(input.phone).trim() : '';
   const email = input.email ? String(input.email).trim() : '';
   const name = String(input.recipientName || '').trim() || 'Guest';
@@ -709,16 +714,48 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
         returning id`;
       const orderId: string = ordRows[0].id;
 
+      // BS127: seat comps — free the organizer's own blocked/reserved seats back
+      // to available (pool counts follow), then hold exactly these seats.
+      let seatItemId: string | null = null;
+      if (seatIds.length) {
+        const own = await t`
+          select seat_id, kind, seats_count, price_mode, state from seat_inventory
+           where event_id = ${eventId} and tier_id = ${input.tier} and seat_id = any(${seatIds}) and state in ('blocked', 'reserved')
+           for update`;
+        for (const bucket of ['blocked', 'reserved'] as const) {
+          const n = own.filter((r: any) => r.state === bucket).reduce((a: number, r: any) => a + (r.kind === 'table' && r.price_mode === 'per_seat' ? Number(r.seats_count) : 1), 0);
+          if (!n) continue;
+          if (bucket === 'blocked') await t`update inventory_pool set available_count = available_count + least(${n}::int, blocked_count), blocked_count = blocked_count - least(${n}::int, blocked_count) where product_tier_id = ${input.tier}`;
+          else await t`update inventory_pool set available_count = available_count + least(${n}::int, reserved_count), reserved_count = reserved_count - least(${n}::int, reserved_count) where product_tier_id = ${input.tier}`;
+        }
+        if (own.length) {
+          await t`update seat_inventory set state = 'available', reserved_note = null, updated_at = now()
+                   where event_id = ${eventId} and seat_id = any(${own.map((r: any) => r.seat_id)})`;
+        }
+        const [item] = await t`
+          insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
+          values (${orderId}, ${input.tier}, ${priceVersionId}, ${quantity}, 0) returning id`;
+        seatItemId = item.id;
+        quantity = await holdSeats(t, eventId, input.tier, orderId, item.id, seatIds, 300);
+        await t`update order_item set quantity = ${quantity} where id = ${item.id}`;
+      }
+
       // Hold then CONVERT → the seat is really sold, drawing down capacity.
       const hold = await placeHold(t, input.tier, orderId, quantity, 300);
       if (hold === null) throw new SoldOut(input.tier);
-      await t`
-        insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
-        values (${orderId}, ${input.tier}, ${priceVersionId}, ${quantity}, 0)`;
+      if (!seatItemId) {
+        await t`
+          insert into order_item (order_id, product_tier_id, price_version_id, quantity, unit_price)
+          values (${orderId}, ${input.tier}, ${priceVersionId}, ${quantity}, 0)`;
+      }
       // convert_order_holds returns the number of HOLD ROWS converted (we place
       // exactly one), so 0 means the hold lapsed → treat as sold out (rollback).
       const converted = await convertHolds(t, orderId);
       if (converted < 1) throw new SoldOut(input.tier);
+      if (seatItemId) {
+        await t`update seat_inventory set state = 'sold', sold_order_id = ${orderId}::uuid, hold_order_id = null, hold_expires_at = null, updated_at = now()
+                 where hold_order_id = ${orderId}::uuid and state = 'held'`;
+      }
 
       return orderId;
     }, sql);
@@ -730,6 +767,7 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
     return { ok: true, orderId, eventId, ticketCount: quantity, delivery };
   } catch (e) {
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
+    if (e instanceof SeatTaken) return { ok: false, reason: 'seat_taken', seats: e.seats };
     throw e;
   }
 }
