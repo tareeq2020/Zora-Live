@@ -4,7 +4,7 @@ import { GetTicketButton } from '../../../../events/[id]/event-cta';
 import type { CheckoutTier } from '../../../../../components/checkout-flow';
 import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
-import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
 import { CITIES } from '@/app/lib/cities';
 
@@ -76,6 +76,8 @@ export default async function TenantEventPage({ params }: { params: { handle: st
 
   const orgName = theme.brandName || org?.name || ev.organizer || 'Organizer';
   const subdomain = org?.subdomain || ev.subdomain || '';
+  // BS126: live seat map only when zp_seatmap is on AND seats are published.
+  const seatmap = await seatmapEnabledFor(ev.id || params.id, ev.organizerHandle || params.handle);
   const cur = CUR[ev.city || ''] || 'TZS';
   // Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
   const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
@@ -195,7 +197,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
             {tiers.length > 0 ? null : (
               <span className={styles.price}><small className={styles.priceLabel}>FROM</small><b className={styles.priceVal}>{curLabel(cur)} {price}</b></span>
             )}
-            {ev.seated && SEATMAP_ENABLED ? (
+            {seatmap ? (
               <Link href={`/events/${encodeURIComponent(ev.id)}/seats`} className={styles.seatsCta}>
                 GET PASSES<span aria-hidden="true">→</span>
               </Link>

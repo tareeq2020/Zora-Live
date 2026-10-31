@@ -161,6 +161,9 @@ export interface SeatAvailabilityRow {
   zoneId: string;
   kind: 'seat' | 'table';
   label: string;
+  /** BS126: row letter + seat number so the buyer map can say "Row C seat 7". */
+  rowLabel: string | null;
+  seatNumber: number | null;
   tierId: string | null;
   seatsCount: number;
   priceMode: 'per_seat' | 'per_table';
@@ -172,13 +175,34 @@ export interface SeatAvailabilityRow {
 export async function readSeatAvailability(sql: Sql, eventId: string): Promise<{ version: number; seats: SeatAvailabilityRow[] }> {
   const [{ v }] = await sql`select coalesce(max(version), 0) as v from seatmap_version where event_id = ${eventId}`;
   const rows = await sql`
-    select seat_id, zone_id, kind, label, tier_id, seats_count, price_mode,
+    select seat_id, zone_id, kind, label, row_label, seat_number, tier_id, seats_count, price_mode,
            case when state = 'held' and hold_expires_at <= now() then 'available'
                 when state = 'blocked' then 'reserved'
                 else state end as state
       from seat_inventory where event_id = ${eventId} order by zone_id, seat_number nulls last, seat_id`;
   return {
     version: Number(v),
-    seats: rows.map((r: any) => ({ seatId: r.seat_id, zoneId: r.zone_id, kind: r.kind, label: r.label, tierId: r.tier_id, seatsCount: r.seats_count, priceMode: r.price_mode, state: r.state })),
+    seats: rows.map((r: any) => ({ seatId: r.seat_id, zoneId: r.zone_id, kind: r.kind, label: r.label, rowLabel: r.row_label ?? null, seatNumber: r.seat_number == null ? null : Number(r.seat_number), tierId: r.tier_id, seatsCount: r.seats_count, priceMode: r.price_mode, state: r.state })),
   };
+}
+
+/** BS126: a buyer who abandons a seated checkout and starts again (same browser
+    session) must not be blocked by their OWN earlier hold. Releases the previous
+    order only when it is still pending, has never started a payment, and holds
+    at least one of the seats now being asked for. Returns true if released. */
+export async function releaseOwnSeatHold(sql: Sql, prevOrderId: string, seatIds: string[]): Promise<boolean> {
+  if (!prevOrderId || !/^[0-9a-f-]{36}$/i.test(prevOrderId) || !seatIds.length) return false;
+  return sql.begin(async (t: Sql) => {
+    const [o] = await t`select id from "order" where id = ${prevOrderId}::uuid and status = 'pending' for update`;
+    if (!o) return false;
+    const [paying] = await t`select 1 from payment_transaction where order_id = ${prevOrderId}::uuid limit 1`;
+    if (paying) return false;
+    const [mine] = await t`select 1 from seat_inventory where hold_order_id = ${prevOrderId}::uuid and state = 'held' and seat_id = any(${seatIds}) limit 1`;
+    if (!mine) return false;
+    await t`select release_order_holds(${prevOrderId}::uuid)`;
+    await t`update seat_inventory set state = 'available', hold_order_id = null, hold_expires_at = null, updated_at = now()
+             where hold_order_id = ${prevOrderId}::uuid and state = 'held'`;
+    await t`update "order" set status = 'expired' where id = ${prevOrderId}::uuid and status = 'pending'`;
+    return true;
+  });
 }

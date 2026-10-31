@@ -113,6 +113,7 @@ export class PassesController {
       select c2.public_ref as ref,
              coalesce(pt.name, c2.tier_id) as tier,
              c2.seat_index as seat_index,
+             c2.seat_label as seat_label,
              e.name as event_name
         from credential c
         join order_item oi  on oi.id  = c.order_item_id
@@ -124,15 +125,15 @@ export class PassesController {
          and c2.state <> 'revoked'
          and c2.public_ref is not null
        order by c2.tier_id nulls last, c2.seat_index nulls last`) as {
-      ref: string; tier: string | null; seat_index: number | null; event_name: string | null;
+      ref: string; tier: string | null; seat_index: number | null; seat_label: string | null; event_name: string | null;
     }[];
 
     const seen = new Set<string>();
-    const passes: { ref: string; tier: string | null }[] = [];
+    const passes: { ref: string; tier: string | null; seatLabel?: string }[] = [];
     for (const r of rows) {
       if (seen.has(r.ref)) continue;
       seen.add(r.ref);
-      passes.push({ ref: r.ref, tier: r.tier });
+      passes.push({ ref: r.ref, tier: r.tier, ...(r.seat_label ? { seatLabel: r.seat_label } : {}) });
     }
     return { event: rows[0]?.event_name ?? null, passes };
   }

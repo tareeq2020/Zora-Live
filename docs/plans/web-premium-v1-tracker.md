@@ -38,7 +38,7 @@ Last updated: 2026-10-31
 | BS123 | Analytics capture: beacon + `analytics_daily` / `analytics_visitor_day`, server events (payment_completed, checkout_abandoned), purge job | R2 | C | BS115, BS118 | F4, A10, A11, A22 | merged | https://github.com/tareeq2020/Zora-Live/pull/205 | migration 0029; analytics e2e PASS; set POSTHOG_KEY on API for server events |
 | BS124 | Seat inventory: migration, generation from published plan, versioned diff + 409 guard | R3 | B | BS116, BS118 | F5, A6, A7, A21 | merged | https://github.com/tareeq2020/Zora-Live/pull/199 | seat-inventory e2e 18/18 |
 | BS125 | Seat holds in checkout: hold tx with tier hold, seatIds through order, seat on credential, sweep, late-settlement rule | R3 | B | BS124 | A6, A12, A13, A17 | merged | https://github.com/tareeq2020/Zora-Live/pull/201 | migration 0032; seat e2e + checkout/payments regression PASS |
-| BS126 | Buyer seat map live (desktop + phone), poll + ETag, conflict UX | R3 | B | BS125 | F5, DD3 | todo | | |
+| BS126 | Buyer seat map live (desktop + phone), poll + ETag, conflict UX | R3 | B | BS125 | F5, DD3 | merged | https://github.com/tareeq2020/Zora-Live/pull/210 | wired into checkout v1+v2; re-entry releases own hold; seat e2e PASS |
 | BS127 | Organizer builder: block / reserve / comps / release, venue image upload, price mode | R3 | B | BS124 | F5, DD8 | todo | | |
 | BS128 | Organizer storefront analytics page + API | R4 | C | BS123 | F4, DD7 | merged | https://github.com/tareeq2020/Zora-Live/pull/208 | with BS129 in one PR; analytics e2e PASS |
 | BS129 | Admin platform analytics page + API | R4 | C | BS123 | F4 | merged | https://github.com/tareeq2020/Zora-Live/pull/208 | shared view component |

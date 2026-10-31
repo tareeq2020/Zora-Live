@@ -4,7 +4,7 @@ import { GetTicketButton } from './event-cta';
 import type { CheckoutTier } from '../../../components/checkout-flow';
 import styles from './event-page.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
-import { SEATMAP_ENABLED } from '@/app/lib/flags';
+import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
@@ -90,6 +90,8 @@ export default async function EventPage({ params }: { params: { id: string } }) 
     );
   }
 
+  // BS126: live seat map only when zp_seatmap is on AND seats are published.
+  const seatmap = await seatmapEnabledFor(ev.id || params.id, ev.organizerHandle);
   const cur = CUR[ev.city || ''] || 'TZS';
   // 04_UI_COPY money: `TSh 25,000`, symbol first, thousands separators.
   const curLabel = cur === 'TZS' ? 'TSh' : cur;
@@ -159,7 +161,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
           <b className={styles.priceVal}>
             {curLabel} {price}
           </b>
-          {ev.seated && SEATMAP_ENABLED ? (
+          {seatmap ? (
             <Link href={`/events/${params.id}/seats`} className={styles.primary}>
               GET PASSES<span className={styles.arrow} aria-hidden="true">→</span>
             </Link>

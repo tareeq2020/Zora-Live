@@ -16,7 +16,7 @@ import styles from './pass.module.css';
    BS119: ZoraPass confirmation/pass surface — black ground, YOU'RE IN. in Bungee,
    the ZORAPASS stamp at −10°, yellow OPEN MY PASS, tear line + white QR card with
    the pass ID as readable mono text under it (03_COMPONENTS §6). */
-export function PassClaim({ codes }: { codes: string[] }) {
+export function PassClaim({ codes, seats = {} }: { codes: string[]; seats?: Record<string, string> }) {
   const [webPass, setWebPass] = useState(false);
   const list = codes.length ? codes : [];
   const primary = list[0];
@@ -44,6 +44,13 @@ export function PassClaim({ codes }: { codes: string[] }) {
       <dl className={styles.rows}>
         <dt>{many ? 'PASSES' : 'PASS'}</dt>
         <dd>{many ? `${list.length} · ${list.join(', ')}` : primary}</dd>
+        {/* BS126: seated passes name their seat. */}
+        {list.some((c) => seats[c]) ? (
+          <>
+            <dt>{many ? 'SEATS' : 'SEAT'}</dt>
+            <dd>{list.map((c) => seats[c]).filter(Boolean).join(', ')}</dd>
+          </>
+        ) : null}
       </dl>
 
       <p className={styles.body}>
@@ -79,6 +86,7 @@ export function PassClaim({ codes }: { codes: string[] }) {
                 />
               </div>
               <p className={styles.passId}>{c}</p>
+              {seats[c] ? <p className={styles.passLabel}>Seat {seats[c]}</p> : null}
               <a className={styles.download} href={`/api/tickets/${encodeURIComponent(c)}.png`} download>
                 Download pass image
               </a>

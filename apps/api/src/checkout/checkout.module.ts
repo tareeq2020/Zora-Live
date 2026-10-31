@@ -1,9 +1,10 @@
-import { Controller, Get, Module, Post, Body, Res } from '@nestjs/common';
-import type { Response } from 'express';
-import { db, createGaVipOrder, poolSnapshotsCached } from '@zora/core';
+import { Controller, Get, Module, Post, Body, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { db, createGaVipOrder, poolSnapshotsCached, releaseOwnSeatHold } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { CommissionService } from '../common/commission.module';
-import { signSession } from '../common/session-cookie';
+import { signSession, verifySession } from '../common/session-cookie';
+import { readNamedCookie } from '../common/consumer';
 import { resolveSessionSecret } from '../common/secret';
 import { DEFAULT_SETTINGS } from '../common/defaults';
 
@@ -48,7 +49,7 @@ export class CheckoutController {
   ) {}
 
   @Post('checkout')
-  async checkout(@Body() body: any, @Res() res: Response) {
+  async checkout(@Body() body: any, @Req() req: Request, @Res() res: Response) {
     const { phone, email, ageAttested, cart } = body || {};
 
     // 1) PURE validation (no I/O), in the mandated order.
@@ -93,6 +94,17 @@ export class CheckoutController {
       // here, and stamp it on the order. Historical earnings then never move when
       // an organizer's rate is edited later.
       const commissionRate = await this.commission.forTier(cart[0].tier);
+
+      // BS126: a buyer re-entering a seated checkout (same browser) is never
+      // blocked by their own earlier, still-unpaid hold on the same seats.
+      const wantSeats: string[] = cart.flatMap((l: any) => (Array.isArray(l.seatIds) ? l.seatIds : []));
+      if (wantSeats.length) {
+        const prevToken = readNamedCookie(req, 'zora_checkout');
+        const prev = prevToken ? (verifySession(prevToken, resolveSessionSecret()) as any) : null;
+        if (prev?.orderId && prev.phone === normPhone) {
+          try { await releaseOwnSeatHold(db(), String(prev.orderId), wantSeats); } catch { /* best effort */ }
+        }
+      }
 
       const result = await createGaVipOrder(db(), {
         phone: normPhone,

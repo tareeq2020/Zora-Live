@@ -119,4 +119,22 @@ check "late payer → paid_unseatable" "$(curl -s "$BASE/api/orders/$O4/status" 
 check "late payer got no passes" "$(psqlq "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O4'")" 0
 check "seat still held by new buyer" "$(psqlq "select hold_order_id from seat_inventory where seat_id='lt-B1'")" "$O5"
 
+echo "== 9. buyer map + passes (BS126) =="
+S=$(curl -s "$BASE/api/events/$EV/seats")
+check "seat carries row + number" "$(echo "$S" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s).seats.find(r=>r.seatId==="lt-B3");process.stdout.write(x.rowLabel+":"+x.seatNumber)})')" "B:3"
+REF=$(psqlq "select public_ref from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O1' order by seat_label limit 1")
+check "passes list names the seat" "$(curl -s "$BASE/api/passes/$REF" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).passes.map(p=>p.seatLabel).sort().join(","))))')" "A1,A2"
+check "status credentials name the seat" "$(curl -s "$BASE/api/orders/$O1/status" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).credentials.map(c=>c.seatLabel).sort().join(","))))')" "A1,A2"
+check "ticket svg renders the seat" "$(curl -s "$BASE/api/tickets/$REF.svg" | grep -o '>A[12]<' | head -1)" ">A1<"
+AV0=$(psqlq "select available_count from inventory_pool where product_tier_id='t-lt'")
+R=$(co "$SNAP/b6" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-A3"]}]'); O6=$(echo "$R" | head -1 | jget orderId)
+check "hold A3" "$(echo "$R" | tail -1)" 200
+R=$(co "$SNAP/b7" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-A3"]}]')
+check "another buyer can't take A3" "$(echo "$R" | tail -1)" 409
+R=$(co "$SNAP/b6" '[{"tier":"t-lt","quantity":1,"seatIds":["lt-A3","lt-B2"]}]'); O7=$(echo "$R" | head -1 | jget orderId)
+check "same buyer re-enters with A3 + B2" "$(echo "$R" | tail -1)" 200
+check "old order released" "$(psqlq "select status from \"order\" where id='$O6'")" expired
+check "A3 now held by the new order" "$(psqlq "select hold_order_id from seat_inventory where seat_id='lt-A3'")" "$O7"
+check "pool: old hold returned, new 2 taken" "$(psqlq "select available_count from inventory_pool where product_tier_id='t-lt'")" "$((AV0 - 2))"
+
 [ "$fail" = 0 ] && echo "SEAT INVENTORY E2E: PASS" || { echo "SEAT INVENTORY E2E: FAIL"; tail -30 "$SNAP/api.log"; exit 1; }

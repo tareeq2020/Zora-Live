@@ -37,7 +37,7 @@ type Method = 'mobile' | 'billpay' | 'card';
 type MethodGroup = { id: Method; label: string };
 type Pool = { tierId: string; available: number; capacity?: number };
 type Order = { orderId: string; total: number; subtotal?: number; fee?: number; currency?: string; holdExpiresAt?: string };
-type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string };
+type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string; seatLabel?: string };
 type Notice = { kind: 'error' | 'info'; text: string } | null;
 
 // Today's behaviour when GET /api/payment-methods is unavailable.
@@ -127,6 +127,9 @@ export default function CheckoutFlowV2({
   time,
   venue,
   city,
+  onSeatTaken,
+  onHold,
+  onResult,
 }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
   const money = (n: number) => `${curLabel(currency)} ${fmt(n)}`;
@@ -170,6 +173,7 @@ export default function CheckoutFlowV2({
     setStep('passes');
     const init: Record<string, number> = {};
     for (const t of tiers) if (t.seatIds?.length) init[t.tierId] = t.seatIds.length;
+    else if (t.quantity && t.quantity > 0) init[t.tierId] = t.quantity; // BS126: GA picked on the seat map
     if (!Object.keys(init).length && tiers.length === 1) init[tiers[0].tierId] = 1;
     setQty(init);
     setOrder(null);
@@ -311,11 +315,18 @@ export default function CheckoutFlowV2({
         holdExpiresAt: d.holdExpiresAt,
       };
       setOrder(o);
+      onHold?.(d.holdExpiresAt || null);
       trackProductEvent('web_checkout_started', { eventId, eventName, count: passCount, amount: d.total, currency, method });
       return o;
     }
     if (res.status === 409) {
       const d = await res.json().catch(() => ({}));
+      if (d.error === 'seat_taken' && onSeatTaken) {
+        // BS126: the seat map marks the taken seat and keeps the other picks.
+        onSeatTaken(Array.isArray(d.seats) ? d.seats : []);
+        onClose();
+        return null;
+      }
       if (d.error === 'seat_taken') {
         setNotice({ kind: 'error', text: 'One of those seats just went. Nothing was charged — pick another.' });
       } else {
@@ -422,6 +433,7 @@ export default function CheckoutFlowV2({
           setStatusVal(d.status);
           if (TERMINAL.has(d.status)) {
             stopPolling();
+            onResult?.(d.status);
             setCredentials(d.credentials || []);
             setStep('done');
             return;
@@ -858,7 +870,7 @@ function Result({
               <div className="zc2-qr-img">
                 <QRCodeSVG value={c.qr} size={200} level="M" includeMargin={false} bgColor="#FFFFFF" fgColor="#111111" />
               </div>
-              <p className="zc2-qr-tier">{c.tier}</p>
+              <p className="zc2-qr-tier">{c.tier}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
               <p className="zc2-qr-ref">{c.publicRef}</p>
             </div>
           ))}
