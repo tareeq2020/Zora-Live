@@ -164,6 +164,33 @@ export class AuthUsersRepo {
     return { id: r.id, email: r.email, phone: r.phone, username: r.username ?? null };
   }
 
+  /* ── BS148: Google identity (app_user.google_sub, migration 0034) ───────── */
+
+  /** The user linked to a Google account `sub`, with that link exposed. */
+  async byGoogleSub(sub: string): Promise<(AuthUser & { googleSub: string | null }) | null> {
+    const s = String(sub ?? '').trim();
+    if (!s) return null;
+    const rows = await db()<(UserRow & { google_sub: string | null })[]>`
+      select id, email, phone, password_hash, google_sub from app_user where google_sub = ${s} limit 1`;
+    return rows.length ? { ...toUser(rows[0]), googleSub: rows[0].google_sub } : null;
+  }
+
+  /** The user's linked Google sub (null when none). */
+  async googleSubOf(userId: string): Promise<string | null> {
+    const id = String(userId ?? '');
+    if (!id) return null;
+    const rows = await db()<{ google_sub: string | null }[]>`select google_sub from app_user where id = ${id} limit 1`;
+    return rows.length ? rows[0].google_sub : null;
+  }
+
+  /** Link a Google sub to a user. The caller has just verified the sub with
+      Google, so a stale link on another (membership-less) row is moved, never
+      duplicated — the partial unique index would refuse two holders. */
+  async setGoogleSub(userId: string, sub: string): Promise<void> {
+    await db()`update app_user set google_sub = null, updated_at = now() where google_sub = ${sub} and id <> ${userId}`;
+    await db()`update app_user set google_sub = ${sub}, updated_at = now() where id = ${userId}`;
+  }
+
   /** The user's GLOBAL platform roles (super_admin | staff | scanner). */
   async globalRolesOf(userId: string): Promise<string[]> {
     const id = String(userId ?? '');

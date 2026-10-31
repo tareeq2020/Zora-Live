@@ -7,8 +7,14 @@
    org name + handle, and you land inside your own dashboard with a pending
    account you can immediately build drafts in.
 
-   Google is deliberately NOT here (locked, deferred): no button, no "or continue
-   with", nothing to imply a path that does not exist yet.
+   BS148 (owner request 2026-10-31): "Continue with Google" is now offered on the
+   phone step. It goes through the shared /api/auth/google flow (intent=signup);
+   an existing organizer is simply signed in, anyone else comes back here with
+   ?google=1 and a signed ticket cookie the API reads. GET /api/org/google-signup
+   returns the verified email/name, which this page shows LOCKED — the register
+   call takes the email from the ticket, never the form. The phone OTP below is
+   unchanged and still required (phone stays the verified identity); the password
+   becomes optional because they can sign back in with Google.
 
    Two steps, not three. The code and the org details share ONE screen because the
    6-digit code is single-use: the server proves the phone and creates the account
@@ -70,6 +76,30 @@ export default function OrganizerSignupPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [handleState, setHandleState] = useState<HandleState>({ kind: 'idle' });
+  // BS148 — Google: is it configured, and has a verified identity been handed over?
+  const [googleOn, setGoogleOn] = useState(false);
+  const [googleId, setGoogleId] = useState<{ email: string; name: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/google/config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((d) => setGoogleOn(!!d?.enabled))
+      .catch(() => setGoogleOn(false));
+    fetch('/api/org/google-signup', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.email) setGoogleId({ email: String(d.email), name: d.name ? String(d.name) : null });
+      })
+      .catch(() => {});
+    const q = new URLSearchParams(window.location.search).get('error');
+    const msg: Record<string, string> = {
+      suspended: 'That organizer account is suspended. Contact ZoraPass support to sort it out.',
+      google_mismatch: 'That email is linked to a different Google account. Sign in with your password instead.',
+      state: 'That took too long. Start again.',
+      google_off: 'Google sign-up isn’t set up yet. Use your phone number below.',
+    };
+    if (q) setError({ field: 'form', text: msg[q] || 'Google sign-up didn’t go through. Try again, or use your phone number.' });
+  }, []);
 
   // ── resend cooldown ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -170,7 +200,7 @@ export default function OrganizerSignupPage() {
       setError({ field: 'handle', text: `Pick a handle — at least ${MIN_HANDLE} characters.` });
       return;
     }
-    if (password.length < 8) {
+    if (googleId ? password.length > 0 && password.length < 8 : password.length < 8) {
       setError({ field: 'password', text: 'Password must be at least 8 characters.' });
       return;
     }
@@ -181,7 +211,9 @@ export default function OrganizerSignupPage() {
       const res = await fetch('/api/org/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.trim(), code, name: name.trim(), handle: h, password }),
+        // BS148: with a Google ticket the API takes the email from it; the
+        // password is optional then (empty → omitted).
+        body: JSON.stringify({ phone: phone.trim(), code, name: name.trim(), handle: h, ...(password ? { password } : {}) }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d?.ok) {
@@ -230,7 +262,21 @@ export default function OrganizerSignupPage() {
 
   const errFor = (field: string) => (error && error.field === field ? error.text : null);
   const canSubmit =
-    code.length === 6 && name.trim().length >= 2 && normalizeHandle(handle).length >= MIN_HANDLE && password.length >= 8;
+    code.length === 6 &&
+    name.trim().length >= 2 &&
+    normalizeHandle(handle).length >= MIN_HANDLE &&
+    (googleId ? password.length === 0 || password.length >= 8 : password.length >= 8);
+
+  // BS148 — the verified Google identity, locked (read-only) on both steps.
+  const googleLocked = googleId ? (
+    <>
+      <label htmlFor="su-gemail">GOOGLE EMAIL</label>
+      <input id="su-gemail" className="locked" readOnly aria-readonly="true" value={googleId.email} />
+      <p className="hint">
+        Verified by Google{googleId.name ? ` · ${googleId.name}` : ''}. You’ll sign back in with Google.
+      </p>
+    </>
+  ) : null;
 
   return (
     <>
@@ -241,9 +287,7 @@ export default function OrganizerSignupPage() {
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <div className="org-signup">
         <div className="card">
-          <p className="wordmark">
-            z<span className="o">o</span>ra
-          </p>
+          <p className="wordmark">ZoraPass</p>
           <p className="sub">START SELLING</p>
 
           {/* ── step 1 — phone ── */}
@@ -254,6 +298,17 @@ export default function OrganizerSignupPage() {
                 sendCode();
               }}
             >
+              {googleOn && !googleId ? (
+                <>
+                  <a className="google" href="/api/auth/google/start?intent=signup">
+                    <span className="g" aria-hidden="true">G</span>
+                    CONTINUE WITH GOOGLE
+                  </a>
+                  <p className="or mono">OR START WITH YOUR NUMBER</p>
+                </>
+              ) : null}
+              {googleLocked}
+              {errFor('form') ? <p className="err">{errFor('form')}</p> : null}
               <h1>Your number is your account.</h1>
               <p className="lede">
                 We’ll text you a 6-digit code. No forms to email, nothing to download — you’ll be building your first
@@ -280,7 +335,7 @@ export default function OrganizerSignupPage() {
               </button>
 
               <p className="foot">
-                Already selling with Zora? <a href="/dashboard/login">Sign in</a>
+                Already selling with ZoraPass? <a href="/dashboard/login">Sign in</a>
               </p>
             </form>
           ) : null}
@@ -310,6 +365,7 @@ export default function OrganizerSignupPage() {
                 </button>
               </p>
               {notice ? <p className="notice">{notice}</p> : null}
+              {googleLocked}
 
               <label htmlFor="su-code">6-DIGIT CODE</label>
               <input
@@ -398,11 +454,15 @@ export default function OrganizerSignupPage() {
                 type="password"
                 className={errFor('password') ? 'bad' : ''}
                 autoComplete="new-password"
-                placeholder="At least 8 characters"
+                placeholder={googleId ? 'Optional · at least 8 characters' : 'At least 8 characters'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <p className="hint">You’ll sign back in with your handle and this password.</p>
+              <p className="hint">
+                {googleId
+                  ? 'Optional. Set one if you also want to sign in with your handle and a password.'
+                  : 'You’ll sign back in with your handle and this password.'}
+              </p>
               {errFor('password') ? <p className="err">{errFor('password')}</p> : null}
 
               {errFor('form') ? <p className="err">{errFor('form')}</p> : null}
@@ -411,7 +471,7 @@ export default function OrganizerSignupPage() {
                 {busy ? 'CREATING…' : 'CREATE MY ACCOUNT'}
               </button>
               <p className="foot">
-                A Zora admin reviews new organizers before you can sell tickets. You can build drafts straight away.
+                A ZoraPass admin reviews new organizers before you can sell tickets. You can build drafts straight away.
               </p>
             </form>
           ) : null}
@@ -461,11 +521,11 @@ const STYLES = `
   border-radius:20px;background:rgba(17,19,30,.66);backdrop-filter:blur(12px);padding:44px 36px}
 .org-signup .wordmark{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:-.02em}
 .org-signup .wordmark .o{background:var(--aura);-webkit-background-clip:text;background-clip:text;color:transparent}
-.org-signup .sub{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--text2);margin:10px 0 30px}
+.org-signup .sub{font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--text2);margin:10px 0 30px}
 .org-signup h1{font-family:var(--display);font-size:25px;font-weight:600;letter-spacing:-.025em;line-height:1.15;margin-bottom:10px}
 .org-signup .lede{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:26px}
 .org-signup .lede b{color:var(--text);font-weight:500}
-.org-signup label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--text2);margin:0 0 8px}
+.org-signup label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--text2);margin:0 0 8px}
 .org-signup input{width:100%;background:rgba(23,26,40,.66);border:1px solid var(--hair2);color:var(--text);
   font-family:var(--mono);font-size:15px;padding:13px 15px;outline:none;margin-bottom:18px;border-radius:12px;min-height:46px;
   transition:border-color .2s,box-shadow .2s}
@@ -496,7 +556,7 @@ const STYLES = `
 .org-signup .hmsg.ok{color:var(--cyan)}
 .org-signup .hmsg.bad{color:var(--err)}
 .org-signup .hint{font-size:12px;color:var(--text2);margin:-10px 0 18px;line-height:1.5}
-.org-signup .resend{font-size:11px;letter-spacing:.18em;color:var(--text2);margin-bottom:16px}
+.org-signup .resend{font-size:12px;letter-spacing:.18em;color:var(--text2);margin-bottom:16px}
 .org-signup .resend .cooldown{color:var(--text3)}
 .org-signup .notice{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--text);
   border:1px dashed var(--hair2);border-radius:10px;padding:11px 13px;margin-bottom:22px;line-height:1.5}
@@ -515,6 +575,14 @@ const STYLES = `
 .org-signup .foot{font-size:12.5px;color:var(--text2);text-align:center;margin-top:22px;line-height:1.6}
 .org-signup .foot a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 
+.org-signup .google{width:100%;min-height:56px;display:flex;align-items:center;justify-content:center;gap:12px;
+  background:var(--zp-color-signal-yellow,#FFD21F);color:#111;border-radius:16px;text-decoration:none;
+  font-family:var(--zp-font-family-display,var(--display));font-size:20px;letter-spacing:0;margin-bottom:14px}
+.org-signup .google:hover{background:var(--zp-color-yellow-press,#E6BD1B)}
+.org-signup .google .g{width:28px;height:28px;border-radius:50%;background:#fff;color:#4285F4;display:inline-flex;
+  align-items:center;justify-content:center;font-family:var(--sans);font-weight:800;font-size:16px}
+.org-signup .or{text-align:center;font-size:12px;letter-spacing:.12em;color:var(--text2);margin:6px 0 26px}
+.org-signup input.locked{color:var(--text2);cursor:not-allowed;border-style:dashed}
 .org-signup .done{text-align:center;padding:10px 0 6px}
 .org-signup .done .tick{font-size:34px;background:var(--aura);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:12px}
 .org-signup .done .lede{margin-bottom:0}
