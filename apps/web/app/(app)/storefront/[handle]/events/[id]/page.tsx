@@ -8,6 +8,7 @@ import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
 import { fetchInstallmentOffer, InstallmentOfferNote } from '@/app/components/installment-offer';
 import { CITIES } from '@/app/lib/cities';
+import { eventDateLabel } from '@/app/lib/event-date';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
 // system (BS119): bone ground, Bricolage Grotesque / Bungee / IBM Plex Mono, flat.
@@ -33,7 +34,8 @@ async function fetchEvent(id: string): Promise<TenantEvent | null> {
   try {
     const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(id)}`, { cache: 'no-store' });
     if (!res.ok) { console.error(`[zora-web] tenant-event fetch -> HTTP ${res.status}`); return null; }
-    return (await res.json()) as TenantEvent;
+    const ev = (await res.json()) as TenantEvent & { date?: string };
+    return { ...ev, dateLabel: eventDateLabel(ev.date, ev.dateLabel) }; // BS147
   } catch (err) { console.error(`[zora-web] tenant-event fetch FAILED: ${err instanceof Error ? err.message : String(err)}`); return null; }
 }
 async function fetchTenant(handle: string): Promise<Organizer | null> {

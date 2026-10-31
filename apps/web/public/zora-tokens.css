@@ -9,6 +9,10 @@
    Dark is the default [data-theme]; [data-theme="light"] flips to bone.
    ══════════════════════════════════════════════════════════════════ */
 
+/* BS147: global reset — the legacy sheet used to carry it; without it every
+   page shows the browser's 8px body margin as a frame. */
+html,body{margin:0;padding:0}
+
 /* ── semantic tokens : DARK (default) — board black ground ── */
 :root, :root[data-theme="dark"]{
   --c-bg:var(--zp-color-board-black); --c-bg2:var(--zp-color-board-black);

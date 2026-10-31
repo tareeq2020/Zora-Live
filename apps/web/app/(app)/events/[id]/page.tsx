@@ -7,6 +7,7 @@ import { shareCardImage } from '@/app/lib/share-card';
 import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
 import { fetchInstallmentOffer, InstallmentOfferNote } from '@/app/components/installment-offer';
+import { eventDateLabel } from '@/app/lib/event-date';
 
 // Canonical EVENT CONTRACT route. One <EventPage> serves /events/:id (and, via the
 // slug alias in the API's getEvent, the flagship URL /events/offshore). Lives
@@ -52,7 +53,8 @@ async function fetchEvent(id: string): Promise<ZoraEvent | null> {
       console.error(`[zora-web] event-page fetch ${target} -> HTTP ${res.status}`);
       return null;
     }
-    return (await res.json()) as ZoraEvent;
+    const ev = (await res.json()) as ZoraEvent & { date?: string };
+    return { ...ev, dateLabel: eventDateLabel(ev.date, ev.dateLabel) }; // BS147
   } catch (err) {
     console.error(`[zora-web] event-page fetch ${target} FAILED: ${err instanceof Error ? err.message : String(err)}`);
     return null;

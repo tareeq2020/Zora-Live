@@ -15,12 +15,15 @@ export class TenantService {
     return (await this.organizers.byHandle(handle)) ?? undefined;
   }
 
-  // Canonical event URL. Real subdomain in prod; path alias on localhost (no wildcard DNS).
-  tenantEventUrl(handle: string, id: string, req: Request): string {
-    const host = req.headers.host || '';
-    const onRootDomain = host.endsWith(ROOT_DOMAIN);
-    if (!onRootDomain) return `/@${handle}/events/${encodeURIComponent(id)}`;
-    return `${req.protocol}://${handle}.${ROOT_DOMAIN}/events/${encodeURIComponent(id)}`;
+  // Canonical event URL. BS147: always the path form zorapass.com/@handle/events/id
+  // (the {domain}/{store} convention, BS83). There is no wildcard DNS for
+  // <handle>.zorapass.com, and building it from the request Host sent buyers to
+  // dead http:// subdomains once the API saw a zorapass.com Host. Opt back in to
+  // subdomains only when wildcard DNS + TLS exist (TENANT_SUBDOMAINS=1).
+  tenantEventUrl(handle: string, id: string, _req?: Request): string {
+    const path = `/@${handle}/events/${encodeURIComponent(id)}`;
+    if (process.env.TENANT_SUBDOMAINS === '1') return `https://${handle}.${ROOT_DOMAIN}/events/${encodeURIComponent(id)}`;
+    return path;
   }
 
   async enrichEvent(ev: any, req: Request) {
