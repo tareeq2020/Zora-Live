@@ -48,7 +48,14 @@ CO=$(curl -s -c "$SNAP/jar" -X POST "http://localhost:$API_PORT/api/checkout" -H
   -d '{"phone":"0712345678","email":"buyer@example.com","ageAttested":true,"cart":[{"tier":"t-http","quantity":2}],"method":"mobile"}')
 ORDER=$(echo "$CO" | jq_get orderId); TOTAL=$(echo "$CO" | jq_get total)
 [ -n "$ORDER" ] && [ "$ORDER" != "ERR"* ] || { echo "FAIL checkout: $CO"; exit 1; }
-echo "  ✓ order $ORDER · total $TOTAL (subtotal 130000 + fee)"
+SUB=$(echo "$CO" | jq_get subtotal); FEE=$(echo "$CO" | jq_get fee); CUR=$(echo "$CO" | jq_get currency)
+[ "$SUB" = "130000" ] || { echo "FAIL subtotal: $CO"; exit 1; }
+[ "$((SUB + FEE))" = "$TOTAL" ] || { echo "FAIL subtotal+fee != total: $CO"; exit 1; }
+[ "$CUR" = "TZS" ] || { echo "FAIL currency: $CO"; exit 1; }
+echo "  ✓ order $ORDER · total $TOTAL = subtotal $SUB + fee $FEE ($CUR)"
+PM=$(curl -s "http://localhost:$API_PORT/api/payment-methods")
+[ "$(echo "$PM" | jq_get groups)" = "4" ] || { echo "FAIL payment-methods: $PM"; exit 1; }
+echo "  ✓ payment-methods: 4 groups"
 
 echo "== 2. POST /api/checkout/$ORDER/pay (mobile) =="
 PAY=$(curl -s -b "$SNAP/jar" -X POST "http://localhost:$API_PORT/api/checkout/$ORDER/pay" -H 'content-type: application/json' \

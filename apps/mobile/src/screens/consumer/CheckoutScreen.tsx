@@ -1,18 +1,28 @@
 // Checkout / payment overview. Segmented toggle: Pay in full vs Split with crew.
 // The "You pay" summary updates live with the chosen option and crew size.
-import { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Alert, TextInput, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import SegmentedControl from '../../components/SegmentedControl';
 import ContactPickerModal, { type PickedContact } from '../../components/ContactPickerModal';
 import ZoraButton from '../../components/ZoraButton';
+import { ApiError } from '../../api/client';
+import { createCheckout, getCheckoutStatus, startCheckoutPayment } from '../../api/checkout';
+import { requestConsumerOtp, verifyConsumerOtp } from '../../api/consumer';
+import { createTableSplit, payMySplitShare, type CreatedSplit, type SplitShare } from '../../api/splits';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 interface CrewMember { id: string; name: string; phone: string; host?: boolean }
 interface TableParam { id: string; label: string; price: number; capacity: number }
+type CheckoutDone = null | 'pending' | 'paid' | 'locked' | 'failed' | 'expired' | 'short' | 'unseatable' | 'slow';
 
 const initials = (n: string) => n.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+const PAYMENT_POLL_INTERVAL_MS = 3000;
+const PAYMENT_POLL_ATTEMPTS = 40;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 export default function CheckoutScreen() {
   const z = useZ();
@@ -20,19 +30,33 @@ export default function CheckoutScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const table = (route.params?.table ?? { id: 'T?', label: 'T?', price: 0, capacity: 6 }) as TableParam;
+  const eventId = (route.params?.eventId as string | undefined) ?? 'unknown';
   const eventName = (route.params?.eventName as string) ?? 'OFFSHORE';
   const currency = (route.params?.currency as string) ?? 'TZS';
-  const money = (minor: number) => `${currency} ${Math.round(minor / 100).toLocaleString()}`;
+  const tierId = route.params?.tierId as string | undefined;
+  const money = (amount: number) => `${currency} ${Math.round(amount).toLocaleString()}`;
 
   const [mode, setMode] = useState<'full' | 'split'>('full');
   const [crew, setCrew] = useState<CrewMember[]>([{ id: 'you', name: 'You', phone: 'host', host: true }]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [done, setDone] = useState<null | 'paid' | 'locked'>(null);
+  const [done, setDone] = useState<CheckoutDone>(null);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [splitCode, setSplitCode] = useState('');
+  const [splitOtpSent, setSplitOtpSent] = useState(false);
+  const [splitCreated, setSplitCreated] = useState<CreatedSplit | null>(null);
+  const [orderTotal, setOrderTotal] = useState<number | null>(null);
+  const [paymentKind, setPaymentKind] = useState<'full' | 'split'>('full');
+  const [busy, setBusy] = useState(false);
+  const mountedRef = useRef(true);
 
   const perPerson = useMemo(() => Math.round(table.price / Math.max(1, crew.length)), [table.price, crew.length]);
   const youPay = mode === 'full' ? table.price : perPerson;
 
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const addContact = (c: PickedContact) => {
+    if (splitCreated) return;
     if (crew.length >= table.capacity) { Alert.alert('Table is full', `Table ${table.label} seats ${table.capacity}.`); return; }
     if (crew.some((m) => m.phone === c.phone)) { setPickerOpen(false); return; }
     setCrew((cur) => [...cur, { id: c.id, name: c.name, phone: c.phone }]);
@@ -40,35 +64,246 @@ export default function CheckoutScreen() {
   };
   const remove = (id: string) => setCrew((c) => c.filter((m) => m.host || m.id !== id));
 
-  const payInFull = () =>
-    Alert.alert('Pay in full', `Charge ${money(table.price)} to M-Pesa •••• 4471?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Pay', onPress: () => setDone('paid') },
-    ]);
+  const pollPayment = async (orderId: string, total: number) => {
+    for (let attempt = 0; attempt < PAYMENT_POLL_ATTEMPTS; attempt += 1) {
+      try {
+        const next = await getCheckoutStatus(orderId);
+        if (next.status === 'paid') {
+          trackProductEvent('mobile_attendee_payment_confirmed', { role: 'consumer', eventId, eventName, method: 'mobile', amount: total, currency, count: 1 });
+          if (mountedRef.current) setDone('paid');
+          return;
+        }
+        if (next.status === 'payment_short') {
+          if (mountedRef.current) setDone('short');
+          return;
+        }
+        if (next.status === 'paid_unseatable') {
+          if (mountedRef.current) setDone('unseatable');
+          return;
+        }
+        if (next.status === 'failed' || next.status === 'cancelled') {
+          if (mountedRef.current) setDone('failed');
+          return;
+        }
+        if (next.status === 'expired') {
+          if (mountedRef.current) setDone('expired');
+          return;
+        }
+      } catch {
+        /* Keep polling through short network/API blips. */
+      }
+      await sleep(PAYMENT_POLL_INTERVAL_MS);
+    }
+    if (mountedRef.current) setDone('slow');
+  };
 
-  const lockAndSend = () => {
-    if (crew.length < 2) { Alert.alert('Add your crew', 'Invite at least one friend to split the table.'); return; }
-    // TODO(gate): POST /events/:id/split → hold table 10 min, create per-member
-    //   M-Pesa STK / card links, send push. Webhook marks each member paid.
-    setDone('locked');
+  const splitInviteUrl = (token: string) => `${WEB_URL}/join/${encodeURIComponent(token)}`;
+
+  const shareSplitInvite = async (share: SplitShare) => {
+    if (!share.token) return;
+    const url = splitInviteUrl(share.token);
+    await Share.share({
+      message: `I booked Table ${table.label} at ${eventName}. Your share is ${money(share.amount)} — pay it here: ${url}`,
+      url,
+      title: `Split Table ${table.label}`,
+    });
+  };
+
+  const startSplit = async () => {
+    if (!tierId) {
+      Alert.alert('Ticket tier missing', 'This table is not linked to a splittable ticket tier yet.');
+      return;
+    }
+    if (crew.length < 2) {
+      Alert.alert('Add your crew', 'Add at least one friend before splitting this table.');
+      return;
+    }
+    if (!phone.trim()) {
+      Alert.alert('Add your phone', 'Enter your phone so we can verify you before holding the table.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await createTableSplit({ tierId, capacityN: crew.length });
+      if (!mountedRef.current) return;
+      setSplitCreated(created);
+      setSplitOtpSent(false);
+      setSplitCode('');
+      trackProductEvent('mobile_attendee_split_created', {
+        role: 'consumer',
+        eventId,
+        eventName,
+        amount: created.target,
+        currency,
+        count: crew.length,
+      });
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 401) {
+        try {
+          await requestConsumerOtp(phone.trim());
+          if (!mountedRef.current) return;
+          setSplitOtpSent(true);
+          Alert.alert('Verify your phone', 'Enter the SMS code, then we will hold the table and generate invite links.');
+        } catch (otpError: any) {
+          Alert.alert('Could not send code', otpError?.message ?? 'Try again in a moment.');
+        }
+      } else {
+        Alert.alert('Could not hold table', e?.message ?? 'Try again in a moment.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyAndStartSplit = async () => {
+    if (!phone.trim() || !splitCode.trim()) {
+      Alert.alert('Enter the code', 'Use the SMS code sent to your phone.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await verifyConsumerOtp(phone.trim(), splitCode.trim());
+    } catch (e: any) {
+      Alert.alert('Code did not work', e?.message ?? 'Try again.');
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    await startSplit();
+  };
+
+  const payHostShare = async () => {
+    if (!splitCreated) return;
+    if (!phone.trim()) {
+      Alert.alert('Add your phone', 'Enter the phone number to receive the mobile-money prompt.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const order = await payMySplitShare(splitCreated.splitId);
+      setOrderTotal(order.amount);
+      trackProductEvent('mobile_attendee_split_host_payment_started', {
+        role: 'consumer',
+        eventId,
+        eventName,
+        method: 'mobile',
+        amount: order.amount,
+        currency,
+        count: 1,
+      });
+      await startCheckoutPayment(order.orderId, { method: 'mobile', phone: phone.trim() });
+      if (!mountedRef.current) return;
+      setPaymentKind('split');
+      setDone('pending');
+      void pollPayment(order.orderId, order.amount);
+    } catch (e: any) {
+      Alert.alert('Payment could not start', e?.message ?? 'Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const payInFull = async () => {
+    if (!tierId) {
+      Alert.alert('Ticket tier missing', 'This table is not linked to a sellable ticket tier yet.');
+      return;
+    }
+    if (!phone.trim() || !email.trim()) {
+      Alert.alert('Add your details', 'Enter your phone and email to send the payment request.');
+      return;
+    }
+    setBusy(true);
+    try {
+      trackProductEvent('mobile_attendee_checkout_started', { role: 'consumer', eventId, eventName, method: 'mobile', amount: table.price, currency, count: 1 });
+      const order = await createCheckout({ phone: phone.trim(), email: email.trim(), tierId, quantity: 1 });
+      setOrderTotal(order.total);
+      trackProductEvent('mobile_attendee_payment_started', { role: 'consumer', eventId, eventName, method: 'mobile', amount: order.total, currency, count: 1 });
+      await startCheckoutPayment(order.orderId, { method: 'mobile', phone: phone.trim() });
+      if (!mountedRef.current) return;
+      setPaymentKind('full');
+      setDone('pending');
+      void pollPayment(order.orderId, order.total);
+    } catch (e: any) {
+      Alert.alert('Payment could not start', e?.message ?? 'Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (done) {
     const splitFriends = crew.length - 1;
+    const doneCopy: Record<Exclude<CheckoutDone, null>, { title: string; body: string; mark: string; tone: string; canRetry?: boolean }> = {
+      pending: {
+        title: 'Approve on your phone',
+        body: `We sent a mobile-money prompt to ${phone.trim()}. Your pass appears in Tickets once payment confirms.`,
+        mark: '…',
+        tone: z.ultra,
+      },
+      paid: {
+        title: 'You’re in',
+        body: paymentKind === 'split'
+          ? `Your Table ${table.label} share is paid. The table confirms when every invite link is paid.`
+          : `Table ${table.label} is yours. ${money(orderTotal ?? table.price)} confirmed — your pass is in Tickets.`,
+        mark: '✓',
+        tone: z.green,
+      },
+      locked: {
+        title: 'Table locked · links sent',
+        body: `${splitFriends} friend${splitFriends === 1 ? '' : 's'} can pay from the invite links. Your host share is ${money(splitCreated?.hostShare ?? perPerson)}.`,
+        mark: '✓',
+        tone: z.green,
+      },
+      failed: {
+        title: 'Payment was not completed',
+        body: 'No pass has been issued yet. You can try the payment request again.',
+        mark: '!',
+        tone: z.orange,
+        canRetry: true,
+      },
+      expired: {
+        title: 'Payment window expired',
+        body: 'The payment request expired before confirmation. Start again to reserve this table.',
+        mark: '!',
+        tone: z.orange,
+        canRetry: true,
+      },
+      short: {
+        title: 'Payment needs review',
+        body: 'The payment received does not match the order total yet. Support can reconcile this before issuing the pass.',
+        mark: '!',
+        tone: z.orange,
+      },
+      unseatable: {
+        title: 'Payment received · table issue',
+        body: 'Payment was received, but the table could not be assigned automatically. Support needs to resolve this order.',
+        mark: '!',
+        tone: z.orange,
+      },
+      slow: {
+        title: 'Still checking payment',
+        body: 'This can take a minute. Open Tickets after the confirmation SMS arrives, or try again if the prompt was cancelled.',
+        mark: '…',
+        tone: z.ultra,
+      },
+    };
+    const copy = doneCopy[done];
     return (
       <View style={{ flex: 1, backgroundColor: z.bg, paddingTop: insets.top + 44, paddingHorizontal: 24 }}>
-        <View style={{ width: 74, height: 74, borderRadius: 37, backgroundColor: z.green, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 34, color: '#04140c', fontWeight: '900' }}>✓</Text>
+        <View style={{ width: 74, height: 74, borderRadius: 37, backgroundColor: copy.tone, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 34, color: '#04140c', fontWeight: '900' }}>{copy.mark}</Text>
         </View>
         <Text style={{ color: z.bone, fontSize: 26, fontWeight: '900', marginTop: 20 }}>
-          {done === 'paid' ? 'You’re in' : 'Table locked · links sent'}
+          {copy.title}
         </Text>
         <Text style={{ color: z.mut, marginTop: 8, fontSize: 14, lineHeight: 20 }}>
-          {done === 'paid'
-            ? `Table ${table.label} is yours. ${money(table.price)} charged — your pass is in Tickets.`
-            : `${splitFriends} friend${splitFriends === 1 ? '' : 's'} got a push + M-Pesa / card link for ${money(perPerson)} each. The table holds for 10 minutes while they pay.`}
+          {copy.body}
         </Text>
-        <ZoraButton variant="gradient" label="Done" onPress={() => nav.navigate('Home')} style={{ marginTop: 28 }} />
+        <ZoraButton
+          variant="gradient"
+          label={copy.canRetry ? 'Try again' : 'Done'}
+          onPress={() => (copy.canRetry ? setDone(null) : nav.navigate('Home'))}
+          style={{ marginTop: 28 }}
+        />
       </View>
     );
   }
@@ -108,8 +343,51 @@ export default function CheckoutScreen() {
           </Text>
         </View>
 
+        {mode === 'full' && (
+          <View>
+            <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 22, marginBottom: 10 }}>PAYMENT DETAILS</Text>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+255 712 345 678"
+              placeholderTextColor={z.mut2}
+              keyboardType="phone-pad"
+              style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14, marginBottom: 10 }}
+            />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@email.com"
+              placeholderTextColor={z.mut2}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14 }}
+            />
+          </View>
+        )}
+
         {mode === 'split' && (
           <View>
+            <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 22, marginBottom: 10 }}>HOST PHONE</Text>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+255 712 345 678"
+              placeholderTextColor={z.mut2}
+              editable={!splitCreated}
+              keyboardType="phone-pad"
+              style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14, marginBottom: 10, opacity: splitCreated ? 0.7 : 1 }}
+            />
+            {splitOtpSent ? (
+              <TextInput
+                value={splitCode}
+                onChangeText={setSplitCode}
+                placeholder="SMS code"
+                placeholderTextColor={z.mut2}
+                keyboardType="number-pad"
+                style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 14, color: z.bone, padding: 14, marginBottom: 10 }}
+              />
+            ) : null}
             <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginTop: 22, marginBottom: 6 }}>
               YOUR CREW · {crew.length}/{table.capacity}
             </Text>
@@ -124,14 +402,34 @@ export default function CheckoutScreen() {
                 </View>
                 {m.host ? (
                   <Text style={{ color: z.ultraSoft, fontSize: 11, fontWeight: '700' }}>You</Text>
-                ) : (
+                ) : splitCreated ? null : (
                   <Pressable onPress={() => remove(m.id)} hitSlop={10}><Text style={{ color: z.mut2, fontSize: 18 }}>✕</Text></Pressable>
                 )}
               </View>
             ))}
-            <Pressable onPress={() => setPickerOpen(true)} style={{ marginTop: 14, padding: 15, borderRadius: 14, borderColor: z.line, borderWidth: 1, borderStyle: 'dashed' }}>
-              <Text style={{ color: z.ultraSoft, fontWeight: '700', textAlign: 'center' }}>＋ Add from contacts</Text>
-            </Pressable>
+            {!splitCreated ? (
+              <Pressable onPress={() => setPickerOpen(true)} style={{ marginTop: 14, padding: 15, borderRadius: 14, borderColor: z.line, borderWidth: 1, borderStyle: 'dashed' }}>
+                <Text style={{ color: z.ultraSoft, fontWeight: '700', textAlign: 'center' }}>＋ Add from contacts</Text>
+              </Pressable>
+            ) : (
+              <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 18, padding: 16, marginTop: 16 }}>
+                <Text style={{ color: z.bone, fontWeight: '800', fontSize: 16 }}>Table held</Text>
+                <Text style={{ color: z.mut, fontSize: 12, lineHeight: 18, marginTop: 6 }}>
+                  Send each friend their payment link. The table confirms when every share is paid.
+                </Text>
+                {splitCreated.shares.filter((s) => !s.isHost).map((s) => (
+                  <View key={s.index} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderTopColor: z.line2, borderTopWidth: 1, paddingTop: 12, marginTop: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: z.bone, fontWeight: '700' }}>Share {s.index + 1}</Text>
+                      <Text style={{ color: z.mut2, fontSize: 12, marginTop: 2 }}>{money(s.amount)}</Text>
+                    </View>
+                    <Pressable onPress={() => shareSplitInvite(s)} style={{ backgroundColor: z.green, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 }}>
+                      <Text style={{ color: '#04140c', fontWeight: '900' }}>Share</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -139,8 +437,15 @@ export default function CheckoutScreen() {
       <View style={{ position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 16 }}>
         <ZoraButton
           variant="gradient"
-          onPress={mode === 'full' ? payInFull : lockAndSend}
-          label={mode === 'full' ? `Pay ${money(table.price)}` : 'Lock table & send payment links'}
+          onPress={mode === 'full' ? payInFull : splitCreated ? payHostShare : splitOtpSent ? verifyAndStartSplit : startSplit}
+          disabled={busy || (mode === 'split' && !splitCreated && crew.length < 2)}
+          label={mode === 'full'
+            ? `Pay ${money(table.price)}`
+            : splitCreated
+              ? `Pay my share ${money(splitCreated.hostShare)}`
+              : splitOtpSent
+                ? 'Verify & hold table'
+                : 'Hold table & send payment links'}
         />
       </View>
 

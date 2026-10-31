@@ -1,34 +1,50 @@
-// theme.ts — Zora design tokens with dark + light palettes and a persisted mode.
+// theme.ts — ZoraPass design tokens with dark + light palettes and a persisted mode.
 // Migration-safe: the static `z` export stays = DARK, so any screen not yet
 // switched to useZ() keeps working. Screens that call `const z = useZ()` react
 // to the toggle.
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const brand = { from: '#C738C6', mid: '#E94E8E', to: '#FF8A4C', magenta: '#E1449E', orange: '#FF8A4C' };
+const brand = {
+  signal: '#FFD21F',
+  black: '#111111',
+  bone: '#F7F5EE',
+  green: '#0F7B3F',
+  blue: '#1597D4',
+  // Back-compat for screens still expecting the old gradient tuple.
+  from: '#FFD21F',
+  mid: '#FFD21F',
+  to: '#FFD21F',
+};
 const shared = {
   brand,
-  green: '#17B368', red: '#FF3B30', amber: '#E9A83B',
-  r: 16, rSm: 10, rLg: 24,
-  disp: 'Anton_400Regular', brandFont: 'Michroma_400Regular', mono: 'SpaceMono_400Regular', monoBold: 'SpaceMono_700Bold',
+  green: '#0F7B3F', red: '#B42318', amber: '#FFD21F',
+  r: 16, rSm: 12, rLg: 24,
+  // TODO(mobile brand PR): swap these to Bungee, Bricolage Grotesque, and
+  // IBM Plex Mono once the Expo package-lock can be updated with npm.
+  disp: 'Anton_400Regular',
+  brandFont: 'Michroma_400Regular',
+  bodyFont: undefined,
+  mono: 'SpaceMono_400Regular',
+  monoBold: 'SpaceMono_700Bold',
 };
 
 export const DARK = {
   ...shared,
-  bg: '#0A0A0B', panel: '#141417', panel2: '#1B1B20',
-  line: 'rgba(244,241,234,0.10)', line2: 'rgba(244,241,234,0.055)',
-  bone: '#F4F1EA', mut: 'rgba(244,241,234,0.56)', mut2: 'rgba(244,241,234,0.34)',
-  silver: '#C9CCD4', halo: 'rgba(244,241,234,0.14)',
-  ultra: '#3D5AFE', ultraSoft: '#93a6ff', orange: '#FF5A1F', orangeSoft: '#ffab86',
+  bg: '#111111', panel: '#1C1C1C', panel2: '#000000',
+  line: '#333333', line2: 'rgba(247,245,238,0.10)',
+  bone: '#F7F5EE', mut: '#BDBDBD', mut2: 'rgba(247,245,238,0.58)',
+  silver: '#F7F5EE', halo: 'rgba(255,210,31,0.18)',
+  ultra: '#FFD21F', ultraSoft: '#FFD21F', orange: '#FFD21F', orangeSoft: '#FFD21F',
 };
 
 export const LIGHT = {
   ...shared,
-  bg: '#F4F6FC', panel: '#FFFFFF', panel2: '#EEF1FA',
-  line: 'rgba(40,50,90,0.12)', line2: 'rgba(40,50,90,0.07)',
-  bone: '#0C1020', mut: 'rgba(12,16,32,0.60)', mut2: 'rgba(12,16,32,0.40)',
-  silver: '#4E5675', halo: 'rgba(12,16,32,0.08)',
-  ultra: '#3A54E8', ultraSoft: '#3A54E8', orange: '#FF5A1F', orangeSoft: '#C2531F',
+  bg: '#F7F5EE', panel: '#FFFFFF', panel2: '#EFEDE4',
+  line: '#D9D6CC', line2: 'rgba(17,17,17,0.08)',
+  bone: '#111111', mut: '#4A4A4A', mut2: 'rgba(17,17,17,0.56)',
+  silver: '#3A3A3A', halo: 'rgba(255,210,31,0.24)',
+  ultra: '#111111', ultraSoft: '#111111', orange: '#FFD21F', orangeSoft: '#BC9C1B',
 };
 
 export type ZTheme = typeof DARK;

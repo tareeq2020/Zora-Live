@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import type { Metadata } from 'next';
 // Global design tokens — the same stylesheet the static pages load via
 // <link href="/zora-tokens.css">, now bundled into the React tree so every
@@ -6,14 +6,17 @@ import type { Metadata } from 'next';
 // from public/ for the not-yet-converted *.html pages; importing it here does
 // not change that.
 import '../public/zora-tokens.css';
+import '../public/brand/design-tokens/fonts.css';
+import '../public/brand/design-tokens/zorapass.css';
 import { ThemeProvider } from './components/theme-provider';
+import ProductAnalytics from './components/product-analytics';
 
-// Favicon: replicates zora-theme.js, which stripped page <link rel="icon"> tags
-// and injected the real ZORA icon site-wide. Next emits the equivalent
-// <link rel="icon" type="image/png" href="/assets/zora-icon.png"> for React routes.
+// Favicon/title: ZoraPass is the current product brand system. The legacy ZORA
+// token sheet still loads for older surfaces, while the ZoraPass tokens above
+// are the source of truth for newly converted product UI.
 export const metadata: Metadata = {
-  title: 'ZORA',
-  icons: { icon: { url: '/assets/zora-icon.png', type: 'image/png' } },
+  title: 'ZoraPass',
+  icons: { icon: { url: '/brand/logo/svg/zorapass-favicon.svg', type: 'image/svg+xml' } },
 };
 
 // No-flash theme boot — runs at <head> parse, before first paint, mirroring the
@@ -38,7 +41,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_CR_THEME }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <ProductAnalytics />
+          </Suspense>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

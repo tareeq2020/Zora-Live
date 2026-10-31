@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { events as seedEvents, type ConsumerEvent } from '../../data/events';
 import { useEvents, type RemoteEvent } from '../../api/events';
-import { supabaseReady } from '../../lib/supabase';
 import ZoraLogo from '../../components/ZoraLogo';
 import { useZ } from '../../theme';
 
@@ -18,7 +17,7 @@ const CURRENCY: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi:
 const CAT_TINT: Record<string, string> = { Festivals: '#3D5AFE', Nightlife: '#C738C6', Daytime: '#E9A83B', Arts: '#17B368', Concerts: '#FF5A1F' };
 const money = (code?: string | null, n?: number) => (n != null ? `${CURRENCY[code || 'dar'] || 'TZS'} ${n.toLocaleString()}` : '');
 
-// Supabase row → marketplace card. The full event lives in `props`.
+// Nest marketplace row -> mobile marketplace card. The full event lives in `props`.
 const toCard = (e: RemoteEvent): ConsumerEvent => {
   const p = e.props || ({} as RemoteEvent['props']);
   return {
@@ -38,13 +37,11 @@ export default function HomeScreen() {
   const [city, setCity] = useState('Dar es Salaam');
   const [cityOpen, setCityOpen] = useState(false);
 
-  // Live from the shared Supabase events table when configured; otherwise the
-  // local seed keeps the demo populated. Website-created events appear here live.
   const { events: remote } = useEvents(CITY_CODE[city] || 'dar');
-  const live = supabaseReady && remote.length > 0;
+  const live = remote.length > 0;
   const list: ConsumerEvent[] = live ? remote.map(toCard) : seedEvents;
 
-  // Featured hero: the city's mega event (or its first), live from Supabase.
+  // Featured hero: the city's mega event (or its first) from the Nest API.
   const heroRemote = live ? remote.find((e) => e.props?.mega) || remote[0] : undefined;
   const hero = heroRemote
     ? {

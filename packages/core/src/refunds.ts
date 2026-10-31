@@ -15,11 +15,13 @@
    refund is what the money math needs; who pushes the button is an admin concern. */
 import { tx } from './db';
 import { releaseOrderInventory } from './inventory';
+import { ORDER_STATUS, REFUNDABLE_STATUSES, isRefundable } from './order-status';
 
 type Sql = any;
 
-/** Order statuses that hold collected money and can therefore be refunded. */
-export const REFUNDABLE_ORDER_STATUSES = ['paid', 'paid_unseatable', 'payment_short'] as const;
+/** Order statuses that hold collected money and can therefore be refunded.
+    BS116: derived from order-status (`isRefundable`); kept for existing importers. */
+export const REFUNDABLE_ORDER_STATUSES: readonly string[] = REFUNDABLE_STATUSES;
 
 export type RefundOrderResult =
   | { ok: true; orderId: string; refunded: number; gross: number; fullyRefunded: boolean }
@@ -50,7 +52,7 @@ export async function refundOrder(sql: Sql, orderId: string, amount?: number | n
       select id, type, status, target_value, coalesce(refunded_amount, 0)::bigint as refunded_amount
         from "order" where id = ${orderId} for update`;
     if (!ord) return { ok: false, reason: 'not_found' };
-    if (!REFUNDABLE_ORDER_STATUSES.includes(ord.status)) return { ok: false, reason: 'not_refundable' };
+    if (!isRefundable(ord.status)) return { ok: false, reason: 'not_refundable' };
 
     const gross = await orderGross(t, orderId, ord.target_value);
     const already = Number(ord.refunded_amount);
@@ -65,7 +67,7 @@ export async function refundOrder(sql: Sql, orderId: string, amount?: number | n
     await t`
       update "order"
          set refunded_amount = ${refunded},
-             status = ${fullyRefunded ? 'refunded' : ord.status},
+             status = ${fullyRefunded ? ORDER_STATUS.REFUNDED : ord.status},
              refunded_at = ${fullyRefunded ? new Date() : null}
        where id = ${orderId}`;
 

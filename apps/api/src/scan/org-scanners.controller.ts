@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { db, type ScannerRole } from '@zora/core';
+import { db, ORDER_STATUS, type ScannerRole } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { Roles } from '../common/roles.guard';
 import { OrgScopeService } from '../org/org-scope.service';
@@ -55,7 +55,7 @@ export class OrgScannersController {
              count(*)::int as orders
         from "order" o
         join (select order_id, sum(unit_price * quantity) as amt from order_item group by order_id) oi on oi.order_id = o.id
-       where o.status = 'paid' and o.channel in ('gate_cash','gate_mobile') and o.sold_by = any(${ids})
+       where o.status = ${ORDER_STATUS.PAID} and o.channel in ('gate_cash','gate_mobile') and o.sold_by = any(${ids})
        group by o.sold_by`;
     let cash = 0, mobile = 0;
     const sellers = rows.map((r: any) => {
@@ -63,6 +63,60 @@ export class OrgScannersController {
       return { sellerId: r.sold_by, name: nameById.get(r.sold_by) ?? r.sold_by, cash: Number(r.cash || 0), mobile: Number(r.mobile || 0), orders: Number(r.orders || 0) };
     });
     return { sellers, totals: { cash, mobile } };
+  }
+
+  /** GET /api/org/scanners/audit — mobile organizer audit feed. This is scoped to
+      the org's owned events and reads credential state transitions, not synthetic
+      websocket data. Invalid scan attempts are not persisted today, so this feed
+      reports real pass activity: scanned, confirmed/used, and revoked. */
+  @Get('audit')
+  async auditFeed(@Req() req: Request) {
+    const handle = req.actingHandle as string;
+    const [ownedIds, events] = await Promise.all([
+      this.scope.ownedEventIds(handle),
+      this.scope.readEvents(),
+    ]);
+    if (!ownedIds.length) {
+      return {
+        totals: { issued: 0, scanned: 0, wristband_issued: 0, used: 0, revoked: 0 },
+        rows: [],
+      };
+    }
+
+    const totals = { issued: 0, scanned: 0, wristband_issued: 0, used: 0, revoked: 0 };
+    const totalRows = await db()`
+      select state, count(*)::int as n
+        from credential
+       where event_id = any(${ownedIds})
+       group by state`;
+    for (const r of totalRows) {
+      if (r.state in totals) totals[r.state as keyof typeof totals] = Number(r.n ?? 0);
+    }
+
+    const eventNameById = new Map(events.filter((e) => ownedIds.includes(e.id)).map((e) => [e.id, e.name ?? e.id]));
+    const rows = await db()`
+      select c.id, c.public_ref, c.state, c.event_id, c.scanned_at, c.scanned_by_name,
+             c.confirmed_at, c.confirmed_by_name
+        from credential c
+       where c.event_id = any(${ownedIds})
+         and c.state <> 'issued'
+       order by coalesce(c.confirmed_at, c.scanned_at, c.issued_at) desc
+       limit 80`;
+
+    return {
+      totals,
+      rows: rows.map((r: any) => ({
+        credentialId: r.id,
+        publicRef: r.public_ref ?? r.id,
+        state: r.state,
+        eventId: r.event_id,
+        eventName: eventNameById.get(r.event_id) ?? r.event_id,
+        scannedAt: r.scanned_at ? new Date(r.scanned_at).toISOString() : null,
+        scannedByName: r.scanned_by_name ?? null,
+        confirmedAt: r.confirmed_at ? new Date(r.confirmed_at).toISOString() : null,
+        confirmedByName: r.confirmed_by_name ?? null,
+      })),
+    };
   }
 
   /** POST /api/org/scanners { name, contact, eventId, role } — create + pin to an owned event. */

@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Alert, RefreshControl, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useEventStore, soldOf, grossOf, mTZS, kTZS } from '../../store/eventStore';
+import { getOrgEvents, getOrgSummary, type OrgEvent, type OrgSummary } from '../../api/organizer';
 import Sparkline from '../../components/Sparkline';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
-const BUYERS = ['Amani M.', 'Zawadi K.', 'John P.', 'Neema S.', 'Baraka L.', 'Fatma H.', 'Deo R.', 'Upendo N.'];
 const VELOCITY = [8, 11, 9, 14, 13, 18, 16, 22, 20, 27, 31, 40];
 
 function StatTile({ k, v, sub }: { k: string; v: string; sub?: string }) {
@@ -34,36 +35,77 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
   const event = useEventStore((s) => s.event);
+  const selectedEventId = useEventStore((s) => s.selectedEventId);
+  const setFromApi = useEventStore((s) => s.setFromApi);
+  const selectEvent = useEventStore((s) => s.selectEvent);
+  const [apiSummary, setApiSummary] = useState<OrgSummary | null>(null);
+  const [events, setEvents] = useState<OrgEvent[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const sold = soldOf(event);
-  const gross = grossOf(event);
-  const net = Math.round(gross * 0.95);
+  const eventSummary = apiSummary?.events.find((e) => e.id === event.id);
+  const gross = eventSummary?.revenue ?? apiSummary?.totals.revenue ?? grossOf(event);
+  const net = eventSummary?.netRevenue ?? apiSummary?.totals.netRevenue ?? Math.round(gross * 0.95);
   const pct = Math.min(100, Math.round((sold / event.cap) * 100));
   const checkPct = sold ? Math.round((event.checked / sold) * 100) : 0;
   const avg = sold ? Math.round(gross / sold) : 0;
 
-  // Live sales feed — runs only while the Dashboard is focused.
-  const [feed, setFeed] = useState<{ id: number; label: string; buyer: string }[]>([]);
+  const loadOrganizerData = useCallback(() => {
+    let alive = true;
+    setRefreshing(true);
+    Promise.all([getOrgEvents(), getOrgSummary()])
+      .then(([events, summary]) => {
+        if (!alive) return;
+        setEvents(events);
+        const selected = selectedEventId ? events.find((e) => e.id === selectedEventId) : null;
+        const nextEvent = selected || events.find((e) => e.status !== 'archived') || events[0];
+        if (nextEvent) setFromApi(nextEvent);
+        setApiSummary(summary);
+        trackProductEvent('mobile_organizer_dashboard_loaded', {
+          role: 'organizer',
+          eventId: nextEvent?.id ?? null,
+          eventCount: events.length,
+          currency: summary.totals.currency,
+        });
+        setLoadError(null);
+      })
+      .catch((e: any) => {
+        if (alive) setLoadError(e?.message ?? 'Could not load organizer data.');
+      })
+      .finally(() => {
+        if (alive) setRefreshing(false);
+      });
+    return () => { alive = false; };
+  }, [selectedEventId, setFromApi]);
+
+  useEffect(() => {
+    const cleanup = loadOrganizerData();
+    return cleanup;
+  }, [loadOrganizerData]);
+
   useFocusEffect(
     useCallback(() => {
-      const id = setInterval(() => {
-        const ev = useEventStore.getState().event;
-        const sellable = ev.tiers.map((t, i) => ({ t, i })).filter((x) => x.t.sold < x.t.cap);
-        if (!sellable.length) return;
-        const pick = sellable[Math.floor(Math.random() * sellable.length)];
-        const qty = 1 + Math.floor(Math.random() * 2);
-        useEventStore.getState().recordSale(pick.i, qty);
-        setFeed((f) => [{ id: Date.now(), label: `${qty} × ${pick.t.name}`, buyer: BUYERS[Math.floor(Math.random() * BUYERS.length)] }, ...f].slice(0, 5));
-      }, 3500);
-      return () => clearInterval(id);
-    }, []),
+      const cleanup = loadOrganizerData();
+      return cleanup;
+    }, [loadOrganizerData]),
   );
 
-  const switchEvent = () =>
-    Alert.alert('Your events', `${event.name} — ${event.date}, ${event.city} (live).\n\nCreate or switch events from the Zora web dashboard.`, [{ text: 'OK' }]);
+  const switchEvent = () => {
+    if (!events.length) {
+      Alert.alert('Your events', 'Pull to refresh and try again.');
+      return;
+    }
+    setPickerOpen(true);
+  };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: z.bg }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 28 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: z.bg }}
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 28 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { loadOrganizerData(); }} tintColor={z.ultraSoft} />}
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <View>
           <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2 }}>NOW MANAGING</Text>
@@ -76,6 +118,12 @@ export default function DashboardScreen() {
           <Text style={{ color: z.ultraSoft, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5 }}>ON SALE</Text>
         </View>
       </View>
+
+      {loadError ? (
+        <View style={{ borderColor: z.orange + '66', borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 14, backgroundColor: z.orange + '12' }}>
+          <Text style={{ color: z.orangeSoft, fontSize: 12 }}>{loadError} Showing last loaded data.</Text>
+        </View>
+      ) : null}
 
       {/* Event summary → Edit */}
       <Pressable
@@ -149,18 +197,63 @@ export default function DashboardScreen() {
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: z.green }} />
       </View>
       <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 18, padding: 16 }}>
-        {feed.length === 0 ? (
-          <Text style={{ color: z.mut2, fontSize: 13, paddingVertical: 6 }}>Watching for sales…</Text>
-        ) : (
-          feed.map((f, i) => (
-            <View key={f.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, borderBottomColor: z.line2, borderBottomWidth: i < feed.length - 1 ? 1 : 0 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: z.green }} />
-              <Text style={{ color: z.bone, fontSize: 13, flex: 1 }}><Text style={{ fontWeight: '700' }}>{f.label}</Text> · {f.buyer}</Text>
-              <Text style={{ color: z.mut2, fontSize: 11 }}>{i === 0 ? 'just now' : `${i}m ago`}</Text>
-            </View>
-          ))
-        )}
+        <Text style={{ color: z.mut2, fontSize: 13, paddingVertical: 6 }}>
+          Pull to refresh for the latest sales. Real-time sale events will be wired once the mobile API exposes an organizer activity stream.
+        </Text>
       </View>
+
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: z.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderColor: z.line, borderWidth: 1, paddingTop: 18, paddingHorizontal: 20, paddingBottom: insets.bottom + 18, maxHeight: '78%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <View>
+                <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2 }}>SWITCH EVENT</Text>
+                <Text style={{ color: z.bone, fontSize: 20, fontWeight: '800', marginTop: 4 }}>Your events</Text>
+              </View>
+              <Pressable onPress={() => setPickerOpen(false)} hitSlop={12}>
+                <Text style={{ color: z.mut, fontSize: 15, fontWeight: '700' }}>Close</Text>
+              </Pressable>
+            </View>
+            <ScrollView>
+              {events.map((ev) => {
+                const on = ev.id === event.id;
+                return (
+                  <Pressable
+                    key={ev.id}
+                    onPress={() => {
+                      selectEvent(ev);
+                      trackProductEvent('mobile_organizer_event_switched', {
+                        role: 'organizer',
+                        eventId: ev.id,
+                        status: ev.status,
+                        eventCount: events.length,
+                      });
+                      setPickerOpen(false);
+                    }}
+                    style={({ pressed }) => ({
+                      borderColor: on ? z.ultra + '99' : z.line,
+                      borderWidth: 1,
+                      borderRadius: 16,
+                      padding: 14,
+                      backgroundColor: on ? z.ultra + '16' : z.panel2,
+                      marginTop: 10,
+                      opacity: pressed ? 0.72 : 1,
+                    })}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ color: z.bone, fontSize: 15, fontWeight: '800' }}>{ev.name}</Text>
+                        <Text style={{ color: z.mut2, fontSize: 12, marginTop: 4 }}>{ev.dateLabel || ev.date || 'Date TBA'} · {ev.city || 'City TBA'}</Text>
+                      </View>
+                      <Text style={{ color: on ? z.ultraSoft : z.mut2, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>{on ? 'ACTIVE' : ev.status.toUpperCase()}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

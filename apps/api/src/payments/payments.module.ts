@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, type FspRouteMap, type PaymentMethod,
+  DEFAULT_FSP_ROUTE_MAP, issuesPasses, type FspRouteMap, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -132,7 +132,7 @@ export class PaymentsController {
     // Payer auto-verify: a paid order whose zora_checkout cookie matches this order
     // promotes the buyer to a verified zora_buyer session (7d).
     const checkoutToken = readNamedCookie(req, 'zora_checkout');
-    if (checkoutToken && order.status === 'paid') {
+    if (checkoutToken && issuesPasses(order.status)) {
       const secret = resolveSessionSecret();
       const payload = verifySession(checkoutToken, secret) as any;
       if (payload && payload.orderId === orderId) {

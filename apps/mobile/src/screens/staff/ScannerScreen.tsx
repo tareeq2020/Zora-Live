@@ -1,22 +1,32 @@
 // The staff-locked gate scanner — real QR camera via expo-camera's CameraView.
-// Scanning any QR admits it (green); scanning the SAME code again is caught as a
-// duplicate (red) — the offline dedupe idea, live. If camera permission is
-// denied/unavailable, the view still works via the Simulate scan button.
+// Every scan is verified by the ZoraPass scan API with the scoped agent token.
+// If camera permission is denied/unavailable, the view still offers a local demo
+// scan button so the result states can be checked during setup.
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Vibration } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '../../session/store';
-import { verifyTicket, clearAgentToken } from '../../lib/agent';
+import { verifyTicket, clearAgentToken, type VerifyTicketResult } from '../../lib/agent';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { z } from '../../theme';
 
-type Result = { ok: boolean; title: string; sub: string } | null;
+type Result = { ok: boolean; title: string; sub: string; tone?: 'valid' | 'warn' | 'invalid' } | null;
 const shorten = (s: string) => (s.length > 22 ? s.slice(0, 22) + '…' : s);
 const SIM_SEQ = ['valid', 'valid', 'used', 'invalid'] as const;
+
+const timeLabel = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets();
   const signOut = useSession((s) => s.signOut);
+  const scannerName = useSession((s) => s.scannerName);
+  const scannerEventScope = useSession((s) => s.scannerEventScope);
   const [permission, requestPermission] = useCameraPermissions();
 
   const [result, setResult] = useState<Result>(null);
@@ -35,15 +45,45 @@ export default function ScannerScreen() {
     setTimeout(() => { setResult(null); busy.current = false; }, 1700);
   };
 
+  const renderResult = (r: VerifyTicketResult): { result: Result; shouldCount: boolean } => {
+    if (r.ok && r.result === 'needs_supervisor') {
+      return {
+        shouldCount: true,
+        result: { ok: true, tone: 'warn', title: 'Supervisor', sub: `${shorten(r.ticket)} · confirm wristband` },
+      };
+    }
+    if (r.ok) {
+      return {
+        shouldCount: true,
+        result: { ok: true, tone: 'valid', title: 'Valid', sub: shorten(r.ticket) },
+      };
+    }
+    if (r.result === 'already_used') {
+      const at = timeLabel(r.priorAt);
+      const who = r.priorActor ? ` · ${r.priorActor}` : '';
+      return {
+        shouldCount: false,
+        result: { ok: false, tone: 'invalid', title: 'Already used', sub: `${shorten(r.ticket)}${at ? ` · ${at}` : ''}${who}` },
+      };
+    }
+    return {
+      shouldCount: false,
+      result: { ok: false, tone: 'invalid', title: 'Not valid', sub: r.message || shorten(r.ticket) },
+    };
+  };
+
   const onScan = async ({ data }: { data: string }) => {
     if (busy.current) return;
     busy.current = true;
     try {
       const r = await verifyTicket(data); // verified against the Gate with the scoped agent token
-      if (r.ok) { setHead((h) => h + 1); flash({ ok: true, title: 'Valid', sub: shorten(r.ticket) }, true); }
-      else flash({ ok: false, title: 'Already in', sub: shorten(r.ticket) + ' · scanned earlier' }, false);
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: r.result });
+      const next = renderResult(r);
+      if (next.shouldCount) setHead((h) => h + 1);
+      flash(next.result, next.shouldCount);
     } catch (e: any) {
       if (e?.message === 'session_ended') { await clearAgentToken(); signOut(); return; } // token expired/revoked → back to code entry
+      trackProductEvent('mobile_staff_scan_completed', { role: 'staff', outcome: 'network_error' });
       flash({ ok: false, title: 'Not valid', sub: 'Verification failed' }, false);
     }
   };
@@ -52,9 +92,9 @@ export default function ScannerScreen() {
     if (busy.current) return;
     busy.current = true;
     const k = SIM_SEQ[simIdx.current++ % SIM_SEQ.length];
-    if (k === 'valid') { setHead((h) => h + 1); flash({ ok: true, title: 'Valid', sub: 'Z001-' + (300 + Math.floor(Math.random() * 600)) }, true); }
-    else if (k === 'used') flash({ ok: false, title: 'Already in', sub: 'Scanned 13:52 · Gate B' }, false);
-    else flash({ ok: false, title: 'Not valid', sub: 'Signature failed' }, false);
+    if (k === 'valid') { setHead((h) => h + 1); flash({ ok: true, tone: 'valid', title: 'Valid', sub: 'Z001-' + (300 + Math.floor(Math.random() * 600)) }, true); }
+    else if (k === 'used') flash({ ok: false, tone: 'invalid', title: 'Already used', sub: 'Scanned 13:52 · Gate B' }, false);
+    else flash({ ok: false, tone: 'invalid', title: 'Not valid', sub: 'Signature failed' }, false);
   };
 
   const granted = !!permission?.granted;
@@ -63,8 +103,8 @@ export default function ScannerScreen() {
     <View style={{ flex: 1, backgroundColor: z.bg, paddingTop: insets.top + 14, paddingHorizontal: 20, paddingBottom: insets.bottom + 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <View>
-          <Text style={{ color: z.orangeSoft, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>GATE AGENT</Text>
-          <Text style={{ color: z.mut, fontSize: 12, marginTop: 4 }}>GATE A · OFFSHORE</Text>
+          <Text style={{ color: z.orangeSoft, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>{scannerName || 'GATE AGENT'}</Text>
+          <Text style={{ color: z.mut, fontSize: 12, marginTop: 4 }}>{scannerEventScope ? `EVENT · ${scannerEventScope}` : 'EVENT SCANNER'}</Text>
         </View>
         <View style={{ backgroundColor: 'rgba(255,90,31,0.18)', borderRadius: 100, paddingHorizontal: 11, paddingVertical: 6 }}>
           <Text style={{ color: z.orangeSoft, fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>LOCKED VIEW</Text>
@@ -103,9 +143,9 @@ export default function ScannerScreen() {
         ))}
 
         {result && (
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: result.ok ? 'rgba(23,179,104,0.22)' : 'rgba(255,59,48,0.2)' }}>
-            <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 14, backgroundColor: result.ok ? z.green : z.red }}>
-              <Text style={{ fontSize: 34, color: '#0A0A0B', fontWeight: '900' }}>{result.ok ? '✓' : '✕'}</Text>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: result.tone === 'warn' ? 'rgba(255,210,31,0.24)' : result.ok ? 'rgba(23,179,104,0.22)' : 'rgba(255,59,48,0.2)' }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 14, backgroundColor: result.tone === 'warn' ? z.ultra : result.ok ? z.green : z.red }}>
+              <Text style={{ fontSize: 34, color: '#0A0A0B', fontWeight: '900' }}>{result.tone === 'warn' ? '!' : result.ok ? '✓' : '✕'}</Text>
             </View>
             <Text style={{ color: z.bone, fontSize: 26, fontWeight: '900' }}>{result.title}</Text>
             <Text style={{ color: z.bone, opacity: 0.85, marginTop: 6 }}>{result.sub}</Text>
@@ -119,7 +159,7 @@ export default function ScannerScreen() {
           <Text style={{ color: z.bone, fontSize: 38, fontWeight: '900' }}>{head.toLocaleString()}</Text>
         </View>
         <Pressable onPress={simulate} style={({ pressed }) => ({ backgroundColor: z.orange, borderRadius: 15, padding: 16, opacity: pressed ? 0.85 : 1 })}>
-          <Text style={{ color: '#0A0A0B', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>SIMULATE SCAN</Text>
+          <Text style={{ color: '#0A0A0B', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>TEST RESULT STATES</Text>
         </Pressable>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
           <Text style={{ color: z.mut2, fontSize: 11 }}>Staff account — marketplace & dashboard locked</Text>

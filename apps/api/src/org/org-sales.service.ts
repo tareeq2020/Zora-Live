@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCurrency, resendOrderTickets,
-  buildAnalytics, normalizeRange, DEFAULT_COMMISSION_RATE, EARNING_STATUSES, SETTLED_SHARE_STATES } from '@zora/core';
+  buildAnalytics, normalizeRange, DEFAULT_COMMISSION_RATE, SETTLED_SHARE_STATES,
+  REVENUE_STATUSES, FLAGGED_MONEY_STATUSES, PASS_ISSUING_STATUSES, countsAsSold } from '@zora/core';
 import type { OrderMoney, AnalyticsResult, AnalyticsRange, AnalyticsOrder } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
@@ -39,8 +40,9 @@ import { OrganizerRepo } from '../storage/organizer-repo';
    - Event name/status come from the events blob (a blob, not a table), joined in
      memory by id. */
 
-const PAID = 'paid';
-const FLAGGED = ['paid_unseatable', 'payment_short'];
+// BS116: status meaning is owned by @zora/core order-status (countsAsSold /
+// isFlaggedMoney / countsAsRevenue / issuesPasses) — no hand-copied lists here.
+const FLAGGED = [...FLAGGED_MONEY_STATUSES];
 const DEFAULT_CURRENCY = 'TZS';
 
 /** Revenue + net + counts for one (event, currency) bucket. */
@@ -293,7 +295,7 @@ export class OrgSalesService {
       b.weighted += m.gross * m.rate;
       if (m.gross > 0) b.rates.add(m.rate);
       // A fully refunded order is no longer a paid order (its gross is 0 too).
-      if (m.status === PAID) b.orders += 1;
+      if (countsAsSold(m.status)) b.orders += 1;
     }
 
     // Single-currency per event expected; if an event somehow has multiple, keep
@@ -444,7 +446,7 @@ export class OrgSalesService {
               + coalesce((select count(*) from split_share ss
                            where ss.order_id = o.id and ss.state = any(${[...SETTLED_SHARE_STATES]})), 0))::int as tickets
         from "order" o
-       where o.event_id = any(${eventIds}) and o.status = any(${[...EARNING_STATUSES]})`;
+       where o.event_id = any(${eventIds}) and o.status = any(${[...REVENUE_STATUSES]})`;
     const metaById = new Map(metaRows.map((r) => [r.id, r]));
 
     // Every started order (any status) — the conversion denominator.
@@ -642,7 +644,7 @@ export class OrgSalesService {
     const cap = RESEND_BULK_CAP;
     const rows = await sql<{ id: string }[]>`
       select id from "order"
-       where event_id = ${eventId} and status = 'paid'
+       where event_id = ${eventId} and status = any(${[...PASS_ISSUING_STATUSES]})
        order by created_at asc
        limit ${cap + 1}`;
     const capped = rows.length > cap;

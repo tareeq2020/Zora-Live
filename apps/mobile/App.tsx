@@ -10,8 +10,7 @@ import { Michroma_400Regular } from '@expo-google-fonts/michroma';
 import SplashGate from './src/components/SplashGate';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useThemeStore, useZ } from './src/theme';
-import { bindAuth } from './src/lib/auth';
-import { supabaseReady } from './src/lib/supabase';
+import { hydrateNestSession } from './src/lib/auth';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -26,12 +25,8 @@ export default function App() {
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
-  // Mirror Supabase auth state → session store (role routing + KYC). Only when
-  // keys are configured; without them the app stays in demo mode.
   useEffect(() => {
-    if (!supabaseReady) return;
-    const sub = bindAuth();
-    return () => sub.unsubscribe();
+    hydrateNestSession();
   }, []);
 
   return (

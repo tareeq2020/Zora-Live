@@ -2,7 +2,7 @@ import { BadRequestException, Body, ConflictException, Controller, ForbiddenExce
 import type { Request } from 'express';
 import {
   db, sellGateCash, voidGateSale, createGaVipOrder, initiatePayment,
-  DEFAULT_FSP_ROUTE_MAP, type FspRouteMap,
+  DEFAULT_FSP_ROUTE_MAP, ORDER_STATUS, type FspRouteMap,
 } from '@zora/core';
 import { ScanGuard } from './scan.guard';
 import { EntityStore } from '../storage/entity-store';
@@ -71,7 +71,7 @@ export class SellController {
       const r = await sellGateCash(db(), { tier, quantity: qty, sellerId: s.id, buyerPhone, buyerEmail });
       if (!r.ok) throw new ConflictException({ error: 'sold_out', message: 'Not enough seats left in that tier.' });
       await this.audit.record('gate.sell.cash', `${s.name}: ${qty}× ${tier} = ${r.amount} TZS (order ${r.orderId})`, req.ip, s.id);
-      return { ok: true, method: 'cash', status: 'paid', orderId: r.orderId, amount: r.amount, ticketCount: r.ticketCount };
+      return { ok: true, method: 'cash', status: ORDER_STATUS.PAID, orderId: r.orderId, amount: r.amount, ticketCount: r.ticketCount };
     }
 
     // mobile — buyer's phone is required for the STK prompt.
@@ -91,7 +91,7 @@ export class SellController {
       callbackUrl, routeMap, feeRateByFsp, holdTtlSecs: 900,
     });
     await this.audit.record('gate.sell.mobile', `${s.name}: ${qty}× ${tier} = ${created.total} TZS STK (order ${created.orderId})`, req.ip, s.id);
-    return { ok: true, method: 'mobile', status: 'pending', orderId: created.orderId, amount: created.total, transactionId: pay.transactionId, billPayNumber: pay.billPayNumber, redirectUrl: pay.redirectUrl };
+    return { ok: true, method: 'mobile', status: ORDER_STATUS.PENDING, orderId: created.orderId, amount: created.total, transactionId: pay.transactionId, billPayNumber: pay.billPayNumber, redirectUrl: pay.redirectUrl };
   }
 
   /** POST /api/scan/sell/:orderId/void — reverse a cash mistake BEFORE it's scanned. */

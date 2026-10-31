@@ -28,6 +28,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
+import { trackProductEvent } from './product-analytics';
 
 export type CheckoutTier = {
   tierId: string;
@@ -44,6 +45,8 @@ export type CheckoutFlowProps = {
   open: boolean;
   onClose: () => void;
   eventName: string;
+  /** Event id — sent with every checkout analytics event. */
+  eventId?: string;
   when?: string; // "SAT 08 AUG · 12:00 · THE VENUE"
   tiers: CheckoutTier[];
   /** Brand accent (organizer theme). Overrides the default electric blue on all
@@ -59,7 +62,7 @@ type Step = 'cart' | 'buyer' | 'network' | 'pay' | 'poll' | 'done';
 type Method = 'mobile' | 'billpay' | 'card';
 
 type PoolSnapshot = { tierId: string; available: number };
-type Order = { orderId: string; total: number };
+type Order = { orderId: string; total: number; holdExpiresAt?: string };
 type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string };
 
 const NETWORKS = [
@@ -75,8 +78,14 @@ const POLL_MAX = 60; // ~3 min ceiling before we tell the buyer to check back
 const TERMINAL = new Set(['paid', 'payment_short', 'paid_unseatable', 'failed', 'expired']);
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+const formatHoldExpiry = (value?: string) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
-export default function CheckoutFlow({ open, onClose, eventName, when, tiers, accent }: CheckoutFlowProps) {
+export default function CheckoutFlow({ open, onClose, eventName, eventId, when, tiers, accent }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
   // BS22: splittable tiers link into the dedicated split flow (the aura-branded
@@ -126,6 +135,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   // ── reset every time the sheet opens ──
   useEffect(() => {
     if (!open) return;
+    trackProductEvent('web_checkout_opened', { eventId, eventName, count: tiers.length, source: 'checkout_flow' });
     setStep('cart');
     setQty(tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
     setOrder(null);
@@ -231,7 +241,15 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
 
       if (res.status === 200) {
         const d = (await res.json()) as Order;
-        setOrder({ orderId: d.orderId, total: d.total });
+        setOrder({ orderId: d.orderId, total: d.total, holdExpiresAt: d.holdExpiresAt });
+        trackProductEvent('web_checkout_started', {
+          eventId,
+          eventName,
+          count: cartLines.reduce((n, l) => n + l.q, 0),
+          amount: d.total,
+          currency,
+          method,
+        });
         setPayerName('');
         setStep('pay');
         return;
@@ -296,6 +314,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
         return;
       }
       const d = await res.json();
+      trackProductEvent('web_payment_started', { eventId, eventName, amount: order.total, currency, method });
       setBillPayNumber(d.billPayNumber || null);
       setRedirectUrl(d.redirectUrl || null);
       if (method === 'card' && d.redirectUrl) {
@@ -354,15 +373,16 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
   }
 
   if (!open) return null;
+  const holdExpiry = order ? formatHoldExpiry(order.holdExpiresAt) : null;
 
   return (
     <div className="zco" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <div className="zco-card" role="dialog" aria-modal="true" aria-label="Checkout"
-        style={accent ? ({ ['--z-blue']: accent } as React.CSSProperties) : undefined}>
+        style={accent ? ({ ['--event-accent']: accent } as React.CSSProperties) : undefined}>
         <div className="zco-head">
           <span className="zco-secure">
-            SECURE CHECKOUT · <b>ZORA</b>
+            SECURE CHECKOUT · <b>ZORAPASS</b>
           </span>
           <button className="zco-x" aria-label="Close" onClick={onClose}>
             ×
@@ -375,7 +395,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
           {/* ── (a) CART ── */}
           {step === 'cart' ? (
             <>
-              <div className="zco-welcome">A real Zora pass, issued the moment you pay.</div>
+              <div className="zco-welcome">One pass or many. Choose your passes, then pay.</div>
               <p className="zco-event">{eventName}</p>
               {when ? <p className="zco-when">{when}</p> : null}
               {invError ? <p className="zco-muted">Live availability is unavailable right now — you can still try.</p> : null}
@@ -390,7 +410,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                       <div className="zco-tier-info">
                         <p className="zco-tier-name">
                           {t.name}
-                          {t.split ? <span className="zco-badge">SPLITTABLE</span> : null}
+                          {t.split ? <span className="zco-badge">SPLIT WITH TUCHANGE</span> : null}
                         </p>
                         <p className="zco-tier-price">
                           {soldOut ? 'SOLD OUT' : `${fmt(t.unitPrice)} ${t.currency || currency}`}
@@ -409,7 +429,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                       </div>
                       {t.split ? (
                         <a className="zco-split-cta" href={splitHref(t)}>
-                          Split this table — everyone pays their own share →
+                          Split with Tuchange — everyone pays their own share →
                         </a>
                       ) : null}
                     </div>
@@ -435,12 +455,12 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                       {fmt(estSubtotal)} {currency}
                     </span>
                   </div>
-                  <p className="zco-fineprint">Your mobile-money or card provider may add a small fee at payment. Your final total is confirmed on the next step.</p>
+                  <p className="zco-fineprint">Fees are shown before payment. Availability is confirmed when checkout starts.</p>
                 </div>
               ) : null}
 
               <button className="zco-pay" disabled={!anyInCart} onClick={() => (setNotice(null), setStep('buyer'))}>
-                CONTINUE
+                CONTINUE →
               </button>
             </>
           ) : null}
@@ -452,7 +472,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                 ← Cart
               </button>
               <p className="zco-event">Who&apos;s this for?</p>
-              <p className="zco-when">We&apos;ll send your pass here — and it lives in your Zora wallet.</p>
+              <p className="zco-when">We&apos;ll send your pass here. Guest checkout works.</p>
 
               <label className="zco-field">
                 <span>Phone</span>
@@ -479,7 +499,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
               </label>
 
               <button className="zco-pay" disabled={busy} onClick={continueFromBuyer}>
-                {method === 'mobile' ? 'CONTINUE' : busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT'}
+                {method === 'mobile' ? 'CONTINUE →' : busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT →'}
               </button>
             </>
           ) : null}
@@ -503,7 +523,7 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
               </div>
 
               <button className="zco-pay" disabled={busy} onClick={submitCheckout}>
-                {busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT'}
+                {busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT →'}
               </button>
             </>
           ) : null}
@@ -519,6 +539,9 @@ export default function CheckoutFlow({ open, onClose, eventName, when, tiers, ac
                     {fmt(order.total)} {currency}
                   </span>
                 </div>
+                <p className="zco-fineprint">
+                  {holdExpiry ? `Your passes are held until ${holdExpiry} while payment completes.` : 'Your passes are held while payment completes.'}
+                </p>
               </div>
 
               <label className="zco-field">
@@ -734,84 +757,84 @@ function payErrorMessage(err?: string): string {
 }
 
 const STYLE = `
-.zco{position:fixed;inset:0;background:rgba(10,10,11,.55);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;z-index:120;font-family:'Archivo',system-ui,sans-serif}
-@media(min-width:680px){.zco{align-items:center}}
-.zco *{margin:0;padding:0;box-sizing:border-box}
-.zco-card{--z-black:#0A0A0B;--z-bone:#F4F1EA;--z-blue:#3D5AFE;--z-hair:#222226;--z-mut:#8A877E;--mono:'IBM Plex Mono',monospace;background:var(--z-black);color:var(--z-bone);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:94vh;overflow-y:auto}
-@media(min-width:680px){.zco-card{border-radius:18px}}
-.zco-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--z-hair);position:sticky;top:0;background:var(--z-black);z-index:2}
-.zco-secure{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--z-mut)}
-.zco-secure b{color:var(--z-bone);font-weight:500}
-.zco-x{background:none;border:none;color:var(--z-mut);font-size:22px;cursor:pointer;line-height:1}
-.zco-body{padding:24px}
-.zco-notice{font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;border-radius:8px;padding:11px 14px;margin-bottom:18px;line-height:1.5}
-.zco-notice.error{color:#FF9DB0;border:1px solid rgba(255,77,109,.5);background:rgba(255,77,109,.08)}
-.zco-notice.info{color:var(--z-blue);border:1px solid var(--z-blue)}
-.zco-welcome{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--z-blue);border:1px solid var(--z-blue);border-radius:8px;padding:11px 14px;margin-bottom:22px;line-height:1.5}
-.zco-event{font-weight:600;font-size:19px;letter-spacing:-.01em}
-.zco-when{font-family:var(--mono);font-size:11.5px;color:var(--z-mut);letter-spacing:.06em;margin-top:6px;line-height:1.6}
-.zco-muted{font-family:var(--mono);font-size:11.5px;color:var(--z-mut);letter-spacing:.04em;margin-top:12px;line-height:1.7}
-.zco-back{background:none;border:none;color:var(--z-mut);font-family:var(--mono);font-size:11px;letter-spacing:.08em;cursor:pointer;margin-bottom:14px}
-.zco-back:hover{color:var(--z-bone)}
-.zco-tiers{margin-top:22px;display:flex;flex-direction:column;gap:12px}
-.zco-tier{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--z-hair);border-radius:12px;padding:16px 18px}
-.zco-tier.out{opacity:.5}
-.zco-tier-split{flex-wrap:wrap;row-gap:14px;border-color:color-mix(in srgb,var(--z-blue) 50%,var(--z-hair))}
-.zco-tier-split .zco-tier-info{flex:1 1 auto}
-.zco-tier-name{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.zco-badge{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--z-blue);border:1px solid var(--z-blue);border-radius:99px;padding:2px 8px}
-.zco-tier-price{font-family:var(--mono);font-size:12px;color:var(--z-mut);letter-spacing:.04em;margin-top:4px}
-.zco-seatnote{color:var(--z-mut)}
-.zco-low{color:var(--z-blue)}
-.zco-split-cta{flex:1 0 100%;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--z-blue);text-decoration:none;border:1px solid var(--z-blue);border-radius:10px;padding:11px 12px;background:color-mix(in srgb,var(--z-blue) 10%,transparent);transition:background .2s}
-.zco-split-cta:hover{background:color-mix(in srgb,var(--z-blue) 18%,transparent)}
-.zco-ctrl{display:flex;align-items:center;gap:14px;flex-shrink:0}
-.zco-ctrl button{width:34px;height:34px;border-radius:50%;border:1px solid var(--z-hair);background:none;color:var(--z-bone);font-size:19px;cursor:pointer;line-height:1}
-.zco-ctrl button:hover:not(:disabled){border-color:var(--z-bone)}
-.zco-ctrl button:disabled{opacity:.35;cursor:not-allowed}
-.zco-n{font-family:var(--mono);font-size:18px;min-width:22px;text-align:center}
-.zco-honest{border-top:1px solid var(--z-hair);margin-top:22px;padding-top:18px}
-.zco-line{display:flex;justify-content:space-between;font-family:var(--mono);font-size:13.5px;padding:6px 0}
-.zco-line .zco-lbl{color:var(--z-mut)}
-.zco-est{border-top:1px solid var(--z-hair);margin-top:8px;padding-top:14px}
-.zco-total{align-items:baseline}
-.zco-total .zco-lbl{font-size:15px;font-family:var(--body)}
-.zco-val.big{font-family:var(--mono);font-size:26px;font-weight:500}
-.zco-fineprint{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--z-mut);text-align:center;margin-top:12px}
-.zco-field{display:block;margin-top:16px}
-.zco-field span{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--z-mut);margin-bottom:7px}
-.zco-field input{width:100%;background:#141416;border:1px solid var(--z-hair);border-radius:10px;color:var(--z-bone);font-size:15px;padding:13px 14px;font-family:var(--mono)}
-.zco-field input:focus{outline:none;border-color:var(--z-blue)}
-.zco-method{margin-top:20px}
-.zco-method-lab{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--z-mut)}
-.zco-seg{display:flex;gap:8px;margin-top:9px}
-.zco-seg-btn{flex:1;background:#141416;border:1px solid var(--z-hair);border-radius:10px;color:var(--z-mut);font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;padding:12px 4px;cursor:pointer}
-.zco-seg-btn.on{border-color:var(--z-blue);color:var(--z-bone);background:rgba(61,90,254,.12)}
-.zco-net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
-.zco-net-card{display:flex;flex-direction:column;align-items:center;gap:10px;background:#141416;border:1px solid var(--z-hair);border-radius:12px;padding:16px 10px;cursor:pointer;color:var(--z-bone);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
-.zco-net-card img{width:40px;height:40px;object-fit:contain;border-radius:8px}
-.zco-net-card.on{border-color:var(--z-blue);background:rgba(61,90,254,.12)}
-.zco-check{display:flex;align-items:center;gap:11px;margin-top:22px;font-size:13.5px;color:var(--z-bone);cursor:pointer}
-.zco-check input{width:18px;height:18px;accent-color:var(--z-blue);flex-shrink:0}
-.zco-pay{width:100%;background:var(--z-blue);color:var(--z-bone);border:none;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.14em;padding:17px;border-radius:12px;cursor:pointer;margin-top:24px;transition:background .2s}
-.zco-pay:hover:not(:disabled){background:var(--z-bone);color:var(--z-black)}
-.zco-pay:disabled{opacity:.5;cursor:not-allowed}
-.zco-web{width:100%;background:none;border:none;color:var(--z-mut);font-family:var(--mono);font-size:11px;letter-spacing:.06em;margin-top:16px;text-decoration:underline;cursor:pointer}
-.zco-link{color:var(--z-blue);text-decoration:underline}
-.zco-wait{text-align:center;padding:26px 8px 12px}
-.zco-wait h3{font-size:20px;font-weight:600;letter-spacing:-.01em;margin-top:20px}
-.zco-wait p{font-family:var(--mono);font-size:12px;color:var(--z-mut);line-height:1.8;margin-top:12px;max-width:34ch;margin-left:auto;margin-right:auto}
-.zco-control{font-family:var(--mono);font-size:26px;letter-spacing:.12em;color:var(--z-blue);margin-top:14px}
-.zco-spinner{width:38px;height:38px;border-radius:50%;border:2px solid var(--z-hair);border-top-color:var(--z-blue);margin:0 auto;animation:zco-spin 0.9s linear infinite}
-@keyframes zco-spin{to{transform:rotate(360deg)}}
-.zco-result{text-align:center;padding:20px 4px 8px}
-.zco-tick{width:54px;height:54px;border-radius:50%;border:2px solid var(--z-blue);color:var(--z-blue);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 20px}
-.zco-cross{width:54px;height:54px;border-radius:50%;border:2px solid #FF4D6D;color:#FF4D6D;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600;margin:0 auto 20px}
-.zco-result h3{font-size:21px;font-weight:600;letter-spacing:-.01em}
-.zco-support{font-family:var(--mono);font-size:11px;color:var(--z-blue);letter-spacing:.04em;margin-top:14px}
-.zco-qrs{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-top:24px}
-.zco-qr{display:flex;flex-direction:column;align-items:center}
-.zco-qr-img{background:#F4F1EA;border-radius:12px;padding:12px;line-height:0}
-.zco-qr-tier{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--z-bone);margin-top:10px;text-transform:uppercase}
-.zco-qr-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--z-mut);margin-top:3px}
-`;
+	.zco{position:fixed;inset:0;background:var(--zp-overlay,rgba(17,17,17,.6));display:flex;align-items:flex-end;justify-content:center;z-index:120;font-family:var(--zp-font-sans)}
+	@media(min-width:680px){.zco{align-items:center;padding:24px}}
+	.zco *{margin:0;padding:0;box-sizing:border-box}
+	.zco-card{--z-black:var(--zp-color-board-black);--z-bone:var(--zp-color-bone);--z-yellow:var(--zp-color-signal-yellow);--z-hair:var(--zp-color-line-light);--z-mut:var(--zp-color-ink-500);--mono:var(--zp-font-mono);background:var(--zp-color-bone);color:var(--zp-color-board-black);width:100%;max-width:520px;border:1px solid var(--zp-color-board-black);border-radius:var(--zp-radius-xl) var(--zp-radius-xl) 0 0;max-height:94vh;overflow-y:auto}
+	@media(min-width:680px){.zco-card{border-radius:var(--zp-radius-xl)}}
+	.zco-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--z-hair);position:sticky;top:0;background:var(--zp-color-bone);z-index:2}
+	.zco-secure{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--z-mut)}
+	.zco-secure b{color:var(--zp-color-board-black);font-weight:600}
+	.zco-x{width:44px;height:44px;background:transparent;border:1px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--zp-color-board-black);font-size:24px;cursor:pointer;line-height:1}
+	.zco-body{padding:24px}
+	.zco-notice{font-family:var(--mono);font-size:12px;letter-spacing:.03em;border-radius:var(--zp-radius-md);padding:12px 14px;margin-bottom:18px;line-height:1.5}
+	.zco-notice.error{color:var(--zp-danger);border:2px solid var(--zp-danger);background:color-mix(in srgb,var(--zp-danger) 8%,transparent)}
+	.zco-notice.info{color:var(--zp-text-primary);border:2px solid var(--zp-border-strong);background:var(--zp-surface-brand)}
+	.zco-welcome{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--zp-color-board-black);border:2px solid var(--zp-color-board-black);border-radius:var(--zp-radius-md);padding:12px 14px;margin-bottom:22px;line-height:1.5;background:var(--zp-color-signal-yellow)}
+	.zco-event{font-weight:800;font-size:24px;letter-spacing:-.02em;line-height:1.08}
+	.zco-when{font-family:var(--mono);font-size:13px;color:var(--z-mut);letter-spacing:.08em;margin-top:8px;line-height:1.55;text-transform:uppercase}
+	.zco-muted{font-family:var(--mono);font-size:12px;color:var(--z-mut);letter-spacing:.04em;margin-top:12px;line-height:1.7}
+	.zco-back{background:none;border:none;color:var(--z-mut);font-family:var(--mono);font-size:12px;letter-spacing:.08em;cursor:pointer;margin-bottom:14px;min-height:44px}
+	.zco-back:hover{color:var(--zp-text-primary)}
+	.zco-tiers{margin-top:24px;display:flex;flex-direction:column;gap:12px}
+	.zco-tier{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--z-hair);border-radius:var(--zp-radius-lg);padding:16px;background:var(--zp-color-white)}
+	.zco-tier.out{opacity:.6}
+	.zco-tier-split{flex-wrap:wrap;row-gap:14px;border-width:2px;border-color:var(--zp-color-board-black)}
+	.zco-tier-split .zco-tier-info{flex:1 1 auto}
+	.zco-tier-name{font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+	.zco-badge{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--zp-color-board-black);border:2px solid var(--zp-color-board-black);background:var(--zp-color-signal-yellow);border-radius:var(--zp-radius-pill);padding:3px 8px}
+	.zco-tier-price{font-family:var(--mono);font-size:13px;color:var(--z-mut);letter-spacing:.04em;margin-top:5px}
+	.zco-seatnote{color:var(--z-mut)}
+	.zco-low{color:var(--zp-danger)}
+	.zco-split-cta{flex:1 0 100%;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--zp-color-board-black);text-decoration:none;border:2px solid var(--zp-color-board-black);border-radius:var(--zp-radius-md);padding:12px;background:var(--zp-color-bone);transition:background .2s}
+	.zco-split-cta:hover{background:var(--zp-color-signal-yellow)}
+	.zco-ctrl{display:flex;align-items:center;gap:14px;flex-shrink:0}
+	.zco-ctrl button{width:48px;height:48px;border-radius:var(--zp-radius-md);border:2px solid var(--zp-color-board-black);background:var(--zp-color-bone);color:var(--zp-color-board-black);font-size:22px;cursor:pointer;line-height:1}
+	.zco-ctrl button:hover:not(:disabled){background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow)}
+	.zco-ctrl button:disabled{opacity:.35;cursor:not-allowed}
+	.zco-n{font-family:var(--mono);font-size:18px;min-width:24px;text-align:center}
+	.zco-honest{border:1px solid var(--z-hair);border-radius:var(--zp-radius-lg);margin-top:22px;padding:16px;background:var(--zp-color-white)}
+	.zco-line{display:flex;justify-content:space-between;gap:16px;font-family:var(--mono);font-size:14px;padding:7px 0}
+	.zco-line .zco-lbl{color:var(--z-mut)}
+	.zco-est{border-top:1px solid var(--z-hair);margin-top:8px;padding-top:14px}
+	.zco-total{align-items:baseline}
+	.zco-total .zco-lbl{font-size:15px;font-family:var(--zp-font-sans)}
+	.zco-val.big{font-family:var(--mono);font-size:28px;font-weight:600}
+	.zco-fineprint{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--z-mut);margin-top:12px;line-height:1.5}
+	.zco-field{display:block;margin-top:16px}
+	.zco-field span{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--z-mut);margin-bottom:8px;text-transform:uppercase}
+	.zco-field input{width:100%;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--zp-color-board-black);font-size:16px;padding:14px;font-family:var(--zp-font-sans)}
+	.zco-field input:focus{outline:3px solid var(--zp-focus);outline-offset:2px;border-color:var(--zp-border-strong)}
+	.zco-method{margin-top:20px}
+	.zco-method-lab{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--z-mut);text-transform:uppercase}
+	.zco-seg{display:flex;gap:8px;margin-top:10px}
+	.zco-seg-btn{flex:1;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--z-mut);font-family:var(--mono);font-size:12px;letter-spacing:.03em;padding:13px 4px;cursor:pointer}
+	.zco-seg-btn.on{border-color:var(--zp-border-strong);color:var(--zp-color-board-black);background:var(--zp-color-signal-yellow)}
+	.zco-net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+	.zco-net-card{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-lg);padding:16px 10px;cursor:pointer;color:var(--zp-color-board-black);font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+	.zco-net-card img{width:40px;height:40px;object-fit:contain;border-radius:8px}
+	.zco-net-card.on{border-color:var(--zp-border-strong);background:var(--zp-color-signal-yellow)}
+	.zco-check{display:flex;align-items:center;gap:11px;margin-top:22px;font-size:14px;color:var(--zp-color-board-black);cursor:pointer}
+	.zco-check input{width:20px;height:20px;accent-color:var(--zp-color-board-black);flex-shrink:0}
+	.zco-pay{width:100%;background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;font-family:var(--zp-font-display);font-size:14px;font-weight:400;letter-spacing:0;padding:18px;border-radius:var(--zp-radius-lg);cursor:pointer;margin-top:24px;transition:background .2s,transform .2s}
+	.zco-pay:hover:not(:disabled){background:var(--zp-color-ink-800);transform:translateY(-1px)}
+	.zco-pay:disabled{opacity:.45;cursor:not-allowed}
+	.zco-web{width:100%;background:none;border:none;color:var(--z-mut);font-family:var(--mono);font-size:12px;letter-spacing:.06em;margin-top:16px;text-decoration:underline;cursor:pointer}
+	.zco-link{color:var(--zp-text-link);text-decoration:underline}
+	.zco-wait{text-align:center;padding:26px 8px 12px}
+	.zco-wait h3{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:20px}
+	.zco-wait p{font-family:var(--mono);font-size:13px;color:var(--z-mut);line-height:1.8;margin-top:12px;max-width:34ch;margin-left:auto;margin-right:auto}
+	.zco-control{font-family:var(--mono);font-size:28px;letter-spacing:.12em;color:var(--zp-color-board-black);margin-top:14px}
+	.zco-spinner{width:38px;height:38px;border-radius:50%;border:3px solid var(--z-hair);border-top-color:var(--zp-color-board-black);margin:0 auto;animation:zco-spin 0.9s linear infinite}
+	@keyframes zco-spin{to{transform:rotate(360deg)}}
+	.zco-result{text-align:center;padding:20px 4px 8px}
+	.zco-tick{width:64px;height:64px;border-radius:50%;border:3px solid var(--zp-color-board-black);background:var(--zp-color-signal-yellow);color:var(--zp-color-board-black);display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 20px}
+	.zco-cross{width:54px;height:54px;border-radius:50%;border:2px solid var(--zp-danger);color:var(--zp-danger);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600;margin:0 auto 20px}
+	.zco-result h3{font-family:var(--zp-font-display);font-size:24px;font-weight:400;letter-spacing:0;text-transform:uppercase;line-height:1}
+	.zco-support{font-family:var(--mono);font-size:12px;color:var(--zp-color-board-black);letter-spacing:.04em;margin-top:14px}
+	.zco-qrs{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-top:24px}
+	.zco-qr{display:flex;flex-direction:column;align-items:center}
+	.zco-qr-img{background:#fff;border:2px solid var(--zp-color-board-black);border-radius:var(--zp-radius-lg);padding:12px;line-height:0}
+	.zco-qr-tier{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--zp-color-board-black);margin-top:10px;text-transform:uppercase}
+	.zco-qr-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--z-mut);margin-top:3px}
+	`;

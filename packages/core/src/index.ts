@@ -61,6 +61,17 @@ export {
   resolveCommissionRate, netOf, isCommissionRate, DEFAULT_COMMISSION_RATE,
 } from './commission';
 export type { CommissionEventLike, CommissionOrgLike } from './commission';
+// BS116 (plan A1): the ONE owner of what each order status means. Every read that
+// gates money, sales counts, passes or messaging goes through these predicates.
+export {
+  ORDER_STATUS, ORDER_STATUSES, isOrderStatus, orderStatusTraits,
+  countsAsSold, countsAsRevenue, isFlaggedMoney, issuesPasses, isPayable,
+  holdsBuyerMoney, wasEverPaid, isRefundable, isBroadcastAudience,
+  SOLD_STATUSES, REVENUE_STATUSES, FLAGGED_MONEY_STATUSES, PASS_ISSUING_STATUSES,
+  PAYABLE_STATUSES, BUYER_MONEY_STATUSES, EVER_PAID_STATUSES, REFUNDABLE_STATUSES,
+  BROADCAST_STATUSES,
+} from './order-status';
+export type { OrderStatus, OrderStatusTraits } from './order-status';
 // BS35: the debit side — refunded money leaves the organizer's earnings (OV1).
 export { refundOrder, REFUNDABLE_ORDER_STATUSES } from './refunds';
 export type { RefundOrderResult } from './refunds';
@@ -80,6 +91,8 @@ export type {
   AnalyticsRange, AnalyticsOrder, AnalyticsInput, AnalyticsResult,
   AnalyticsKpis, RevenuePoint,
 } from './analytics';
+export { sanitizeProductAnalyticsProperties } from './product-analytics';
+export type { ProductAnalyticsEvent, ProductAnalyticsProperties } from './product-analytics';
 // BS70 (dashboard #6): the suspended-organizer cascade — a cached suspended-handle
 // set filtered on every public event read, refreshed synchronously on a status flip.
 export {
@@ -114,6 +127,13 @@ export { sendEmail, sendCredentialEmail, escapeHtml } from './email';
 export type {
   EmailDriver, EmailResult, EmailAttachment, CredentialTicket, CredentialEmailData,
 } from './email';
+export {
+  normalizeSeatMapAvailability, normalizeSeatMapZoneKind, normalizeSeatMapPlan, zoneCapacity,
+} from './seatmap';
+export type {
+  SeatMapAvailability, SeatMapHold, SeatMapPlan, SeatMapPoint, SeatMapSeat,
+  SeatMapSelection, SeatMapSpace, SeatMapStage, SeatMapTable, SeatMapZone, SeatMapZoneKind,
+} from './seatmap';
 // BS42 (#1): the door. The two-step scan lifecycle rides the EXISTING
 // credential.state (OV4); the agent scan is the gate and the supervisor confirm
 // is selective (OV6). Row-locked, so a replayed QR can never win twice.
@@ -164,3 +184,9 @@ export {
   SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, SUPPORT_PHONE, SUPPORT_PHONE_HREF,
   WHATSAPP_HREF, INSTAGRAM_HANDLE, INSTAGRAM_LABEL, INSTAGRAM_URL,
 } from './contacts';
+// BS118: feature flags (per release, per organizer, per event).
+export { FLAG_NAMES, isFlagOn, resolveFlags, sanitizeFlagRules } from './flags';
+export type { FlagName, FlagRule, FlagRules, FlagContext } from './flags';
+// BS124: seat inventory (seat identity + state; capacity stays in inventory_pool).
+export { expandPlanSeats, diffSeats, publishSeatMap, readSeatAvailability, rowLabel } from './seat-inventory';
+export type { SeatState, SeatRowSpec, StoredSeat, SeatDiff, PublishSeatMapResult, SeatAvailabilityRow } from './seat-inventory';

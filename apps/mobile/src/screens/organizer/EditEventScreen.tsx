@@ -1,12 +1,12 @@
-// Live-edit the active event: capacity + tier pricing. "Save & publish" writes
-// to the shared event store, so the Dashboard reflects it immediately.
+// Live-edit the active event: tier capacity + pricing through the organizer API.
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useEventStore, type Tier } from '../../store/eventStore';
-import { publishEvent } from '../../api/gate';
+import { updateOrgEvent } from '../../api/organizer';
 import ZoraButton from '../../components/ZoraButton';
+import { trackProductEvent } from '../../lib/productAnalytics';
 import { useZ } from '../../theme';
 
 function StepButton({ label, onPress }: { label: string; onPress: () => void }) {
@@ -30,25 +30,68 @@ export default function EditEventScreen() {
   const [dirty, setDirty] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  const bumpCap = (d: number) => { setCap((c) => Math.max(0, c + d)); setDirty(true); };
+  const bumpCap = (d: number) => {
+    setTiers((ts) => {
+      if (!ts.length) return ts;
+      const last = ts.length - 1;
+      const next = ts.map((t, i) => {
+        if (i !== last) return t;
+        return { ...t, cap: Math.max(t.sold || 1, t.cap + d) };
+      });
+      setCap(next.reduce((n, t) => n + t.cap, 0));
+      return next;
+    });
+    setDirty(true);
+  };
   const bumpPrice = (i: number, d: number) => {
     setTiers((ts) => ts.map((t, j) => (j === i ? { ...t, price: Math.max(0, t.price + d) } : t)));
     setDirty(true);
   };
+  const bumpTierCap = (i: number, d: number) => {
+    setTiers((ts) => {
+      const next = ts.map((t, j) => (j === i ? { ...t, cap: Math.max(t.sold || 1, t.cap + d) } : t));
+      setCap(next.reduce((n, t) => n + t.cap, 0));
+      return next;
+    });
+    setDirty(true);
+  };
 
   const publish = async () => {
-    applyEdit({ cap, tiers }); // optimistic local update
-    setDirty(false);
     setPublishing(true);
     try {
-      const r = await publishEvent('offshore', { cap, tiers: tiers.map((t) => ({ name: t.name, price: t.price })) });
-      Alert.alert('Published live', `On the Gate backend · v${r.version} · ${r.clients} device(s) notified.\nStorefront, apps and the door are updated.`, [
+      const updated = await updateOrgEvent(event.id, {
+        tiers: tiers.map((t) => ({
+          tierId: t.tierId,
+          name: t.name,
+          price: t.price,
+          capacity: t.cap,
+          currency: t.currency,
+        })),
+      });
+      applyEdit({
+        cap: updated.tiers.reduce((n, t) => n + Number(t.capacity || 0), 0),
+        tiers: updated.tiers.map((t) => ({
+          tierId: t.tierId,
+          name: t.name,
+          price: Number(t.unitPrice || 0),
+          sold: Number(t.sold || 0),
+          cap: Number(t.capacity || 0),
+          currency: t.currency || 'TZS',
+        })),
+      });
+      setDirty(false);
+      trackProductEvent('mobile_organizer_event_update_published', {
+        role: 'organizer',
+        eventId: event.id,
+        count: updated.tiers.length,
+        currency: updated.tiers[0]?.currency || 'TZS',
+      });
+      Alert.alert('Published live', 'Storefront, apps and the door are updated.', [
         { text: 'Done', onPress: () => nav.goBack() },
       ]);
     } catch (e: any) {
-      Alert.alert('Saved on this device', `Changes are applied locally and will sync when the Gate is reachable.\n\n(${e?.message ?? e})`, [
-        { text: 'OK', onPress: () => nav.goBack() },
-      ]);
+      setDirty(true);
+      Alert.alert('Could not publish', e?.message ?? 'Please check the event details and try again.');
     } finally {
       setPublishing(false);
     }
@@ -87,14 +130,22 @@ export default function EditEventScreen() {
             const changed = t.price !== event.tiers[i]?.price;
             return (
               <View key={t.name} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomColor: z.line2, borderBottomWidth: i < tiers.length - 1 ? 1 : 0 }}>
-                <View>
+                <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
                   <Text style={{ color: z.bone, fontWeight: '600', fontSize: 14 }}>{t.name}</Text>
+                  <Text style={{ color: z.mut2, fontSize: 11, marginTop: 3 }}>{t.sold.toLocaleString()} sold · {t.cap.toLocaleString()} cap</Text>
                   {changed ? <Text style={{ color: z.amber, fontSize: 11, marginTop: 3 }}>was TZS {event.tiers[i].price.toLocaleString()}</Text> : null}
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <StepButton label="−" onPress={() => bumpPrice(i, -5000)} />
-                  <Text style={{ color: z.bone, fontWeight: '700', minWidth: 84, textAlign: 'right' }}>{t.price.toLocaleString()}</Text>
-                  <StepButton label="+" onPress={() => bumpPrice(i, 5000)} />
+                <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <StepButton label="−" onPress={() => bumpPrice(i, -5000)} />
+                    <Text style={{ color: z.bone, fontWeight: '700', minWidth: 84, textAlign: 'right' }}>{t.price.toLocaleString()}</Text>
+                    <StepButton label="+" onPress={() => bumpPrice(i, 5000)} />
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <StepButton label="−" onPress={() => bumpTierCap(i, -50)} />
+                    <Text style={{ color: z.mut, fontWeight: '700', minWidth: 84, textAlign: 'right' }}>{t.cap.toLocaleString()} cap</Text>
+                    <StepButton label="+" onPress={() => bumpTierCap(i, 50)} />
+                  </View>
                 </View>
               </View>
             );
