@@ -6,6 +6,7 @@ import styles from './tenant-event.module.css';
 import { shareCardImage } from '@/app/lib/share-card';
 import { SEATMAP_ENABLED } from '@/app/lib/flags';
 import ViewBeacon from '@/app/components/view-beacon';
+import { CITIES } from '@/app/lib/cities';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
 // system (BS119): bone ground, Bricolage Grotesque / Bungee / IBM Plex Mono, flat.
@@ -200,7 +201,19 @@ export default async function TenantEventPage({ params }: { params: { handle: st
               </Link>
             ) : (
               <div className={styles.ctaWrap}>
-                <GetTicketButton eventName={ev.name} eventId={params.id} when={when} tiers={ev.webCheckout?.tiers} accent={accent} />
+                <GetTicketButton
+                  eventName={ev.name}
+                  eventId={params.id}
+                  when={when}
+                  tiers={ev.webCheckout?.tiers}
+                  accent={accent}
+                  organizerHandle={params.handle}
+                  artwork={heroImg || undefined}
+                  dateLabel={ev.dateLabel}
+                  time={ev.time}
+                  venue={ev.venue}
+                  city={CITIES.find((c) => c.id === ev.city)?.city || ev.city}
+                />
               </div>
             )}
           </div>

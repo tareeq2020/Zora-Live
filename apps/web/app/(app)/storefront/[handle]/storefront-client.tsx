@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
+import CheckoutFlow, { resolveCheckoutV2, type CheckoutTier } from '../../../components/checkout-flow';
 import ViewBeacon from '@/app/components/view-beacon';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../../components/event-card';
 import { CITIES } from '../../../lib/cities';
@@ -121,6 +121,12 @@ export default function StorefrontClient(props: StorefrontProps) {
   // ── in-place checkout (web-sellable events only) ──
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<StorefrontEvent | null>(null);
+
+  // BS122: warm the checkout-v2 flag per sellable event so the in-place
+  // checkout opens without waiting on /api/flags.
+  useEffect(() => {
+    for (const ev of events) if (ev.webCheckout?.tiers?.some((t) => t.tierId && !t.disabled)) void resolveCheckoutV2(handle, ev.id);
+  }, [events, handle]);
 
   const onSaleTiersOf = (ev: StorefrontEvent) => ev.webCheckout?.tiers?.filter((t) => t.tierId && !t.disabled) || [];
   const webTiers = active ? onSaleTiersOf(active) : [];
@@ -283,6 +289,12 @@ export default function StorefrontClient(props: StorefrontProps) {
             when={activeWhen}
             tiers={webTiers}
             accent={accent}
+            organizerHandle={handle}
+            artwork={active.cover}
+            dateLabel={active.dateLabel}
+            time={active.time}
+            venue={active.venue}
+            city={CITIES.find((c) => c.id === active.city)?.city || active.city}
           />
         ) : null}
       </div>
