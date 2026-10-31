@@ -173,3 +173,6 @@ export {
   SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, SUPPORT_PHONE, SUPPORT_PHONE_HREF,
   WHATSAPP_HREF, INSTAGRAM_HANDLE, INSTAGRAM_LABEL, INSTAGRAM_URL,
 } from './contacts';
+// BS118: feature flags (per release, per organizer, per event).
+export { FLAG_NAMES, isFlagOn, resolveFlags, sanitizeFlagRules } from './flags';
+export type { FlagName, FlagRule, FlagRules, FlagContext } from './flags';
