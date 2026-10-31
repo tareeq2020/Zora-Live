@@ -15,6 +15,8 @@ export type CheckoutTier = {
       the cart line ({ tier, quantity, seatIds }), which POST /api/checkout
       already accepts (BS125). */
   seatIds?: string[];
+  /** BS126: a quantity already chosen on the seat map (GA zones, no seat ids). */
+  quantity?: number;
 };
 
 export type CheckoutFlowProps = {
@@ -38,4 +40,14 @@ export type CheckoutFlowProps = {
   venue?: string;
   /** City name in full ("Dar es Salaam"). */
   city?: string;
+  // ── BS126 seat map hooks — all optional ──
+  /** The tiers carry the buyer's picks (seatIds / quantity): skip the pass
+      picker and check out exactly those lines. */
+  seatMode?: boolean;
+  /** 409 seat_taken — the seat map marks these seats and keeps the rest. */
+  onSeatTaken?: (seatIds: string[]) => void;
+  /** The server hold window (holdExpiresAt) for the seat map's countdown. */
+  onHold?: (holdExpiresAt: string | null) => void;
+  /** Terminal order status (paid / failed / expired …). */
+  onResult?: (status: string) => void;
 };

@@ -18,17 +18,19 @@ export const dynamic = 'force-dynamic';
 
 // Every pass bought in the same order as :code. Falls back to the single code in
 // the URL if the resolver is unreachable or the ref is unknown (studio previews).
-async function loadPassRefs(code: string): Promise<string[]> {
+// BS126: a seated pass also carries the seat it admits (seatLabel).
+async function loadPassRefs(code: string): Promise<{ codes: string[]; seats: Record<string, string> }> {
+  const seats: Record<string, string> = {};
   try {
     const res = await fetch(`${API_URL}/api/passes/${encodeURIComponent(code)}`, { cache: 'no-store' });
-    if (!res.ok) return [code];
+    if (!res.ok) return { codes: [code], seats };
     const data = await res.json();
-    const refs = Array.isArray(data?.passes)
-      ? data.passes.map((p: { ref?: string }) => p?.ref).filter((r: unknown): r is string => typeof r === 'string' && !!r)
-      : [];
-    return refs.length ? refs : [code];
+    const list: { ref?: string; seatLabel?: string }[] = Array.isArray(data?.passes) ? data.passes : [];
+    const refs = list.map((p) => p?.ref).filter((r: unknown): r is string => typeof r === 'string' && !!r);
+    for (const p of list) if (p?.ref && typeof p.seatLabel === 'string' && p.seatLabel) seats[p.ref] = p.seatLabel;
+    return { codes: refs.length ? refs : [code], seats };
   } catch {
-    return [code];
+    return { codes: [code], seats };
   }
 }
 
@@ -48,12 +50,12 @@ export function generateMetadata({ params }: { params: { code: string } }): Meta
 
 export default async function TicketLandingPage({ params }: { params: { code: string } }) {
   const code = params.code;
-  const codes = await loadPassRefs(code);
+  const { codes, seats } = await loadPassRefs(code);
   return (
     <div className={styles.page}>
       <main className={styles.wrap}>
         <p className={styles.eyebrow}>{codes.length > 1 ? 'YOUR PASSES' : 'YOUR PASS'}</p>
-        <PassClaim codes={codes} />
+        <PassClaim codes={codes} seats={seats} />
         <div className={styles.foot}>
           <span>ZORAPASS</span>
           <Link href="/discover">← SEE WHAT&apos;S ON</Link>

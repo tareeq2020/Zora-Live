@@ -44,7 +44,7 @@ type Method = 'mobile' | 'billpay' | 'card';
 
 type PoolSnapshot = { tierId: string; available: number };
 type Order = { orderId: string; total: number; holdExpiresAt?: string };
-type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string };
+type Credential = { qr: string; code: string; publicRef: string; tier: string; state: string; seatLabel?: string };
 
 const NETWORKS = [
   { id: 'VODACOM', label: 'M-PESA', logo: '/logos/mobile-money/mpesa.png' },
@@ -68,7 +68,7 @@ const formatHoldExpiry = (value?: string) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when, tiers, accent }: CheckoutFlowProps) {
+export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when, tiers, accent, seatMode, onSeatTaken, onHold, onResult }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
   // BS22: splittable tiers link into the dedicated split flow (the aura-branded
@@ -119,8 +119,11 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   useEffect(() => {
     if (!open) return;
     trackProductEvent('web_checkout_opened', { eventId, eventName, count: tiers.length, source: 'checkout_flow' });
-    setStep('cart');
-    setQty(tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
+    // BS126: seat-map picks arrive on the tiers — go straight to the buyer step.
+    setStep(seatMode ? 'buyer' : 'cart');
+    setQty(seatMode
+      ? Object.fromEntries(tiers.map((t) => [t.tierId, t.seatIds?.length || t.quantity || 0]))
+      : tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
     setOrder(null);
     setNotice(null);
     setBillPayNumber(null);
@@ -132,7 +135,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
     // Live availability for the cart step.
     setAvail(null);
     setInvError(false);
-    fetch('/api/inventory', { cache: 'no-store' })
+    if (!seatMode) fetch('/api/inventory', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: { pools?: PoolSnapshot[] }) => {
         const map: Record<string, number> = {};
@@ -216,7 +219,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
           phone: phone.trim(),
           email: email.trim(),
           ageAttested,
-          cart: cartLines.map((l) => ({ tier: l.tier.tierId, quantity: l.q })),
+          cart: cartLines.map((l) => ({ tier: l.tier.tierId, quantity: l.q, ...(l.tier.seatIds?.length ? { seatIds: l.tier.seatIds } : {}) })),
           method,
           network: method === 'mobile' ? network : undefined,
         }),
@@ -225,6 +228,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
       if (res.status === 200) {
         const d = (await res.json()) as Order;
         setOrder({ orderId: d.orderId, total: d.total, holdExpiresAt: d.holdExpiresAt });
+        onHold?.(d.holdExpiresAt || null);
         trackProductEvent('web_checkout_started', {
           eventId,
           eventName,
@@ -239,7 +243,17 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
       }
       if (res.status === 409) {
         const d = await res.json().catch(() => ({}));
+        if (d.error === 'seat_taken' && onSeatTaken) {
+          // BS126: the seat map owns recovery — mark the taken seat, keep the rest.
+          onSeatTaken(Array.isArray(d.seats) ? d.seats : []);
+          onClose();
+          return;
+        }
         const gone = tiers.find((t) => t.tierId === d.tier);
+        if (seatMode) {
+          setNotice({ kind: 'error', text: `${gone ? gone.name : 'One of these passes'} just sold out. Go back to the map and change your picks.` });
+          return;
+        }
         setStep('cart');
         setAvail((prev) => ({ ...(prev || {}), [d.tier]: 0 }));
         setQty((prev) => ({ ...prev, [d.tier]: 0 }));
@@ -328,6 +342,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
           setStatusVal(d.status);
           if (TERMINAL.has(d.status)) {
             stopPolling();
+            onResult?.(d.status);
             setCredentials(d.credentials || []);
             setStep('done');
             return;
@@ -451,8 +466,8 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
           {/* ── (b) BUYER ── */}
           {step === 'buyer' ? (
             <>
-              <button className="zco-back" onClick={() => (setNotice(null), setStep('cart'))}>
-                ← Cart
+              <button className="zco-back" onClick={() => (seatMode ? onClose() : (setNotice(null), setStep('cart')))}>
+                {seatMode ? '← Seats' : '← Cart'}
               </button>
               <p className="zco-event">Who&apos;s this for?</p>
               <p className="zco-when">We&apos;ll send your pass here. Guest checkout works.</p>
@@ -618,7 +633,7 @@ function Result({
               <div className="zco-qr-img">
                 <QRCodeSVG value={c.qr} size={148} level="M" includeMargin bgColor="#F4F1EA" fgColor="#0A0A0B" />
               </div>
-              <p className="zco-qr-tier">{c.tier}</p>
+              <p className="zco-qr-tier">{c.tier}{c.seatLabel ? ` · ${c.seatLabel}` : ''}</p>
               <p className="zco-qr-ref">{c.publicRef}</p>
             </div>
           ))}
