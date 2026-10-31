@@ -1,0 +1,167 @@
+/* PR-BS120 — shared event card (components.md §4). Fixed light: primitive tokens. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--zp-color-white);
+  color: var(--zp-color-board-black);
+  border: 1px solid var(--zp-color-line-light);
+  border-radius: var(--zp-radius-lg);
+  overflow: hidden;
+  text-decoration: none;
+  font-family: var(--zp-font-family-sans);
+  transition: border-color 0.18s var(--zp-motion-easing-standard);
+}
+.card:hover {
+  border-color: var(--zp-color-board-black);
+  color: var(--zp-color-board-black);
+}
+.card:focus-visible {
+  outline: 3px solid var(--zp-color-board-black);
+  outline-offset: 2px;
+}
+
+/* artwork — 4:5, the whole flyer contained on a flat black frame (never cropped) */
+.card .art {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: var(--zp-color-board-black);
+  overflow: hidden;
+}
+.card .artInner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card .artImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.18s var(--zp-motion-easing-standard);
+}
+.card:hover .artImg {
+  transform: scale(1.02);
+}
+.card .stamp {
+  width: 96px;
+  height: 96px;
+  transform: rotate(-10deg);
+}
+.card.soldOut .artInner {
+  opacity: 0.6;
+}
+
+.card .chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  font-family: var(--zp-font-family-mono);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: var(--zp-radius-pill);
+  padding: 6px 12px;
+}
+.card .chip.onDark {
+  border-color: var(--zp-color-bone);
+}
+
+/* body */
+.card .body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+}
+@media (min-width: 680px) {
+  .card .body {
+    padding: 16px 20px 20px;
+  }
+}
+.card .when {
+  font-family: var(--zp-font-family-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+.card .name {
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.card .where {
+  font-size: 14px;
+  color: var(--zp-color-ink-500);
+}
+.card .priceRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.card .price {
+  font-family: var(--zp-font-family-mono);
+  font-weight: 600;
+  font-size: 16px;
+}
+.card .price small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--zp-color-ink-500);
+}
+.card .plan {
+  font-family: var(--zp-font-family-mono);
+  font-size: 13px;
+  color: var(--zp-color-ink-500);
+  text-align: right;
+}
+
+/* the CTA strip — primary button look, but a row inside the one link (DD2) */
+.card .strip {
+  margin-top: 12px;
+  height: 48px;
+  border-radius: var(--zp-radius-lg);
+  background: var(--zp-color-board-black);
+  color: var(--zp-color-signal-yellow);
+  border: 2px solid var(--zp-color-board-black);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
+  font-family: var(--zp-font-family-display);
+  font-size: 20px;
+  line-height: 1;
+  transition: background 0.12s;
+}
+.card:hover .strip {
+  background: var(--zp-color-ink-800);
+}
+.card:active .strip {
+  transform: translateY(2px);
+}
+.card.soldOut .strip {
+  background: transparent;
+  color: var(--zp-color-board-black);
+}
+.card.soldOut:hover .strip {
+  background: var(--zp-color-bone);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card .artImg,
+  .card:hover .artImg {
+    transition: none;
+    transform: none;
+  }
+}

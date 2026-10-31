@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../components/checkout-flow';
 import { trackProductEvent } from '../../../components/product-analytics';
 import styles from './event-page.module.css';
@@ -33,6 +33,22 @@ export function GetTicketButton({
   const webSellable = webTiers.length > 0;
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(false);
+
+  // BS120: a storefront card opened in a new tab links here with ?buy=1 — open
+  // the checkout straight away so the buyer lands where a plain click would
+  // have taken them. Ignored for app-claim events (nothing to open).
+  useEffect(() => {
+    if (!webSellable) return;
+    try {
+      if (new URLSearchParams(window.location.search).get('buy') === '1') {
+        trackProductEvent('web_event_cta_clicked', { eventId, eventName, source: 'buy_param' });
+        setOpen(true);
+      }
+    } catch {
+      /* no-op */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
