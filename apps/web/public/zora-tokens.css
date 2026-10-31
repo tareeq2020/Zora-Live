@@ -13,6 +13,19 @@
    page shows the browser's 8px body margin as a frame. */
 html,body{margin:0;padding:0}
 
+/* BS149: short-name aliases used across apps/web — they were never defined, so
+   rules silently fell back (wrong fonts / colours). One place maps them to the
+   handoff tokens; live-qa.test.mjs fails on any undefined --zp-* name. */
+:root{
+  --zp-font-sans:var(--zp-font-family-sans);
+  --zp-font-mono:var(--zp-font-family-mono);
+  --zp-font-display:var(--zp-font-family-display);
+  --zp-bone:var(--zp-color-bone);
+  --zp-board:var(--zp-color-board-black);
+  --zp-signal:var(--zp-color-signal-yellow);
+  --zp-heat:var(--zp-color-alert-red);
+}
+
 /* ── semantic tokens : DARK (default) — board black ground ── */
 :root, :root[data-theme="dark"]{
   --c-bg:var(--zp-color-board-black); --c-bg2:var(--zp-color-board-black);

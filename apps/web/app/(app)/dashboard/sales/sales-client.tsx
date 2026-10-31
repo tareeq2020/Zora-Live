@@ -602,7 +602,7 @@ const STYLE = `
   --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sales *{margin:0;padding:0;box-sizing:border-box}
-.zora-sales a{color:inherit;text-decoration:none}
+:where(.zora-sales) a{color:inherit;text-decoration:none}
 .zora-sales a:hover{color:var(--blue)}
 .zora-sales .mono{font-family:var(--mono)}
 .zora-sales ::selection{background:var(--blue);color:#fff}
