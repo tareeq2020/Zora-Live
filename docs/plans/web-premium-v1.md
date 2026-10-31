@@ -395,6 +395,13 @@ Real bottlenecks are not code: PR review (≈20 PRs over 7 weeks), QA per train,
 - **Not in x-bridge R3:** fixed schedules, deposits, public payment-methods endpoint. Zora keeps schedule + deposit; the method list stays Zora-configured until x-bridge publishes it.
 - Stable docs today: `…/bridge-fsp-adapter/docs/scaling/collections-quickstart.md`, `card-collection-integration-guide.md`, `docs/collection-callback-verification.md`, `docs/api-reference.md`, `xbridge-test-affordances.md`. Contract source: x-bridge `docs/platform/build-plan.md` §4.
 
+# Hosting deliverable — backend on Render (owner, 2026-10-31)
+
+- **BS142 / R8:** API + worker move from the PM2 box to Render via `render.yaml` (Blueprint: env group `zora-backend`, web service `zora-api` with `preDeployCommand: node db/migrate.mjs` and health check `/api/health`, background worker `zora-worker` ×1). Custom domain **api.zorapass.com**.
+- Web stays on Vercel (`API_URL=https://api.zorapass.com`, rebuild). Postgres stays on Supabase (session pooler).
+- Build process change: a release pushed to `Reli-Tech/zora` `main` now deploys web (Vercel) **and** backend (Render) automatically; migrations run in Render's pre-deploy step (amends A15: no more manual PM2 redeploys after cutover).
+- Runbook + env table + cutover/rollback: `docs/deploy/render.md`.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |

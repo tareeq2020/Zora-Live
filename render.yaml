@@ -1,0 +1,149 @@
+# Render Blueprint — ZoraPass backend (BS142).
+#
+#   zora-api     Web Service       NestJS API at https://api.zorapass.com
+#   zora-worker  Background Worker singleton jobs: hold/seat sweeps, payment
+#                                  reconcile, broadcasts, installments reminders
+#                                  + default close, analytics purge
+#
+# Web (apps/web) stays on Vercel; it proxies /api/* to API_URL (set it to
+# https://api.zorapass.com in Vercel and redeploy — rewrites bake at build).
+# Postgres stays on Supabase: DATABASE_URL must be the SESSION pooler (:5432)
+# — migrations and the worker's advisory lock need session mode.
+#
+# Setup + cutover: docs/deploy/render.md. Every `sync: false` value is entered
+# once in the Render dashboard (never committed).
+
+envVarGroups:
+  - name: zora-backend
+    envVars:
+      # ── Database (required) ─────────────────────────────────────────
+      - key: DATABASE_URL            # Supabase SESSION pooler :5432
+        sync: false
+      - key: PG_POOL_MAX
+        value: "10"
+      # ── Secrets (required) — copy the CURRENT production values ────
+      - key: SESSION_SECRET          # changing it logs everyone out
+        sync: false
+      - key: KYC_SECRET              # MUST equal the value that encrypted existing KYC docs
+        sync: false
+      - key: TICKET_SIGNING_KEY      # comma list; MUST include the current key or old QRs fail
+        sync: false
+      - key: OTP_SECRET
+        sync: false
+      # ── Storage (Supabase) ──────────────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: MEDIA_BUCKET
+        sync: false
+      - key: KYC_BUCKET
+        sync: false
+      # ── Origins / routing ───────────────────────────────────────────
+      - key: PUBLIC_ORIGIN           # the API's own public URL (x-bridge webhooks hit this directly)
+        value: https://api.zorapass.com
+      - key: PUBLIC_WEB_ORIGIN       # buyer links + Google OAuth callback base
+        value: https://www.zorapass.com
+      - key: ZORA_ROOT_DOMAIN
+        value: zorapass.com
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY             # Render terminates TLS; honour x-forwarded-for
+        value: "true"
+      # ── Payments: x-bridge ──────────────────────────────────────────
+      - key: XBRIDGE_BASE_URL
+        sync: false
+      - key: XBRIDGE_KEY_ID          # unset ⇒ MOCK mode
+        sync: false
+      - key: XBRIDGE_SECRET
+        sync: false
+      - key: XBRIDGE_WEBHOOK_SECRET  # installments /v1 receivable webhooks
+        sync: false
+      - key: XBRIDGE_V1              # "1" only after the x-bridge /v1 sandbox is verified (BS138)
+        value: "0"
+      # ── Delivery ────────────────────────────────────────────────────
+      - key: SMS_DRIVER              # beem | at | mock
+        sync: false
+      - key: BEEM_KEY
+        sync: false
+      - key: BEEM_SECRET
+        sync: false
+      - key: BEEM_SENDER
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_USERNAME
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # ── Product analytics (optional) ────────────────────────────────
+      - key: POSTHOG_KEY
+        sync: false
+      - key: POSTHOG_HOST
+        value: https://us.i.posthog.com
+      # ── Admin Google sign-in (BS141, optional) ──────────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_GOOGLE_EMAILS
+        sync: false
+      - key: ADMIN_GOOGLE_DOMAIN
+        sync: false
+
+services:
+  - type: web
+    name: zora-api
+    runtime: node
+    region: frankfurt              # keep in the same region as the Supabase project
+    plan: starter
+    branch: main
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/core/**
+        - db/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+    buildCommand: >-
+      corepack enable && corepack prepare pnpm@10.12.4 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter "@zora/api..." build
+    preDeployCommand: node db/migrate.mjs     # idempotent; advisory-locked
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /api/health
+    domains:
+      - api.zorapass.com
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - fromGroup: zora-backend
+
+  - type: worker
+    name: zora-worker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    numInstances: 1                # singleton (also enforced by a Postgres advisory lock)
+    branch: main
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - apps/worker/**
+        - packages/core/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+    buildCommand: >-
+      corepack enable && corepack prepare pnpm@10.12.4 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter "@zora/worker..." build
+    startCommand: node apps/worker/dist/main.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - fromGroup: zora-backend
