@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { db, type ScannerRole } from '@zora/core';
+import { db, ORDER_STATUS, type ScannerRole } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { Roles } from '../common/roles.guard';
 import { OrgScopeService } from '../org/org-scope.service';
@@ -55,7 +55,7 @@ export class OrgScannersController {
              count(*)::int as orders
         from "order" o
         join (select order_id, sum(unit_price * quantity) as amt from order_item group by order_id) oi on oi.order_id = o.id
-       where o.status = 'paid' and o.channel in ('gate_cash','gate_mobile') and o.sold_by = any(${ids})
+       where o.status = ${ORDER_STATUS.PAID} and o.channel in ('gate_cash','gate_mobile') and o.sold_by = any(${ids})
        group by o.sold_by`;
     let cash = 0, mobile = 0;
     const sellers = rows.map((r: any) => {

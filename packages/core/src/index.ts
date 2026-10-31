@@ -61,6 +61,17 @@ export {
   resolveCommissionRate, netOf, isCommissionRate, DEFAULT_COMMISSION_RATE,
 } from './commission';
 export type { CommissionEventLike, CommissionOrgLike } from './commission';
+// BS116 (plan A1): the ONE owner of what each order status means. Every read that
+// gates money, sales counts, passes or messaging goes through these predicates.
+export {
+  ORDER_STATUS, ORDER_STATUSES, isOrderStatus, orderStatusTraits,
+  countsAsSold, countsAsRevenue, isFlaggedMoney, issuesPasses, isPayable,
+  holdsBuyerMoney, wasEverPaid, isRefundable, isBroadcastAudience,
+  SOLD_STATUSES, REVENUE_STATUSES, FLAGGED_MONEY_STATUSES, PASS_ISSUING_STATUSES,
+  PAYABLE_STATUSES, BUYER_MONEY_STATUSES, EVER_PAID_STATUSES, REFUNDABLE_STATUSES,
+  BROADCAST_STATUSES,
+} from './order-status';
+export type { OrderStatus, OrderStatusTraits } from './order-status';
 // BS35: the debit side — refunded money leaves the organizer's earnings (OV1).
 export { refundOrder, REFUNDABLE_ORDER_STATUSES } from './refunds';
 export type { RefundOrderResult } from './refunds';

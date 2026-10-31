@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { db } from '@zora/core';
+import { db, ORDER_STATUSES, wasEverPaid } from '@zora/core';
 import { OrgScopeService } from '../org/org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -43,14 +43,10 @@ export const MAX_WINDOW_DAYS = 1095;
 /** OV8 — after this long, a cart that never paid stops showing contact details. */
 export const NEVER_PAID_PII_DAYS = 90;
 
-/** Order states in which money actually arrived. Anything else is an attempt. */
-const PAID_STATES = new Set(['paid', 'paid_unseatable', 'payment_short', 'refunded']);
-
 /** Every state the view can filter by — published so the UI never hard-codes a
-    list that drifts from the database. */
-export const ORDER_STATES = [
-  'pending', 'paid', 'payment_short', 'paid_unseatable', 'failed', 'expired', 'cancelled', 'refunded',
-] as const;
+    list that drifts from the database. BS116: owned by @zora/core order-status;
+    "money actually arrived" is its `wasEverPaid` predicate. */
+export const ORDER_STATES: readonly string[] = ORDER_STATUSES;
 
 const DEFAULT_CURRENCY = 'TZS';
 
@@ -320,7 +316,7 @@ export class AdminOrdersService {
       const latest = attempts.length ? attempts[attempts.length - 1] : null;
 
       // OV8 — a cart that never took money, past the window, loses its contact.
-      const paidEver = PAID_STATES.has(o.status);
+      const paidEver = wasEverPaid(o.status);
       const redact = !paidEver && new Date(o.created_at).getTime() < piiCutoff;
 
       const cartValue = split

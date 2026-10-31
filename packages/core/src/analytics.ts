@@ -14,6 +14,7 @@
    Currency invariant (I7, mirrors org-sales): revenue is NEVER summed across
    currencies. The scalar KPIs + the series are scoped to the largest-revenue
    currency (the "headline"); the full split is surfaced in `revenueByCurrency`. */
+import { countsAsSold } from './order-status';
 
 /** The ranges the hero chart offers. ALL = the org's whole history. */
 export type AnalyticsRange = '7D' | '14D' | '30D' | 'ALL';
@@ -173,7 +174,7 @@ export function buildAnalytics(input: AnalyticsInput): AnalyticsResult {
     b.netRevenue += m.net;
     revenue += m.gross;
     netRevenue += m.net;
-    if (m.status === 'paid') {
+    if (countsAsSold(m.status)) {
       b.orders += 1;
       b.tickets += m.tickets;
       orders += 1;
