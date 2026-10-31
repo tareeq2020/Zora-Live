@@ -12,7 +12,7 @@
    INTERNAL staff console — distinct from the organizer seller sign-in at
    /dashboard/login. */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const STYLES = `
 .admin-login{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;--blue:#3D5AFE;--orange:#FF5A1F;
@@ -31,6 +31,8 @@ const STYLES = `
 .admin-login button{width:100%;background:var(--bone);color:var(--black);border:none;font-family:var(--mono);font-size:13px;
   font-weight:500;letter-spacing:.2em;padding:15px;cursor:pointer;transition:background .2s}
 .admin-login button:hover{background:var(--blue);color:var(--bone)}
+.admin-login .google{display:block;text-align:center;background:var(--bone);color:var(--black);text-decoration:none;font-family:var(--mono);font-size:13px;letter-spacing:.12em;padding:16px;margin:8px 0 12px;min-height:44px;box-sizing:border-box}
+.admin-login .linkish{background:none!important;color:var(--bone)!important;text-decoration:underline;font-size:12px;padding:8px 0;width:auto!important}
 .admin-login .err{font-family:var(--mono);font-size:12px;color:var(--orange);letter-spacing:.05em;margin-top:16px;
   border:1px dashed var(--orange);padding:12px 14px}
 .admin-login .back{display:block;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.15em;
@@ -43,6 +45,23 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // BS141: Google is the default admin sign-in when configured; the password
+  // form stays as the break-glass fallback behind a link.
+  const [google, setGoogle] = useState<boolean | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => {
+    fetch('/api/auth/google/config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((d) => setGoogle(!!d?.enabled))
+      .catch(() => setGoogle(false));
+    const q = new URLSearchParams(window.location.search).get('error');
+    const msg: Record<string, string> = {
+      not_allowed: 'THAT GOOGLE ACCOUNT IS NOT AN ADMIN. ASK AN ADMIN TO ADD YOU.',
+      state: 'THAT TOOK TOO LONG. START AGAIN.',
+      google_off: 'GOOGLE SIGN-IN IS NOT SET UP. USE YOUR PASSWORD.',
+    };
+    if (q) setError(msg[q] || 'GOOGLE SIGN-IN DIDN\'T GO THROUGH. TRY AGAIN.');
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,6 +99,16 @@ export default function AdminLoginPage() {
             z<span className="o">o</span>ra
           </p>
           <p className="sub">INTERNAL STAFF CONSOLE — AUTHORIZED ONLY</p>
+          {google && (
+            <a className="google" href="/api/auth/google/start">CONTINUE WITH GOOGLE</a>
+          )}
+          {google && !showPassword && (
+            <button type="button" className="linkish" onClick={() => setShowPassword(true)}>
+              Use a password instead
+            </button>
+          )}
+          {google && !showPassword && error && <p className="err">{error}</p>}
+          {(google === false || showPassword) && (
           <form onSubmit={onSubmit}>
             <label htmlFor="u">USERNAME</label>
             <input
@@ -103,6 +132,7 @@ export default function AdminLoginPage() {
             </button>
             {error && <p className="err">{error}</p>}
           </form>
+          )}
           <a className="back" href="/">
             &larr; BACK TO THE SITE
           </a>
