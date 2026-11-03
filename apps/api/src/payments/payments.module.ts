@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload,
-  DEFAULT_FSP_ROUTE_MAP, issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type FspRouteMap, type PaymentMethod,
+  issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -43,7 +43,7 @@ export class PaymentsController {
   // ── Start a collection for a pending/failed order ─────────────────────────
   @Post('checkout/:orderId/pay')
   async pay(@Param('orderId') orderId: string, @Body() body: any, @Res() res: Response) {
-    const { method, payerPhone, payerName, mno, scheduleN } = body || {};
+    const { method, payerPhone, payerName, scheduleN } = body || {};
     if (method !== 'mobile' && method !== 'billpay' && method !== 'card') {
       return res.status(400).json({ error: 'invalid_method' });
     }
@@ -56,12 +56,12 @@ export class PaymentsController {
       return res.status(400).json({ error: 'payer_phone_required' });
     }
 
-    // Route map + per-FSP fee overrides are policy (settings); default to the
-    // built-in map. callbackUrl is where x-bridge posts finality.
+    // x-bridge picks the provider behind each method. callbackUrl is where
+    // x-bridge posts finality.
     const settings = await this.entities.read<any>('settings', DEFAULT_SETTINGS);
 
     // BS47: admin can pull a method off the storefront (e.g. bill-pay isn't
-    // ready yet) without touching its FSP routing. Fail-open: an absent map,
+    // ready yet). Fail-open: an absent map,
     // or an absent key within it, means enabled — an untouched platform is
     // unaffected by this check.
     const methodsEnabled =
@@ -70,10 +70,6 @@ export class PaymentsController {
       return res.status(403).json({ error: 'method_disabled' });
     }
 
-    const routeMap: FspRouteMap =
-      settings?.fspRouteMap && typeof settings.fspRouteMap === 'object' ? settings.fspRouteMap : DEFAULT_FSP_ROUTE_MAP;
-    const feeRateByFsp: Record<string, number> =
-      settings?.feeRateByFsp && typeof settings.feeRateByFsp === 'object' ? settings.feeRateByFsp : {};
     const callbackUrl = `${process.env.PUBLIC_ORIGIN || ''}/api/webhooks/xbridge`;
 
     try {
@@ -82,10 +78,7 @@ export class PaymentsController {
         method: method as PaymentMethod,
         payerPhone: String(payerPhone),
         payerName: payerName ? String(payerName) : undefined,
-        mno: mno ? String(mno) : undefined,
         callbackUrl,
-        routeMap,
-        feeRateByFsp,
         scheduleN: scheduleN ?? null,
       });
       return res.status(200).json({

@@ -17,7 +17,7 @@ import {
   collectMobile, collectBillPay, collectCard, cardCheckoutUrl, collectionStatus, normalizeMsisdn,
   type CollectionStatusResponse,
 } from './xbridge';
-import { resolveFsp, type FspRouteMap, type PaymentMethod } from './fsp';
+import type { PaymentMethod } from './fsp';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
 import { emailBrandForEvent } from '../theme-resolve';
@@ -266,12 +266,7 @@ export interface InitiatePaymentInput {
   method: PaymentMethod;
   payerPhone: string;
   payerName?: string;
-  mno?: string;
   callbackUrl: string;
-  routeMap: FspRouteMap;
-  /** Per-FSP fee overrides (fee is already baked into target_value at checkout;
-      accepted for a stable call signature / future per-attempt re-pricing). */
-  feeRateByFsp?: Record<string, number>;
   /** TTL for the hold a failed-order RETRY re-places (BS56). Defaults to the
       same 15 min checkout uses; pass the org's configured hold_ttl_seconds. */
   holdTtlSecs?: number;
@@ -293,7 +288,7 @@ export interface InitiatePaymentResult {
     (try_rehold, not try_reacquire) before re-opening the order to pending — the
     seats are not paid yet, so they must go to HELD, never SOLD (BS56). */
 export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Promise<InitiatePaymentResult> {
-  const { orderId, method, payerPhone, payerName, mno, callbackUrl, routeMap } = input;
+  const { orderId, method, payerPhone, payerName, callbackUrl } = input;
   const [order] = await sql`
     select target_value, status, customer_id from "order" where id = ${orderId}`;
   if (!order) throw new Error('order not found');
@@ -317,24 +312,24 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
     await sql`update "order" set status = 'pending' where id = ${orderId}`;
   }
 
-  const fspId = resolveFsp(routeMap, method, mno);
+  // x-bridge picks the provider; payment_transaction.fsp_id stays null for new rows.
   let transactionId: string;
   let amount: number;
   if (installment) {
     // Opened under a plan lock; refuses a second in-flight attempt on the row.
-    transactionId = await openInstallmentAttempt(sql, orderId, installment, method, fspId, installmentProviderName());
+    transactionId = await openInstallmentAttempt(sql, orderId, installment, method, installmentProviderName());
     amount = installment.amount;
   } else {
     transactionId = await nextAttemptKey(sql, orderId);
     amount = Number(order.target_value);
 
     await sql`
-      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status)
-      values (${orderId}, ${transactionId}, ${method}, ${fspId}, ${amount}, 'created')`;
+      insert into payment_transaction (order_id, transaction_id, method, amount, status)
+      values (${orderId}, ${transactionId}, ${method}, ${amount}, 'created')`;
   }
 
   const collectInput = {
-    orderId, customerId: order.customer_id, transactionId, amount, method, payerPhone, payerName, fspId, callbackUrl,
+    orderId, customerId: order.customer_id, transactionId, amount, method, payerPhone, payerName, callbackUrl,
   };
   // BS133: an installment attempt goes out through the installment provider
   // (/collection/* today, x-bridge /v1 receivables behind XBRIDGE_V1); a
@@ -360,7 +355,6 @@ export interface CollectAttemptInput {
   method: PaymentMethod;
   payerPhone: string;
   payerName?: string;
-  fspId: string;
   callbackUrl: string;
 }
 
@@ -375,19 +369,19 @@ export interface CollectAttemptResult {
     initiatePayment (BS133) so the installment provider's default rail is the
     exact same code as pay-in-full. */
 export async function collectViaCollectionApi(sql: Sql, input: CollectAttemptInput): Promise<CollectAttemptResult> {
-  const { orderId, customerId, transactionId, amount, method, payerPhone, payerName, fspId, callbackUrl } = input;
+  const { orderId, customerId, transactionId, amount, method, payerPhone, payerName, callbackUrl } = input;
   let orderReference: string | undefined;
   let billPayNumber: string | undefined;
   let redirectUrl: string | undefined;
 
   if (method === 'mobile') {
-    const r = await collectMobile({ transactionId, amount, payerPhone: normalizeMsisdn(payerPhone), fspId, callbackUrl });
+    const r = await collectMobile({ transactionId, amount, payerPhone: normalizeMsisdn(payerPhone), callbackUrl });
     orderReference = r.orderReference;
   } else if (method === 'billpay') {
     const r = await collectBillPay({
       transactionId, amount, payerName: payerName ?? 'Guest',
-      payerPhone: normalizeMsisdn(payerPhone), fspId, callbackUrl,
-      paymentMode: fspId === 'CLICKPESA' ? 'EXACT' : undefined,
+      payerPhone: normalizeMsisdn(payerPhone), callbackUrl,
+      paymentMode: 'EXACT',
     });
     orderReference = r.orderReference;
     billPayNumber = r.billPayNumber; // the control number the payer settles later
@@ -401,7 +395,7 @@ export async function collectViaCollectionApi(sql: Sql, input: CollectAttemptInp
     const [first, ...rest] = displayName.trim().split(/\s+/);
     const last = rest.join(' ') || first;
     const r = await collectCard({
-      fspId, transactionId, amount, noOfItems: items,
+      transactionId, amount, noOfItems: items,
       buyer: { email: cust?.email ?? '', name: displayName, phone },
       billing: {
         firstname: first, lastname: last, address1: 'Dar es Salaam', city: 'Dar es Salaam',
@@ -556,13 +550,13 @@ export async function applyOutcome(
     the buyer confirmation OUTSIDE the tx (idempotent, best-effort). */
 export async function reconcile(sql: Sql, transactionId: string): Promise<PaymentOutcome> {
   const [txr] = await sql`
-    select order_id, fsp_id, provider from payment_transaction where transaction_id = ${transactionId}`;
+    select order_id, method, provider from payment_transaction where transaction_id = ${transactionId}`;
   if (!txr) throw new Error(`unknown transaction: ${transactionId}`);
   // BS133: a pay against an x-bridge /v1 receivable is settled by the signed
   // receivable webhook; /collection/status does not know its id.
   // TODO(BS138): poll the /v1 payment status here once x-bridge publishes it.
   if (txr.provider === 'xbridge_v1') return 'pending';
-  const status = await collectionStatus(transactionId, txr.fsp_id);
+  const status = await collectionStatus(transactionId);
   const outcome = mapStatus(status);
   const collected =
     outcome === 'successful' || outcome === 'short'
@@ -573,7 +567,7 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
     await notifyOrderPaid(sql, txr.order_id);
     // BS123 (A11): the money event comes from the server, never the browser.
     const [o] = await sql`select event_id, target_value from "order" where id = ${txr.order_id}`;
-    void captureServerEvent('payment_completed', txr.order_id, { eventId: o?.event_id ?? null, amount: Number(o?.target_value ?? 0), method: String(txr.fsp_id ?? '') });
+    void captureServerEvent('payment_completed', txr.order_id, { eventId: o?.event_id ?? null, amount: Number(o?.target_value ?? 0), method: String(txr.method ?? '') });
   }
   else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
   else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes

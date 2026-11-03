@@ -1,4 +1,4 @@
-/* PR-8 tests: pure FSP routing/fee + x-bridge adapter (no live gateway).
+/* PR-8 tests: x-bridge adapter (no live gateway). BS150: we never name a provider.
    Build core first (`pnpm --filter "@zora/core..." build`) — we import dist. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,10 +6,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeMsisdn,
   cardCheckoutUrl,
-  resolveFsp,
-  feeRateForFsp,
-  DEFAULT_FSP_ROUTE_MAP,
-  DEFAULT_FEE_RATE,
+  BILLPAY_CONNECTION,
   collectMobile,
   collectBillPay,
   collectCard,
@@ -43,38 +40,6 @@ test('cardCheckoutUrl: prefers cardPaymentLink, else paymentGatewayUrl', () => {
   assert.equal(cardCheckoutUrl({}), undefined);
 });
 
-/* ── resolveFsp ───────────────────────────────────────────────────────── */
-
-test('resolveFsp: precedence mno → default → CLICKPESA fallback', () => {
-  const map = { mobile: { VODACOM: 'SELCOM', default: 'GODIGITAL' } };
-  assert.equal(resolveFsp(map, 'mobile', 'VODACOM'), 'SELCOM'); // mno wins
-  assert.equal(resolveFsp(map, 'mobile', 'AIRTEL'), 'GODIGITAL'); // unknown mno → default
-  assert.equal(resolveFsp(map, 'mobile'), 'GODIGITAL'); // no mno → default
-  assert.equal(resolveFsp({}, 'mobile'), 'CLICKPESA'); // nothing → hard fallback
-});
-
-test('resolveFsp: defaults map routes as documented', () => {
-  assert.equal(resolveFsp(DEFAULT_FSP_ROUTE_MAP, 'mobile'), 'CLICKPESA');
-  assert.equal(resolveFsp(DEFAULT_FSP_ROUTE_MAP, 'billpay'), 'CLICKPESA');
-  assert.equal(resolveFsp(DEFAULT_FSP_ROUTE_MAP, 'card'), 'SELCOM');
-});
-
-test('resolveFsp: GODIGITAL capability failover (only mobile is supported)', () => {
-  const map = { card: { default: 'GODIGITAL' }, billpay: { default: 'GODIGITAL' }, mobile: { default: 'GODIGITAL' } };
-  assert.equal(resolveFsp(map, 'card'), 'SELCOM'); // card → SELCOM
-  assert.equal(resolveFsp(map, 'billpay'), 'CLICKPESA'); // billpay → CLICKPESA
-  assert.equal(resolveFsp(map, 'mobile'), 'GODIGITAL'); // mobile keeps GODIGITAL
-});
-
-/* ── feeRateForFsp ────────────────────────────────────────────────────── */
-
-test('feeRateForFsp: non-negative numeric override wins, else base', () => {
-  assert.equal(feeRateForFsp({ SELCOM: 0.025 }, DEFAULT_FEE_RATE, 'SELCOM'), 0.025);
-  assert.equal(feeRateForFsp({ SELCOM: 0 }, DEFAULT_FEE_RATE, 'SELCOM'), 0); // 0 is valid
-  assert.equal(feeRateForFsp({}, DEFAULT_FEE_RATE, 'SELCOM'), DEFAULT_FEE_RATE); // missing → base
-  assert.equal(feeRateForFsp({ SELCOM: -1 }, DEFAULT_FEE_RATE, 'SELCOM'), DEFAULT_FEE_RATE); // negative → base
-});
-
 /* ── MOCK mode: collect* / collectionStatus return shapes ─────────────── */
 
 function mockCfg() {
@@ -83,7 +48,7 @@ function mockCfg() {
 
 test('mock collectMobile shape', async () => {
   const r = await collectMobile(
-    { transactionId: 'T1', amount: 5000, payerPhone: '+255712345678', fspId: 'CLICKPESA', callbackUrl: 'https://cb' },
+    { transactionId: 'T1', amount: 5000, payerPhone: '+255712345678', callbackUrl: 'https://cb' },
     mockCfg(),
   );
   assert.deepEqual(r, { orderReference: 'MOCK-T1', gatewayResponse: { status: 'PENDING' } });
@@ -91,7 +56,7 @@ test('mock collectMobile shape', async () => {
 
 test('mock collectBillPay shape', async () => {
   const r = await collectBillPay(
-    { transactionId: 'T2', amount: 5000, payerName: 'A', payerPhone: '+255712345678', fspId: 'CLICKPESA', callbackUrl: 'https://cb' },
+    { transactionId: 'T2', amount: 5000, payerName: 'A', payerPhone: '+255712345678', callbackUrl: 'https://cb' },
     mockCfg(),
   );
   assert.deepEqual(r, { billPayNumber: 'MOCK-CN', orderReference: 'MOCK-T2' });
@@ -99,7 +64,7 @@ test('mock collectBillPay shape', async () => {
 
 test('mock collectCard shape yields a checkout url', async () => {
   const r = await collectCard(
-    { fspId: 'SELCOM', transactionId: 'T3', amount: 5000, noOfItems: 1, buyer: {}, billing: {}, redirectUrl: 'r', cancelUrl: 'c' },
+    { transactionId: 'T3', amount: 5000, noOfItems: 1, buyer: {}, billing: {}, redirectUrl: 'r', cancelUrl: 'c' },
     mockCfg(),
   );
   assert.equal(r.paymentGatewayUrl, 'https://mock/checkout');
@@ -108,7 +73,7 @@ test('mock collectCard shape yields a checkout url', async () => {
 });
 
 test('mock collectionStatus default COMPLETED with amount == collectedAmount', async () => {
-  const r = await collectionStatus('T4', 'CLICKPESA', mockCfg());
+  const r = await collectionStatus('T4', mockCfg());
   assert.equal(r.status, 'COMPLETED');
   assert.equal(r.amount, r.collectedAmount);
   assert.equal(r.transactionId, 'T4');
@@ -116,14 +81,14 @@ test('mock collectionStatus default COMPLETED with amount == collectedAmount', a
 
 test('mock collectionStatus is steerable for the state machine', async () => {
   __setMockCollectionStatus('T5', { status: 'PARTIAL', amount: '5000', collectedAmount: '2000' });
-  const r = await collectionStatus('T5', 'CLICKPESA', mockCfg());
+  const r = await collectionStatus('T5', mockCfg());
   assert.equal(r.status, 'PARTIAL');
   assert.equal(r.amount, '5000');
   assert.equal(r.collectedAmount, '2000');
   __clearMockCollectionStatus();
 });
 
-/* ── Real path (stubbed fetch): paymentMode only for CLICKPESA ────────── */
+/* ── Real path (stubbed fetch): what goes over the wire ──────────────── */
 
 async function withFetchStub(bodies, fn) {
   const orig = globalThis.fetch;
@@ -135,7 +100,7 @@ async function withFetchStub(bodies, fn) {
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
     }
-    bodies.push({ url: String(url), body: JSON.parse(init.body) });
+    bodies.push({ url: String(url), body: init?.body ? JSON.parse(init.body) : null });
     return new Response(
       JSON.stringify({ billPayNumber: 'CN-1', reference: 'REF-1' }),
       { status: 200, headers: { 'content-type': 'application/json' } },
@@ -154,28 +119,36 @@ function realCfg() {
   return xbridgeConfig({ XBRIDGE_KEY_ID: 'k', XBRIDGE_SECRET: 's', XBRIDGE_MOCK: 'false' });
 }
 
-test('collectBillPay: paymentMode (EXACT) sent ONLY for CLICKPESA', async () => {
+test('mobile push, card checkout and status read never name a provider (x-bridge routes by method)', async () => {
   const bodies = [];
   await withFetchStub(bodies, async () => {
     const cfg = realCfg();
+    await collectMobile({ transactionId: 'M1', amount: 5000, payerPhone: '+255712345678', callbackUrl: 'cb' }, cfg);
+    await collectCard({ transactionId: 'K1', amount: 5000, noOfItems: 1, buyer: {}, billing: {}, redirectUrl: 'r', cancelUrl: 'c' }, cfg);
+    await collectionStatus('M1', cfg);
+  });
+  const mobile = bodies.find((b) => b.url.endsWith('/collection/mobile')).body;
+  const card = bodies.find((b) => b.url.endsWith('/collection/card')).body;
+  const status = bodies.find((b) => b.url.includes('/collection/status'));
+  assert.equal('fspId' in mobile, false);
+  assert.equal('fspId' in card, false);
+  assert.equal(status.url.includes('fspId'), false);
+  assert.equal(mobile.currency, 'TZS');
+  assert.equal(mobile.callback_url, 'cb');
+});
+
+test('collectBillPay: sends the pinned connection x-bridge still requires, plus paymentMode', async () => {
+  const bodies = [];
+  await withFetchStub(bodies, async () => {
     await collectBillPay(
-      { transactionId: 'C1', amount: 5000, payerName: 'A', payerPhone: '+255712345678', fspId: 'CLICKPESA', callbackUrl: 'cb', paymentMode: 'EXACT' },
-      cfg,
-    );
-    await collectBillPay(
-      { transactionId: 'S1', amount: 5000, payerName: 'A', payerPhone: '+255712345678', fspId: 'SELCOM', callbackUrl: 'cb', paymentMode: 'EXACT' },
-      cfg,
+      { transactionId: 'C1', amount: 5000, payerName: 'A', payerPhone: '+255712345678', callbackUrl: 'cb', paymentMode: 'EXACT' },
+      realCfg(),
     );
   });
-
-  const clickpesa = bodies.find((b) => b.body.transactionId === 'C1').body;
-  const selcom = bodies.find((b) => b.body.transactionId === 'S1').body;
-
-  assert.equal(clickpesa.paymentMode, 'EXACT'); // CLICKPESA carries it
-  assert.equal('paymentMode' in selcom, false); // Selcom must NOT (it 400s on it)
-  // Shared contract fields present + currency injected.
-  assert.equal(clickpesa.currency, 'TZS');
-  assert.equal(clickpesa.callback_url, 'cb');
+  const body = bodies.find((b) => b.body?.transactionId === 'C1').body;
+  assert.equal(body.fspId, BILLPAY_CONNECTION);
+  assert.equal(body.paymentMode, 'EXACT');
+  assert.equal(body.currency, 'TZS');
 });
 
 test('collectBillPay: response reads orderReference ?? reference', async () => {
@@ -183,7 +156,7 @@ test('collectBillPay: response reads orderReference ?? reference', async () => {
   let out;
   await withFetchStub(bodies, async () => {
     out = await collectBillPay(
-      { transactionId: 'C2', amount: 5000, payerName: 'A', payerPhone: '+255712345678', fspId: 'CLICKPESA', callbackUrl: 'cb' },
+      { transactionId: 'C2', amount: 5000, payerName: 'A', payerPhone: '+255712345678', callbackUrl: 'cb' },
       realCfg(),
     );
   });

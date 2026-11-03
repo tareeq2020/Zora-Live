@@ -18,7 +18,7 @@ const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist'
 const {
   db, createInstallmentOrder, readInstallmentConfig, initiatePayment, reconcile, applyOutcome, readOrderMoney,
   sendInstallmentReminders, closeDefaultedPlans, runInstallmentJobs, recordInstallmentRefund, cancelStalePendingPlans,
-  sweepExpiredHolds, DEFAULT_FSP_ROUTE_MAP, __setMockCollectionStatus, InstallmentAttemptRefused,
+  sweepExpiredHolds, __setMockCollectionStatus, InstallmentAttemptRefused,
 } = core;
 
 let failures = 0;
@@ -35,7 +35,7 @@ const pool = async (sql) => {
 };
 const at = (date, hourEat = 10) => new Date(`${date}T${String(hourEat - 3).padStart(2, '0')}:00:00Z`);
 const pay = (sql, orderId, extra = {}) => initiatePayment(sql, {
-  orderId, method: 'billpay', payerPhone: '0700000088', callbackUrl: 'http://x', routeMap: DEFAULT_FSP_ROUTE_MAP, ...extra,
+  orderId, method: 'billpay', payerPhone: '0700000088', callbackUrl: 'http://x', ...extra,
 });
 async function settle(sql, txId, outcome = 'COMPLETED') {
   const [t] = await sql`select amount from payment_transaction where transaction_id = ${txId}`;

@@ -450,7 +450,7 @@ const c = require(process.argv[1]);
     if (!r.ok) throw new Error(JSON.stringify(r));
     id = r.orderId;
   }
-  const a = await c.initiatePayment(sql, { orderId: id, method: "mobile", payerPhone: "0713999999", callbackUrl: "http://x", routeMap: c.DEFAULT_FSP_ROUTE_MAP });
+  const a = await c.initiatePayment(sql, { orderId: id, method: "mobile", payerPhone: "0713999999", callbackUrl: "http://x" });
   const [t] = await sql`select amount from payment_transaction where transaction_id = ${a.transactionId}`;
   c.__setMockCollectionStatus(a.transactionId, { status: "COMPLETED", amount: String(t.amount), collectedAmount: String(t.amount) });
   await c.reconcile(sql, a.transactionId);

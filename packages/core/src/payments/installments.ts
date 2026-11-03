@@ -217,7 +217,7 @@ export const PUSH_LIMIT = 3;
 export const PUSH_WINDOW_SECS = 600;
 
 export async function openInstallmentAttempt(
-  sql: Sql, orderId: string, binding: InstallmentBinding, method: string, fspId: string, provider: string | null = null,
+  sql: Sql, orderId: string, binding: InstallmentBinding, method: string, provider: string | null = null,
 ): Promise<string> {
   return tx(async (t: Sql) => {
     const [plan] = await t`select status from installment_plan where order_id = ${orderId}::uuid for update`;
@@ -248,8 +248,8 @@ export async function openInstallmentAttempt(
     const [{ k }] = await t`select count(*)::int as k from payment_transaction where order_id = ${orderId}::uuid`;
     const transactionId = `ZORA-${orderId}-${k + 1}`;
     await t`
-      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status, schedule_n, provider)
-      values (${orderId}::uuid, ${transactionId}, ${method}, ${fspId}, ${binding.amount}, 'created', ${binding.n}, ${provider})`;
+      insert into payment_transaction (order_id, transaction_id, method, amount, status, schedule_n, provider)
+      values (${orderId}::uuid, ${transactionId}, ${method}, ${binding.amount}, 'created', ${binding.n}, ${provider})`;
     return transactionId;
   }, sql);
 }

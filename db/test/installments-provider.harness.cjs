@@ -14,7 +14,7 @@ const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
 const {
   db, createInstallmentOrder, readInstallmentConfig, initiatePayment, reconcile, createReceivable,
-  parseWebhook, signReceivableWebhook, handleReceivableWebhook, DEFAULT_FSP_ROUTE_MAP,
+  parseWebhook, signReceivableWebhook, handleReceivableWebhook,
   __setMockCollectionStatus, InstallmentAttemptRefused,
 } = core;
 
@@ -27,7 +27,7 @@ const SECRET = process.env.XBRIDGE_WEBHOOK_SECRET;
 const one = async (q) => (await q)[0];
 const status = async (sql, id) => (await one(sql`select status from "order" where id = ${id}`)).status;
 const pay = (sql, orderId, extra = {}) => initiatePayment(sql, {
-  orderId, method: 'mobile', payerPhone: '0700000077', callbackUrl: 'http://x', routeMap: DEFAULT_FSP_ROUTE_MAP, ...extra,
+  orderId, method: 'mobile', payerPhone: '0700000077', callbackUrl: 'http://x', ...extra,
 });
 async function refused(p) {
   try { await p; return null; } catch (e) { return e instanceof InstallmentAttemptRefused ? e.code : 'other:' + e.message; }
