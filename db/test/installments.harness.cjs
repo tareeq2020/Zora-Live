@@ -15,7 +15,7 @@ const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
 const {
   db, createInstallmentOrder, readInstallmentConfig, initiatePayment, reconcile, applyOutcome,
-  createGaVipOrder, readOrderMoney, sweepExpiredHolds, installmentSummary, DEFAULT_FSP_ROUTE_MAP,
+  createGaVipOrder, readOrderMoney, sweepExpiredHolds, installmentSummary,
   __setMockCollectionStatus, InstallmentAttemptRefused,
 } = core;
 
@@ -25,7 +25,6 @@ function ok(cond, msg) {
   else { console.error('  ✗ FAIL: ' + msg); failures++; }
 }
 const CALLBACK = 'http://localhost/api/webhooks/xbridge';
-const ROUTE = DEFAULT_FSP_ROUTE_MAP;
 const TODAY = '2026-11-01';
 const EVENT_DATE = '2027-02-20'; // final due = 2027-02-13 (7 days before)
 
@@ -38,7 +37,7 @@ const pool = async (sql, tier) => {
   return { available: Number(r.a), sold: Number(r.s), reserved: Number(r.r) };
 };
 const complete = (tx, amount) => __setMockCollectionStatus(tx, { status: 'COMPLETED', amount: String(amount), collectedAmount: String(amount) });
-const pay = (sql, orderId, extra = {}) => initiatePayment(sql, { orderId, method: 'mobile', payerPhone: '0700000009', callbackUrl: CALLBACK, routeMap: ROUTE, ...extra });
+const pay = (sql, orderId, extra = {}) => initiatePayment(sql, { orderId, method: 'mobile', payerPhone: '0700000009', callbackUrl: CALLBACK, ...extra });
 async function refused(p) {
   try { await p; return null; } catch (e) { return e instanceof InstallmentAttemptRefused ? e.code : 'other:' + e.message; }
 }

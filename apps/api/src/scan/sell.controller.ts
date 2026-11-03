@@ -2,12 +2,11 @@ import { BadRequestException, Body, ConflictException, Controller, ForbiddenExce
 import type { Request } from 'express';
 import {
   db, sellGateCash, voidGateSale, createGaVipOrder, initiatePayment,
-  DEFAULT_FSP_ROUTE_MAP, ORDER_STATUS, type FspRouteMap,
+  ORDER_STATUS,
 } from '@zora/core';
 import { ScanGuard } from './scan.guard';
 import { EntityStore } from '../storage/entity-store';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_SETTINGS } from '../common/defaults';
 
 /* /api/scan/sell (BS107 / #184) — EVENT-DAY selling from the gate PWA. The seller
    is a scanner_user with can_sell, logged into /scan, selling for THEIR scoped
@@ -82,13 +81,10 @@ export class SellController {
     });
     if (!created.ok) throw new ConflictException({ error: 'sold_out', message: 'Not enough seats left in that tier.' });
 
-    const settings = await this.entities.read<any>('settings', DEFAULT_SETTINGS);
-    const routeMap: FspRouteMap = settings?.fspRouteMap && typeof settings.fspRouteMap === 'object' ? settings.fspRouteMap : DEFAULT_FSP_ROUTE_MAP;
-    const feeRateByFsp: Record<string, number> = settings?.feeRateByFsp && typeof settings.feeRateByFsp === 'object' ? settings.feeRateByFsp : {};
     const callbackUrl = `${process.env.PUBLIC_ORIGIN || ''}/api/webhooks/xbridge`;
     const pay = await initiatePayment(db(), {
       orderId: created.orderId, method: 'mobile', payerPhone: buyerPhone,
-      callbackUrl, routeMap, feeRateByFsp, holdTtlSecs: 900,
+      callbackUrl, holdTtlSecs: 900,
     });
     await this.audit.record('gate.sell.mobile', `${s.name}: ${qty}× ${tier} = ${created.total} TZS STK (order ${created.orderId})`, req.ip, s.id);
     return { ok: true, method: 'mobile', status: ORDER_STATUS.PENDING, orderId: created.orderId, amount: created.total, transactionId: pay.transactionId, billPayNumber: pay.billPayNumber, redirectUrl: pay.redirectUrl };

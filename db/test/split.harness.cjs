@@ -10,14 +10,13 @@ const path = require('path');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
 const {
   db, createTableSplit, claimShare, createShareOrder, initiatePayment, reconcile,
-  splitAwareExpirySweep, signShareToken, DEFAULT_FSP_ROUTE_MAP,
+  splitAwareExpirySweep, signShareToken,
   __setMockCollectionStatus, closeDb,
 } = core;
 
 let failures = 0;
 function ok(cond, msg) { if (cond) console.log('  ✓ ' + msg); else { console.error('  ✗ FAIL: ' + msg); failures++; } }
 const CALLBACK = 'http://localhost/api/webhooks/xbridge';
-const ROUTE = DEFAULT_FSP_ROUTE_MAP;
 
 async function shares(sql, splitId) { return sql`select id, share_index, is_host, state, claim_token from split_share where split_id=${splitId} order by share_index`; }
 async function splitStatus(sql, id) { return (await sql`select status from table_split where id=${id}`)[0].status; }
@@ -28,7 +27,7 @@ async function pool(sql) { const r = (await sql`select available_count a, reserv
 async function payShare(sql, shareId, phone, opts = {}) {
   const co = await createShareOrder(sql, shareId, phone);
   if (!co.ok) throw new Error('createShareOrder failed: ' + co.reason);
-  const r = await initiatePayment(sql, { orderId: co.orderId, method: 'mobile', payerPhone: phone, callbackUrl: CALLBACK, routeMap: ROUTE });
+  const r = await initiatePayment(sql, { orderId: co.orderId, method: 'mobile', payerPhone: phone, callbackUrl: CALLBACK });
   const amt = co.amount;
   if (opts.short) __setMockCollectionStatus(r.transactionId, { status: 'PARTIAL', amount: String(amt), collectedAmount: String(Math.floor(amt / 2)) });
   else __setMockCollectionStatus(r.transactionId, { status: 'COMPLETED', amount: String(amt), collectedAmount: String(amt) });

@@ -24,12 +24,12 @@ export type {
   PaymentOutcome, InitiatePaymentInput, InitiatePaymentResult,
 } from './payments/service';
 export {
-  resolveFsp, feeRateForFsp, DEFAULT_FSP_ROUTE_MAP, DEFAULT_FEE_RATE, FSP_IDS, PAYMENT_METHODS,
+  DEFAULT_FEE_RATE, PAYMENT_METHODS,
 } from './payments/fsp';
-export type { FspId, PaymentMethod, FspRouteMap } from './payments/fsp';
+export type { PaymentMethod } from './payments/fsp';
 export {
   xbridgeConfig, normalizeMsisdn, cardCheckoutUrl,
-  collectMobile, collectBillPay, collectCard, collectionStatus,
+  collectMobile, collectBillPay, collectCard, collectionStatus, BILLPAY_CONNECTION,
   __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus,
 } from './payments/xbridge';
 export type {
