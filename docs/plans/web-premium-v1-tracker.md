@@ -51,7 +51,7 @@ Last updated: 2026-10-31 (final train)
 | BS135 | Worker: reminders, due nudges, locked default close + refund minus fee | R5 | A | BS132 | A18 | merged | https://github.com/tareeq2020/Zora-Live/pull/219 | locked default close; refund recorded as pending for ops; jobs e2e PASS |
 | BS136 | Organizer installment settings + orders view; admin enable switch + fee | R5 | A | BS132 | F7 | merged | https://github.com/tareeq2020/Zora-Live/pull/221 | org tab + page, reminders 1/day, admin refund queue; org e2e PASS |
 | BS137 | Hardening: full e2e sweep, a11y checklist, QA fixes, flags on per release | R6 | all | all | — | merged | https://github.com/tareeq2020/Zora-Live/pull/225 | QA R1–R4: 9 bugs fixed (fonts never loaded!) + installments double-sidebar; open: buyer map reads draft plan → BS143 |
-| BS138 | Payments: move from x-bridge /collection/* to /v1 before x-bridge release 4 (≈ 28 Nov) | R6 | A | x-bridge /v1 live | new | blocked | | x-bridge switches /collection/* off at its R4 |
+| BS138 | Payments: move from x-bridge /collection/* to /v1 before x-bridge release 4 (≈ 28 Nov). Keep BS150 rule: never send fspId; drop BILLPAY_CONNECTION if /v1 billpay routes by method | R6 | A | x-bridge /v1 live | new | blocked | | x-bridge switches /collection/* off at its R4 |
 | BS139 | R0 review follow-ups: flags lists out of public GET /settings, generic PUT can't write flags, seat-plan NaN/size guards | R0 | 0 | BS118 | review | merged | https://github.com/tareeq2020/Zora-Live/pull/202 | homepage→/discover kept (intentional Reli-Tech change) |
 
 | BS140 | Admin feature-flags page (`/admin/console/flags`) + `GET /api/settings/flags` (admin) | R1 | 0 | BS118 | A15 | merged | https://github.com/tareeq2020/Zora-Live/pull/209 | needed to switch each release on |
@@ -66,6 +66,7 @@ Last updated: 2026-10-31 (final train)
 | BS148 | Google sign-in for organizers (sign in + sign up) + /dashboard/login handoff fixes | R7 | 0 | BS141 | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/234 | migration 0034 (app_user.google_sub); same callback URI; org-google + admin-google e2e PASS; login + signup restyled |
 | BS150 | Production pay failed: "Credentials for GODIGITAL not found". Stop naming a provider: mobile / card / status calls send no fspId (x-bridge routes by method); billpay pins the connection x-bridge still requires; FSP routing UI, PUT /settings/fsp-routing and resolveFsp removed; payment_completed analytics reported the provider as the method (fixed) | hotfix | 0 | — | prod log 2026-11-03 | merged | https://github.com/tareeq2020/Zora-Live/pull/236 | payments, installments×4, split×2, payouts, gate-sales, admin-orders, payment-methods, checkout-http e2e PASS |
 ## Decisions log
+- 2026-11-03 · Owner: x-bridge picks the provider and credentials. Zora sends no fspId and keeps no routing setting (BS150). Billpay pins CLICKPESA only until x-bridge stops requiring fspId on /collection/billpay; confirm CLICKPESA is connected for billpay.
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
 - 2026-10-31 · Owner: add Google login as the default for admins (R7 / BS141).
 - 2026-10-31 · Seat maps in v1 · x-bridge runs installments (receivables /v1, R3 ≈ 21 Nov; schedules/deposit stay Zora-side) · missed payment = release + refund minus service fee · methods from x-bridge grouped Mobile money / Card / QR · follow design handoff strictly.
@@ -79,3 +80,5 @@ Last updated: 2026-10-31 (final train)
 | 2026-10-31 | train 4 (R3) | 3c266b9 | 3c266b9 | pending |
 | 2026-10-31 | train 5 (R5 backend) | 3c101a8 | 3c101a8 | pending (migrations 0028–0033) |
 | 2026-10-31 | R8 Render blueprint | 52eaceb | 52eaceb | n/a |
+| 2026-10-31 | BS147–BS149 live QA + BS148 organizer Google | 664a770 | 664a770 | Render auto-deploy; migration 0034 via preDeploy |
+| 2026-11-03 | BS150 pay hotfix (no provider routing) | 6df8727 | 6df8727 | Render auto-deploy; /api/health = 6df8727; PUT /settings/fsp-routing → 404 |
