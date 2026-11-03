@@ -1,34 +1,16 @@
 'use client';
 
-/* PR-BS89 · Control-Room console — PAYMENTS ROUTING, ported from the legacy
-   dashboard/sections/payments-section.tsx onto the CR primitives.
-
-   Re-skin, NOT new logic. All three controls the legacy section owned, same
-   endpoints:
+/* PR-BS89 · Control-Room console — PAYMENTS.
      · Currency USD→TZS rate  GET /api/settings.usdRate · PUT /api/settings/usd-rate { usdRate }
      · Methods-enabled toggles GET /api/settings.methodsEnabled · PUT /api/settings/methods-enabled { methodsEnabled:{ [m]:bool } }
-     · FSP routing map         GET /api/settings.fspRouteMap · PUT /api/settings/fsp-routing { fspRouteMap }
 
-   Rules preserved (and enforced again server-side): methods mobile/billpay/card
-   each with a default FSP; mobile takes per-network overrides (blank = mobile
-   default, omitted from the payload); GODIGITAL is MOBILE-ONLY. Defaults when
-   unset: mobile CLICKPESA, billpay CLICKPESA, card SELCOM. The routing form
-   always submits the complete intended map (the API replaces it wholesale). */
+   BS150: no provider routing. x-bridge picks the network and credentials behind
+   each method, so there is nothing to choose here. */
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrSectionHead, crPrimaryBtn, useConsoleToast } from '../console-kit';
-
-const MNOS = [
-  ['VODACOM', 'M-PESA (VODACOM)'],
-  ['TIGO', 'MIXX BY YAS (TIGO)'],
-  ['AIRTEL', 'AIRTEL MONEY (AIRTEL)'],
-  ['HALOTEL', 'HALOPESA (HALOTEL)'],
-] as const;
-
-const MOBILE_FSPS = ['CLICKPESA', 'SELCOM', 'GODIGITAL'] as const; // GODIGITAL: mobile only
-const CARD_FSPS = ['CLICKPESA', 'SELCOM'] as const;
 
 const METHODS = [
   ['mobile', 'Mobile money'],
@@ -36,18 +18,8 @@ const METHODS = [
   ['card', 'Card'],
 ] as const;
 
-type RouteMap = Record<string, Record<string, string>>;
 type MethodsEnabled = Partial<Record<'mobile' | 'billpay' | 'card', boolean>>;
-type Settings = { fspRouteMap?: RouteMap; methodsEnabled?: MethodsEnabled; usdRate?: number };
-
-type FormState = {
-  mobileDefault: string;
-  billpayDefault: string;
-  cardDefault: string;
-  overrides: Record<string, string>;
-};
-
-const EMPTY: FormState = { mobileDefault: 'CLICKPESA', billpayDefault: 'CLICKPESA', cardDefault: 'SELCOM', overrides: {} };
+type Settings = { methodsEnabled?: MethodsEnabled; usdRate?: number };
 
 export default function AdminPaymentsClient() {
   return (
@@ -61,8 +33,6 @@ function PaymentsInner() {
   const toast = useConsoleToast();
   const loader = useJsonLoader<Settings>('/api/settings');
   const res = useAdminResource(loader);
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [saving, setSaving] = useState(false);
   const [methodsEnabled, setMethodsEnabled] = useState<Record<'mobile' | 'billpay' | 'card', boolean>>({ mobile: true, billpay: true, card: true });
   const [savingMethods, setSavingMethods] = useState(false);
   const [usdRate, setUsdRate] = useState<string>('');
@@ -70,15 +40,6 @@ function PaymentsInner() {
 
   useEffect(() => {
     if (res.status !== 'ready' || !res.data) return;
-    const m = res.data.fspRouteMap || {};
-    const overrides: Record<string, string> = {};
-    MNOS.forEach(([n]) => (overrides[n] = m.mobile?.[n] || ''));
-    setForm({
-      mobileDefault: m.mobile?.default || 'CLICKPESA',
-      billpayDefault: m.billpay?.default || 'CLICKPESA',
-      cardDefault: m.card?.default || 'SELCOM',
-      overrides,
-    });
     const me = res.data.methodsEnabled || {};
     setMethodsEnabled({ mobile: me.mobile !== false, billpay: me.billpay !== false, card: me.card !== false });
     if (res.data.usdRate != null) setUsdRate(String(res.data.usdRate));
@@ -118,35 +79,11 @@ function PaymentsInner() {
     }
   }
 
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const mobile: Record<string, string> = { default: form.mobileDefault };
-    MNOS.forEach(([n]) => {
-      const v = form.overrides[n];
-      if (v) mobile[n] = v;
-    });
-    const fspRouteMap: RouteMap = {
-      mobile,
-      billpay: { default: form.billpayDefault },
-      card: { default: form.cardDefault },
-    };
-    setSaving(true);
-    try {
-      await adminApi('/api/settings/fsp-routing', { method: 'PUT', body: JSON.stringify({ fspRouteMap }) });
-      toast('Payment routing saved');
-      res.reload();
-    } catch (ex) {
-      toast(errText(ex), true);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const loading = res.status === 'loading' && !res.loaded;
   const errored = res.status === 'error' && !res.loaded;
 
   return (
-    <AdminConsoleShell title="Payments routing">
+    <AdminConsoleShell title="Payments">
       <div className="cr-stack">
         {/* ── Currency ── */}
         <section className="cr-panel">
@@ -165,8 +102,8 @@ function PaymentsInner() {
         </section>
 
         <CrSectionHead
-          title="Payments routing"
-          hint="Which financial-service-provider the x-bridge gateway uses per method. Mobile money can be overridden per network (blank = use the mobile default). Card & bill-pay support CLICKPESA / SELCOM. GODIGITAL is mobile-only."
+          title="Payment methods"
+          hint="x-bridge picks the network and credentials behind each method. Here you only choose which methods checkout offers."
         />
 
         {/* ── Active payment methods ── */}
@@ -191,8 +128,7 @@ function PaymentsInner() {
           {res.loaded ? (
             <>
               <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--cr-ink2)' }}>
-                Which methods the customer-facing checkout offers. Turning one off doesn&apos;t touch its FSP routing below — it just pulls it off the
-                storefront. At least one method must stay on.
+                Which methods the customer-facing checkout offers. Turning one off pulls it off the storefront. At least one method must stay on.
               </p>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 {METHODS.map(([m, label]) => (
@@ -206,87 +142,6 @@ function PaymentsInner() {
           ) : null}
         </section>
 
-        {/* ── FSP routing ── */}
-        <section className="cr-panel">
-          <div className="cr-panel-head">
-            <h2 className="cr-section-h" style={{ margin: 0 }}>
-              FSP routing
-            </h2>
-          </div>
-          {loading ? <div className="cr-cards" aria-busy="true"><span className="cr-skel" style={{ height: 120, borderRadius: 12 }} /></div> : null}
-          {errored ? (
-            <div className="cr-error" role="alert">
-              <strong>Couldn&apos;t load</strong>
-              <span>{res.error}</span>
-              <div style={{ marginTop: 8 }}>
-                <button type="button" className="cr-linkbtn" onClick={res.reload}>
-                  RETRY
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {res.loaded ? (
-            <form onSubmit={save}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-                <CrField label="Mobile money — default" htmlFor="fsp-mobile">
-                  <select id="fsp-mobile" className="cr-select" value={form.mobileDefault} disabled={saving} onChange={(e) => setForm({ ...form, mobileDefault: e.target.value })}>
-                    {MOBILE_FSPS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </CrField>
-                <CrField label="Bill pay — default" htmlFor="fsp-billpay">
-                  <select id="fsp-billpay" className="cr-select" value={form.billpayDefault} disabled={saving} onChange={(e) => setForm({ ...form, billpayDefault: e.target.value })}>
-                    {CARD_FSPS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </CrField>
-                <CrField label="Card — default" htmlFor="fsp-card">
-                  <select id="fsp-card" className="cr-select" value={form.cardDefault} disabled={saving} onChange={(e) => setForm({ ...form, cardDefault: e.target.value })}>
-                    {CARD_FSPS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </CrField>
-              </div>
-
-              <p style={{ margin: '18px 0 12px', fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
-                PER-NETWORK MOBILE OVERRIDES (OPTIONAL)
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                {MNOS.map(([n, l]) => (
-                  <CrField key={n} label={l} htmlFor={'fsp-mno-' + n}>
-                    <select
-                      id={'fsp-mno-' + n}
-                      className="cr-select"
-                      value={form.overrides[n] || ''}
-                      disabled={saving}
-                      onChange={(e) => setForm({ ...form, overrides: { ...form.overrides, [n]: e.target.value } })}
-                    >
-                      <option value="">Use mobile default</option>
-                      {MOBILE_FSPS.map((f) => (
-                        <option key={f} value={f}>
-                          {f}
-                        </option>
-                      ))}
-                    </select>
-                  </CrField>
-                ))}
-              </div>
-
-              <button className="cr-btn" style={{ ...crPrimaryBtn, marginTop: 18 }} type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save routing'}
-              </button>
-            </form>
-          ) : null}
-        </section>
       </div>
     </AdminConsoleShell>
   );

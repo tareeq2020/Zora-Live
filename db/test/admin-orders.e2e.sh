@@ -204,8 +204,8 @@ t("the PENDING cart carries its LINE ITEMS (3 x GA @ 50000) — support sees wha
 t("the FAILED order carries its line items too (1 x GA)",
   !!fail_ && fail_.lines.length===1 && fail_.lines[0].qty===1);
 t("cart value is computed for a cart that never paid (150000)", !!pend && pend.cartValue===150000);
-t("the failed order keeps its PAYMENT ATTEMPT (method + FSP) so support can see what was tried",
-  !!fail_ && fail_.attempts.length>=1 && !!fail_.attempts[0].method && !!fail_.attempts[0].fspId);
+t("the failed order keeps its PAYMENT ATTEMPT (method) so support can see what was tried; no provider is named (x-bridge picks it)",
+  !!fail_ && fail_.attempts.length>=1 && !!fail_.attempts[0].method && fail_.attempts[0].fspId===null);
 t("a never-attempted cart has zero payment attempts, honestly", !!pend && pend.attempts.length===0);
 t("buyer contact is present on the admin view (that IS the feature)",
   !!pend && pend.buyer.phone==="255712345671" && pend.buyer.email==="pending@example.com");

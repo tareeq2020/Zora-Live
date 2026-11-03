@@ -143,7 +143,6 @@ async function payReceivable(sql: Sql, input: PayInstallmentInput): Promise<Coll
       method: input.method === 'billpay' ? 'bank' : input.method,
       amount: input.amount,
       payer: { phone: normalizeMsisdn(input.payerPhone), name: input.payerName ?? undefined },
-      fspId: input.fspId,
       reference: input.transactionId,
       callbackUrl: input.callbackUrl,
     },

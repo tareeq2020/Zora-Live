@@ -1,6 +1,6 @@
 /* PR-8: x-bridge payment-gateway adapter.
-   ONE upstream ("x-bridge") that internally routes to CLICKPESA / SELCOM /
-   GODIGITAL — the app NEVER calls an FSP directly, only this module. Auth is a
+   ONE upstream ("x-bridge") that picks the network and credentials behind each
+   method — the app never names a provider and never calls one directly. Auth is a
    single-flight cached JWT: concurrent callers share one in-flight token fetch,
    the token is reused until ~60s before expiry.
 
@@ -165,7 +165,6 @@ export interface CollectMobileInput {
   transactionId: string;
   amount: number;
   payerPhone: string;
-  fspId: string;
   callbackUrl: string;
 }
 
@@ -174,7 +173,9 @@ export interface CollectMobileResponse {
   gatewayResponse: any;
 }
 
-/** Mobile-money push (STK). POST /collection/mobile. */
+/** Mobile-money push (STK). POST /collection/mobile. No fspId: x-bridge routes
+    the push by method and holds the credentials. Sending one forces a provider
+    and fails when that provider isn't connected for us ("Credentials for X not found"). */
 export async function collectMobile(input: CollectMobileInput, cfg = xbridgeConfig()): Promise<CollectMobileResponse> {
   if (cfg.mock) {
     const m = mockCollect(input.transactionId);
@@ -185,7 +186,6 @@ export async function collectMobile(input: CollectMobileInput, cfg = xbridgeConf
     amount: input.amount,
     currency: CURRENCY,
     payerPhone: input.payerPhone,
-    fspId: input.fspId,
     callback_url: input.callbackUrl,
   };
   const json = await authed(cfg, '/collection/mobile', { method: 'POST', body: JSON.stringify(body) });
@@ -197,18 +197,21 @@ export interface CollectBillPayInput {
   amount: number;
   payerName: string;
   payerPhone: string;
-  fspId: string;
   callbackUrl: string;
-  paymentMode?: string; // default 'EXACT'; ONLY honoured for CLICKPESA
+  paymentMode?: string; // 'EXACT' = full amount only
 }
+
+/** x-bridge's /collection/billpay still requires the connection that issues the
+    control number (400 "fspId should not be empty" without it). Pinned here, not
+    a setting. Remove once x-bridge routes billpay by method like mobile and card. */
+export const BILLPAY_CONNECTION = 'CLICKPESA';
 
 export interface CollectBillPayResponse {
   billPayNumber: string;
   orderReference: string;
 }
 
-/** Bill-pay / control-number collection. POST /collection/billpay.
-    paymentMode is CLICKPESA-only — Selcom 400s if it's present. */
+/** Bill-pay / control-number collection. POST /collection/billpay. */
 export async function collectBillPay(input: CollectBillPayInput, cfg = xbridgeConfig()): Promise<CollectBillPayResponse> {
   if (cfg.mock) {
     const m = mockCollect(input.transactionId);
@@ -220,16 +223,16 @@ export async function collectBillPay(input: CollectBillPayInput, cfg = xbridgeCo
     currency: CURRENCY,
     payerName: input.payerName,
     payerPhone: input.payerPhone,
-    fspId: input.fspId,
+    fspId: BILLPAY_CONNECTION,
     callback_url: input.callbackUrl,
-    ...(input.fspId === 'CLICKPESA' && input.paymentMode ? { paymentMode: input.paymentMode } : {}),
+    ...(input.paymentMode ? { paymentMode: input.paymentMode } : {}),
   };
   const json = await authed(cfg, '/collection/billpay', { method: 'POST', body: JSON.stringify(body) });
   return { billPayNumber: json.billPayNumber, orderReference: json.orderReference ?? json.reference };
 }
 
+/** Hosted card checkout. No fspId: x-bridge routes by method and currency. */
 export interface CollectCardInput {
-  fspId: string; // REQUIRED, provider-shaped
   transactionId: string;
   amount: number;
   noOfItems: number;
@@ -266,10 +269,10 @@ export interface CollectionStatusResponse {
   orderReference?: string;
 }
 
-/** Poll collection status. GET /collection/status. fspId is REQUIRED. */
+/** Poll collection status. GET /collection/status. x-bridge looks the provider
+    up from its own record of the collection, so we never name one. */
 export async function collectionStatus(
   transactionId: string,
-  fspId: string,
   cfg = xbridgeConfig(),
 ): Promise<CollectionStatusResponse> {
   if (cfg.mock) {
@@ -283,6 +286,6 @@ export async function collectionStatus(
       orderReference: 'MOCK-' + transactionId,
     };
   }
-  const path = `/collection/status?transactionId=${encodeURIComponent(transactionId)}&fspId=${encodeURIComponent(fspId)}`;
+  const path = `/collection/status?transactionId=${encodeURIComponent(transactionId)}`;
   return authed(cfg, path, { method: 'GET' });
 }

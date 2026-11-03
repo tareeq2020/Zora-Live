@@ -57,7 +57,7 @@ const SECTIONS: { key: SectionKey; label: string; soon?: boolean }[] = [
   { key: 'payouts', label: 'PAYOUTS' },
   { key: 'scanner', label: 'SCANNER USERS' },
   { key: 'broadcasts', label: 'BROADCASTS', soon: true },
-  { key: 'payments', label: 'PAYMENTS ROUTING' },
+  { key: 'payments', label: 'PAYMENTS' },
   { key: 'media', label: 'MEDIA' },
   { key: 'access', label: 'ACCESS' },
 ];

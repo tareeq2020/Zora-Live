@@ -13,7 +13,7 @@ const { createHash } = require('crypto');
 const core = require(path.join(__dirname, '..', '..', 'packages', 'core', 'dist', 'index.js'));
 const {
   db, createGaVipOrder, initiatePayment, reconcile, applyOutcome, resolveTransactionId,
-  convertHolds, releaseHolds, DEFAULT_FSP_ROUTE_MAP,
+  convertHolds, releaseHolds,
   __setMockCollectionStatus, __clearMockCollectionStatus, closeDb,
 } = core;
 
@@ -24,7 +24,6 @@ function ok(cond, msg) {
 }
 
 const CALLBACK = 'http://localhost/api/webhooks/xbridge';
-const ROUTE = DEFAULT_FSP_ROUTE_MAP;
 
 async function targetValue(sql, orderId) {
   return Number((await sql`select target_value from "order" where id = ${orderId}`)[0].target_value);
@@ -69,7 +68,7 @@ async function applyWebhook(sql, rawBody) {
   });
   ok(H.ok === true, 'happy: createGaVipOrder qty 2 -> ok');
   const hTarget = await targetValue(sql, H.orderId);
-  const hInit = await initiatePayment(sql, { orderId: H.orderId, method: 'mobile', payerPhone: '0700000001', callbackUrl: CALLBACK, routeMap: ROUTE });
+  const hInit = await initiatePayment(sql, { orderId: H.orderId, method: 'mobile', payerPhone: '0700000001', callbackUrl: CALLBACK });
   ok(hInit.status === 'pending', 'happy: initiatePayment -> pending');
   ok(/^ZORA-.*-1$/.test(hInit.transactionId), 'happy: transactionId = ZORA-<order>-1 (first attempt)');
 
@@ -110,7 +109,7 @@ async function applyWebhook(sql, rawBody) {
   });
   ok(C.ok === true, '(c) fresh order qty 1 -> ok');
   const cTarget = await targetValue(sql, C.orderId);
-  const cInit = await initiatePayment(sql, { orderId: C.orderId, method: 'mobile', payerPhone: '0700000003', callbackUrl: CALLBACK, routeMap: ROUTE });
+  const cInit = await initiatePayment(sql, { orderId: C.orderId, method: 'mobile', payerPhone: '0700000003', callbackUrl: CALLBACK });
   __setMockCollectionStatus(cInit.transactionId, { status: 'COMPLETED', amount: String(cTarget), collectedAmount: String(cTarget - 1000) });
   const cOutcome = await reconcile(sql, cInit.transactionId);
   ok(cOutcome === 'short', '(c) reconcile -> short (collected < target)');
@@ -130,7 +129,7 @@ async function applyWebhook(sql, rawBody) {
   });
   ok(D.ok === true, '(d) fresh order qty 1 -> ok');
   ok((await pool(sql)).available === availBeforeD - 1, '(d) hold placed -> available -1');
-  const dInit = await initiatePayment(sql, { orderId: D.orderId, method: 'mobile', payerPhone: '0700000004', callbackUrl: CALLBACK, routeMap: ROUTE });
+  const dInit = await initiatePayment(sql, { orderId: D.orderId, method: 'mobile', payerPhone: '0700000004', callbackUrl: CALLBACK });
   __setMockCollectionStatus(dInit.transactionId, { status: 'FAILED' });
   const dOutcome = await reconcile(sql, dInit.transactionId);
   ok(dOutcome === 'failed', '(d) reconcile -> failed');
@@ -145,7 +144,7 @@ async function applyWebhook(sql, rawBody) {
   });
   ok(E.ok === true, '(e) fresh order qty 1 -> ok');
   const eTarget = await targetValue(sql, E.orderId);
-  const eInit = await initiatePayment(sql, { orderId: E.orderId, method: 'mobile', payerPhone: '0700000005', callbackUrl: CALLBACK, routeMap: ROUTE });
+  const eInit = await initiatePayment(sql, { orderId: E.orderId, method: 'mobile', payerPhone: '0700000005', callbackUrl: CALLBACK });
   // Simulate the checkout hold lapsing BEFORE settlement.
   await releaseHolds(sql, E.orderId);
   // Exhaust the remaining stock so try_reacquire cannot re-take it (a blocker order).

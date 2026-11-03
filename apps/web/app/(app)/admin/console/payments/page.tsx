@@ -1,4 +1,4 @@
-/* PR-BS89 · Control-Room console — super-admin Payments routing page. */
+/* PR-BS89 · Control-Room console — super-admin Payments page. */
 
 import AdminPaymentsClient from './payments-client';
 
