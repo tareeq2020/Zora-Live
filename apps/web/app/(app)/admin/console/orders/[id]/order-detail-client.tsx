@@ -426,7 +426,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
    in mono, one yellow accent. Works down to 390px. */
 const DETAIL_CSS = `
 .od { min-width: 0; }
-.od-crumb { font: 600 12px/1 var(--cr-mono); letter-spacing: .08em; color: var(--cr-ink2); text-decoration: none; }
+.od-crumb { display: inline-flex; align-items: center; min-height: 44px; font: 600 12px/1 var(--cr-mono); letter-spacing: .08em; color: var(--cr-ink2); text-decoration: none; }
 .od-crumb:hover { color: var(--cr-ink); }
 .od-mono { font-family: var(--cr-mono); font-size: 12px; }
 .od-wrap { overflow-wrap: anywhere; word-break: break-word; }
@@ -435,24 +435,24 @@ const DETAIL_CSS = `
 .od-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .od-head-main { min-width: 0; flex: 1 1 260px; }
 .od-head-side { display: grid; justify-items: end; gap: 8px; }
-.od-kicker { font: 600 10px/1 var(--cr-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cr-mut); }
+.od-kicker { font: 600 12px/1 var(--cr-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cr-mut); }
 .od-title { font: 700 22px/1.15 var(--cr-sans); margin: 6px 0; color: var(--cr-ink); overflow-wrap: anywhere; }
 .od-id { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font: 500 12px/1.3 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
 .od-id span { min-width: 0; overflow-wrap: anywhere; }
 .od-value { font: 600 24px/1 var(--cr-mono); color: var(--cr-ink); }
 .od-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 16px 0 0; border-top: 1px solid var(--cr-hair); }
 .od-facts > div { padding: 10px 12px 0 0; min-width: 0; }
-.od-facts dt { font: 600 10px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); margin-bottom: 6px; }
+.od-facts dt { font: 600 12px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); margin-bottom: 6px; }
 .od-facts dd { margin: 0; display: grid; gap: 2px; font-size: 14px; overflow-wrap: anywhere; }
 .od-bar { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .od-bar-s { padding: 10px 8px 8px; border-top: 4px solid var(--cr-hair); display: grid; gap: 4px; min-width: 0; }
 .od-bar-s.is-done { border-top-color: var(--cr-ink); }
 .od-bar-s.is-done[aria-current="step"] { border-top-color: var(--cr-blue); }
 .od-bar-s.is-drop { border-top-color: var(--cr-red); }
-.od-bar-n { font: 600 10px/1 var(--cr-mono); color: var(--cr-mut); }
+.od-bar-n { font: 600 12px/1 var(--cr-mono); color: var(--cr-mut); }
 .od-bar-l { font: 600 12px/1.2 var(--cr-sans); color: var(--cr-ink); }
 .od-bar-s.is-todo .od-bar-l { color: var(--cr-mut); }
-.od-bar-x { font: 600 10px/1 var(--cr-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--cr-red); }
+.od-bar-x { font: 600 12px/1 var(--cr-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--cr-red); }
 .od-durs { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); }
 .od-durs b { color: var(--cr-ink); }
 .od-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -460,15 +460,15 @@ const DETAIL_CSS = `
 .od-tl-i { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 10px 0 10px; border-top: 1px solid var(--cr-hair); position: relative; }
 .od-tl-i:first-child { border-top: 0; }
 .od-tl-t { display: grid; gap: 2px; align-content: start; color: var(--cr-ink2); }
-.od-tl-gap { font: 600 11px/1 var(--cr-mono); color: var(--cr-mut); }
+.od-tl-gap { font: 600 12px/1 var(--cr-mono); color: var(--cr-mut); }
 .od-tl-b { display: grid; gap: 3px; min-width: 0; padding-left: 12px; border-left: 2px solid var(--cr-ink); }
 .od-tl-i.is-bad .od-tl-b { border-left-color: var(--cr-red); }
 .od-tl-i.is-key .od-tl-b { border-left-color: var(--cr-blue); }
 .od-tl-l { font: 600 14px/1.25 var(--cr-sans); color: var(--cr-ink); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .od-tl-d { font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
-.od-tl-tx { font: 500 11px/1.3 var(--cr-mono); color: var(--cr-mut); overflow-wrap: anywhere; }
-.od-tag { font: 600 9px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; padding: 3px 5px; border: 1px solid var(--cr-hair); border-radius: 4px; color: var(--cr-mut); }
-.od-sub { font: 600 10px/1 var(--cr-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cr-mut); margin: 18px 0 6px; }
+.od-tl-tx { font: 500 12px/1.3 var(--cr-mono); color: var(--cr-mut); overflow-wrap: anywhere; }
+.od-tag { font: 600 12px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; padding: 3px 5px; border: 1px solid var(--cr-hair); border-radius: 4px; color: var(--cr-mut); }
+.od-sub { font: 600 12px/1 var(--cr-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cr-mut); margin: 18px 0 6px; }
 .od-rows { list-style: none; margin: 0; padding: 0; }
 .od-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--cr-hair); font-size: 13px; min-width: 0; }
 .od-rows li > span { min-width: 0; overflow-wrap: anywhere; }
