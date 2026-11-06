@@ -1,4 +1,21 @@
 /* BS153: shared formatting for the orders list and the per-cart detail page. */
+import { CART_OUTCOMES, outcomeLabel } from '@zora/core/cart-outcome';
+
+/* BS157: cart outcomes. Words and order come from @zora/core (pure module). */
+export const OUTCOME_ORDER: readonly string[] = CART_OUTCOMES;
+
+/** "Paid after retry", "Buyer didn't complete: cancelled by buyer", … */
+export function outcomeText(outcome: string, detail?: string | null): string {
+  return outcomeLabel(outcome, detail ?? null);
+}
+
+/** Chip tone: good = money in, mid = still open, alert = needs us, low = lost. */
+export function outcomeTone(outcome: string): 'good' | 'mid' | 'low' | 'alert' {
+  if (['paid', 'paid_after_retry', 'recovered', 'comp', 'door_sale'].includes(outcome)) return 'good';
+  if (outcome === 'in_progress') return 'mid';
+  if (['system_error', 'underpaid', 'paid_unseatable'].includes(outcome)) return 'alert';
+  return 'low';
+}
 
 export const STAGE_LABEL: Record<string, string> = {
   cart_created: 'Cart',

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { db, EVER_PAID_STATUSES, funnelWithDropoff, type FunnelStage } from '@zora/core';
+import { db, EVER_PAID_STATUSES, funnelWithDropoff, CART_OUTCOMES, type FunnelStage, type CartOutcome } from '@zora/core';
+import { outcomeRows } from './outcome-sql';
 import { OrgScopeService } from '../org/org-scope.service';
 
 /* BS153: GET /api/admin/funnel — where buyers drop out, platform-wide or per
@@ -11,7 +12,11 @@ import { OrgScopeService } from '../org/org-scope.service';
      · carts onwards come from the order tables, each cart counted once at the
        furthest stage it reached (the same rule as the list's stage chip, so the
        strip and the rows agree).
-   Comps and cash gate sales are not carts and are left out. */
+   Comps and cash gate sales are not carts and are left out of the stages.
+
+   BS157: `outcomes` counts every order in the window and scope by its cart
+   outcome (comps and door sales included, under their own outcome), with the
+   same SQL rules as the list's ?outcome= filter. */
 
 export const FUNNEL_DAYS = [7, 30, 90] as const;
 
@@ -116,7 +121,12 @@ export class AdminFunnelService {
        where o.created_at >= ${from.toISOString()}::timestamptz
          and o.type <> 'comp' and coalesce(o.channel, 'online') <> 'gate_cash'
          and (${scopeIds}::text[] is null or o.event_id = any(${scopeIds}))`;
-    const [topErrors, [reasons]] = await Promise.all([
+    // BS157: every order in the window + scope, by outcome.
+    const allScoped = sql`
+      select o.id from "order" o
+       where o.created_at >= ${from.toISOString()}::timestamptz
+         and (${scopeIds}::text[] is null or o.event_id = any(${scopeIds}))`;
+    const [topErrors, [reasons], outcomeCounts] = await Promise.all([
       sql`
         select pt.error, count(*)::int as attempts, max(coalesce(pt.error_at, pt.updated_at)) as last_at
           from payment_transaction pt
@@ -132,13 +142,27 @@ export class AdminFunnelService {
           (select count(*)::int from payment_transaction pt where pt.order_id in (${scoped}) and pt.status = 'failed' and pt.error is null) as failed_after_push,
           (select count(*)::int from payment_transaction pt where pt.order_id in (${scoped}) and pt.error is not null) as gateway_rejected,
           (select count(*)::int from payment_transaction pt where pt.order_id in (${scoped}) and pt.status = 'partial') as short_payments`,
+      sql`select z.outcome, z.outcome_detail, count(*)::int as n from (${outcomeRows(sql, allScoped)}) z group by 1, 2`,
     ]);
+    const outcomes = Object.fromEntries(CART_OUTCOMES.map((k) => [k, 0])) as Record<CartOutcome, number>;
+    // …and by sub-reason (e.g. buyer_didnt_complete → payer_cancelled: 4).
+    const outcomeDetails: Record<string, Record<string, number>> = {};
+    for (const r of outcomeCounts as any[]) {
+      if (!(r.outcome in outcomes)) continue;
+      outcomes[r.outcome as CartOutcome] += Number(r.n);
+      if (r.outcome_detail != null) {
+        const m = (outcomeDetails[r.outcome] ??= {});
+        m[r.outcome_detail] = (m[r.outcome_detail] ?? 0) + Number(r.n);
+      }
+    }
 
     return {
       window: { days, from: from.toISOString(), to: now.toISOString() },
       scope: { org, event },
       stages: funnelWithDropoff(counts),
       unique: { eventVisitors: traffic.event_visitors, checkoutVisitors: traffic.checkout_visitors },
+      outcomes,
+      outcomeDetails,
       dropoff: {
         topGatewayErrors: (topErrors as any[]).map((r) => ({
           error: r.error, attempts: r.attempts, lastAt: r.last_at ? new Date(r.last_at).toISOString() : null,

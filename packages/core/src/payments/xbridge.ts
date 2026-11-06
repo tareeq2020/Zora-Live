@@ -10,6 +10,8 @@
    tested fully offline. ClickPesa/Selcom creds live INSIDE the gateway, never
    here — this module only knows XBRIDGE_KEY_ID / XBRIDGE_SECRET. */
 
+import { readFileSync } from 'node:fs';
+
 const CURRENCY = 'TZS';
 
 export interface XbridgeConfig {
@@ -171,6 +173,21 @@ function mockRejection(path: string, payerPhone: string | undefined): void {
   }
 }
 
+/* BS157 test seam: in MOCK mode only, a booted API can be steered by a JSON file
+   { "<transactionId>": { "status": "FAILED", ... } } named by
+   XBRIDGE_MOCK_STATUS_FILE, read on each status call. Never active live. */
+function mockStatusFromFile(transactionId: string): CollectionStatusResponse | null {
+  const file = process.env.XBRIDGE_MOCK_STATUS_FILE;
+  if (!file) return null;
+  try {
+    const map = JSON.parse(readFileSync(file, 'utf8'));
+    const r = map?.[transactionId];
+    return r && typeof r === 'object' ? { transactionId, ...r } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Test seam: clear all forced mock statuses. */
 export function __clearMockCollectionStatus(): void {
   _mockStatus.clear();
@@ -296,7 +313,7 @@ export async function collectionStatus(
   cfg = xbridgeConfig(),
 ): Promise<CollectionStatusResponse> {
   if (cfg.mock) {
-    const forced = _mockStatus.get(transactionId);
+    const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId);
     if (forced) return forced;
     return {
       transactionId,
