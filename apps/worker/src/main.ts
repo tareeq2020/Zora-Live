@@ -79,18 +79,26 @@ async function tick(label: string, fn: (sql: any) => Promise<number>): Promise<v
 /* One in-flight guard per loop. Without it a slow tick (a gateway timing out
    mid-batch) would stack the next interval on top of it, and the "bounded batch"
    promise would quietly become "unbounded concurrent batches". */
+// BS162: timers and in-flight ticks are tracked so SIGTERM can stop cleanly.
+const timers: ReturnType<typeof setInterval>[] = [];
+let inFlight = 0;
+let stopping = false;
+
 function everyMs(ms: number, label: string, fn: (sql: any) => Promise<number>): void {
   let running = false;
-  setInterval(() => {
+  timers.push(setInterval(() => {
+    if (stopping) return;
     if (running) {
       if (DEBUG) console.log(`[worker] ${label}: still running — skipping this tick`);
       return;
     }
     running = true;
+    inFlight++;
     void tick(label, fn).finally(() => {
       running = false;
+      inFlight--;
     });
-  }, ms);
+  }, ms));
 }
 
 function startWorkers(): void {
@@ -124,19 +132,57 @@ function startWorkers(): void {
   );
 }
 
-async function main(): Promise<void> {
-  // Reserve a connection out of the pool and hold the advisory lock on it for the
-  // whole process. A reserved connection stays checked-out (never idle-reaped), so
-  // the session lock survives — releasing it (crash/exit) frees the singleton slot.
-  const lockConn = await sql.reserve();
+/* BS162: deploy hand-off. Render starts the new instance before the old one
+   stops. The old design exited when the lock was taken, which Render reported as
+   "service failed" and restarted in a loop. Now a new instance waits (standby)
+   and takes over the moment the lock frees; the old instance releases it on
+   SIGTERM instead of leaving it to linger behind the Supabase pooler. */
+const LOCK_RETRY_MS = intervalMs('WORKER_LOCK_RETRY_MS', 10_000, 200);
+const SHUTDOWN_WAIT_MS = 20_000; // Render waits ~30 s after SIGTERM before killing
+
+let lockConn: any = null;
+let ownsLock = false;
+
+async function tryLock(): Promise<boolean> {
   const [{ locked }] = await lockConn`select pg_try_advisory_lock(${WORKER_LOCK_KEY}) as locked`;
-  if (!locked) {
-    console.log('[worker] another worker holds the lock — exiting');
-    lockConn.release();
-    await sql.end({ timeout: 5 });
-    process.exit(0);
+  return !!locked;
+}
+
+async function shutdown(signal: string): Promise<void> {
+  if (stopping) return;
+  stopping = true;
+  timers.forEach(clearInterval);
+  const until = Date.now() + SHUTDOWN_WAIT_MS;
+  while (inFlight > 0 && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
+  try {
+    if (ownsLock && lockConn) await lockConn`select pg_advisory_unlock(${WORKER_LOCK_KEY})`;
+  } catch (e) {
+    console.error('[worker] lock release failed (it frees when the connection closes)', e);
   }
-  console.log('[worker] advisory lock acquired — this instance owns the loops');
+  try { lockConn?.release(); } catch { /* already released */ }
+  await sql.end({ timeout: 5 }).catch(() => {});
+  console.log(`[worker] ${signal}: stopped cleanly${ownsLock ? ', lock released' : ''}${inFlight ? ` (${inFlight} tick(s) cut short)` : ''}`);
+  process.exit(0);
+}
+
+async function main(): Promise<void> {
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  // Reserve a connection and hold the session advisory lock on it for the whole
+  // process. A reserved connection stays checked out (never idle-reaped).
+  lockConn = await sql.reserve();
+  let waitingSince: number | null = null;
+  while (!stopping && !(await tryLock())) {
+    if (waitingSince == null) {
+      waitingSince = Date.now();
+      console.log('[worker] standby: another worker holds the lock, waiting to take over');
+    }
+    await new Promise((r) => setTimeout(r, LOCK_RETRY_MS));
+  }
+  if (stopping) return;
+  ownsLock = true;
+  const waited = waitingSince == null ? '' : ` after ${Math.round((Date.now() - waitingSince) / 1000)}s in standby`;
+  console.log(`[worker] advisory lock acquired${waited} — this instance owns the loops`);
   logSmsStartup(); // BS58: one-line SMS config check — the worker sends ticket SMS
   startWorkers();
 }
