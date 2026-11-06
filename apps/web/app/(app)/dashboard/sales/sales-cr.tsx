@@ -31,6 +31,8 @@ import '../components/org-surfaces.css';
 
 const ORG_BRAND = { name: (<>z<span className="cr-o">o</span>ra</>), sublabel: 'Organizer' };
 import SplitsWorklist from './splits-worklist';
+// BS160: funnel strip, outcome breakdown and the per-order outcome chip.
+import { SalesFunnel, OutcomeChip } from './outcomes';
 
 // ── Response types (local, from the API contract — do NOT invent backend) ──
 type Totals = {
@@ -42,6 +44,7 @@ type Summary = { totals: Totals; events: SummaryEvent[] };
 type OrderRow = {
   orderId: string; eventId: string; eventName: string; tier: string; qty: number; amount: number; currency: string;
   status: string; buyer: { phone?: string; email?: string }; credentials: string[]; createdAt: string;
+  outcome?: string; outcomeLabel?: string; outcomeDetail?: string | null; stageReached?: string;
 };
 type EventMeta = { id: string; name: string; tiers?: { tierId?: string; name: string }[] };
 
@@ -76,6 +79,7 @@ export default function SalesCr() {
   const [eventId, setEventId] = useState('');
   const [tier, setTier] = useState('');
   const [status, setStatus] = useState('all');
+  const [outcome, setOutcome] = useState('');
   const [qInput, setQInput] = useState('');
   const [q, setQ] = useState('');
   const [from, setFrom] = useState('');
@@ -107,13 +111,14 @@ export default function SalesCr() {
     if (eventId) p.set('eventId', eventId);
     if (tier) p.set('tier', tier);
     if (status && status !== 'all') p.set('status', status);
+    if (outcome) p.set('outcome', outcome);
     if (q) p.set('q', q);
     if (from) p.set('from', new Date(from + 'T00:00:00').toISOString());
     if (to) p.set('to', new Date(to + 'T23:59:59').toISOString());
     p.set('limit', String(PAGE_SIZE));
     if (cursor) p.set('cursor', cursor);
     return p.toString();
-  }, [eventId, tier, status, q, from, to]);
+  }, [eventId, tier, status, outcome, q, from, to]);
 
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -166,7 +171,7 @@ export default function SalesCr() {
     setTier('');
   }
   function clearFilters() {
-    setEventId(''); setTier(''); setStatus('all'); setQInput(''); setQ(''); setFrom(''); setTo('');
+    setEventId(''); setTier(''); setStatus('all'); setOutcome(''); setQInput(''); setQ(''); setFrom(''); setTo('');
   }
 
   // Resend a single order's tickets.
@@ -216,16 +221,23 @@ export default function SalesCr() {
   const events = summary?.events ?? [];
   const selectedEvent = eventId ? events.find((e) => e.id === eventId) : null;
   const tierOptions = eventId ? (eventsMeta.find((e) => e.id === eventId)?.tiers ?? []) : [];
-  const filtersActive = !!(eventId || tier || (status && status !== 'all') || q || from || to);
+  const filtersActive = !!(eventId || tier || (status && status !== 'all') || outcome || q || from || to);
   const hasMore = !!nextCursor;
   const shownPaid = orders ? orders.filter((o) => (o.status || '').toLowerCase() === 'paid').length : 0;
 
   const orderCols: Column<OrderRow>[] = [
-    { key: 'orderId', header: 'Order', primary: true, render: (o) => o.orderId },
+    {
+      key: 'orderId', header: 'Order', primary: true,
+      render: (o) => <Link className="of-link" href={`/dashboard/sales/${encodeURIComponent(o.orderId)}`} aria-label={`Order ${o.orderId}: details`}>{o.orderId.slice(0, 8)}</Link>,
+    },
     { key: 'event', header: 'Event', render: (o) => o.eventName },
     { key: 'tier', header: 'Tier × Qty', render: (o) => `${o.tier} × ${fmt(o.qty)}` },
     { key: 'amount', header: 'Amount', numeric: true, render: (o) => money(o.amount, o.currency) },
     { key: 'status', header: 'Status', render: (o) => <StatusPill tone={toneForStatus(o.status)} label={o.status || '—'} /> },
+    {
+      key: 'outcome', header: 'Outcome',
+      render: (o) => (o.outcome ? <OutcomeChip outcome={o.outcome} label={o.outcomeLabel ?? o.outcome} /> : <span className="org-muted">—</span>),
+    },
     {
       key: 'buyer',
       header: 'Buyer',
@@ -379,6 +391,13 @@ export default function SalesCr() {
             ))}
           </div>
         ) : null}
+
+        {/* BS160: funnel + outcome breakdown; an outcome filters the orders below. */}
+        <SalesFunnel
+          eventId={eventId}
+          outcome={outcome}
+          onPick={(k, fromDay) => { setOutcome(k); setFrom(k && fromDay ? fromDay : ''); }}
+        />
 
         {/* ③ orders table + filters */}
         <section className="cr-panel">

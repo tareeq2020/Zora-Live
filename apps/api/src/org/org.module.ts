@@ -14,6 +14,10 @@ import { OrgTicketDesignController } from './org-ticket-design.controller';
 import { OrgInstallmentsController } from './org-installments.controller';
 import { AdminInstallmentsController } from './admin-installments.controller';
 import { TicketsModule } from '../tickets/tickets.module';
+import { OrgFunnelController } from './org-funnel.controller';
+import { OrgFunnelService } from './org-funnel.service';
+// BS160: the org funnel reuses the admin stage counts, scoped to the org.
+import { AdminFunnelService } from '../admin-orders/admin-funnel.service';
 
 /* org module — the org-scoping spine. MT1 registers the shared services
    (OrgScopeService, EventProvisioningService) + GET /api/org/me. MT2 (events
@@ -26,9 +30,9 @@ import { TicketsModule } from '../tickets/tickets.module';
    controller here that is deliberately UNGUARDED — you cannot require an
    organizer session on the endpoint that creates one. */
 @Module({
-  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController, AdminOrganizersController, OrgMembersController, OrgInvitesController, OrgTicketDesignController, OrgInstallmentsController, AdminInstallmentsController],
+  controllers: [OrgRegisterController, OrgController, OrgEventsController, OrgSalesController, AdminAnalyticsController, AdminOrganizersController, OrgMembersController, OrgInvitesController, OrgTicketDesignController, OrgInstallmentsController, AdminInstallmentsController, OrgFunnelController],
   imports: [TicketsModule],
-  providers: [OrgScopeService, EventProvisioningService, OrgSalesService],
+  providers: [OrgScopeService, EventProvisioningService, OrgSalesService, OrgFunnelService, AdminFunnelService],
   exports: [OrgScopeService, EventProvisioningService, OrgSalesService],
 })
 export class OrgModule {}

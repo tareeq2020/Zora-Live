@@ -280,3 +280,9 @@ export {
 export type {
   InstallmentOfferView, InstallmentQuoteResult, InstallmentPayView, QuoteLine, CustomerInstallmentRow,
 } from './payments/installments-buyer';
+// BS160: the organizer's lighter view of a cart (outcome words, short timeline).
+export {
+  ORG_SYSTEM_ERROR_LABEL, ORG_FUNNEL_STAGES, ORG_TIMELINE_STEPS, organizerOutcome, organizerExplanation,
+  organizerStage, organizerTimeline, attemptFailureLabel,
+} from './org-order-view';
+export type { OrgOutcome, OrgTimelineEntry, OrgTimelineAttempt } from './org-order-view';
