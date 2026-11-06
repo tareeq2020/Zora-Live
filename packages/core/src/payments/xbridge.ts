@@ -154,6 +154,23 @@ export function __setMockCollectionStatus(
   _mockStatus.set(transactionId, { transactionId, ...resp });
 }
 
+/* BS153 test seam: in MOCK mode only, refuse collections for one payer number
+   the way the live gateway does ("x-bridge /collection/mobile failed: 400 ...").
+   Set in-process with __setMockReject, or for a booted API with
+   XBRIDGE_MOCK_REJECT_PHONE (digits; matched on the last 9). Never active live. */
+let _mockRejectPhone: string | null = null;
+export function __setMockReject(phone: string | null): void {
+  _mockRejectPhone = phone;
+}
+const MOCK_REJECT_BODY = '{"message":"Credentials for GODIGITAL not found"}';
+function mockRejection(path: string, payerPhone: string | undefined): void {
+  const want = String(_mockRejectPhone ?? process.env.XBRIDGE_MOCK_REJECT_PHONE ?? '').replace(/\D/g, '').slice(-9);
+  const got = String(payerPhone ?? '').replace(/\D/g, '').slice(-9);
+  if (want && got && want === got) {
+    throw new Error(`x-bridge ${path} failed: 400 ${process.env.XBRIDGE_MOCK_REJECT_BODY || MOCK_REJECT_BODY}`);
+  }
+}
+
 /** Test seam: clear all forced mock statuses. */
 export function __clearMockCollectionStatus(): void {
   _mockStatus.clear();
@@ -178,6 +195,7 @@ export interface CollectMobileResponse {
     and fails when that provider isn't connected for us ("Credentials for X not found"). */
 export async function collectMobile(input: CollectMobileInput, cfg = xbridgeConfig()): Promise<CollectMobileResponse> {
   if (cfg.mock) {
+    mockRejection('/collection/mobile', input.payerPhone);
     const m = mockCollect(input.transactionId);
     return { orderReference: m.orderReference, gatewayResponse: m.gatewayResponse };
   }
@@ -214,6 +232,7 @@ export interface CollectBillPayResponse {
 /** Bill-pay / control-number collection. POST /collection/billpay. */
 export async function collectBillPay(input: CollectBillPayInput, cfg = xbridgeConfig()): Promise<CollectBillPayResponse> {
   if (cfg.mock) {
+    mockRejection('/collection/billpay', input.payerPhone);
     const m = mockCollect(input.transactionId);
     return { billPayNumber: m.billPayNumber, orderReference: m.orderReference };
   }
@@ -252,6 +271,7 @@ export interface CollectCardResponse {
 /** Card / hosted-checkout collection. POST /collection/card. */
 export async function collectCard(input: CollectCardInput, cfg = xbridgeConfig()): Promise<CollectCardResponse> {
   if (cfg.mock) {
+    mockRejection('/collection/card', input.buyer?.phone);
     const m = mockCollect(input.transactionId);
     return { paymentGatewayUrl: m.paymentGatewayUrl, orderReference: m.orderReference };
   }

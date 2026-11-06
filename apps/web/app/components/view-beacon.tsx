@@ -39,9 +39,11 @@ function firstTouch(): { referrer: string | null; utm: string | null } {
   }
 }
 
-export default function ViewBeacon({ kind, org, event }: { kind: 'storefront' | 'event'; org?: string | null; event?: string | null }) {
-  useEffect(() => {
+/** Send one aggregate beacon. Never throws; a missing org/event is a no-op. */
+export function sendBeacon(kind: 'storefront' | 'event' | 'checkout', org?: string | null, event?: string | null): void {
+  try {
     if (!org) return;
+    if (kind !== 'storefront' && !event) return;
     const id = anonId();
     if (!id) return;
     const body = JSON.stringify({ kind, org, event: event ?? null, anonId: id, ...firstTouch() });
@@ -49,6 +51,17 @@ export default function ViewBeacon({ kind, org, event }: { kind: 'storefront' | 
       if (navigator.sendBeacon && navigator.sendBeacon('/api/v/track', new Blob([body], { type: 'application/json' }))) return;
     } catch { /* fall through */ }
     fetch('/api/v/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  } catch { /* analytics never breaks checkout */ }
+}
+
+/** BS153: the checkout sheet opened — counted per day/org/event, like a view. */
+export function sendCheckoutBeacon(org?: string | null, event?: string | null): void {
+  sendBeacon('checkout', org, event);
+}
+
+export default function ViewBeacon({ kind, org, event }: { kind: 'storefront' | 'event'; org?: string | null; event?: string | null }) {
+  useEffect(() => {
+    sendBeacon(kind, org, event);
   }, [kind, org, event]);
   return null;
 }

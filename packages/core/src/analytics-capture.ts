@@ -60,7 +60,8 @@ export function visitorHash(secret: string, day: string, anonId: string): string
 export interface RecordViewInput {
   org: string;
   event?: string | null;
-  kind: 'storefront' | 'event';
+  /** BS153: 'checkout' = the checkout sheet opened (aggregate only, like views). */
+  kind: 'storefront' | 'event' | 'checkout';
   anonId: string;
   referrer?: string | null;
   utmSource?: string | null;
@@ -76,16 +77,18 @@ export async function recordView(sql: Sql, input: RecordViewInput): Promise<bool
   if (isBotUserAgent(input.userAgent)) return false;
   if (!SAFE_ID.test(input.org)) return false;
   const event = input.event && SAFE_ID.test(input.event) ? input.event : '';
-  if (input.kind !== 'storefront' && input.kind !== 'event') return false;
-  if (input.kind === 'event' && !event) return false;
+  if (input.kind !== 'storefront' && input.kind !== 'event' && input.kind !== 'checkout') return false;
+  if ((input.kind === 'event' || input.kind === 'checkout') && !event) return false;
   if (!input.anonId || input.anonId.length > 100) return false;
   const day = dayString(input.now ?? new Date());
   const source = classifySource(input.referrer, input.utmSource);
   const hash = visitorHash(input.secret, day, input.anonId);
+  // Checkout opens dedupe separately from page views of the same event.
+  const dedupeKey = input.kind === 'checkout' ? `checkout:${event}` : event;
   await sql.begin(async (t: Sql) => {
     const ins = await t`
       insert into analytics_visitor_day (day, org_handle, event_id, visitor_hash)
-      values (${day}, ${input.org}, ${event}, ${hash}) on conflict do nothing`;
+      values (${day}, ${input.org}, ${dedupeKey}, ${hash}) on conflict do nothing`;
     const newVisitor = Number(ins.count ?? 0) > 0 ? 1 : 0;
     await t`
       insert into analytics_daily (day, org_handle, event_id, kind, source, views, visitors)

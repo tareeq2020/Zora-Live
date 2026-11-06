@@ -30,7 +30,7 @@ export type { PaymentMethod } from './payments/fsp';
 export {
   xbridgeConfig, normalizeMsisdn, cardCheckoutUrl,
   collectMobile, collectBillPay, collectCard, collectionStatus, BILLPAY_CONNECTION,
-  __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus,
+  __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus, __setMockReject,
 } from './payments/xbridge';
 export type {
   XbridgeConfig,
@@ -75,6 +75,14 @@ export type { OrderStatus, OrderStatusTraits } from './order-status';
 // BS35: the debit side — refunded money leaves the organizer's earnings (OV1).
 export { refundOrder, REFUNDABLE_ORDER_STATUSES } from './refunds';
 export type { RefundOrderResult } from './refunds';
+// BS153: the per-order funnel log (write side) and the funnel read rules (pure).
+export { logOrderEvent, sanitizeGatewayError, recordGatewayRejection, logCallbackReceived } from './order-events';
+export type { OrderStep } from './order-events';
+export {
+  FUNNEL_STAGES, ORDER_STAGES, STEP_LABELS, attemptAccepted, orderStageReached,
+  buildTimeline, timelineDurations, funnelWithDropoff,
+} from './order-funnel';
+export type { FunnelStage, OrderStage, TimelineEntry, RawEntry } from './order-funnel';
 // BS38: the ONE earnings read (net of the stamped commission, net of refunds),
 // shared by the sales summary and the payout balance so they cannot drift.
 export {

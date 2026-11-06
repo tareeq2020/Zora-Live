@@ -1,7 +1,8 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
 import { AdminOrdersService } from './admin-orders.service';
+import { AdminFunnelService } from './admin-funnel.service';
 
 /* /api/admin/orders (BS43 / plan #3) — support's window into EVERY order.
 
@@ -54,6 +55,35 @@ export class AdminOrdersController {
       limit: Number.isFinite(parsedLimit) ? parsedLimit : null,
       cursor: cursor || null,
       days: Number.isFinite(parsedDays) ? parsedDays : null,
+    });
+  }
+
+  /** BS153: GET /api/admin/orders/:id — one cart inside out: attempts with their
+      gateway refs and errors, passes, check-ins, and the step-by-step timeline
+      (logged events merged with ones derived from the tables for old orders).
+      Declared after `filters` so that path still wins. */
+  @Get(':id')
+  async detail(@Param('id') id: string) {
+    const order = await this.orders.detail(id);
+    if (!order) throw new NotFoundException({ error: 'order_not_found' });
+    return order;
+  }
+}
+
+/* BS153: GET /api/admin/funnel?days=7|30|90&org=&event= — stage counts with the
+   drop-off between each, plus the top reasons carts did not pay. Same guard. */
+@Roles('super_admin')
+@Controller('admin/funnel')
+@UseGuards(SessionGuard)
+export class AdminFunnelController {
+  constructor(private readonly funnel: AdminFunnelService) {}
+
+  @Get()
+  async get(@Query('days') days?: string, @Query('org') org?: string, @Query('event') event?: string) {
+    return this.funnel.funnel({
+      days: days ? parseInt(days, 10) : null,
+      org: org && org !== 'all' ? org : null,
+      event: event && event !== 'all' ? event : null,
     });
   }
 }
