@@ -105,7 +105,7 @@ export default function OrderDetail({ orderId }: { orderId: string }) {
                 </div>
               </div>
               <div className="of-explain">
-                <OutcomeChip outcome={order.outcome} label={order.outcomeLabel} />
+                <OutcomeChip outcome={order.outcome} label={order.outcomeLabel} withNote={false} />
                 <p style={{ margin: '12px 0 0' }}>{order.outcomeExplanation}</p>
               </div>
               {order.credentials?.length ? (
