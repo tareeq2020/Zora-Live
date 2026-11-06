@@ -39,6 +39,8 @@ import { trackProductEvent } from './product-analytics';
 import { sendCheckoutBeacon } from './view-beacon';
 import { stockStatus } from './event-card';
 import type { CheckoutFlowProps, CheckoutTier } from './checkout-types';
+import PhoneField from './phone-field';
+import { groupNational, networkFromNumber } from './phone';
 import { dayLabel, ruleText, type InstallmentQuote, type ScheduleRow } from '../lib/installments';
 
 type Step = 'passes' | 'details' | 'poll' | 'done';
@@ -82,36 +84,10 @@ const COPY = {
 const fmt = (n: number) => n.toLocaleString('en-US');
 const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
 
-/* Mobile-money network from a Tanzanian number (the 9 digits after +255). The
-   result is only the routing hint the pay call already takes as `mno` (same ids
-   v1's picker sent: VODACOM / TIGO / AIRTEL / HALOTEL); an unknown prefix sends
-   none and the route map's default applies. */
-const PREFIX_MNO: Record<string, { id: string; name: string }> = {
-  '74': { id: 'VODACOM', name: 'Vodacom' },
-  '75': { id: 'VODACOM', name: 'Vodacom' },
-  '76': { id: 'VODACOM', name: 'Vodacom' },
-  '65': { id: 'TIGO', name: 'Yas' },
-  '67': { id: 'TIGO', name: 'Yas' },
-  '71': { id: 'TIGO', name: 'Yas' },
-  '77': { id: 'TIGO', name: 'Yas' },
-  '68': { id: 'AIRTEL', name: 'Airtel' },
-  '69': { id: 'AIRTEL', name: 'Airtel' },
-  '78': { id: 'AIRTEL', name: 'Airtel' },
-  '61': { id: 'HALOTEL', name: 'Halotel' },
-  '62': { id: 'HALOTEL', name: 'Halotel' },
-};
-export function networkFromNumber(local9: string): { id: string; name: string } | null {
-  return local9.length >= 2 ? PREFIX_MNO[local9.slice(0, 2)] || null : null;
-}
+// BS161: moved to ./phone; re-exported so existing imports keep working.
+export { networkFromNumber };
 
-/** Keep the 9 local digits: drop non-digits, a leading 255 or 0. */
-function localDigits(raw: string): string {
-  let d = raw.replace(/\D/g, '');
-  if (d.startsWith('255')) d = d.slice(3);
-  if (d.startsWith('0')) d = d.slice(1);
-  return d.slice(0, 9);
-}
-const groupPhone = (d: string) => [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)].filter(Boolean).join(' ');
+const groupPhone = (d: string) => groupNational(d);
 
 function useCountdown(iso?: string): number | null {
   const [left, setLeft] = useState<number | null>(null);
@@ -823,23 +799,7 @@ export default function CheckoutFlowV2({
                   <span>YOUR NAME</span>
                   <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
                 </label>
-                <label className="zc2-field">
-                  <span>PHONE</span>
-                  <span className="zc2-tel">
-                    <span className="zc2-cc" aria-hidden="true">
-                      +255
-                    </span>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel-national"
-                      aria-label="Phone number, after +255"
-                      placeholder="712 345 678"
-                      value={groupPhone(phone)}
-                      onChange={(e) => setPhone(localDigits(e.target.value))}
-                    />
-                  </span>
-                </label>
+                <PhoneField className="zc2-phone" label="PHONE" value={phone} onChange={(v) => setPhone(v.national)} />
                 <label className="zc2-field zc2-span2">
                   <span>EMAIL</span>
                   <input type="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -1301,6 +1261,8 @@ const STYLE = `
 .zc2 .zc2-fields{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:680px){.zc2 .zc2-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.zc2 .zc2-span2{grid-column:1 / -1}}
 .zc2 .zc2-field{display:flex;flex-direction:column;gap:6px}
+.zc2 .zc2-phone{margin-top:0}
+.zc2 .zc2-phone .zph-lab{margin-bottom:6px;color:inherit}
 .zc2 .zc2-field > span:first-child{font-family:var(--mono);font-size:12px;letter-spacing:.12em}
 .zc2 .zc2-field input{height:48px;border-radius:12px;border:2px solid var(--line);background:var(--wh);padding:0 14px;font-size:16px;font-family:var(--sans);color:var(--bk);width:100%}
 .zc2 .zc2-field input:focus{border-color:var(--bk);outline:3px solid var(--bk);outline-offset:2px}
