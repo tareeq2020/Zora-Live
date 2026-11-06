@@ -113,7 +113,7 @@ function ScannerInner() {
         <span>
           {a.name}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{a.contact}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{a.contact}</span>
         </span>
       ),
     },
@@ -173,18 +173,18 @@ function ScannerInner() {
                 border: '1px solid ' + (r.master ? 'var(--cr-blue)' : 'var(--cr-hair)'),
                 borderRadius: 12,
                 padding: 14,
-                background: r.master ? 'var(--cr-wash-blue)' : 'var(--cr-card)',
+                background: r.master ? 'var(--cr-card2)' : 'var(--cr-card)',
               }}
             >
               <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{r.title}</p>
-              <p style={{ margin: '4px 0 10px', fontFamily: 'var(--cr-mono)', fontSize: 9.5, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>{r.tag}</p>
+              <p style={{ margin: '4px 0 10px', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>{r.tag}</p>
               <ul style={{ margin: 0, paddingLeft: 16, display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--cr-ink2)' }}>
                 {r.items.map((i) =>
                   typeof i === 'string' ? (
                     <li key={i}>{i}</li>
                   ) : (
                     <li key={i[0] + i[1]}>
-                      <b style={{ color: 'var(--cr-amber)' }}>{i[0]}</b>
+                      <b style={{ color: 'var(--cr-red)' }}>{i[0]}</b>
                       {i[1]}
                     </li>
                   ),

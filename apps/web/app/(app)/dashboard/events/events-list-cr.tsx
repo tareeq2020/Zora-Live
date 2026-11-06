@@ -27,18 +27,20 @@ type OrgEvent = {
 
 const CSS = `
 .ev-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.ev-h1{font-family:var(--cr-sans);font-size:22px;font-weight:600;color:var(--cr-ink);letter-spacing:-.01em}
-.ev-sub{font-size:13px;color:var(--cr-ink2);margin-top:2px}
-.ev-new{display:inline-flex;align-items:center;min-height:40px;padding:0 18px;border-radius:10px;background:var(--cr-blue);color:#fff;font-family:var(--cr-mono);font-size:11px;font-weight:600;letter-spacing:.12em;white-space:nowrap}
-.ev-new:hover{background:color-mix(in srgb,var(--cr-blue) 84%,#000)}
-.ev-msg{padding:10px 14px;border-radius:10px;font-size:13px}
-.ev-msg.ok{background:color-mix(in srgb,var(--cr-green) 12%,transparent);color:var(--cr-green);border:1px solid color-mix(in srgb,var(--cr-green) 30%,transparent)}
-.ev-msg.err{background:color-mix(in srgb,var(--cr-red) 12%,transparent);color:var(--cr-red);border:1px solid color-mix(in srgb,var(--cr-red) 30%,transparent)}
+.ev-h1{font-family:var(--cr-sans);font-size:32px;font-weight:700;line-height:1.08;color:var(--cr-ink);letter-spacing:-.02em}
+@media(max-width:640px){.ev-h1{font-size:24px}}
+.ev-sub{font-size:16px;color:var(--cr-ink2);margin-top:8px}
+.ev-new{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:16px;background:var(--cr-primary-bg);color:var(--cr-primary-fg);font-family:var(--cr-sans);font-size:15px;font-weight:700;white-space:nowrap;text-decoration:none}
+.ev-new:hover{filter:brightness(.96)}
+@media(max-width:640px){.ev-new{width:100%}}
+.ev-msg{padding:12px 16px;border-radius:12px;font-size:15px;background:var(--cr-card);border:1px solid var(--cr-hair);border-left-width:4px}
+.ev-msg.ok{color:var(--cr-green);border-left-color:var(--cr-green-fill)}
+.ev-msg.err{color:var(--cr-red);border-left-color:var(--cr-red-fill)}
 .ev-actions{display:inline-flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
-.ev-btn{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--cr-hair);background:var(--cr-card);color:var(--cr-ink);font-family:var(--cr-mono);font-size:11px;letter-spacing:.06em;cursor:pointer}
-.ev-btn:hover{border-color:color-mix(in srgb,var(--cr-blue) 40%,var(--cr-hair))}
+.ev-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:12px;border:2px solid var(--cr-line-strong);background:transparent;color:var(--cr-ink);font-family:var(--cr-sans);font-size:14px;font-weight:700;cursor:pointer;text-decoration:none}
+.ev-btn:hover{background:var(--cr-card2)}
 .ev-btn:disabled{opacity:.5;cursor:wait}
-.ev-btn.ev-danger{color:var(--cr-red);border-color:color-mix(in srgb,var(--cr-red) 34%,var(--cr-hair))}
+.ev-btn.ev-danger{color:var(--cr-red);border-color:var(--cr-red-fill)}
 `;
 
 export function EventsListClient() {

@@ -49,17 +49,21 @@ export function ConsoleToastProvider({ children }: { children: ReactNode }) {
             zIndex: 60,
             margin: 0,
             maxWidth: 'min(92vw, 520px)',
-            padding: '11px 18px',
-            borderRadius: 10,
-            border: '1px solid ' + (toast.err ? 'var(--cr-red)' : 'var(--cr-hair)'),
-            background: toast.err ? 'var(--cr-wash-red)' : 'var(--cr-card)',
-            color: toast.err ? 'var(--cr-on-wash-red)' : 'var(--cr-ink)',
-            boxShadow: 'var(--cr-shadow)',
+            // handoff toast: dark surface, bone text, 48px, green/red left bar
+            minHeight: 48,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            borderRadius: 12,
+            border: 'none',
+            borderLeft: '4px solid ' + (toast.err ? 'var(--cr-red-fill)' : 'var(--cr-green-fill)'),
+            background: '#111111',
+            color: '#F7F5EE',
             fontFamily: 'var(--cr-mono)',
-            fontSize: 11.5,
-            fontWeight: 600,
+            fontSize: 13,
+            fontWeight: 500,
             letterSpacing: '0.08em',
-            textAlign: 'center',
+            textAlign: 'left',
           }}
         >
           {toast.text}
@@ -77,7 +81,7 @@ export function CrField({ label, htmlFor, children, style }: { label: ReactNode;
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, ...style }}>
       <label
         htmlFor={htmlFor}
-        style={{ fontFamily: 'var(--cr-mono)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--cr-mut)' }}
+        style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--cr-mut)' }}
       >
         {label}
       </label>
@@ -93,7 +97,7 @@ export function CrSectionHead({ title, hint }: { title: string; hint?: ReactNode
       <h2 className="cr-section-h" style={{ margin: 0 }}>
         {title}
       </h2>
-      {hint ? <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--cr-ink2)', maxWidth: 760 }}>{hint}</p> : null}
+      {hint ? <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.4, color: 'var(--cr-ink2)', maxWidth: 760 }}>{hint}</p> : null}
     </div>
   );
 }
@@ -104,24 +108,24 @@ export function CrMeta({ rows }: { rows: [string, ReactNode][] }) {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, margin: '4px 0 16px' }}>
       {rows.map(([k, v]) => (
         <div key={k}>
-          <p style={{ margin: 0, fontFamily: 'var(--cr-mono)', fontSize: 9.5, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--cr-mut)' }}>{k}</p>
-          <p style={{ margin: '3px 0 0', fontSize: 13.5, color: 'var(--cr-ink)', wordBreak: 'break-word' }}>{v}</p>
+          <p style={{ margin: 0, fontFamily: 'var(--cr-mono)', fontSize: 12, fontWeight: 600, letterSpacing: '0.12em', color: 'var(--cr-mut)' }}>{k}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 15, color: 'var(--cr-ink)', overflowWrap: 'anywhere' }}>{v}</p>
         </div>
       ))}
     </div>
   );
 }
 
-/** A primary (accent) button variant — CR btn base + a blue fill. */
+/** Primary button (handoff §1): black block + yellow label; yellow + black on dark. */
 export const crPrimaryBtn: React.CSSProperties = {
-  background: 'var(--cr-blue)',
-  borderColor: 'var(--cr-blue)',
-  color: '#fff',
+  background: 'var(--cr-primary-bg)',
+  borderColor: 'var(--cr-primary-bg)',
+  color: 'var(--cr-primary-fg)',
 };
 
-/** A danger button variant. */
+/** Danger button (handoff §1): alert red fill, white label (6.6:1). */
 export const crDangerBtn: React.CSSProperties = {
-  background: 'var(--cr-wash-red)',
-  borderColor: 'var(--cr-red)',
-  color: 'var(--cr-on-wash-red)',
+  background: 'var(--cr-red-fill)',
+  borderColor: 'var(--cr-red-fill)',
+  color: 'var(--cr-on-state)',
 };

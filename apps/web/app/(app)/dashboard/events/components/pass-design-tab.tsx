@@ -418,7 +418,7 @@ const STYLE = `
 .zp-pd .pd-sw{width:48px;height:48px;border-radius:12px;border:1px solid var(--pd-line);cursor:pointer}
 .zp-pd .pd-sw.on{border:3px solid var(--pd-ink)}
 .zp-pd .pd-hex{display:flex;flex-direction:column;gap:4px;margin-left:12px}
-.zp-pd .pd-hex span{font-family:var(--zp-font-mono);font-size:11px;letter-spacing:.12em}
+.zp-pd .pd-hex span{font-family:var(--zp-font-mono);font-size:12px;letter-spacing:.12em}
 .zp-pd .pd-hex input{height:44px;width:120px;border-radius:12px;border:2px solid var(--pd-line);padding:0 12px;font-family:var(--zp-font-mono);font-size:16px;background:var(--pd-card);color:var(--pd-ink)}
 .zp-pd .pd-hex input[aria-invalid="true"]{border-color:#B42318}
 .zp-pd .pd-hint{font-size:13px;color:#3A3A3A;max-width:200px}

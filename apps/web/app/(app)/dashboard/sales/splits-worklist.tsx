@@ -30,38 +30,38 @@ export default function SplitsWorklist() {
   return (
     <div style={{ margin: '18px 0 8px', fontFamily: "var(--zp-font-family-sans)" }}>
       {data.refundPending.length ? (
-        <div style={{ background: '#FBEAE1', border: '1px solid #f0c3ad', borderRadius: 14, padding: 16, marginBottom: 14 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, color: '#D85A30', display: 'flex', gap: 8, alignItems: 'center', margin: 0 }}>⚠ Needs a manual refund</p>
-          <p style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10.5, color: '#8a5a44', letterSpacing: '.03em', margin: '5px 0 0', lineHeight: 1.6 }}>
+        <div style={{ background: 'var(--cr-card)', border: '1px solid var(--cr-hair)', borderLeft: '4px solid var(--cr-red-fill)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+          <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--cr-red)', display: 'flex', gap: 8, alignItems: 'center', margin: 0 }}>⚠ Needs a manual refund</p>
+          <p style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)', letterSpacing: '.03em', margin: '5px 0 0', lineHeight: 1.6 }}>
             These tables took money but didn't fill before the hold ran out. Refund each guest within 24 hours — the seats stay held out of sale until you do (money is never resold out from under a guest).
           </p>
           {data.refundPending.map((s) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', background: '#fff', border: '1px solid #f0c3ad', borderRadius: 10, marginTop: 11 }}>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', background: 'var(--cr-card)', border: '1px solid var(--cr-hair)', borderRadius: 12, marginTop: 11 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13.5 }}>Table · {s.hostName || 'host'}</div>
-                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: '#8a877e', marginTop: 2 }}>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>Table · {s.hostName || 'host'}</div>
+                <div style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)', marginTop: 2 }}>
                   {s.paidCount}/{s.capacityN} PAID · {fmt(s.collected)} TZS COLLECTED
                 </div>
               </div>
-              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 9.5, letterSpacing: '.08em', color: '#D85A30', border: '1px solid #f0c3ad', borderRadius: 8, padding: '6px 10px' }}>REFUND BY HAND</span>
+              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '.08em', color: 'var(--cr-on-state)', background: 'var(--cr-red-fill)', borderRadius: 999, padding: '6px 12px' }}>REFUND BY HAND</span>
             </div>
           ))}
         </div>
       ) : null}
 
       {data.forming.length ? (
-        <div style={{ background: '#FBF9F4', border: '1px solid #DDD8CB', borderRadius: 14, padding: 16 }}>
-          <p style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10.5, letterSpacing: '.24em', color: '#8A877E', margin: '0 0 10px' }}>▸ SPLITS IN PROGRESS</p>
+        <div style={{ background: 'var(--cr-card)', border: '1px solid var(--cr-hair)', borderRadius: 14, padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '.12em', color: 'var(--cr-mut)', margin: '0 0 10px' }}>▸ SPLITS IN PROGRESS</p>
           {data.forming.map((s) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#fff', border: '1px solid #DDD8CB', borderRadius: 10, marginBottom: 8 }}>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--cr-card)', border: '1px solid var(--cr-hair)', borderRadius: 10, marginBottom: 8 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13.5 }}>Table · {s.hostName || 'host'}</div>
-                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: '#8a877e', marginTop: 2 }}>{s.paidCount}/{s.capacityN} PAID</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>Table · {s.hostName || 'host'}</div>
+                <div style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)', marginTop: 2 }}>{s.paidCount}/{s.capacityN} PAID</div>
               </div>
-              <div style={{ width: 64, height: 6, borderRadius: 4, background: '#DDD8CB', overflow: 'hidden', flex: '0 0 auto' }}>
-                <div style={{ height: '100%', width: `${Math.round((s.paidCount / s.capacityN) * 100)}%`, background: '#3D5AFE' }} />
+              <div style={{ width: 64, height: 6, borderRadius: 4, background: 'var(--cr-card2)', overflow: 'hidden', flex: '0 0 auto' }}>
+                <div style={{ height: '100%', width: `${Math.round((s.paidCount / s.capacityN) * 100)}%`, background: 'var(--cr-brand)' }} />
               </div>
-              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 9, letterSpacing: '.1em', padding: '4px 9px', borderRadius: 20, background: '#E8EBFE', color: '#3D5AFE' }}>FORMING</span>
+              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '.1em', padding: '6px 12px', borderRadius: 999, background: '#111111', color: '#FFD21F' }}>FORMING</span>
             </div>
           ))}
         </div>

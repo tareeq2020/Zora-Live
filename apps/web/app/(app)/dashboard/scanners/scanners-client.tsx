@@ -195,7 +195,7 @@ export default function ScannersClient() {
               </div>
               <div className="org-field">
                 <label htmlFor="sc-sell">Can sell at the door</label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44 }}>
                   <input id="sc-sell" type="checkbox" checked={canSell} onChange={(e) => setCanSell(e.target.checked)} />
                   <span className="org-muted" style={{ fontSize: 13 }}>Sell tickets on-site (cash / mobile)</span>
                 </label>

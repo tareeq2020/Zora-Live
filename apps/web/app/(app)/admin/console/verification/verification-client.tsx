@@ -233,7 +233,7 @@ function VerificationInner() {
         <span>
           {o.name}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>@{o.handle}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>@{o.handle}</span>
         </span>
       ),
     },
@@ -263,7 +263,7 @@ function VerificationInner() {
           {v.docNumberMasked ? (
             <>
               <br />
-              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{v.docNumberMasked}</span>
+              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{v.docNumberMasked}</span>
             </>
           ) : null}
         </span>
@@ -380,7 +380,7 @@ function VerificationInner() {
               </div>
               {orgRejecting ? (
                 <div style={{ marginTop: 14, padding: 14, border: '1px solid var(--cr-hair)', borderRadius: 12, display: 'grid', gap: 10 }}>
-                  <label htmlFor="org-reason" style={{ fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
+                  <label htmlFor="org-reason" style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
                     REJECTION REASON (required — the organizer sees a matching message)
                   </label>
                   <select id="org-reason" className="cr-select" value={orgReasonCode} onChange={(e) => setOrgReasonCode(e.target.value)}>
@@ -427,7 +427,7 @@ function VerificationInner() {
             ]}
           />
 
-          <p style={{ fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--cr-mut)', margin: '0 0 10px' }}>
+          <p style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.12em', color: 'var(--cr-mut)', margin: '0 0 10px' }}>
             DOCUMENTS · click to open full size
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
@@ -436,7 +436,7 @@ function VerificationInner() {
               const isPdf = /pdf/.test(d.contentType || '');
               return (
                 <div key={d.id} style={{ border: '1px solid var(--cr-hair)', borderRadius: 12, overflow: 'hidden', background: 'var(--cr-card2)' }}>
-                  <p style={{ margin: 0, padding: '8px 10px', fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
+                  <p style={{ margin: 0, padding: '8px 10px', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
                     {d.side.replace(/_/g, ' ').toUpperCase()}
                   </p>
                   {isPdf ? (
@@ -463,10 +463,10 @@ function VerificationInner() {
                           bottom: 6,
                           left: 6,
                           padding: '2px 6px',
-                          background: 'rgba(0,0,0,0.55)',
+                          background: '#111111',
                           color: '#fff',
                           fontFamily: 'var(--cr-mono)',
-                          fontSize: 9,
+                          fontSize: 12,
                           letterSpacing: '0.06em',
                           borderRadius: 4,
                         }}
@@ -493,7 +493,7 @@ function VerificationInner() {
               </div>
               {rejecting ? (
                 <div style={{ marginTop: 14, padding: 14, border: '1px solid var(--cr-hair)', borderRadius: 12, display: 'grid', gap: 10 }}>
-                  <label htmlFor="kyc-reason" style={{ fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
+                  <label htmlFor="kyc-reason" style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>
                     REJECTION REASON (required — the user sees a matching message)
                   </label>
                   <select id="kyc-reason" className="cr-select" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
@@ -524,7 +524,7 @@ function VerificationInner() {
                 .slice()
                 .reverse()
                 .map((e, i) => (
-                  <li key={`${e.at}-${i}`} style={{ display: 'flex', gap: 10, fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-ink2)' }}>
+                  <li key={`${e.at}-${i}`} style={{ display: 'flex', gap: 10, fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>
                     <span>{new Date(e.at).toLocaleTimeString()}</span>
                     <span style={{ color: 'var(--cr-ink)' }}>{e.action}</span>
                     <span>

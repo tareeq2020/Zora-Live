@@ -225,7 +225,7 @@ export function CrPromptBar() {
       </span>
     );
     primaryAction = (
-      <button type="button" className="cr-pb-primary cr-pb-aura" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+      <button type="button" className="cr-pb-primary cr-pb-cta" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
         Share <span aria-hidden>▸</span>
       </button>
     );

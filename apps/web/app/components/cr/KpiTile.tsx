@@ -1,9 +1,10 @@
 'use client';
 
 /* KPITile + KPIRow — the control-room stat tiles (Lane A · BS69).
-   DESIGN.md Control-Room v2: IBM Plex Mono value (big, tabular-nums), mono
-   uppercase label carrying a semantic tint on the LABEL CHIP ONLY (Pass 4 fix
-   — no colored left-border bar), a small delta (▲ green / ▼ red / — mut).
+   IBM Plex Mono value (big, tabular-nums), plain mono uppercase label, a small
+   delta (▲ green / ▼ red / — mut). BS154: flat per the design handoff — the
+   `tint` prop is kept for callers but no longer colours anything. Optional
+   `bar` (0–1) draws the one yellow progress bar (passes sold vs capacity).
    States: loading (skeleton), error (retry), null value → "—" (never 0). */
 
 export type KpiTint = 'blue' | 'green' | 'amber' | 'cyan' | 'neutral';
@@ -17,6 +18,10 @@ export type KpiTileProps = {
   tint?: KpiTint;
   /** Signed percentage or count vs the comparison window. */
   delta?: { dir: 'up' | 'down' | 'flat'; label: string } | null;
+  /** Optional 0–1 fill for a flat yellow progress bar under the value. */
+  bar?: number | null;
+  /** Small mono caption under the bar (e.g. "23 / 235 sold · all time"). */
+  barLabel?: string;
   loading?: boolean;
   error?: boolean;
   onRetry?: () => void;
@@ -24,7 +29,7 @@ export type KpiTileProps = {
 
 const DELTA_GLYPH = { up: '▲', down: '▼', flat: '—' } as const;
 
-export function KPITile({ label, value, unit, tint = 'neutral', delta, loading, error, onRetry }: KpiTileProps) {
+export function KPITile({ label, value, unit, tint = 'neutral', delta, bar, barLabel, loading, error, onRetry }: KpiTileProps) {
   if (loading) {
     return (
       <div className="cr-kpi" aria-busy="true">
@@ -40,7 +45,7 @@ export function KPITile({ label, value, unit, tint = 'neutral', delta, loading, 
         <span className="cr-kpi-label" data-tint="neutral">
           {label}
         </span>
-        <span className="cr-kpi-value" style={{ fontSize: 15, color: 'var(--cr-ink2)' }}>
+        <span className="cr-kpi-value" style={{ fontSize: 16, color: 'var(--cr-ink2)' }}>
           couldn&apos;t load
         </span>
         {onRetry ? (
@@ -62,7 +67,14 @@ export function KPITile({ label, value, unit, tint = 'neutral', delta, loading, 
         {display}
         {unit && display !== '—' ? <span className="cr-kpi-unit">{unit}</span> : null}
       </span>
-      {delta ? (
+      {typeof bar === 'number' && display !== '—' ? (
+        <span className="cr-kpi-bar" role="presentation">
+          <span style={{ width: `${Math.round(Math.max(0, Math.min(1, bar)) * 100)}%` }} />
+        </span>
+      ) : null}
+      {barLabel && typeof bar === 'number' && display !== '—' ? (
+        <span className="cr-kpi-delta">{barLabel}</span>
+      ) : delta ? (
         <span className="cr-kpi-delta" data-dir={delta.dir}>
           {DELTA_GLYPH[delta.dir]} {delta.label}
         </span>

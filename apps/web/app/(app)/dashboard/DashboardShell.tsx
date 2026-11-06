@@ -65,8 +65,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 }
 
 const STYLE = `
-.dash-shell{--black:var(--zp-board,#111111);--ink:#101012;--ink2:#16161A;--hair:#222226;--bone:var(--zp-bone,#F6F0E6);--mut:#8A877E;
-  --blue:var(--zp-signal,#FFD21F);--orange:var(--zp-heat,#FF5A1F);--teal:#2FA9A0;--amber:#F0C674;
+.dash-shell{--black:#111111;--ink:#1C1C1C;--ink2:#262626;--hair:#333333;--bone:#F7F5EE;--mut:#BDBDBD;
+  --blue:#FFD21F;--orange:#B42318;--teal:#0F7B3F;--amber:#FFD21F;
   --sans:var(--zp-font-family-sans);background:var(--black);color:var(--bone);min-height:100vh}
 .dash-shell .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
 @media(max-width:820px){.dash-shell .shell{grid-template-columns:1fr}}
@@ -74,14 +74,14 @@ const STYLE = `
 @media(max-width:820px){.dash-shell .rail{position:static;height:auto;flex-direction:row;align-items:center;overflow-x:auto;border-right:none;border-bottom:1px solid var(--hair);padding:14px 16px;gap:6px}}
 .dash-shell .rail .brand{padding:0 24px 26px;font-weight:600;font-size:19px;letter-spacing:-.02em;white-space:nowrap;color:var(--bone)}
 .dash-shell .rail .brand .o{color:var(--blue)}
-.dash-shell .rail .brand small{display:block;font-size:9px;letter-spacing:.22em;color:var(--mut);margin-top:6px;font-weight:500}
+.dash-shell .rail .brand small{display:block;font-size:12px;letter-spacing:.22em;color:var(--mut);margin-top:6px;font-weight:500}
 @media(max-width:820px){.dash-shell .rail .brand{padding:0 12px 0 0}.dash-shell .rail .brand small{display:none}}
 .dash-shell .nav-item{display:flex;align-items:center;gap:12px;padding:11px 24px;font-size:13.5px;color:var(--mut);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);letter-spacing:.02em;text-decoration:none}
 @media(max-width:820px){.dash-shell .nav-item{width:auto;padding:8px 12px;white-space:nowrap}}
 .dash-shell .nav-item:hover{color:var(--bone)}
-.dash-shell .nav-item.on{color:var(--blue);background:rgba(61,90,254,.14);font-weight:500}
+.dash-shell .nav-item.on{color:var(--blue);background:#1C1C1C;font-weight:700;box-shadow:inset 4px 0 0 var(--blue)}
 .dash-shell .nav-item .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
-.dash-shell .rail .foot{margin-top:auto;padding:22px 24px 0;font-size:10px;letter-spacing:.12em;color:var(--mut)}
+.dash-shell .rail .foot{margin-top:auto;padding:22px 24px 0;font-size:12px;letter-spacing:.12em;color:var(--mut)}
 @media(max-width:820px){.dash-shell .rail .foot{display:none}}
 .dash-shell .rail .foot a{color:var(--mut);text-decoration:none}
 .dash-shell .rail .foot a:hover{color:var(--bone)}
