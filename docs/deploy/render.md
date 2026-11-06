@@ -21,7 +21,9 @@ x-bridge webhooks ──►    │                 Render worker       zora-work
 
 | Variable | Required | Value / where from | Notes |
 |---|---|---|---|
-| `DATABASE_URL` | yes | Supabase → Project → Database → **Session pooler** URI (:5432) | Not the :6543 transaction pooler |
+| `DATABASE_URL` (group, used by the worker) | yes | Supabase → Connect → **Session pooler** URI (:5432) | Worker's singleton lock needs session mode |
+| `DATABASE_URL` (zora-api service) | yes | Supabase → Connect → **Transaction pooler** URI (:6543) | With `PG_PREPARE=false`. The session pooler allows only 15 clients in total; the API exhausted it (BS156, 2026-11-06 503s) |
+| `DATABASE_URL_MIGRATE` (zora-api service) | yes | Same as the session pooler URI (:5432) | `preDeployCommand` migrations take a session advisory lock |
 | `SESSION_SECRET` | yes | current prod value | New value = everyone logged out |
 | `KYC_SECRET` | yes | current prod value | Must match, or existing KYC docs can't be decrypted |
 | `TICKET_SIGNING_KEY` | yes | current prod value (comma list) | Must include the current key, or issued QR passes stop scanning |
