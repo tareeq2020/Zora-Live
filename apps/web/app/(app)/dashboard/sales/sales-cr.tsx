@@ -227,61 +227,76 @@ export default function SalesCr() {
 
   const orderCols: Column<OrderRow>[] = [
     {
+      // BS163: order id + placed date share a cell; event + tier share one.
       key: 'orderId', header: 'Order', primary: true,
-      render: (o) => <Link className="of-link" href={`/dashboard/sales/${encodeURIComponent(o.orderId)}`} aria-label={`Order ${o.orderId}: details`}>{o.orderId.slice(0, 8)}</Link>,
+      render: (o) => (
+        <span className="of-cell">
+          <Link className="of-link" href={`/dashboard/sales/${encodeURIComponent(o.orderId)}`} aria-label={`Order ${o.orderId}: details`}>{o.orderId.slice(0, 8)}</Link>
+          <span className="of-cell-sub of-nowrap">{fmtWhen(o.createdAt)}</span>
+        </span>
+      ),
     },
-    { key: 'event', header: 'Event', render: (o) => o.eventName },
-    { key: 'tier', header: 'Tier × Qty', render: (o) => `${o.tier} × ${fmt(o.qty)}` },
-    { key: 'amount', header: 'Amount', numeric: true, render: (o) => money(o.amount, o.currency) },
-    { key: 'status', header: 'Status', render: (o) => <StatusPill tone={toneForStatus(o.status)} label={o.status || '—'} /> },
     {
+      key: 'event', header: 'Event',
+      render: (o) => (
+        <span className="of-cell of-cell-wrap">
+          <span className="of-cell-main">{o.eventName}</span>
+          <span className="of-cell-sub">{o.tier} × {fmt(o.qty)}</span>
+        </span>
+      ),
+    },
+    { key: 'amount', header: 'Amount', numeric: true, render: (o) => <span className="of-nowrap">{money(o.amount, o.currency)}</span> },
+    {
+      // The outcome says more than the raw status (still filterable above).
       key: 'outcome', header: 'Outcome',
-      render: (o) => (o.outcome ? <OutcomeChip outcome={o.outcome} label={o.outcomeLabel ?? o.outcome} /> : <span className="org-muted">—</span>),
+      render: (o) =>
+        o.outcome ? (
+          <OutcomeChip outcome={o.outcome} label={o.outcomeLabel ?? o.outcome} />
+        ) : (
+          <StatusPill tone={toneForStatus(o.status)} label={o.status || '—'} />
+        ),
     },
     {
       key: 'buyer',
       header: 'Buyer',
       render: (o) => (
-        <span className="org-stack-xs org-muted">
-          {o.buyer?.phone ? <span>{o.buyer.phone}</span> : null}
+        <span className="org-stack-xs org-muted of-buyer">
+          {o.buyer?.phone ? <span>{o.buyer.phone.startsWith('comp:') ? 'Comp' : o.buyer.phone}</span> : null}
           {o.buyer?.email ? <span>{o.buyer.email}</span> : null}
           {!o.buyer?.phone && !o.buyer?.email ? <span>—</span> : null}
         </span>
       ),
     },
     {
+      // BS163: RESEND lives with the passes it resends (one column fewer, so the
+      // table fits at 1280 without scrolling sideways).
       key: 'passes',
-      header: 'Passes issued',
-      render: (o) =>
-        o.credentials && o.credentials.length > 0 ? (
-          <span className="org-stack-xs">
-            {o.credentials.map((ref) => (
+      header: 'Passes',
+      render: (o) => {
+        const paid = (o.status || '').toLowerCase() === 'paid';
+        const creds = o.credentials ?? [];
+        return (
+          <span className="org-stack-xs of-creds">
+            {creds.length === 0 ? <span className="org-muted">none</span> : null}
+            {creds.slice(0, 2).map((ref) => (
               <span className="org-cred" key={ref}>{ref}</span>
             ))}
-          </span>
-        ) : (
-          <span className="org-muted">none</span>
-        ),
-    },
-    { key: 'placed', header: 'Placed', render: (o) => <span className="org-muted">{fmtWhen(o.createdAt)}</span> },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (o) =>
-        (o.status || '').toLowerCase() === 'paid' ? (
-          <>
-            <button className="cr-linkbtn" onClick={() => resendOne(o.orderId)} disabled={resendingId === o.orderId}>
-              {resendingId === o.orderId ? 'RESENDING…' : 'RESEND'}
-            </button>
+            {creds.length > 2 ? (
+              <Link className="of-more" href={`/dashboard/sales/${encodeURIComponent(o.orderId)}`}>+{creds.length - 2} more</Link>
+            ) : null}
+            {paid ? (
+              <button className="cr-linkbtn of-resend" onClick={() => resendOne(o.orderId)} disabled={resendingId === o.orderId}>
+                {resendingId === o.orderId ? 'RESENDING…' : 'RESEND'}
+              </button>
+            ) : null}
             {resendMsg && resendMsg.id === o.orderId ? (
-              <span className="org-muted" style={{ marginLeft: 6, color: resendMsg.kind === 'ok' ? 'var(--cr-green)' : 'var(--cr-red)' }}>
+              <span className="org-muted" style={{ color: resendMsg.kind === 'ok' ? 'var(--cr-green)' : 'var(--cr-red)' }}>
                 {resendMsg.text}
               </span>
             ) : null}
-          </>
-        ) : (
-          <span className="org-muted">—</span>
-        ),
+          </span>
+        );
+      },
     },
   ];
 
@@ -434,6 +449,7 @@ export default function SalesCr() {
 
           <DataTable
             columns={orderCols}
+            collapseAt={1100}
             rows={orders ?? []}
             rowKey={(o) => o.orderId}
             loading={ordersLoading && !orders}
