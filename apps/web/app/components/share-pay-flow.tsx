@@ -11,6 +11,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ZP_FLOW_CSS } from './zp-flow-css';
+import PhoneField from './phone-field';
+import { groupNational, nationalDigits, networkFromNumber, toE164 } from './phone';
 
 const NETWORKS = [
   { id: 'VODACOM', label: 'M-Pesa' },
@@ -33,8 +35,8 @@ export type SharePayFlowProps = {
 
 export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid }: SharePayFlowProps) {
   const [step, setStep] = useState<'method' | 'poll' | 'result'>('method');
-  const [network, setNetwork] = useState('VODACOM');
-  const [payPhone, setPayPhone] = useState(phone || '');   // the mobile-money number (may differ from login/contact)
+  const [payPhone, setPayPhone] = useState(() => nationalDigits(phone || '')); // national digits; may differ from login/contact
+  const [network, setNetwork] = useState(() => networkFromNumber(nationalDigits(phone || ''))?.id || 'VODACOM');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [statusVal, setStatusVal] = useState<string | null>(null);
@@ -69,13 +71,13 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
   }
 
   async function submitPay() {
-    if (payPhone.replace(/\D/g, '').length < 9) { setNotice("Enter the number you'll pay with."); return; }
+    if (payPhone.length !== 9) { setNotice("Enter the number you'll pay with."); return; }
     setNotice(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/checkout/${encodeURIComponent(orderId)}/pay`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: 'mobile', payerPhone: payPhone.trim(), mno: network }),
+        body: JSON.stringify({ method: 'mobile', payerPhone: toE164(payPhone), mno: network }),
       });
       if (res.status !== 200) {
         const d = await res.json().catch(() => ({}));
@@ -100,15 +102,25 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
         <>
           <div className="zpf-amt"><span className="k">YOUR SHARE</span><span className="v">TSh {fmt(amount)}</span></div>
           <p className="zpf-sub" style={{ margin: '16px 0 0' }}>Pay with mobile money. We text a prompt to the number below; approve it with your PIN. Your money goes straight to the table.</p>
-          <label className="zpf-lab" htmlFor="spf-phone">Mobile-money number</label>
-          <div className="zpf-field"><span className="pfx">+255</span>
-            <input id="spf-phone" inputMode="tel" autoFocus placeholder="712 345 678" value={payPhone} onChange={(e) => setPayPhone(e.target.value)} /></div>
           <span className="zpf-lab" id="spf-net">Network</span>
           <div className="spf-pm" role="radiogroup" aria-labelledby="spf-net">
             {NETWORKS.map((n) => (
               <button key={n.id} type="button" role="radio" aria-checked={network === n.id} className={'spf-m' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>{n.label}</button>
             ))}
           </div>
+          {/* BS161: the number sits right under the network; the prefix picks the network. */}
+          <PhoneField
+            id="spf-phone"
+            label="Mobile-money number"
+            value={payPhone}
+            autoFocus
+            onChange={(v) => {
+              const was = networkFromNumber(payPhone)?.id;
+              const now = networkFromNumber(v.national)?.id;
+              if (now && now !== was) setNetwork(now);
+              setPayPhone(v.national);
+            }}
+          />
           <button className="zpf-btn" disabled={busy} onClick={submitPay}>PAY MY SHARE{arrow('Sending')}</button>
         </>
       ) : null}
@@ -117,7 +129,7 @@ export default function SharePayFlow({ orderId, amount, phone, eventName, onPaid
         <div className="spf-wait" aria-live="polite">
           <div className="zpf-spinner" />
           <h3>Check your phone</h3>
-          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b className="mono">+255 {payPhone}</b> with your PIN.</p>
+          <p>Approve the {NETWORKS.find((n) => n.id === network)?.label} prompt on <b className="mono">+255 {groupNational(payPhone)}</b> with your PIN.</p>
           <p className="spf-muted">Waiting for confirmation. This can take a minute — keep this open.</p>
           <button className="zpf-btn2" onClick={() => { stopPolling(); setStep('method'); }}>Didn&apos;t get it? Try again</button>
         </div>
