@@ -30,11 +30,13 @@ export const STEP_LABELS: Record<string, string> = {
   passes_issued: 'Passes issued',
   buyer_notified: 'Buyer notified',
   checked_in: 'Checked in',
+  admin_push_requested: 'Admin sent a payment prompt',
+  admin_push_refused: 'Admin payment prompt refused',
 };
 
 /** Rank for tie-breaking steps logged in the same instant. */
 const STEP_RANK: Record<string, number> = {
-  cart_created: 0, pay_requested: 1, gateway_rejected: 2, gateway_accepted: 2, callback_received: 3,
+  cart_created: 0, admin_push_refused: 1, admin_push_requested: 1, pay_requested: 1, gateway_rejected: 2, gateway_accepted: 2, callback_received: 3,
   status_changed: 4, short: 5, failed: 5, paid: 5, hold_released: 6, expired: 7, passes_issued: 8,
   buyer_notified: 9, checked_in: 10, refunded: 11,
 };

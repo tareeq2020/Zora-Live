@@ -284,6 +284,9 @@ export interface InitiatePaymentInput {
       pays (omitted = the next unpaid row). The attempt charges THAT row's amount.
       Refused (InstallmentAttemptRefused) on a pay-in-full order. */
   scheduleN?: number | null;
+  /** BS158: extra fields for the pay_requested log step (who asked: an admin
+      push adds by/adminId/adminName/note/phone). Never changes the money path. */
+  logDetail?: Record<string, unknown>;
 }
 
 export interface InitiatePaymentResult {
@@ -342,7 +345,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
     orderId, customerId: order.customer_id, transactionId, amount, method, payerPhone, payerName, callbackUrl,
   };
   await logOrderEvent(sql, orderId, 'pay_requested', {
-    method, amount, scheduleN: installment?.n ?? null, retry: order.status === 'failed',
+    method, amount, scheduleN: installment?.n ?? null, retry: order.status === 'failed', ...(input.logDetail ?? {}),
   }, transactionId);
   // BS133: an installment attempt goes out through the installment provider
   // (/collection/* today, x-bridge /v1 receivables behind XBRIDGE_V1); a
