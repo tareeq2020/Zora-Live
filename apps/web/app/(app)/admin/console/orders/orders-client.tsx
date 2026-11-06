@@ -113,7 +113,7 @@ export default function AdminOrdersClient() {
       primary: true,
       render: (o) => (
         <Link href={`/admin/console/orders/${o.id}`} className="ord-link">
-          {o.buyer?.phone || o.buyer?.email || 'Unknown'}
+          {o.buyer?.phone?.startsWith('comp:') ? `${o.buyer?.name || 'Guest'} · comp` : o.buyer?.phone || o.buyer?.email || 'Unknown'}
           {o.piiRedacted ? <span className="ord-sub">contact hidden (never paid)</span> : null}
         </Link>
       ),
@@ -304,32 +304,34 @@ export default function AdminOrdersClient() {
 /* Page-level styles only (shared CR primitives are BS154's). Flat, bone/black,
    data in mono, one yellow accent. */
 const ORDERS_CSS = `
-.ord-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ord-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-width: 0; max-width: 100%; }
+.ord-controls > * { max-width: 100%; }
+@media (max-width: 520px) { .ord-controls select { width: 100%; } }
 .ord-range { display: inline-flex; border: 1px solid var(--cr-hair); border-radius: 8px; overflow: hidden; }
-.ord-range-b { font: 600 11px/1 var(--cr-mono); letter-spacing: .06em; padding: 9px 11px; background: transparent; color: var(--cr-ink2); border: 0; cursor: pointer; }
+.ord-range-b { font: 600 12px/1 var(--cr-mono); letter-spacing: .06em; padding: 0 14px; min-height: 44px; min-width: 52px; background: transparent; color: var(--cr-ink2); border: 0; cursor: pointer; }
 .ord-range-b + .ord-range-b { border-left: 1px solid var(--cr-hair); }
 .ord-range-b.is-on { background: var(--cr-ink); color: var(--cr-paper); }
 .ord-funnel { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border: 1px solid var(--cr-hair); border-radius: 10px; overflow: hidden; }
 .ord-stage { padding: 12px 12px 10px; display: grid; gap: 4px; border-left: 1px solid var(--cr-hair); min-width: 0; }
 .ord-stage:first-child { border-left: 0; }
 .ord-stage.is-agg { background: var(--cr-card2); }
-.ord-stage-k { font: 600 10px/1.2 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
+.ord-stage-k { font: 600 12px/1.2 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
 .ord-stage-v { font: 600 22px/1.1 var(--cr-mono); color: var(--cr-ink); }
-.ord-stage-d { font: 500 11px/1 var(--cr-mono); color: var(--cr-ink2); }
+.ord-stage-d { font: 500 12px/1 var(--cr-mono); color: var(--cr-ink2); }
 .ord-stage:nth-child(6) .ord-stage-v { box-shadow: inset 0 -4px 0 var(--cr-blue); justify-self: start; }
 .ord-why { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); }
 .ord-why b { color: var(--cr-ink); }
-.ord-why-h { width: 100%; font: 600 10px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
+.ord-why-h { width: 100%; font: 600 12px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
 .ord-errors { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
 .ord-errors li { font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
 .ord-errors b { color: var(--cr-red); }
-.ord-link { color: inherit; text-decoration: none; font-weight: 600; }
+.ord-link { color: inherit; text-decoration: none; font-weight: 600; display: inline-flex; flex-direction: column; justify-content: center; min-height: 44px; }
 .ord-link:hover { text-decoration: underline; }
-.ord-sub { display: block; font: 400 11px/1.3 var(--cr-mono); color: var(--cr-mut); }
+.ord-sub { display: block; font: 400 12px/1.3 var(--cr-mono); color: var(--cr-mut); }
 .ord-mono { font-family: var(--cr-mono); font-size: 12px; }
 .ord-pay { font: 500 12px/1.35 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
 .ord-pay-err { color: var(--cr-red); }
-.ord-chip { display: inline-block; font: 600 10px/1 var(--cr-mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--cr-hair); color: var(--cr-ink2); white-space: nowrap; }
+.ord-chip { display: inline-block; font: 600 12px/1 var(--cr-mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--cr-hair); color: var(--cr-ink2); white-space: nowrap; }
 .ord-chip-good { background: var(--cr-ink); color: var(--cr-paper); border-color: var(--cr-ink); }
 .ord-chip-mid { border-color: var(--cr-ink); color: var(--cr-ink); }
 .ord-note { margin-top: 12px; font-size: 12px; color: var(--cr-ink2); }

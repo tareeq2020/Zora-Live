@@ -68,7 +68,7 @@ type AttentionItem = {
 type Attention = { generatedAt: string; counts: Record<string, number>; items: AttentionItem[] };
 
 const SEVERITY_TONE: Record<Severity, PillTone> = { critical: 'failed', high: 'pending', normal: 'neutral' };
-/** Count chips, in severity order. */
+/** Count chips, in the order of each type's usual severity. */
 const KIND_LABEL: [string, string, Severity][] = [
   ['paid_unseatable', 'Paid, unseatable', 'critical'],
   ['payment_short', 'Under-paid', 'critical'],
@@ -141,11 +141,11 @@ export default function AdminOverviewClient() {
       <div className="cr-stack">
         {/* ① platform GMV + take (revenue first) — all-orgs scope */}
         <KPIRow>
-          <KPITile label="Platform GMV" tint="blue" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={res.reload} />
-          <KPITile label="Platform take" tint="green" value={take != null ? fmt(take) : null} unit={currency} loading={aLoading} error={aError} onRetry={res.reload} />
-          <KPITile label="Tickets sold" tint="cyan" value={k ? fmt(k.ticketsSold) : null} loading={aLoading} error={aError} onRetry={res.reload} />
-          <KPITile label="Orders" tint="neutral" value={k ? fmt(k.orders) : null} loading={aLoading} error={aError} onRetry={res.reload} />
-          <KPITile label="Checked in" tint="amber" value={k ? fmt(k.checkedIn) : null} loading={aLoading} error={aError} onRetry={res.reload} />
+          <KPITile label="Platform GMV" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={res.reload} />
+          <KPITile label="Platform take" value={take != null ? fmt(take) : null} unit={currency} loading={aLoading} error={aError} onRetry={res.reload} />
+          <KPITile label="Tickets sold" value={k ? fmt(k.ticketsSold) : null} loading={aLoading} error={aError} onRetry={res.reload} />
+          <KPITile label="Orders" value={k ? fmt(k.orders) : null} loading={aLoading} error={aError} onRetry={res.reload} />
+          <KPITile label="Checked in" value={k ? fmt(k.checkedIn) : null} loading={aLoading} error={aError} onRetry={res.reload} />
         </KPIRow>
 
         {/* ② platform GMV over time */}
@@ -170,7 +170,7 @@ export default function AdminOverviewClient() {
             .attn-counts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; padding: 0; list-style: none; }
             .attn-counts li { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--cr-ink2); }
             .attn-counts b { font-family: var(--cr-mono); font-weight: 600; color: var(--cr-ink); }
-            .attn-link { display: flex; flex-direction: column; gap: 2px; color: inherit; text-decoration: none; }
+            .attn-link { display: flex; flex-direction: column; justify-content: center; min-height: 44px; gap: 2px; color: inherit; text-decoration: none; }
             .attn-link:hover .attn-title, .attn-link:focus-visible .attn-title { text-decoration: underline; }
             .attn-title { font-weight: 600; }
             .attn-detail { font-size: 12px; color: var(--cr-ink2); }
@@ -180,9 +180,10 @@ export default function AdminOverviewClient() {
           </div>
           {att.data && attTotal > 0 ? (
             <ul className="attn-counts" aria-label="Open items by type">
-              {KIND_LABEL.filter(([kind]) => (attCounts[kind] ?? 0) > 0).map(([kind, label, sev]) => (
+              {/* Counts per type only: one type can hold items of different
+                  severity (KYC past 24h is high), so severity lives on each row. */}
+              {KIND_LABEL.filter(([kind]) => (attCounts[kind] ?? 0) > 0).map(([kind, label]) => (
                 <li key={kind}>
-                  <StatusPill tone={SEVERITY_TONE[sev]} label={sev} />
                   <span>
                     <b>{fmt(attCounts[kind])}</b> {label}
                   </span>
