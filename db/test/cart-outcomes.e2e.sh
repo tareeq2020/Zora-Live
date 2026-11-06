@@ -20,6 +20,14 @@
 #      first stored reason wins, a later value fills a null.
 #   7. Capture is best-effort: with the capture columns dropped, a cart still
 #      pays through the webhook and the status read.
+#   8. BS159: 0037 adds accepted_at (nullable, idempotent) and the timeout index;
+#      initiatePayment sets accepted_at when x-bridge accepts, never on a refusal.
+#      An accepted attempt that expires is timed_out even with no reference
+#      (accepted_at, or the logged gateway_accepted step). After the cut-over
+#      (OUTCOME_ACCEPT_TRACKED_SINCE, moved to 1 day ago here) a no-ref attempt
+#      is no_gateway_reference; older ones are card_unavailable (card) or
+#      not_recorded; a 422 NO_PROVIDER_FOR_METHOD is card_unavailable /
+#      method_unavailable. The SQL filter and the funnel sub-reasons agree.
 #
 # Style mirrors order-funnel.e2e.sh. Self-contained. bash 3.2.
 set -euo pipefail
@@ -33,6 +41,8 @@ SNAP="$(mktemp -d "${TMPDIR:-/tmp}/zora-outcomesnap-XXXXXX")"
 USER_NAME="$(whoami)"
 REJECT_PHONE="0712999999"
 STATUS_FILE="$SNAP/status.json"
+# BS159: the acceptance cut-over, 1 day ago (rows seeded 2 days ago are "legacy").
+CUTOVER="$(node -e 'process.stdout.write(new Date(Date.now()-86400000).toISOString())')"
 echo '{}' > "$STATUS_FILE"
 fail=0
 
@@ -60,6 +70,10 @@ echo "== 1. MIGRATION 0036 =="
 check "webhook_event.payload" "$(q "select data_type from information_schema.columns where table_name='webhook_event' and column_name='payload'")" jsonb
 check "payment_transaction capture columns (all nullable)" "$(q "select count(*) from information_schema.columns where table_name='payment_transaction' and column_name in ('gateway_status','gateway_status_at','failure_reason') and is_nullable='YES'")" 3
 check "migration is idempotent (re-run)" "$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_outcome -v ON_ERROR_STOP=1 -f "$ROOT/db/migrations/0036_gateway_capture.sql" >/dev/null 2>&1 && echo ok)" ok
+echo "== 8a. MIGRATION 0037 =="
+check "payment_transaction.accepted_at (timestamptz, nullable)" "$(q "select data_type||':'||is_nullable from information_schema.columns where table_name='payment_transaction' and column_name='accepted_at'")" "timestamp with time zone:YES"
+check "timeout index exists" "$(q "select count(*) from pg_indexes where indexname='payment_transaction_mobile_created'")" 1
+check "0037 is idempotent (re-run)" "$(psql -tA -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_outcome -v ON_ERROR_STOP=1 -f "$ROOT/db/migrations/0037_attempt_accepted_at.sql" >/dev/null 2>&1 && echo ok)" ok
 
 psql -q -h 127.0.0.1 -p "$PG_PORT" -U "$USER_NAME" -d zora_outcome -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 insert into event (id, name) values ('brunch-vol-09','Garden Brunch — Vol. 09') on conflict do nothing;
@@ -74,7 +88,7 @@ echo "== boot API (x-bridge MOCK, status file steering; refuses payer $REJECT_PH
 boot() {
   lsof -ti tcp:$API_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 0.3
   ( cd "$API_DIR" && env PORT="$API_PORT" DATABASE_URL="$URL" XBRIDGE_MOCK=true XBRIDGE_MOCK_REJECT_PHONE="$REJECT_PHONE" \
-      XBRIDGE_MOCK_STATUS_FILE="$STATUS_FILE" \
+      XBRIDGE_MOCK_STATUS_FILE="$STATUS_FILE" OUTCOME_ACCEPT_TRACKED_SINCE="$CUTOVER" \
       COOKIE_SECURE=false SESSION_SECRET=e2e KYC_SECRET=e2e TICKET_SIGNING_KEY=e2e-ticket-key \
       SMS_DRIVER=mock EMAIL_DRIVER=mock PUBLIC_ORIGIN="http://localhost:$API_PORT" node dist/main.js ) >>"$SNAP/api.log" 2>&1 &
   for i in $(seq 1 30); do curl -sf -o /dev/null "http://localhost:$API_PORT/api/settings" 2>/dev/null && break; sleep 1; done
@@ -204,7 +218,26 @@ OFIRST=$(checkout "$SNAP/c30" 0712100099 f99@example.com)
 steer "ZORA-$OFIRST-1" '{"status":"FAILED","failureReason":"wrong_pin"}'
 pay "$SNAP/c30" "$OFIRST" 0712100099 >/dev/null; wait_status "$SNAP/c30" "$OFIRST" failed
 hook "{\"event\":\"collection.updated\",\"transactionId\":\"ZORA-$OFIRST-1\",\"status\":\"FAILED\",\"failureReason\":\"payer_cancelled\"}" >/dev/null
-echo "  ✓ seeded 37 carts"
+# BS159 shapes (SQL). mkx: an expired cart with one attempt; $1 phone suffix, $2 age, $3 method, $4 extra cols, $5 values.
+mkx() {
+  local o
+  o=$(q "with c as (insert into customer (phone, email) values ('2557140000$1','y$1@example.com') returning id)
+         insert into \"order\" (customer_id, event_id, type, status, target_value, created_at)
+         select id, 'brunch-vol-09', 'ga_vip', 'expired', 50000, now() - interval '$2' from c returning id" | head -1)
+  q "insert into payment_transaction (order_id, transaction_id, method, amount, status, created_at, updated_at${4:-})
+     values ('$o', 'ZORA-$o-1', '$3', 50000, 'expired', now() - interval '$2', now() - interval '$2'${5:-})" >/dev/null
+  echo "$o"
+}
+NOPROV='x-bridge /collection/card failed: 422 {"statusCode":422,"code":"NO_PROVIDER_FOR_METHOD","message":"No provider for method"}'
+OCARDOLD=$(mkx 01 '2 days' card)                                              # legacy card, no ref, no error
+OBILLOLD=$(mkx 02 '2 days' billpay)                                           # legacy billpay
+OMOBNEW=$(mkx 03 '1 hour' mobile)                                             # after cut-over, never accepted
+OCARD422=$(mkx 04 '1 hour' card ", error, error_at" ", '$NOPROV', now()")     # today's card failure
+OMOB422=$(mkx 05 '1 hour' mobile ", error, error_at" ", '$NOPROV', now()")    # same error on mobile
+OACCNOREF=$(mkx 06 '1 hour' mobile ", accepted_at" ", now() - interval '59 minutes'") # accepted, no ref, expired
+OLOGNOREF=$(mkx 07 '1 hour' mobile)                                           # accept only in order_event (BS153 log)
+q "insert into order_event (order_id, at, step, transaction_id) values ('$OLOGNOREF', now() - interval '59 minutes', 'gateway_accepted', 'ZORA-$OLOGNOREF-1')" >/dev/null
+echo "  ✓ seeded 44 carts"
 
 echo ""
 echo "== 2. LIST: OUTCOME PER CART =="
@@ -235,7 +268,18 @@ check "push still pending" "$(oc "$OPROG")" "in_progress|-|-"
 check "fresh cart, live hold" "$(oc "$OOPEN")" "in_progress|-|-"
 check "abandoned" "$(oc "$OABAN")" "abandoned|expired|-"
 check "refused by x-bridge" "$(oc "$OREJ")" "system_error|gateway_refused|-"
-check "legacy GODIGITAL (created, no ref, expired)" "$(oc "$OLEG")" "system_error|no_gateway_reference|-"
+check "legacy GODIGITAL (created, no ref, expired) → not_recorded" "$(oc "$OLEG")" "system_error|not_recorded|-"
+check "legacy card (expired, no ref) → card_unavailable" "$(oc "$OCARDOLD")" "system_error|card_unavailable|-"
+check "legacy billpay (expired, no ref) → not_recorded" "$(oc "$OBILLOLD")" "system_error|not_recorded|-"
+check "after cut-over, never accepted → no_gateway_reference" "$(oc "$OMOBNEW")" "system_error|no_gateway_reference|-"
+check "422 NO_PROVIDER_FOR_METHOD on card → card_unavailable" "$(oc "$OCARD422")" "system_error|card_unavailable|-"
+check "422 NO_PROVIDER_FOR_METHOD on mobile → method_unavailable" "$(oc "$OMOB422")" "system_error|method_unavailable|-"
+check "accepted_at, no ref, expired → timed out (not refused)" "$(oc "$OACCNOREF")" "buyer_didnt_complete|timed_out|-"
+check "logged gateway_accepted, no ref, expired → timed out" "$(oc "$OLOGNOREF")" "buyer_didnt_complete|timed_out|-"
+check "list attempt carries acceptedAt from the log" "$(echo "$LIST" | jx "!!o.orders.find(x=>x.id==='$OLOGNOREF').attempts[0].acceptedAt")" true
+check "accepted_at set when x-bridge accepts" "$(q "select (accepted_at is not null)::text from payment_transaction where order_id='$OPAID'")" true
+check "accepted_at set on every accepted API attempt" "$(q "select count(*) from payment_transaction where order_reference is not null and accepted_at is null")" 0
+check "accepted_at stays null on a refusal" "$(q "select coalesce(accepted_at::text,'null') from payment_transaction where order_id='$OREJ'")" null
 check "underpaid" "$(oc "$OSHORT")" "underpaid|-|-"
 check "failed cart recovered by a second cart" "$(oc "$ORECA")" "recovered|buyer_didnt_complete|$ORECB"
 check "the recovering cart is plain paid" "$(oc "$ORECB")" "paid|-|-"
@@ -272,12 +316,20 @@ const t={}; for (const r of list) t[r.outcome]=(t[r.outcome]||0)+1;
 const bad=Object.keys({...t,...f}).filter(k=>(t[k]||0)!==(f[k]||0)||!(k in f));
 process.stdout.write(bad.length?"differ:"+bad.join(","):"same")' "$SNAP/list.json" "$SNAP/funnel.json")" same
 check "funnel recovered count" "$(echo "$F" | jx 'o.outcomes.recovered')" 2
-check "funnel system_error count (refused, legacy, provider_error ×2)" "$(echo "$F" | jx 'o.outcomes.system_error')" 4
-check "funnel buyer_didnt_complete count" "$(echo "$F" | jx 'o.outcomes.buyer_didnt_complete')" 18
+check "funnel system_error count (refused, 3 legacy, 3 after cut-over, provider_error ×2)" "$(echo "$F" | jx 'o.outcomes.system_error')" 9
+check "funnel buyer_didnt_complete count" "$(echo "$F" | jx 'o.outcomes.buyer_didnt_complete')" 20
+check "funnel system_error sub-reasons" "$(echo "$F" | jx 'Object.entries(o.outcomeDetails.system_error).sort().map(([k,v])=>k+"="+v).join(",")')" "card_unavailable=2,gateway_refused=1,method_unavailable=1,no_gateway_reference=1,not_recorded=2,provider_error=2"
+check "funnel sub-reasons = the list's tally per detail" "$(node -e '
+const fs=require("fs");
+const list=JSON.parse(fs.readFileSync(process.argv[1],"utf8")).orders;
+const f=JSON.parse(fs.readFileSync(process.argv[2],"utf8")).outcomeDetails;
+const t={}; for (const r of list) if (r.outcomeDetail!=null) { t[r.outcome]??={}; t[r.outcome][r.outcomeDetail]=(t[r.outcome][r.outcomeDetail]||0)+1; }
+const norm=(m)=>JSON.stringify(Object.keys(m).sort().map(k=>[k,Object.entries(m[k]).sort()]));
+process.stdout.write(norm(t)===norm(f)?"same":"differ "+norm(t)+" vs "+norm(f))' "$SNAP/list.json" "$SNAP/funnel.json")" same
 check "funnel sub-reasons: cancelled by buyer" "$(echo "$F" | jx 'o.outcomeDetails.buyer_didnt_complete.payer_cancelled')" 3
 check "funnel sub-reasons: unknown (incl. unrecognised + fallback text)" "$(echo "$F" | jx 'o.outcomeDetails.buyer_didnt_complete.unknown')" 5
 check "funnel sub-reasons: provider_error under system_error" "$(echo "$F" | jx 'o.outcomeDetails.system_error.provider_error')" 2
-check "funnel sub-reasons: timed out (our expiry)" "$(echo "$F" | jx 'o.outcomeDetails.buyer_didnt_complete.timed_out')" 1
+check "funnel sub-reasons: timed out (our expiry + 2 accepted with no ref)" "$(echo "$F" | jx 'o.outcomeDetails.buyer_didnt_complete.timed_out')" 3
 check "funnel sub-reasons add up" "$(echo "$F" | jx 'Object.entries(o.outcomeDetails).every(([k,m])=>Object.values(m).reduce((a,b)=>a+b,0)<=o.outcomes[k])')" true
 check "funnel keeps the old drop-off block" "$(echo "$F" | jx 'typeof o.dropoff.expiredNoAttempt+typeof o.stages.length')" numbernumber
 check "other org: no outcomes" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/funnel?days=7&org=offshore" | jx 'Object.values(o.outcomes).reduce((a,b)=>a+b,0)')" 0
@@ -289,6 +341,9 @@ check "recovered detail: outcome + link" "$(echo "$DR" | jx 'o.outcome+"|"+o.rec
 check "recovered detail: explanation" "$(echo "$DR" | jx '/not a lost sale/i.test(o.outcomeExplanation)')" true
 DS=$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OREJ")
 check "system error explanation names us, not the buyer" "$(echo "$DS" | jx '/not the buyer/.test(o.outcomeExplanation)')" true
+check "card_unavailable explanation" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OCARD422" | jx '/Card isn.t available at x-bridge/.test(o.outcomeExplanation)')" true
+check "not_recorded explanation" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OLEG" | jx '/6 Nov/.test(o.outcomeExplanation)')" true
+check "accepted-no-ref timeline shows the gateway took it" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OACCNOREF" | jx 'o.stageReached')" gateway_accepted
 DH=$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OHOOK")
 check "callback payload stored" "$(echo "$DH" | jx 'o.callbacks.length+":"+o.callbacks[0].payload.failureReason+":"+o.callbacks[0].payload.event')" "1:payer_cancelled:collection.updated"
 check "callback payload: no secret" "$(echo "$DH" | jx 'JSON.stringify(o.callbacks).includes("SECRET")')" false
@@ -328,4 +383,4 @@ check "capture skips were logged, not thrown" "$(grep -c 'capture skipped' "$SNA
 
 echo ""
 [ "$fail" = "0" ] || { echo "CART OUTCOMES E2E: FAIL"; tail -40 "$SNAP/api.log"; exit 1; }
-echo "CART OUTCOMES E2E: PASS (0036 idempotent · every outcome on the list · SQL filter = JS rows · funnel counts = list · callback + status bodies stored sanitized with a reason · capture failures never break a payment)"
+echo "CART OUTCOMES E2E: PASS (0036 + 0037 idempotent · accepted_at on accept · honest system-error reasons · every outcome on the list · SQL filter = JS rows · funnel counts = list · callback + status bodies stored sanitized with a reason · capture failures never break a payment)"

@@ -94,8 +94,9 @@ export {
   CART_OUTCOMES, UNPAID_OUTCOMES, OUTCOME_LABELS, ATTEMPT_SEND_GRACE_MS, CART_OPEN_GRACE_MS, RECOVERY_WINDOW_MS,
   isCartOutcome, classifyAttempt, cartOutcome, outcomeLabel, explainOutcome, normalizeBuyerPhone, matchRecoveries,
   FAILURE_REASONS, mapFailureReason, DETAIL_LABELS,
+  ACCEPT_TRACKED_SINCE, ACCEPT_TRACKED_SINCE_MS, REFUSAL_REASONS, NO_PROVIDER_ERROR, refusalReason,
 } from './cart-outcome';
-export type { CartOutcome, OutcomeAttempt, OutcomeInput, OutcomeResult, RecoveryOrder, AttemptKind, FailureReason } from './cart-outcome';
+export type { CartOutcome, OutcomeAttempt, OutcomeInput, OutcomeResult, RecoveryOrder, AttemptKind, FailureReason, RefusalReason } from './cart-outcome';
 export {
   CAPTURE_MAX_CHARS, REASON_FIELDS, sanitizeGatewayPayload, extractFailureReason, extractReason, captureCallback, captureStatusRead,
 } from './gateway-capture';
@@ -279,3 +280,9 @@ export {
 export type {
   InstallmentOfferView, InstallmentQuoteResult, InstallmentPayView, QuoteLine, CustomerInstallmentRow,
 } from './payments/installments-buyer';
+// BS160: the organizer's lighter view of a cart (outcome words, short timeline).
+export {
+  ORG_SYSTEM_ERROR_LABEL, ORG_FUNNEL_STAGES, ORG_TIMELINE_STEPS, organizerOutcome, organizerExplanation,
+  organizerStage, organizerTimeline, attemptFailureLabel,
+} from './org-order-view';
+export type { OrgOutcome, OrgTimelineEntry, OrgTimelineAttempt } from './org-order-view';

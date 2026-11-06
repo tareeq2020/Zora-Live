@@ -5,6 +5,7 @@ import { db, poolSnapshots, resolveCommissionRate, readOrderMoney, foldMoneyByCu
 import type { OrderMoney, AnalyticsResult, AnalyticsRange, AnalyticsOrder } from '@zora/core';
 import { OrgScopeService } from './org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
+import { readDecorations, outcomeFields, outcomeFilter, type Decorations, type OrgOutcomeFields, type OutcomeOrderRow } from './org-outcomes';
 
 /* OrgSalesService (MT3) — read-only org sales / reporting. Every read is scoped
    to the acting org through OrgScopeService.ownedEventIds (C3): event ownership
@@ -133,6 +134,12 @@ export interface OrgOrderRow {
   createdAt: string;
 }
 
+/** BS160: a sales row with its outcome, as an organizer sees it. */
+export type OrgOrderRowWithOutcome = OrgOrderRow & OrgOutcomeFields;
+
+/** The order columns rowsFor() needs. */
+export type OrgOrderDbRow = OutcomeOrderRow & { email: string | null };
+
 // BS58: server-side filters for GET /api/org/orders. Every filter intersects with
 // the org's owned-event scope (C3) — a filter can only narrow, never widen.
 export interface OrgOrderFilters {
@@ -142,12 +149,13 @@ export interface OrgOrderFilters {
   q?: string;         // search buyer phone / email / credential public_ref
   from?: string;      // ISO — created_at >= from
   to?: string;        // ISO — created_at <= to
+  outcome?: string;   // BS160: one of CART_OUTCOMES (SQL rules); unknown → ignored
   limit?: number;
   cursor?: string;    // opaque keyset cursor (created_at,id) for the next page
 }
 
 export interface OrgOrdersPage {
-  rows: OrgOrderRow[];
+  rows: OrgOrderRowWithOutcome[];
   nextCursor: string | null;
 }
 
@@ -506,7 +514,6 @@ export class OrgSalesService {
     }
     if (!scopeIds.length) return { rows: [], nextCursor: null };
 
-    type ItemRow = { order_id: string; tier_name: string; quantity: number; unit_price: number; currency: string };
     const sql = db();
     const cappedLimit = Math.max(1, Math.min(filters.limit || 50, 200));
 
@@ -527,6 +534,8 @@ export class OrgSalesService {
         select 1 from credential c2 join order_item oi3 on oi3.id = c2.order_item_id
          where oi3.order_id = o.id and c2.public_ref ilike ${like}))`);
     }
+    const byOutcome = outcomeFilter(sql, scopeIds, filters.outcome, filters.from, filters.to);
+    if (byOutcome) conds.push(byOutcome);
     const cur = filters.cursor ? decodeCursor(filters.cursor) : null;
     if (cur) conds.push(sql`(o.created_at, o.id) < (${cur.ts}::timestamptz, ${cur.id})`);
 
@@ -534,15 +543,17 @@ export class OrgSalesService {
     for (let i = 1; i < conds.length; i++) where = sql`${where} and ${conds[i]}`;
 
     // Fetch cappedLimit+1 to know whether a next page exists without a count.
-    const fetched = await sql<
-      { order_id: string; event_id: string; status: string; created_at: Date; phone: string | null; email: string | null }[]
-    >`
-      select o.id         as order_id,
-             o.event_id   as event_id,
-             o.status     as status,
-             o.created_at as created_at,
-             cu.phone     as phone,
-             cu.email     as email
+    const fetched = await sql<OrgOrderDbRow[]>`
+      select o.id          as id,
+             o.event_id    as event_id,
+             o.type        as type,
+             o.status      as status,
+             o.channel     as channel,
+             o.created_at  as created_at,
+             o.notified_at as notified_at,
+             o.customer_id as customer_id,
+             cu.phone      as phone,
+             cu.email      as email
         from "order" o
         left join customer cu on cu.id = o.customer_id
        where ${where}
@@ -552,11 +563,21 @@ export class OrgSalesService {
     const hasMore = fetched.length > cappedLimit;
     const orderRows = hasMore ? fetched.slice(0, cappedLimit) : fetched;
     const nextCursor = hasMore
-      ? encodeCursor(orderRows[orderRows.length - 1].created_at, orderRows[orderRows.length - 1].order_id)
+      ? encodeCursor(orderRows[orderRows.length - 1].created_at, orderRows[orderRows.length - 1].id)
       : null;
 
     if (!orderRows.length) return { rows: [], nextCursor: null };
-    const orderIds = orderRows.map((o) => o.order_id);
+    return { rows: await this.rowsFor(sql, orderRows, nameById), nextCursor };
+  }
+
+  /** Sales rows (+ BS160 outcome fields) for a page of orders. Shared by the
+      list and the organizer order detail so both show the same fields. */
+  async rowsFor(
+    sql: any, orderRows: OrgOrderDbRow[], nameById: Map<string, string | null>,
+    opts: { decorations?: Decorations; steps?: Map<string, string[]> } = {},
+  ): Promise<OrgOrderRowWithOutcome[]> {
+    type ItemRow = { order_id: string; tier_name: string; quantity: number; unit_price: number; currency: string };
+    const orderIds = orderRows.map((o) => o.id);
 
     // Line items (tier name, qty, amount, currency) for the page of orders.
     const itemRows = await sql<ItemRow[]>`
@@ -591,15 +612,16 @@ export class OrgSalesService {
       credsByOrder.set(c.order_id, arr);
     }
 
-    const rows: OrgOrderRow[] = orderRows.map((o) => {
-      const items = itemsByOrder.get(o.order_id) ?? [];
+    const decorations = opts.decorations ?? await readDecorations(sql, orderRows);
+    return orderRows.map((o) => {
+      const items = itemsByOrder.get(o.id) ?? [];
       const qty = items.reduce((a, it) => a + it.quantity, 0);
       const amount = items.reduce((a, it) => a + it.unit_price * it.quantity, 0);
       const tierNames = [...new Set(items.map((it) => it.tier_name))];
       // Single-currency per event (I7); if items diverge we still never sum across.
       const currency = items[0]?.currency ?? DEFAULT_CURRENCY;
       return {
-        orderId: o.order_id,
+        orderId: o.id,
         eventId: o.event_id,
         eventName: nameById.get(o.event_id) ?? null,
         tier: tierNames.join(', '),
@@ -611,11 +633,11 @@ export class OrgSalesService {
         // their own paid orders). Was masked (I4); organizers now see the real
         // phone/email so they can reach their guests.
         buyer: { phone: o.phone, email: o.email },
-        credentials: credsByOrder.get(o.order_id) ?? [],
+        credentials: credsByOrder.get(o.id) ?? [],
         createdAt: o.created_at instanceof Date ? o.created_at.toISOString() : String(o.created_at),
+        ...outcomeFields(o, decorations, opts.steps?.get(o.id)).fields,
       };
     });
-    return { rows, nextCursor };
   }
 
   /** BS59: resend ONE paid order's tickets to the buyer. Ownership is enforced —

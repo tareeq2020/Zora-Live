@@ -366,7 +366,7 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   await sql`
     update payment_transaction
        set status = 'pending', order_reference = ${orderReference ?? null},
-           bill_pay_number = ${billPayNumber ?? null}, updated_at = now()
+           bill_pay_number = ${billPayNumber ?? null}, accepted_at = now(), updated_at = now()
      where transaction_id = ${transactionId}`;
   await logOrderEvent(sql, orderId, 'gateway_accepted', {
     method, orderReference: orderReference ?? null, billPayNumber: billPayNumber ?? null, cardUrlIssued: !!redirectUrl,

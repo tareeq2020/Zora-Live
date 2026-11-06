@@ -8,6 +8,10 @@
 #   4. Ordering: severity first, then oldest first.
 #   5. hrefs per kind.
 #   6. Decoys absent: abandoned cart, healthy/recent orders, resolved items.
+#   8. BS159 prompt_timeouts_high: fires once the last 3h has >= 8 accepted
+#      mobile attempts with >= 50% timed out AND >= 2x the 7-day share; NOT below
+#      the volume, the share or the 2x bar. Non-mobile and never-accepted
+#      attempts don't count; provider_error share shows in the detail.
 # Harness mirrors admin-orders.e2e.sh. Self-contained. bash 3.2.
 set -euo pipefail
 
@@ -181,7 +185,7 @@ const v=JSON.parse(require("fs").readFileSync(process.env.F,"utf8"));
 const E=process.env, items=v.items||[], c=v.counts||{};
 t("shape: generatedAt + counts + items", typeof v.generatedAt==="string" && typeof c==="object" && Array.isArray(items));
 const want={paid_unseatable:1,payment_short:1,paid_no_passes:1,payment_stuck:1,ops_alert:2,payout_request:1,
-            installment_refund:1,kyc_review:2,org_signup:1,buyer_not_notified:1};
+            installment_refund:1,kyc_review:2,org_signup:1,buyer_not_notified:1,prompt_timeouts_high:0};
 for (const k of Object.keys(want)) t(`counts.${k} = ${want[k]} (got ${c[k]})`, c[k]===want[k]);
 const sum=Object.values(c).reduce((a,b)=>a+b,0);
 t(`12 items, matching the counts (got ${items.length})`, items.length===12 && sum===12);
@@ -253,6 +257,51 @@ console.log((ok?"  ✓ ":"  ✗ ")+"approving the payout + sign-up drops both (p
 ' 2>&1 || true)
 echo "$R7"; echo "$R7" | grep -q '✗' && fail=1
 
+echo ""
+echo "== 8. PROMPTS TIMING OUT (BS159) =="
+O_SPK=a0000000-0000-4000-8000-000000000099
+psql_one "insert into \"order\" (id, customer_id, event_id, type, status, target_value, created_at)
+          values ('$O_SPK', 'c0000000-0000-4000-8000-000000000001', 'brunch-vol-09', 'ga_vip', 'expired', 50000, now() - interval '3 days')" >/dev/null
+# Never counted: billpay attempts (accepted, expired) and mobile attempts never accepted.
+psql_one "insert into payment_transaction (order_id, transaction_id, method, amount, status, order_reference, created_at, updated_at)
+          select '$O_SPK', 'ZORA-spk-bp-'||g, 'billpay', 50000, 'expired', 'REF-bp-'||g, now() - interval '20 minutes', now() from generate_series(1, 12) g;
+          insert into payment_transaction (order_id, transaction_id, method, amount, status, created_at, updated_at)
+          select '$O_SPK', 'ZORA-spk-na-'||g, 'mobile', 50000, 'expired', now() - interval '20 minutes', now() from generate_series(1, 12) g" >/dev/null
+# spike BASE_N BASE_TIMEDOUT RECENT_N RECENT_TIMEDOUT [RECENT_PROVIDER_ERRORS]
+# Baseline rows (2 days ago) are accepted by reference; recent rows (30 min ago)
+# by accepted_at only. Recent timed-out row 1 is failed with payer_no_response.
+spike() {
+  psql_one "delete from payment_transaction where transaction_id like 'ZORA-spk-b-%' or transaction_id like 'ZORA-spk-r-%';
+    insert into payment_transaction (order_id, transaction_id, method, amount, status, order_reference, created_at, updated_at)
+    select '$O_SPK', 'ZORA-spk-b-'||g, 'mobile', 50000, case when g <= $2 then 'expired' else 'failed' end, 'REF-b-'||g,
+           now() - interval '2 days', now() - interval '2 days' from generate_series(1, $1) g;
+    insert into payment_transaction (order_id, transaction_id, method, amount, status, failure_reason, accepted_at, created_at, updated_at)
+    select '$O_SPK', 'ZORA-spk-r-'||g,  'mobile', 50000,
+           case when g = 1 and $4 > 0 then 'failed' when g <= $4 then 'expired' else 'failed' end,
+           case when g = 1 and $4 > 0 then 'payer_no_response' when g > $4 and g <= $4 + ${5:-0} then 'provider_error' end,
+           now() - interval '30 minutes', now() - interval '30 minutes', now() from generate_series(1, $3) g" >/dev/null
+  curl -s -b "$SNAP/admin" "$BASE/api/admin/attention" > "$SNAP/spike.json"
+}
+spk() { F="$SNAP/spike.json" node -e '
+const v=JSON.parse(require("fs").readFileSync(process.env.F,"utf8"));
+const it=(v.items||[]).filter(i=>i.kind==="prompt_timeouts_high");
+process.stdout.write(it.length+"|"+v.counts.prompt_timeouts_high+(it[0]?"|"+it[0].severity+"|"+it[0].title+"|"+it[0].href:""));'; }
+spkd() { F="$SNAP/spike.json" node -e '
+const v=JSON.parse(require("fs").readFileSync(process.env.F,"utf8"));
+process.stdout.write(((v.items||[]).find(i=>i.kind==="prompt_timeouts_high")||{detail:"none"}).detail);'; }
+chk() { if [ "$2" = "$3" ]; then echo "  ✓ $1"; else echo "  ✗ $1 → $2 (want $3)"; fail=1; fi; }
+HREF=/admin/console/orders?outcome=buyer_didnt_complete
+spike 10 2 7 6;   chk "7 accepted (below the volume of 8): no alert" "$(spk)" "0|0"
+spike 10 2 8 7;   chk "8 accepted, 7 timed out vs 20% normal: fires" "$(spk)" "1|1|high|Prompts are timing out: 7 of 8 in the last 3h (7-day normal: 20%)|$HREF"
+chk "no provider_error → detail doesn't mention it" "$(spkd | grep -c provider_error || true)" 0
+spike 10 2 8 3;   chk "3 of 8 timed out (38% < 50%): no alert" "$(spk)" "0|0"
+spike 10 4 8 6;   chk "6 of 8 (75%) vs 40% normal (< 2x): no alert" "$(spk)" "0|0"
+spike 10 4 8 7;   chk "7 of 8 (88%) vs 40% normal (>= 2x): fires" "$(spk | cut -d'|' -f1-4)" "1|1|high|Prompts are timing out: 7 of 8 in the last 3h (7-day normal: 40%)"
+spike 10 2 20 14 3; chk "14 of 20 with 3 provider errors: fires" "$(spk | cut -d'|' -f4)" "Prompts are timing out: 14 of 20 in the last 3h (7-day normal: 20%)"
+chk "provider_error share in the detail" "$(spkd | grep -o '3 of 20 (15%) also failed with provider_error')" "3 of 20 (15%) also failed with provider_error"
+spike 0 0 8 4;    chk "no 7-day history, 4 of 8 (50%): fires" "$(spk | cut -d'|' -f4)" "Prompts are timing out: 4 of 8 in the last 3h (no 7-day history)"
+spike 10 2 0 0;   chk "no recent attempts: no alert" "$(spk)" "0|0"
+
 [ "$fail" = "0" ] || { echo ""; echo "ADMIN ATTENTION E2E: FAIL"; head -c 4000 "$SNAP/attn.json"; echo; tail -30 "$SNAP/api.log"; exit 1; }
 echo ""
-echo "ADMIN ATTENTION E2E: PASS (admin-only · exact counts · severities · severity-then-age order · hrefs · decoys absent · resolve clears)"
+echo "ADMIN ATTENTION E2E: PASS (admin-only · exact counts · severities · severity-then-age order · hrefs · decoys absent · resolve clears · timeout spike fires only above volume + share + 2x)"
