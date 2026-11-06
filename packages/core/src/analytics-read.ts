@@ -57,14 +57,14 @@ export async function readStorefrontAnalytics(
   const [tot] = await sql`
     select coalesce(sum(views) filter (where kind = 'storefront'), 0)::int as storefront_visits,
            coalesce(sum(views) filter (where kind = 'event'), 0)::int as event_views,
-           coalesce(sum(views), 0)::int as page_views,
-           coalesce(sum(visitors), 0)::int as visitors,
+           coalesce(sum(views) filter (where kind <> 'checkout'), 0)::int as page_views,
+           coalesce(sum(visitors) filter (where kind <> 'checkout'), 0)::int as visitors,
            coalesce(sum(visitors) filter (where kind = 'event'), 0)::int as event_viewers
       from analytics_daily where day between ${from} and ${to} ${orgF} ${evF}`;
 
   const sources = await sql`
     select source, sum(views)::int as views from analytics_daily
-     where day between ${from} and ${to} ${orgF} ${evF}
+     where kind <> 'checkout' and day between ${from} and ${to} ${orgF} ${evF}
      group by source order by views desc`;
 
   const trafficByEvent = await sql`

@@ -209,7 +209,7 @@ export default function HelpCr() {
       <style>{`
         .help-lead {
           margin: 8px 0 0;
-          font-size: 13.5px;
+          font-size: 16px;
           line-height: 1.55;
           color: var(--cr-ink2);
           max-width: 62ch;
@@ -229,14 +229,14 @@ export default function HelpCr() {
           align-items: center;
         }
         .help-btn-pri {
-          background: var(--cr-blue);
-          border-color: var(--cr-blue);
-          color: #fff;
-          font-weight: 600;
+          background: var(--cr-primary-bg);
+          border-color: var(--cr-primary-bg);
+          color: var(--cr-primary-fg);
+          font-weight: 700;
         }
         .help-btn-pri:hover {
-          border-color: var(--cr-blue);
-          filter: brightness(1.06);
+          border-color: var(--cr-primary-bg);
+          filter: brightness(0.96);
         }
         .help-search { margin-bottom: 6px; }
         .help-faq-groups {
@@ -247,7 +247,7 @@ export default function HelpCr() {
         }
         .help-cat {
           font-family: var(--cr-mono);
-          font-size: 10px;
+          font-size: 12px;
           font-weight: 600;
           letter-spacing: 0.14em;
           text-transform: uppercase;
@@ -262,15 +262,15 @@ export default function HelpCr() {
           align-items: center;
           justify-content: space-between;
           gap: 14px;
-          padding: 13px 2px;
+          padding: 12px 2px; min-height: 48px;
           cursor: pointer;
           list-style: none;
-          font-size: 13.5px;
+          font-size: 16px;
           font-weight: 500;
           color: var(--cr-ink);
         }
         .help-faq summary::-webkit-details-marker { display: none; }
-        .help-faq summary:hover { color: var(--cr-blue); }
+        .help-faq summary:hover { text-decoration: underline; }
         .help-plus {
           font-family: var(--cr-mono);
           font-size: 16px;

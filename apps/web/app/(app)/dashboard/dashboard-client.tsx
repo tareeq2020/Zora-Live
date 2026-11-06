@@ -664,7 +664,7 @@ export default function DashboardClient() {
 }
 
 // BS50 (Lane 3A): re-skinned onto DESIGN.md's Control-room plane, the SAME
-// dark token set already running in production on /admin/dashboard
+// dark token set the (now retired, BS151) /admin/dashboard used
 // (admin-style.ts) — not a new design, applying the existing one. Two
 // semantic corrections made while doing this (not blind token swaps):
 //   1. old --ink meant TEXT color; the reference dark system's --ink means a
@@ -678,14 +678,14 @@ export default function DashboardClient() {
 //      same thing everywhere in the app, not just in whichever file happened
 //      to ship first.
 const STYLE = `
-.zora-dash{--black:#0A0A0B;--ink:#101012;--ink2:#16161A;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
-  --blue:#3D5AFE;--orange:#FF5A1F;--teal:#2FA9A0;--amber:#F0C674;
+.zora-dash{--black:#111111;--ink:#1C1C1C;--ink2:#262626;--hair:#333333;--bone:#F7F5EE;--mut:#BDBDBD;
+  --blue:#FFD21F;--orange:#B42318;--teal:#0F7B3F;--amber:#FFD21F;
   --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-dash *{margin:0;padding:0;box-sizing:border-box}
 :where(.zora-dash) a{color:inherit;text-decoration:none}
 .zora-dash .mono{font-family:var(--mono)}
-.zora-dash ::selection{background:var(--blue);color:#fff}
+.zora-dash ::selection{background:var(--blue);color:#111111}
 .zora-dash :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .zora-dash .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
 @media(max-width:820px){.zora-dash .shell{grid-template-columns:1fr}}
@@ -694,28 +694,28 @@ const STYLE = `
 .zora-dash .rail .brand{padding:0 24px 26px;font-weight:600;font-size:19px;letter-spacing:-.02em;white-space:nowrap}
 @media(max-width:820px){.zora-dash .rail .brand{padding:0 12px 0 0}}
 .zora-dash .rail .brand .o{color:var(--blue)}
-.zora-dash .rail .brand small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.35em;color:var(--mut);font-weight:400;margin-top:2px}
+.zora-dash .rail .brand small{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.35em;color:var(--mut);font-weight:400;margin-top:2px}
 .zora-dash .nav-item{display:flex;align-items:center;gap:12px;padding:11px 24px;font-size:13.5px;color:var(--mut);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);letter-spacing:.02em}
 @media(max-width:820px){.zora-dash .nav-item{width:auto;padding:8px 12px;white-space:nowrap}}
 .zora-dash .nav-item:hover{color:var(--bone)}
-.zora-dash .nav-item.on{color:var(--blue);background:rgba(61,90,254,.14);font-weight:500}
+.zora-dash .nav-item.on{color:var(--blue);background:#1C1C1C;font-weight:500}
 .zora-dash .nav-item .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
-.zora-dash .rail .foot{margin-top:auto;padding:20px 24px 0;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--mut)}
+.zora-dash .rail .foot{margin-top:auto;padding:20px 24px 0;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut)}
 @media(max-width:820px){.zora-dash .rail .foot{display:none}}
 .zora-dash .rail .foot a:hover{color:var(--bone)}
 .zora-dash main{padding:34px 40px 80px;max-width:1060px}
 @media(max-width:820px){.zora-dash main{padding:24px 18px 60px}}
-.zora-dash .crumb{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--mut);margin-bottom:8px}
+.zora-dash .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--mut);margin-bottom:8px}
 .zora-dash h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .zora-dash .skel-h1{height:32px;width:280px;max-width:70%;background:linear-gradient(90deg,var(--hair),var(--ink),var(--hair));background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px;margin-bottom:8px}
 .zora-dash .sub{color:var(--mut);font-size:13.5px;margin-bottom:30px}
 .zora-dash .block{margin-bottom:28px}
-.zora-dash .bh{font-family:var(--mono);font-size:10px;letter-spacing:.25em;color:var(--mut);margin-bottom:16px}
+.zora-dash .bh{font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--mut);margin-bottom:16px}
 .zora-dash .muted{color:var(--mut);font-size:13px}
 .zora-dash .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
 .zora-dash .card{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:18px 20px;min-height:104px}
 .zora-dash .card.skel{animation:shimmer 1.3s infinite;background:linear-gradient(90deg,var(--ink),var(--black),var(--ink));background-size:200% 100%}
-.zora-dash .card .k{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--mut)}
+.zora-dash .card .k{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut)}
 .zora-dash .card .v{font-family:var(--mono);font-size:26px;font-weight:500;margin-top:8px;letter-spacing:-.01em}
 .zora-dash .card .v small{font-size:13px;color:var(--mut)}
 .zora-dash .card .v.blue{color:var(--blue)}
@@ -725,7 +725,7 @@ const STYLE = `
 .zora-dash .wave:last-child{margin-bottom:0}
 .zora-dash .wave .wr{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:6px}
 .zora-dash .wave .wr .mono{color:var(--mut);font-size:12px;white-space:nowrap}
-.zora-dash .inline-tag{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:2px 7px;margin-left:8px}
+.zora-dash .inline-tag{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:2px 7px;margin-left:8px}
 .zora-dash .bar{height:7px;background:var(--ink2);border:1px solid var(--hair);border-radius:4px;overflow:hidden}
 .zora-dash .bar i{display:block;height:100%;background:var(--blue);transition:width .6s}
 .zora-dash .bar i.done{background:var(--teal)}
@@ -735,22 +735,22 @@ const STYLE = `
 .zora-dash .drop-row .dr-main{min-width:0}
 .zora-dash .drop-row .dn{font-weight:600;font-size:17px}
 .zora-dash .drop-row .dn.dim{color:var(--mut)}
-.zora-dash .drop-row .dm{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:.06em;margin-top:4px}
-.zora-dash .drop-row .dr-warn{font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--amber);margin-top:8px;line-height:1.5}
+.zora-dash .drop-row .dm{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.06em;margin-top:4px}
+.zora-dash .drop-row .dr-warn{font-family:var(--mono);font-size:12px;letter-spacing:.02em;color:var(--amber);margin-top:8px;line-height:1.5}
 .zora-dash .dr-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.zora-dash .tag{font-family:var(--mono);font-size:10px;letter-spacing:.2em;padding:5px 12px;border-radius:99px;border:1px solid;white-space:nowrap}
+.zora-dash .tag{font-family:var(--mono);font-size:12px;letter-spacing:.2em;padding:5px 12px;border-radius:99px;border:1px solid;white-space:nowrap}
 .zora-dash .tag.live{color:var(--teal);border-color:var(--teal)}
 .zora-dash .tag.draft{color:var(--mut);border-color:var(--hair)}
 .zora-dash .tag.arch{color:var(--orange);border-color:var(--orange)}
-.zora-dash .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.16em;padding:12px 24px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s,border-color .18s;display:inline-flex;align-items:center;justify-content:center}
-.zora-dash .btn:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:var(--bone)}
+.zora-dash .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.16em;padding:12px 24px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s,border-color .18s;display:inline-flex;align-items:center;justify-content:center}
+.zora-dash .btn:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:#111111}
 .zora-dash .btn:disabled{opacity:.4;cursor:not-allowed}
 .zora-dash .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
 .zora-dash .btn.ghost:hover:not(:disabled){border-color:var(--bone);color:var(--bone);background:none}
 .zora-dash .btn.ghost.danger:hover:not(:disabled){border-color:var(--orange);color:var(--orange)}
-.zora-dash .btn.blue{background:var(--blue);color:var(--bone);border-color:var(--blue)}
+.zora-dash .btn.blue{background:var(--blue);color:#111111;border-color:var(--blue)}
 .zora-dash .btn.blue:hover:not(:disabled){background:var(--bone);color:var(--black);border-color:var(--bone)}
-.zora-dash .btn.sm{padding:8px 16px;font-size:10.5px;margin-left:12px}
+.zora-dash .btn.sm{padding:8px 16px;font-size:12px;margin-left:12px}
 .zora-dash .state{font-family:var(--mono);font-size:12px;letter-spacing:.04em;padding:14px 16px;border-radius:9px;line-height:1.6;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:14px;background:var(--ink)}
 .zora-dash .state.err{color:var(--orange);border:1px dashed var(--orange)}
 .zora-dash .state.ok{color:var(--teal);border:1px dashed var(--teal)}
@@ -759,8 +759,8 @@ const STYLE = `
 .zora-dash .empty-drops .ed-d{color:var(--mut);font-size:13px;margin:8px auto 20px;max-width:44ch}
 .zora-dash .imp-bar{position:sticky;top:0;z-index:200;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#241a05;border-bottom:1px solid #BA7517;color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:12px 20px}
 .zora-dash .imp-bar b{color:#FFD98A}
-.zora-dash .imp-bar button{margin-left:auto;background:var(--amber);color:#241a05;border:none;border-radius:8px;font-family:inherit;font-size:11px;font-weight:600;letter-spacing:.1em;padding:9px 18px;cursor:pointer}
-.zora-dash .verif-pill{display:inline-flex;align-items:center;gap:6px;margin:0 24px 16px;background:#191305;border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;padding:6px 11px;border-radius:99px;align-self:flex-start}
+.zora-dash .imp-bar button{margin-left:auto;background:var(--amber);color:#241a05;border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.1em;padding:9px 18px;cursor:pointer}
+.zora-dash .verif-pill{display:inline-flex;align-items:center;gap:6px;margin:0 24px 16px;background:#191305;border:1px solid var(--amber);color:var(--amber);font-family:var(--mono);font-size:12px;letter-spacing:.1em;padding:6px 11px;border-radius:99px;align-self:flex-start}
 .zora-dash .verif-pill svg{width:11px;height:11px;stroke:var(--amber);fill:none;stroke-width:2}
 @media(max-width:820px){.zora-dash .verif-pill{margin:0 0 0 4px;flex-shrink:0}}
 .zora-dash .verif-banner{display:flex;align-items:flex-start;gap:14px;background:#191305;border:1px solid var(--amber);border-radius:12px;padding:16px 18px;margin-bottom:26px}
@@ -768,26 +768,26 @@ const STYLE = `
 .zora-dash .verif-banner .vb-ic svg{width:18px;height:18px;stroke:var(--amber);fill:none;stroke-width:2}
 .zora-dash .verif-banner .vb-body{flex:1;min-width:0}
 .zora-dash .verif-banner .vb-t{font-weight:500;font-size:14.5px;color:var(--amber);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.zora-dash .verif-banner .vb-badge{font-family:var(--mono);font-size:9px;letter-spacing:.12em;background:var(--amber);color:#3a2405;padding:3px 9px;border-radius:99px}
+.zora-dash .verif-banner .vb-badge{font-family:var(--mono);font-size:12px;letter-spacing:.12em;background:var(--amber);color:#3a2405;padding:3px 9px;border-radius:99px}
 .zora-dash .verif-banner .vb-d{font-size:13px;color:#D9C398;margin-top:5px;line-height:1.55}
 .zora-dash .verif-banner .vb-d b{color:var(--amber);font-weight:500}
 .zora-dash .verif-banner .vb-actions{display:flex;gap:10px;margin-top:13px;flex-wrap:wrap}
-.zora-dash .verif-banner .vb-btn{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;padding:12px 16px;min-height:44px;display:inline-flex;align-items:center;border-radius:8px;cursor:pointer;border:1px solid var(--amber);background:none;color:var(--amber)}
+.zora-dash .verif-banner .vb-btn{font-family:var(--mono);font-size:12px;letter-spacing:.1em;padding:12px 16px;min-height:44px;display:inline-flex;align-items:center;border-radius:8px;cursor:pointer;border:1px solid var(--amber);background:none;color:var(--amber)}
 .zora-dash .verif-banner .vb-btn:hover{background:var(--amber);color:#241a05;border-color:var(--amber)}
 /* BS41: the pending banner is the FIRST thing a new organizer sees, so its
    primary action is a real button (filled, ≥44px) and its body copy sits at
    13.5px / high contrast — DESIGN.md 4b, highest-stakes info, highest legibility. */
 .zora-dash .verif-banner .vb-btn.primary{background:var(--amber);color:#241a05;border-color:var(--amber);font-weight:500}
 .zora-dash .verif-banner .vb-btn.primary:hover{background:#FFD98A;border-color:#FFD98A}
-.zora-dash .verif-banner.pending{background:rgba(61,90,254,.08);border-color:var(--blue)}
+.zora-dash .verif-banner.pending{background:#1C1C1C;border-color:var(--blue)}
 .zora-dash .verif-banner.pending .vb-ic{border-color:var(--blue)}
 .zora-dash .verif-banner.pending .vb-ic svg{stroke:var(--blue)}
 .zora-dash .verif-banner.pending .vb-t{color:var(--bone)}
-.zora-dash .verif-banner.pending .vb-badge{background:var(--blue);color:#fff}
+.zora-dash .verif-banner.pending .vb-badge{background:var(--blue);color:#111111}
 .zora-dash .verif-banner.pending .vb-d{color:var(--mut);font-size:13.5px}
 .zora-dash .verif-banner.pending .vb-btn{border-color:var(--blue);color:var(--blue)}
-.zora-dash .verif-banner.pending .vb-btn:hover{background:var(--blue);color:#fff}
-.zora-dash .verif-banner.pending .vb-btn.primary{background:var(--blue);color:#fff}
+.zora-dash .verif-banner.pending .vb-btn:hover{background:var(--blue);color:#111111}
+.zora-dash .verif-banner.pending .vb-btn.primary{background:var(--blue);color:#111111}
 .zora-dash .verif-banner.pending .vb-btn.primary:hover{background:#2A41D6;border-color:#2A41D6}
 @media(max-width:560px){
   .zora-dash .verif-banner .vb-actions{flex-direction:column;align-items:stretch}

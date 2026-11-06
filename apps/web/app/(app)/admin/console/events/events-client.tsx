@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, crPrimaryBtn, useConsoleToast } from '../console-kit';
 
@@ -112,7 +112,7 @@ function EventsInner() {
       render: (e) => (
         <span>
           {e.name}
-          {e.mega ? <span style={{ marginLeft: 8, fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '.08em', color: 'var(--cr-blue)' }}>★ MEGA</span> : null}
+          {e.mega ? <span style={{ marginLeft: 8, fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '.08em', color: 'var(--cr-blue)' }}>★ MEGA</span> : null}
         </span>
       ),
     },
@@ -123,7 +123,7 @@ function EventsInner() {
         <span>
           {e.owner}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>@{e.ownerHandle}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>@{e.ownerHandle}</span>
         </span>
       ),
     },

@@ -20,6 +20,7 @@ import { reserveInventory, convertReservation, releaseReservation } from './inve
 import { generateCode, generatePublicRef, signCredential, ticketSigningKeys, qrPayload, renderQrPng } from './credentials';
 import { alertOps } from './ops';
 import { sendSms } from './sms';
+import { logOrderEvent } from './order-events';
 import { sendCredentialEmail } from './email';
 import { emailBrandForEvent } from './theme-resolve';
 import { isCommissionRate } from './commission';
@@ -196,6 +197,7 @@ export async function createShareOrder(sql: Sql, shareId: string, payerPhone: st
       values (${cust.id}, ${share.event_id}, 'table_share', 'pending', ${share.amount}, ${rate}) returning id`;
     await t`update split_share set order_id = ${ord.id}, customer_id = ${cust.id},
               state = case when state = 'unclaimed' then 'claimed' else state end where id = ${shareId}`;
+    await logOrderEvent(t, ord.id, 'cart_created', { channel: 'split', shareId, total: Number(share.amount) });
     return { ok: true, orderId: ord.id, amount: Number(share.amount) };
   }, sql);
 }
@@ -271,7 +273,7 @@ export async function issueTableCredentials(t: Sql, splitId: string): Promise<nu
   const key = ticketSigningKeys()[0];
   const [split] = await t`select event_id, product_tier_id from table_split where id = ${splitId}`;
   const shares = await t`
-    select s.id, s.share_index, s.customer_id, c.name as holder
+    select s.id, s.share_index, s.customer_id, s.order_id, c.name as holder
       from split_share s left join customer c on c.id = s.customer_id
      where s.split_id = ${splitId} and s.state = 'paid' order by s.share_index`;
   let issued = 0;
@@ -284,6 +286,7 @@ export async function issueTableCredentials(t: Sql, splitId: string): Promise<nu
               ${s.share_index}, ${splitId}, ${s.id}, ${s.holder ?? null}, ${'T-' + String(splitId).slice(0, 8)})
       on conflict (split_share_id) where split_share_id is not null do nothing`;
     issued += res.count ?? 0;
+    if ((res.count ?? 0) > 0) await logOrderEvent(t, s.order_id, 'passes_issued', { count: 1, splitId, seat: s.share_index });
   }
   return issued;
 }
@@ -322,7 +325,9 @@ export async function notifyShareReceived(sql: Sql, orderId: string): Promise<vo
      where s.order_id = ${orderId}`;
   if (!row?.phone) return;
   const msg = `You're in for ${row.event_name}. ${row.paid}/${row.capacity_n} paid — we'll text your pass when the table fills.`;
-  try { await sendSms(row.phone, msg); } catch (e) { console.error('share receipt SMS failed', e); }
+  let sms = 'failed';
+  try { const r = await sendSms(row.phone, msg); sms = r.delivered ? 'sent' : 'dev'; } catch (e) { console.error('share receipt SMS failed', e); }
+  await logOrderEvent(sql, orderId, 'buyer_notified', { reason: 'share_receipt', ok: sms !== 'failed', sms, email: 'none' });
 }
 
 export async function notifySplitCompleteByOrder(sql: Sql, orderId: string): Promise<void> {
@@ -335,7 +340,7 @@ export async function notifySplitComplete(sql: Sql, splitId: string): Promise<vo
   const eventName = ev?.event_name ?? 'your event';
   const brand = await emailBrandForEvent(ev?.event_id); // BS131: null unless zp_pass_design
   const rows = await sql`
-    select cr.code, cr.signature, cr.public_ref, cr.tier_id, c.phone, c.email, c.name
+    select cr.code, cr.signature, cr.public_ref, cr.tier_id, c.phone, c.email, c.name, s.order_id
       from credential cr
       join split_share s on s.id = cr.split_share_id
       left join customer c on c.id = s.customer_id
@@ -344,13 +349,18 @@ export async function notifySplitComplete(sql: Sql, splitId: string): Promise<vo
     let qrPng: Buffer | null = null;
     try { qrPng = await renderQrPng(qrPayload(r.code, r.signature)); } catch (e) { console.error('split QR render failed', e); }
     const codePart = r.public_ref ? ` Code: ${r.public_ref}.` : '';
-    try { if (r.phone) await sendSms(r.phone, `Your table is locked for ${eventName}. You're seated.${codePart}`); }
-    catch (e) { console.error('split complete SMS failed', e); }
+    let sms = 'none', email = 'none';
+    try { if (r.phone) { const res = await sendSms(r.phone, `Your table is locked for ${eventName}. You're seated.${codePart}`); sms = res.delivered ? 'sent' : 'dev'; } }
+    catch (e) { console.error('split complete SMS failed', e); sms = 'failed'; }
     try {
-      if (r.email) await sendCredentialEmail(r.email, {
-        buyerName: r.name ?? 'there', eventName, brand,
-        tickets: [{ publicRef: r.public_ref ?? '', tier: r.tier_id, qrPng }],
-      });
-    } catch (e) { console.error('split complete email failed', e); }
+      if (r.email) {
+        await sendCredentialEmail(r.email, {
+          buyerName: r.name ?? 'there', eventName, brand,
+          tickets: [{ publicRef: r.public_ref ?? '', tier: r.tier_id, qrPng }],
+        });
+        email = 'sent';
+      }
+    } catch (e) { console.error('split complete email failed', e); email = 'failed'; }
+    await logOrderEvent(sql, r.order_id, 'buyer_notified', { reason: 'split_complete', ok: sms === 'sent' || sms === 'dev' || email === 'sent', sms, email, tickets: 1 });
   }
 }

@@ -19,6 +19,7 @@ import { ThemeModule } from './theme/theme.module';
 import { ScanModule } from './scan/scan.module';
 import { BroadcastsModule } from './broadcasts/broadcasts.module';
 import { AdminOrdersModule } from './admin-orders/admin-orders.module';
+import { AdminAttentionModule } from './admin-attention/admin-attention.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { ShareCardModule } from './share-card/share-card.module';
 import { EventsModule } from './events/events.module';
@@ -58,6 +59,7 @@ import { RolesGuard } from './common/roles.guard';
     ScanModule,
     BroadcastsModule,
     AdminOrdersModule,
+    AdminAttentionModule,
     TicketsModule,
     ShareCardModule,
     EventsModule,

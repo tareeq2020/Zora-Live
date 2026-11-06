@@ -1,14 +1,14 @@
 'use client';
 
 /* HeroChart — the one hero metric (Lane A · BS69).
-   DESIGN.md Control-Room v2: ONE metric (revenue over time), smooth filled area
-   in the blue anchor, range switch (7D/14D/30D/ALL) + EXPORT. Ships a
+   DESIGN.md Control-Room v2: ONE metric (revenue over time), smooth flat area
+   in the one yellow accent (BS154: no gradient), range switch (7D/14D/30D/ALL) + EXPORT. Ships a
    "view as table" a11y alternative (Pass 6 — a chart is not accessible alone),
    count-up/draw-in respect prefers-reduced-motion via CSS only (SVG is static).
    States: loading skeleton · empty ("no revenue yet") · flat baseline for a
    range with no data. */
 
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export type ChartPoint = { label: string; value: number };
 export type ChartRange = '7D' | '14D' | '30D' | 'ALL';
@@ -72,7 +72,6 @@ export function HeroChart({
   emptyText = 'No revenue yet — share your storefront to make your first sale.',
   onExport,
 }: HeroChartProps) {
-  const gradId = useId().replace(/:/g, '');
   const [showTable, setShowTable] = useState(false);
   const { area, line, last } = useMemo(() => buildPath(data), [data]);
   const hasData = data.some((d) => d.value > 0);
@@ -158,15 +157,10 @@ export function HeroChart({
           role="img"
           aria-label={`${title} area chart. Use "view as table" for values.`}
         >
-          <defs>
-            <linearGradient id={`cr-fill-${gradId}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--cr-blue)" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="var(--cr-blue)" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          <path d={area} fill={`url(#cr-fill-${gradId})`} />
-          <path d={line} fill="none" stroke="var(--cr-blue)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          {last ? <circle cx={last.x} cy={last.y} r="3.5" fill="var(--cr-blue)" /> : null}
+          {/* flat area in the one yellow accent + an ink line (no gradient) */}
+          <path d={area} fill="var(--cr-chart-fill)" style={{ fillOpacity: 'var(--cr-chart-fill-opacity)' }} />
+          <path d={line} fill="none" stroke="var(--cr-chart-line)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          {last ? <circle cx={last.x} cy={last.y} r="4" fill="var(--cr-chart-line)" /> : null}
         </svg>
       )}
     </section>

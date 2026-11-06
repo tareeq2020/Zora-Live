@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { db, ORDER_STATUSES, wasEverPaid } from '@zora/core';
+import {
+  db, ORDER_STATUSES, wasEverPaid, orderStageReached, attemptAccepted, buildTimeline, timelineDurations,
+  ORDER_STAGES, type OrderStage, type RawEntry, type TimelineEntry,
+} from '@zora/core';
 import { OrgScopeService } from '../org/org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -90,6 +93,10 @@ export interface AdminOrderAttempt {
   currency: string | null;
   orderReference: string | null;
   billPayNumber: string | null;
+  /** BS153: why the gateway refused it (sanitized), and when. */
+  error: string | null;
+  errorAt: string | null;
+  scheduleN: number | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -130,6 +137,25 @@ export interface AdminOrderRow {
   attempts: AdminOrderAttempt[];
   credentials: AdminOrderCredential[];
   createdAt: string;
+  /** BS153: furthest funnel stage this cart reached. */
+  stageReached: OrderStage;
+  /** BS153: the newest attempt, for the list's Payment column. Null = none started. */
+  latestAttempt: { method: string | null; status: string; error: string | null; at: string } | null;
+}
+
+/** BS153: one cart, inside out — GET /api/admin/orders/:id. */
+export interface AdminOrderDetail extends AdminOrderRow {
+  channel: string | null;
+  notifiedAt: string | null;
+  stages: readonly string[];
+  timeline: TimelineEntry[];
+  durations: Record<string, number | null>;
+  passes: {
+    publicRef: string | null; state: string; tierId: string | null; seatLabel: string | null;
+    issuedAt: string | null; scannedAt: string | null; scannedBy: string | null; confirmedAt: string | null;
+  }[];
+  callbacks: { transactionId: string | null; provider: string | null; receivedAt: string; applied: boolean }[];
+  holds: { state: string; quantity: number; expiresAt: string | null; createdAt: string | null }[];
 }
 
 export interface AdminOrdersQuery {
@@ -150,6 +176,17 @@ export interface AdminOrdersPage {
   /** Aggregate over the WINDOW (not the page) so the header can say how many
       carts are in each state without paging through them. */
   counts: { status: string; orders: number }[];
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Credential states that mean the holder came through the door. */
+const CHECKED_IN_STATES = new Set(['scanned', 'wristband_issued', 'used']);
+
+interface Decorated {
+  linesByOrder: Map<string, AdminOrderLine[]>;
+  splitByOrder: Map<string, AdminOrderSplit>;
+  attemptsByOrder: Map<string, AdminOrderAttempt[]>;
+  credsByOrder: Map<string, AdminOrderCredential[]>;
 }
 
 const iso = (v: Date | string | null | undefined): string | null =>
@@ -245,7 +282,7 @@ export class AdminOrdersService {
     type Row = {
       id: string; event_id: string; type: string; status: string; target_value: string | number;
       created_at: Date; commission_rate: string | null; refunded_amount: string | number | null;
-      refunded_at: Date | null; customer_id: string | null;
+      refunded_at: Date | null; customer_id: string | null; notified_at: Date | null;
       phone: string | null; email: string | null; name: string | null;
     };
 
@@ -259,6 +296,7 @@ export class AdminOrdersService {
              o.commission_rate as commission_rate,
              o.refunded_amount as refunded_amount,
              o.refunded_at     as refunded_at,
+             o.notified_at     as notified_at,
              c.id              as customer_id,
              c.phone           as phone,
              c.email           as email,
@@ -305,55 +343,7 @@ export class AdminOrdersService {
     const decorated = await this.decorate(sql, orderIds);
 
     const orgByHandle = new Map((await this.organizers.list()).map((o) => [o.handle, o.name]));
-    const piiCutoff = Date.now() - NEVER_PAID_PII_DAYS * 86_400_000;
-
-    const orders: AdminOrderRow[] = page.map((o) => {
-      const ev = eventById.get(o.event_id);
-      const orgHandle = (ev?.organizerHandle as string) ?? null;
-      const lines = decorated.linesByOrder.get(o.id) ?? [];
-      const split = decorated.splitByOrder.get(o.id) ?? null;
-      const attempts = decorated.attemptsByOrder.get(o.id) ?? [];
-      const latest = attempts.length ? attempts[attempts.length - 1] : null;
-
-      // OV8 — a cart that never took money, past the window, loses its contact.
-      const paidEver = wasEverPaid(o.status);
-      const redact = !paidEver && new Date(o.created_at).getTime() < piiCutoff;
-
-      const cartValue = split
-        ? (split.seats.find((s) => s.isThisOrder)?.amount ?? 0)
-        : lines.reduce((a, l) => a + l.amount, 0);
-      const currency = lines[0]?.currency ?? split?.currency ?? DEFAULT_CURRENCY;
-
-      return {
-        id: o.id,
-        type: o.type,
-        status: o.status,
-        eventId: o.event_id,
-        eventName: (ev?.name as string) ?? null,
-        organizerHandle: orgHandle,
-        organizerName: orgHandle ? orgByHandle.get(orgHandle) ?? orgHandle : null,
-        buyer: {
-          customerId: o.customer_id,
-          name: redact ? mask(o.name) : o.name,
-          phone: redact ? mask(o.phone) : o.phone,
-          email: redact ? mask(o.email) : o.email,
-        },
-        piiRedacted: redact,
-        lines,
-        split,
-        cartValue,
-        targetValue: Number(o.target_value ?? 0),
-        currency,
-        refundedAmount: Number(o.refunded_amount ?? 0),
-        refundedAt: iso(o.refunded_at),
-        commissionRate: o.commission_rate == null ? null : Number(o.commission_rate),
-        method: latest?.method ?? null,
-        fspId: latest?.fspId ?? null,
-        attempts,
-        credentials: decorated.credsByOrder.get(o.id) ?? [],
-        createdAt: iso(o.created_at) as string,
-      };
-    });
+    const orders: AdminOrderRow[] = page.map((o) => this.toRow(o, eventById, orgByHandle, decorated));
 
     const last = page[page.length - 1];
     return {
@@ -364,9 +354,180 @@ export class AdminOrdersService {
     };
   }
 
+  /** One API row from an order row + its decorations. Shared by list and detail
+      so the PII rule (OV8) is applied in exactly one place. */
+  private toRow(o: any, eventById: Map<string, any>, orgByHandle: Map<string, string>, decorated: Decorated, steps?: Iterable<string>): AdminOrderRow {
+    const ev = eventById.get(o.event_id);
+    const orgHandle = (ev?.organizerHandle as string) ?? null;
+    const lines = decorated.linesByOrder.get(o.id) ?? [];
+    const split = decorated.splitByOrder.get(o.id) ?? null;
+    const attempts = decorated.attemptsByOrder.get(o.id) ?? [];
+    const credentials = decorated.credsByOrder.get(o.id) ?? [];
+    const latest = attempts.length ? attempts[attempts.length - 1] : null;
+
+    // OV8 — a cart that never took money, past the window, loses its contact.
+    const piiCutoff = Date.now() - NEVER_PAID_PII_DAYS * 86_400_000;
+    const paidEver = wasEverPaid(o.status);
+    const redact = !paidEver && new Date(o.created_at).getTime() < piiCutoff;
+
+    const cartValue = split
+      ? (split.seats.find((x) => x.isThisOrder)?.amount ?? 0)
+      : lines.reduce((a, l) => a + l.amount, 0);
+    const currency = lines[0]?.currency ?? split?.currency ?? DEFAULT_CURRENCY;
+
+    return {
+      id: o.id,
+      type: o.type,
+      status: o.status,
+      eventId: o.event_id,
+      eventName: (ev?.name as string) ?? null,
+      organizerHandle: orgHandle,
+      organizerName: orgHandle ? orgByHandle.get(orgHandle) ?? orgHandle : null,
+      buyer: {
+        customerId: o.customer_id,
+        name: redact ? mask(o.name) : o.name,
+        phone: redact ? mask(o.phone) : o.phone,
+        email: redact ? mask(o.email) : o.email,
+      },
+      piiRedacted: redact,
+      lines,
+      split,
+      cartValue,
+      targetValue: Number(o.target_value ?? 0),
+      currency,
+      refundedAmount: Number(o.refunded_amount ?? 0),
+      refundedAt: iso(o.refunded_at),
+      commissionRate: o.commission_rate == null ? null : Number(o.commission_rate),
+      method: latest?.method ?? null,
+      fspId: latest?.fspId ?? null,
+      attempts,
+      credentials,
+      createdAt: iso(o.created_at) as string,
+      stageReached: orderStageReached({
+        status: o.status,
+        attempts,
+        notified: o.notified_at != null,
+        checkedIn: credentials.some((c) => CHECKED_IN_STATES.has(c.state)),
+        steps,
+      }),
+      latestAttempt: latest
+        ? { method: latest.method, status: latest.status, error: latest.error, at: latest.errorAt ?? latest.updatedAt ?? latest.createdAt }
+        : null,
+    };
+  }
+
+  /** GET /api/admin/orders/:id — the whole cart and every step it went through.
+      Null when the id is not a uuid or no such order. */
+  async detail(id: string): Promise<AdminOrderDetail | null> {
+    if (!UUID_RE.test(String(id || ''))) return null;
+    const sql = db();
+    const [o] = await sql`
+      select o.id, o.event_id, o.type, o.status, o.target_value, o.created_at, o.commission_rate,
+             o.refunded_amount, o.refunded_at, o.notified_at, o.channel,
+             c.id as customer_id, c.phone, c.email, c.name
+        from "order" o left join customer c on c.id = o.customer_id
+       where o.id = ${id}::uuid`;
+    if (!o) return null;
+
+    const [events, orgs, decorated] = await Promise.all([
+      this.scope.readEvents(), this.organizers.list(), this.decorate(sql, [id]),
+    ]);
+    const eventById = new Map<string, any>(events.filter(Boolean).map((e) => [e.id as string, e]));
+    const orgByHandle = new Map(orgs.map((x) => [x.handle, x.name]));
+    const attempts = decorated.attemptsByOrder.get(id) ?? [];
+    const txIds = attempts.map((a) => a.transactionId);
+
+    const [logged, passes, hooks, holds] = await Promise.all([
+      sql`select at, step, transaction_id, detail from order_event where order_id = ${id}::uuid order by at asc, id asc`
+        .catch(() => [] as any[]),
+      sql`
+        select c.public_ref, c.state, c.tier_id, c.seat_label, c.issued_at, c.scanned_at, c.scanned_by_name, c.confirmed_at
+          from credential c join order_item oi on oi.id = c.order_item_id where oi.order_id = ${id}::uuid
+        union all
+        select c.public_ref, c.state, c.tier_id, c.seat_label, c.issued_at, c.scanned_at, c.scanned_by_name, c.confirmed_at
+          from credential c join split_share ss on ss.id = c.split_share_id where ss.order_id = ${id}::uuid`,
+      txIds.length
+        ? sql`select transaction_id, provider, received_at, applied from webhook_event
+               where transaction_id = any(${txIds}) and provider <> 'ops-alert' order by received_at asc`
+        : Promise.resolve([] as any[]),
+      sql`select state, quantity, expires_at, created_at from inventory_hold where order_id = ${id}::uuid order by created_at asc`,
+    ]);
+
+    const loggedEntries: RawEntry[] = (logged as any[]).map((e) => ({
+      at: iso(e.at) as string,
+      step: e.step,
+      transactionId: e.transaction_id ?? null,
+      detail: e.detail && typeof e.detail === 'object' ? e.detail : {},
+    }));
+
+    // ── history: what the tables already say (orders from before 0035) ──
+    const derived: RawEntry[] = [];
+    const lines = decorated.linesByOrder.get(id) ?? [];
+    derived.push({
+      at: iso(o.created_at) as string, step: 'cart_created', transactionId: null,
+      detail: { lines: lines.map((l) => ({ tier: l.tier, qty: l.qty, unitPrice: l.unitPrice })), total: Number(o.target_value ?? 0), channel: o.channel ?? 'online' },
+    });
+    for (const a of attempts) {
+      derived.push({ at: a.createdAt, step: 'pay_requested', transactionId: a.transactionId, detail: { method: a.method, amount: a.amount, scheduleN: a.scheduleN } });
+      if (a.error) {
+        derived.push({ at: a.errorAt ?? a.updatedAt ?? a.createdAt, step: 'gateway_rejected', transactionId: a.transactionId, detail: { error: a.error } });
+      } else if (attemptAccepted(a)) {
+        derived.push({ at: a.createdAt, step: 'gateway_accepted', transactionId: a.transactionId, detail: { orderReference: a.orderReference, billPayNumber: a.billPayNumber } });
+      }
+      const at = a.updatedAt ?? a.createdAt;
+      if (a.status === 'successful') {
+        derived.push({ at, step: wasEverPaid(o.status) ? 'paid' : 'status_changed', transactionId: a.transactionId, detail: { to: 'successful', collected: a.collectedAmount } });
+      } else if (a.status === 'partial') {
+        derived.push({ at, step: 'short', transactionId: a.transactionId, detail: { collected: a.collectedAmount, amount: a.amount } });
+      } else if (a.status === 'failed') {
+        derived.push({ at, step: 'failed', transactionId: a.transactionId, detail: {} });
+      } else if (a.status === 'expired') {
+        derived.push({ at, step: 'status_changed', transactionId: a.transactionId, detail: { to: 'expired', reason: 'attempt_timed_out' } });
+      }
+    }
+    for (const h of hooks as any[]) {
+      derived.push({ at: iso(h.received_at) as string, step: 'callback_received', transactionId: h.transaction_id, detail: { provider: h.provider, applied: !!h.applied } });
+    }
+    const passRows = passes as any[];
+    const issuedTimes = passRows.map((p) => p.issued_at).filter(Boolean).map((d: any) => new Date(d).getTime());
+    if (issuedTimes.length) {
+      derived.push({ at: new Date(Math.min(...issuedTimes)).toISOString(), step: 'passes_issued', transactionId: null, detail: { count: passRows.length } });
+    }
+    if (o.notified_at) derived.push({ at: iso(o.notified_at) as string, step: 'buyer_notified', transactionId: null, detail: { reason: 'confirmation' } });
+    for (const p of passRows) {
+      if (p.scanned_at) derived.push({ at: iso(p.scanned_at) as string, step: 'checked_in', transactionId: null, detail: { publicRef: p.public_ref, by: p.scanned_by_name ?? null } });
+    }
+    if (o.refunded_at) derived.push({ at: iso(o.refunded_at) as string, step: 'refunded', transactionId: null, detail: { refundedTotal: Number(o.refunded_amount ?? 0), full: true } });
+    const holdRows = holds as any[];
+    const lastExpiry = holdRows.map((h) => h.expires_at).filter(Boolean).map((d: any) => new Date(d).getTime()).sort((a, b) => b - a)[0];
+    if (lastExpiry && holdRows.some((h) => h.state === 'released') && (o.status === 'expired' || o.status === 'failed')) {
+      if (o.status === 'expired') {
+        derived.push({ at: new Date(lastExpiry).toISOString(), step: 'hold_released', transactionId: null, detail: { reason: 'hold_expired' } });
+        derived.push({ at: new Date(lastExpiry).toISOString(), step: 'expired', transactionId: null, detail: { reason: 'hold_expired_unpaid' } });
+      }
+    }
+
+    const timeline = buildTimeline(loggedEntries, derived);
+    const row = this.toRow(o, eventById, orgByHandle, decorated, loggedEntries.map((e) => e.step));
+    return {
+      ...row,
+      channel: o.channel ?? null,
+      notifiedAt: iso(o.notified_at),
+      stages: ORDER_STAGES,
+      timeline,
+      durations: timelineDurations(timeline),
+      passes: passRows.map((p) => ({
+        publicRef: p.public_ref, state: p.state, tierId: p.tier_id, seatLabel: p.seat_label ?? null,
+        issuedAt: iso(p.issued_at), scannedAt: iso(p.scanned_at), scannedBy: p.scanned_by_name ?? null, confirmedAt: iso(p.confirmed_at),
+      })),
+      callbacks: (hooks as any[]).map((h) => ({ transactionId: h.transaction_id, provider: h.provider, receivedAt: iso(h.received_at) as string, applied: !!h.applied })),
+      holds: holdRows.map((h) => ({ state: h.state, quantity: Number(h.quantity), expiresAt: iso(h.expires_at), createdAt: iso(h.created_at) })),
+    };
+  }
+
   /** Line items, split seats, payment attempts and credentials for ONE page of
       orders. Five queries for the whole page, never per row. */
-  private async decorate(sql: any, orderIds: string[]) {
+  private async decorate(sql: any, orderIds: string[]): Promise<Decorated> {
     const itemRows = (await sql`
       select oi.order_id       as order_id,
              oi.product_tier_id as tier_id,
@@ -423,7 +584,8 @@ export class AdminOrdersService {
 
     const attemptRows = (await sql`
       select order_id, transaction_id, method, fsp_id, amount, currency, status,
-             order_reference, bill_pay_number, collected_amount, created_at, updated_at
+             order_reference, bill_pay_number, collected_amount, created_at, updated_at,
+             error, error_at, schedule_n
         from payment_transaction
        where order_id = any(${orderIds}::uuid[])
        order by created_at asc`) as {
@@ -431,6 +593,7 @@ export class AdminOrdersService {
       amount: string | number | null; currency: string | null; status: string;
       order_reference: string | null; bill_pay_number: string | null;
       collected_amount: string | number | null; created_at: Date; updated_at: Date | null;
+      error: string | null; error_at: Date | null; schedule_n: number | null;
     }[];
 
     // Credentials reach an order two ways: through order_item (GA/VIP) and
@@ -515,6 +678,9 @@ export class AdminOrdersService {
         currency: a.currency,
         orderReference: a.order_reference,
         billPayNumber: a.bill_pay_number,
+        error: a.error ?? null,
+        errorAt: iso(a.error_at),
+        scheduleN: a.schedule_n == null ? null : Number(a.schedule_n),
         createdAt: iso(a.created_at) as string,
         updatedAt: iso(a.updated_at),
       });

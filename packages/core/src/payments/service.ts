@@ -22,6 +22,7 @@ import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
 import { emailBrandForEvent } from '../theme-resolve';
 import { publicWebOrigin } from '../origins';
+import { logOrderEvent, recordGatewayRejection } from '../order-events';
 import { alertOps } from '../ops';
 import { isCommissionRate } from '../commission';
 import { ORDER_STATUS, PASS_ISSUING_STATUSES, isPayable, issuesPasses } from '../order-status';
@@ -142,6 +143,7 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       // (c) per line: snapshot the active price, place the hold, record the item.
       let subtotal = 0;
       let passedSubtotal = 0; // only lines whose price passes the fee to the buyer
+      const logged: { tier: string; qty: number; unitPrice: number; seats?: number }[] = [];
       for (const line of cart) {
         // BS23: a DISABLED tier is unpurchasable — the join drops it so the buyer
         // sees the same sold-out path (never a 500), and inventory is never touched.
@@ -168,6 +170,7 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
         if (hold === null) throw new SoldOut(line.tier); // rollback releases earlier holds
 
         const lineTotal = Number(pv.price) * quantity;
+        logged.push({ tier: line.tier, qty: quantity, unitPrice: Number(pv.price), ...(line.seatIds?.length ? { seats: line.seatIds.length } : {}) });
         subtotal += lineTotal;
         if (pv.fee_treatment === 'passed') passedSubtotal += lineTotal;
       }
@@ -177,6 +180,11 @@ export async function createGaVipOrder(sql: Sql, input: CreateGaVipOrderInput): 
       const total = subtotal + fee;
       await t`update "order" set target_value = ${total} where id = ${orderId}`;
       if (input.onCreated) await input.onCreated(t, { orderId, eventId, total, subtotal, fee });
+      await logOrderEvent(t, orderId, 'cart_created', {
+        lines: logged, subtotal, fee, total, channel, holdTtlSecs: holdTtl,
+        holdExpiresAt: new Date(Date.now() + holdTtl * 1000).toISOString(),
+        installment: !!input.onCreated,
+      });
 
       return { ok: true, orderId, total, subtotal, fee } as const;
     }, sql);
@@ -237,6 +245,7 @@ export async function issueCredentials(sql: Sql, orderId: string): Promise<numbe
       issued += res.count ?? 0;
     }
   }
+  if (issued > 0) await logOrderEvent(sql, orderId, 'passes_issued', { count: issued });
   return issued;
 }
 
@@ -331,18 +340,33 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   const collectInput = {
     orderId, customerId: order.customer_id, transactionId, amount, method, payerPhone, payerName, callbackUrl,
   };
+  await logOrderEvent(sql, orderId, 'pay_requested', {
+    method, amount, scheduleN: installment?.n ?? null, retry: order.status === 'failed',
+  }, transactionId);
   // BS133: an installment attempt goes out through the installment provider
   // (/collection/* today, x-bridge /v1 receivables behind XBRIDGE_V1); a
   // pay-in-full attempt takes the unchanged /collection/* path.
-  const { orderReference, billPayNumber, redirectUrl } = installment
-    ? await payInstallment(sql, { ...collectInput, scheduleN: installment.n })
-    : await collectViaCollectionApi(sql, collectInput);
+  let collected: CollectAttemptResult;
+  try {
+    collected = installment
+      ? await payInstallment(sql, { ...collectInput, scheduleN: installment.n })
+      : await collectViaCollectionApi(sql, collectInput);
+  } catch (e) {
+    // BS153: keep WHY the gateway said no, then fail exactly as before.
+    const cause = (e as any)?.code === 'provider_refused' && (e as any)?.cause ? (e as any).cause : e;
+    await recordGatewayRejection(sql, orderId, transactionId, cause, { method, amount });
+    throw e;
+  }
+  const { orderReference, billPayNumber, redirectUrl } = collected;
 
   await sql`
     update payment_transaction
        set status = 'pending', order_reference = ${orderReference ?? null},
            bill_pay_number = ${billPayNumber ?? null}, updated_at = now()
      where transaction_id = ${transactionId}`;
+  await logOrderEvent(sql, orderId, 'gateway_accepted', {
+    method, orderReference: orderReference ?? null, billPayNumber: billPayNumber ?? null, cardUrlIssued: !!redirectUrl,
+  }, transactionId);
 
   return { transactionId, status: 'pending', billPayNumber, redirectUrl };
 }
@@ -451,98 +475,123 @@ export async function applyOutcome(
       select order_id, status, schedule_n, amount from payment_transaction where transaction_id = ${transactionId} for update`;
     if (!txr || txr.status === 'successful' || txr.status === 'failed' || txr.status === 'partial') return null;
 
-    // ── BS132 installment branch: an attempt bound to a schedule row (A16) is
-    //    allocated to THAT row. Returns BEFORE the pay-in-full logic below, which
-    //    stays untouched.
-    if (txr.schedule_n != null) return applyInstallmentOutcome(t, transactionId, txr, outcome, collected);
+    const result = await applyLockedOutcome(t, transactionId, txr, outcome, collected);
+    await logOutcome(t, transactionId, txr, outcome, result, collected);
+    return result;
+  }, sql);
+}
 
-    const [ord] = await t`select type, status from "order" where id = ${txr.order_id}`;
-    const isTable = ord?.type === 'table';
+/** The state machine proper, run under applyOutcome's lock (body unchanged by
+    BS153; only lifted out so the outcome can be logged in the same tx). */
+async function applyLockedOutcome(
+  t: Sql, transactionId: string, txr: any, outcome: PaymentOutcome, collected: number | null,
+): Promise<string | null> {
+  // ── BS132 installment branch: an attempt bound to a schedule row (A16) is
+  //    allocated to THAT row. Returns BEFORE the pay-in-full logic below, which
+  //    stays untouched.
+  if (txr.schedule_n != null) return applyInstallmentOutcome(t, transactionId, txr, outcome, collected);
 
-    // ── BS2 table_share branch: a bill-split seat is its own order. Delegate to
-    //    the split aggregation layer (the txn-terminal guard above already deduped).
-    //    Returns BEFORE the GA/VIP + table logic below, which stays untouched.
-    if (ord?.type === 'table_share') {
-      if (outcome === 'successful') return onShareSuccessful(t, txr.order_id, transactionId, collected);
-      if (outcome === 'short')      return onShareShort(t, txr.order_id, transactionId, collected);
-      return onShareFailed(t, txr.order_id, transactionId);
+  const [ord] = await t`select type, status from "order" where id = ${txr.order_id}`;
+  const isTable = ord?.type === 'table';
+
+  // ── BS2 table_share branch: a bill-split seat is its own order. Delegate to
+  //    the split aggregation layer (the txn-terminal guard above already deduped).
+  //    Returns BEFORE the GA/VIP + table logic below, which stays untouched.
+  if (ord?.type === 'table_share') {
+    if (outcome === 'successful') return onShareSuccessful(t, txr.order_id, transactionId, collected);
+    if (outcome === 'short')      return onShareShort(t, txr.order_id, transactionId, collected);
+    return onShareFailed(t, txr.order_id, transactionId);
+  }
+
+  if (outcome === 'successful') {
+    // GUARD 2 (order-level): a successful on an already-paid order = duplicate
+    // COLLECTION by a different txn. Mark this txn paid + record what it took,
+    // alert ops to refund, but reconvert NOTHING and reissue NOTHING.
+    if (ord?.status === ORDER_STATUS.PAID) {
+      await t`update payment_transaction set status='successful',
+                collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+              where transaction_id=${transactionId}`;
+      await alertOps(t, 'duplicate_collection', txr.order_id);
+      return 'paid';
     }
-
-    if (outcome === 'successful') {
-      // GUARD 2 (order-level): a successful on an already-paid order = duplicate
-      // COLLECTION by a different txn. Mark this txn paid + record what it took,
-      // alert ops to refund, but reconvert NOTHING and reissue NOTHING.
-      if (ord?.status === ORDER_STATUS.PAID) {
-        await t`update payment_transaction set status='successful',
-                  collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
-                where transaction_id=${transactionId}`;
-        await alertOps(t, 'duplicate_collection', txr.order_id);
-        return 'paid';
-      }
-      // BS125 (A17): seats first, under lock. Every seat the order bought must
-      // still be its hold, or free (a lapsed hold nobody re-took). Otherwise the
-      // money arrived too late for those exact seats: paid_unseatable, issue nothing.
-      const seatRows = await t`
-        select si.seat_id, si.state, si.hold_order_id, si.hold_expires_at <= now() as expired
-          from order_seat os join seat_inventory si on si.event_id = os.event_id and si.seat_id = os.seat_id
-         where os.order_id = ${txr.order_id} for update of si`;
-      const seatsOk = seatRows.every((r: any) =>
-        r.state === 'available' || (r.state === 'held' && (r.hold_order_id === txr.order_id || r.expired)));
-      if (!seatsOk) {
+    // BS125 (A17): seats first, under lock. Every seat the order bought must
+    // still be its hold, or free (a lapsed hold nobody re-took). Otherwise the
+    // money arrived too late for those exact seats: paid_unseatable, issue nothing.
+    const seatRows = await t`
+      select si.seat_id, si.state, si.hold_order_id, si.hold_expires_at <= now() as expired
+        from order_seat os join seat_inventory si on si.event_id = os.event_id and si.seat_id = os.seat_id
+       where os.order_id = ${txr.order_id} for update of si`;
+    const seatsOk = seatRows.every((r: any) =>
+      r.state === 'available' || (r.state === 'held' && (r.hold_order_id === txr.order_id || r.expired)));
+    if (!seatsOk) {
+      await t`update payment_transaction set status='successful',
+                collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+              where transaction_id=${transactionId}`;
+      await t`update "order" set status='paid_unseatable' where id=${txr.order_id}`;
+      await releaseHolds(t, txr.order_id);
+      await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
+               where hold_order_id=${txr.order_id} and state='held'`;
+      await alertOps(t, 'paid_unseatable', txr.order_id);
+      return 'paid_unseatable';
+    }
+    // Convert inventory (table→reservation, GA/VIP→holds). A 0 means the grant
+    // lapsed (late-settlement race) — fall back to reacquire; if that fails,
+    // flag paid_unseatable and issue NOTHING (the anti-oversell).
+    let converted = isTable
+      ? await convertReservation(t, 'order', txr.order_id)
+      : await convertHolds(t, txr.order_id);
+    if (converted === 0) {
+      const reacquired = await tryReacquire(t, txr.order_id);
+      if (!reacquired) {
         await t`update payment_transaction set status='successful',
                   collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
                 where transaction_id=${transactionId}`;
         await t`update "order" set status='paid_unseatable' where id=${txr.order_id}`;
-        await releaseHolds(t, txr.order_id);
-        await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
-                 where hold_order_id=${txr.order_id} and state='held'`;
         await alertOps(t, 'paid_unseatable', txr.order_id);
-        return 'paid_unseatable';
+        return 'paid_unseatable'; // paid, but NO credential issued
       }
-      // Convert inventory (table→reservation, GA/VIP→holds). A 0 means the grant
-      // lapsed (late-settlement race) — fall back to reacquire; if that fails,
-      // flag paid_unseatable and issue NOTHING (the anti-oversell).
-      let converted = isTable
-        ? await convertReservation(t, 'order', txr.order_id)
-        : await convertHolds(t, txr.order_id);
-      if (converted === 0) {
-        const reacquired = await tryReacquire(t, txr.order_id);
-        if (!reacquired) {
-          await t`update payment_transaction set status='successful',
-                    collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
-                  where transaction_id=${transactionId}`;
-          await t`update "order" set status='paid_unseatable' where id=${txr.order_id}`;
-          await alertOps(t, 'paid_unseatable', txr.order_id);
-          return 'paid_unseatable'; // paid, but NO credential issued
-        }
-        converted = 1;
-      }
-      await t`update payment_transaction set status='successful',
-                collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
-              where transaction_id=${transactionId}`;
-      await t`update "order" set status='paid' where id=${txr.order_id}`;
-      if (seatRows.length) {
-        await t`update seat_inventory set state='sold', sold_order_id=${txr.order_id}, hold_order_id=null, hold_expires_at=null, updated_at=now()
-                 where (event_id, seat_id) in (select event_id, seat_id from order_seat where order_id=${txr.order_id})`;
-      }
-      if (!isTable) await issueCredentials(t, txr.order_id);
-      return 'paid';
-    } else if (outcome === 'short') {
-      await t`update payment_transaction set status='partial',
-                collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
-              where transaction_id=${transactionId}`;
-      await t`update "order" set status='payment_short' where id=${txr.order_id}`;
-      await alertOps(t, 'payment_short', txr.order_id);
-      return 'payment_short';
-    } else {
-      await t`update payment_transaction set status='failed', updated_at=now() where transaction_id=${transactionId}`;
-      await t`update "order" set status='failed' where id=${txr.order_id} and status='pending'`;
-      await releaseHolds(t, txr.order_id);
-      await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
-               where hold_order_id=${txr.order_id} and state='held'`;
-      return 'failed';
+      converted = 1;
     }
-  }, sql);
+    await t`update payment_transaction set status='successful',
+              collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+            where transaction_id=${transactionId}`;
+    await t`update "order" set status='paid' where id=${txr.order_id}`;
+    if (seatRows.length) {
+      await t`update seat_inventory set state='sold', sold_order_id=${txr.order_id}, hold_order_id=null, hold_expires_at=null, updated_at=now()
+               where (event_id, seat_id) in (select event_id, seat_id from order_seat where order_id=${txr.order_id})`;
+    }
+    if (!isTable) await issueCredentials(t, txr.order_id);
+    return 'paid';
+  } else if (outcome === 'short') {
+    await t`update payment_transaction set status='partial',
+              collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+            where transaction_id=${transactionId}`;
+    await t`update "order" set status='payment_short' where id=${txr.order_id}`;
+    await alertOps(t, 'payment_short', txr.order_id);
+    return 'payment_short';
+  } else {
+    await t`update payment_transaction set status='failed', updated_at=now() where transaction_id=${transactionId}`;
+    await t`update "order" set status='failed' where id=${txr.order_id} and status='pending'`;
+    await releaseHolds(t, txr.order_id);
+    await t`update seat_inventory set state='available', hold_order_id=null, hold_expires_at=null, updated_at=now()
+             where hold_order_id=${txr.order_id} and state='held'`;
+    return 'failed';
+  }
+}
+
+/** BS153: one funnel step per applied outcome, in the same tx. Never throws. */
+async function logOutcome(
+  t: Sql, transactionId: string, txr: any, outcome: PaymentOutcome, result: string | null, collected: number | null,
+): Promise<void> {
+  if (result == null) return;
+  const detail = { outcome, orderStatus: result, from: txr.status, collected, scheduleN: txr.schedule_n ?? null };
+  const paidLike = ['paid', 'paid_unseatable', 'share_paid', 'split_complete', 'share_refund_pending', 'split_stuck'];
+  let step: 'paid' | 'short' | 'failed' | 'status_changed';
+  if (outcome === 'short' || result === 'payment_short' || result === 'share_short') step = 'short';
+  else if (outcome === 'failed') step = txr.schedule_n != null && result !== 'failed' ? 'status_changed' : 'failed';
+  else step = paidLike.includes(result) ? 'paid' : 'status_changed';
+  await logOrderEvent(t, txr.order_id, step, detail, transactionId);
+  if (step === 'failed' && result === 'failed') await logOrderEvent(t, txr.order_id, 'hold_released', { reason: 'payment_failed' }, transactionId);
 }
 
 /** Reconcile one transaction against x-bridge (the source of truth): read the
@@ -614,7 +663,9 @@ export interface DeliveryTarget {
     the ticket is already valid. Does NOT touch notified_at and does NOT notify the
     organizer — those belong to the callers. Returns null if the order is unknown.
     `target` overrides the destination (comps deliver to their own contacts). */
-async function deliverBuyerTickets(sql: Sql, orderId: string, target?: DeliveryTarget): Promise<TicketDeliveryResult | null> {
+async function deliverBuyerTickets(
+  sql: Sql, orderId: string, target?: DeliveryTarget, reason: 'confirmation' | 'resend' | 'comp' | 'gate' = 'confirmation',
+): Promise<TicketDeliveryResult | null> {
   const [row] = await sql`
     select c.phone, c.email, c.name,
            e.id as event_id, e.name as event_name,
@@ -651,21 +702,27 @@ async function deliverBuyerTickets(sql: Sql, orderId: string, target?: DeliveryT
   const toEmail = target ? (target.email ?? null) : row.email;
   const toName = (target?.name ?? row.name) ?? 'there';
 
+  // BS153: what really happened per channel, for the order's log.
+  const outcome: { sms: string; email: string; smsError?: string; emailError?: string } = { sms: 'none', email: 'none' };
   let sms: TicketDeliveryResult['sms'] = 'skipped';
   try {
     if (toPhone) {
       const r = await sendSms(toPhone, ticketSmsText(refs, row.event_name));
       sms = r.delivered ? 'sent' : 'dev';
+      outcome.sms = sms;
     }
-  } catch (e) { console.error('confirm SMS failed', e); sms = 'skipped'; }
+  } catch (e) { console.error('confirm SMS failed', e); sms = 'skipped'; outcome.sms = 'failed'; outcome.smsError = String((e as Error)?.message ?? e).slice(0, 200); }
   let email: TicketDeliveryResult['email'] = 'skipped';
   try {
     if (toEmail) {
       const brand = await emailBrandForEvent(row.event_id); // BS131: null unless zp_pass_design
       await sendCredentialEmail(toEmail, { buyerName: toName, eventName: row.event_name, tickets, brand });
       email = 'sent';
+      outcome.email = 'sent';
     }
-  } catch (e) { console.error('confirm email failed', e); email = 'skipped'; }
+  } catch (e) { console.error('confirm email failed', e); email = 'skipped'; outcome.email = 'failed'; outcome.emailError = String((e as Error)?.message ?? e).slice(0, 200); }
+  const ok = outcome.sms === 'sent' || outcome.sms === 'dev' || outcome.email === 'sent';
+  await logOrderEvent(sql, orderId, 'buyer_notified', { reason, ok, tickets: refs.length, ...outcome });
 
   const amount = Number(row.gross ?? 0) || Number(row.target_value ?? 0) || null;
   return {
@@ -710,7 +767,7 @@ export async function resendOrderTickets(sql: Sql, orderId: string, target?: Del
   const [ord] = await sql`select status from "order" where id = ${orderId}`;
   if (!ord) return { ok: false, reason: 'not_found' };
   if (!issuesPasses(ord.status)) return { ok: false, reason: 'not_paid' };
-  const result = await deliverBuyerTickets(sql, orderId, target);
+  const result = await deliverBuyerTickets(sql, orderId, target, 'resend');
   if (!result) return { ok: false, reason: 'not_found' };
   return { ok: true, result };
 }
@@ -830,8 +887,10 @@ export async function createComp(sql: Sql, input: CreateCompInput): Promise<Crea
 
     // Credentials + delivery run after commit (issueCredentials is idempotent; the
     // seat is already committed as sold). Deliver to the comp's OWN phone+email.
+    await logOrderEvent(sql, orderId, 'cart_created', { channel: 'comp', tier: input.tier, qty: quantity, total: 0 });
+    await logOrderEvent(sql, orderId, 'paid', { channel: 'comp', amount: 0 });
     await issueCredentials(sql, orderId);
-    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name });
+    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name }, 'comp');
     return { ok: true, orderId, eventId, ticketCount: quantity, delivery };
   } catch (e) {
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
@@ -912,8 +971,10 @@ export async function sellGateCash(sql: Sql, input: SellGateCashInput): Promise<
       return orderId;
     }, sql);
 
+    await logOrderEvent(sql, orderId, 'cart_created', { channel: 'gate_cash', tier: input.tier, qty: quantity, total: amount });
+    await logOrderEvent(sql, orderId, 'paid', { channel: 'gate_cash', method: 'cash', amount });
     await issueCredentials(sql, orderId);
-    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name });
+    const delivery = await deliverBuyerTickets(sql, orderId, { phone: phone || null, email: email || null, name }, 'gate');
     return { ok: true, orderId, ticketCount: quantity, amount, delivery };
   } catch (e) {
     if (e instanceof SoldOut) return { ok: false, reason: 'sold_out', tier: e.tier };
@@ -1017,7 +1078,7 @@ const PENDING_WINDOW = { mobile: 3600, card: 7200, billpay: 259200, default: 360
     reconciled. A late settlement past the window still settles (applyOutcome does
     not treat 'expired' as terminal). */
 export async function reconcilePending(sql: Sql): Promise<number> {
-  await sql`
+  const timedOut = await sql`
     update payment_transaction set status = 'expired', updated_at = now()
      where status in ('created', 'pending', 'processing')
        and created_at < now() - make_interval(secs => (case method
@@ -1025,7 +1086,11 @@ export async function reconcilePending(sql: Sql): Promise<number> {
              when 'card'    then ${PENDING_WINDOW.card}
              when 'billpay' then ${PENDING_WINDOW.billpay}
              else ${PENDING_WINDOW.default}
-           end)::int)`;
+           end)::int)
+    returning order_id, transaction_id, method`;
+  for (const r of timedOut) {
+    await logOrderEvent(sql, r.order_id, 'status_changed', { to: 'expired', reason: 'attempt_timed_out', method: r.method }, r.transaction_id);
+  }
   const pending = await sql`
     select transaction_id from payment_transaction
      where status in ('created', 'pending', 'processing')
@@ -1041,7 +1106,9 @@ export async function sweepExpiredHolds(sql: Sql): Promise<number> {
     select distinct order_id from inventory_hold where state = 'held' and expires_at < now()`;
   for (const r of rows) {
     await releaseHolds(sql, r.order_id);
+    await logOrderEvent(sql, r.order_id, 'hold_released', { reason: 'hold_expired' });
     const exp = await sql`update "order" set status = 'expired' where id = ${r.order_id} and status = 'pending' returning event_id`;
+    if (exp.length) await logOrderEvent(sql, r.order_id, 'expired', { reason: 'hold_expired_unpaid' });
     // BS123: a checkout whose hold lapsed with no payment is a drop-off.
     if (exp.length) void captureServerEvent('checkout_abandoned', r.order_id, { eventId: exp[0].event_id ?? null });
   }

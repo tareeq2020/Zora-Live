@@ -8,10 +8,8 @@
    Broadcasts) renders inside it so the shell, theme toggle and no-FOUC boot are
    identical across the console.
 
-   Additive / strangler-fig: the legacy imperative console at /admin/dashboard is
-   left in place. The four surfaces Lane C rebuilds live here at /admin/console/*;
-   the sections other lanes still own deep-link back into the legacy console by
-   hash so the sidebar IA is complete from day one. Active nav is longest-prefix
+   Every admin surface lives at /admin/console/*. The legacy imperative console
+   at /admin/dashboard was retired in BS151 and redirects to the overview. Active nav is longest-prefix
    on the path (CrShell), so a legacy hash link never lights up on a console
    route.
 
@@ -27,8 +25,6 @@ const NAV: CrNavItem[] = [
   { href: '/admin/console/orders', label: 'Orders & carts', icon: 'orders' },
   { href: '/admin/console/broadcasts', label: 'Broadcasts', icon: 'broadcasts' },
   // PR-BS89 — the remaining super-admin sections, ported onto the CR console.
-  // (Formerly deep-linked to /admin/dashboard#…; the legacy console stays
-  // in-tree as a strangler-fig fallback, linked from the footer.)
   { href: '/admin/console/organizers', label: 'Organizers', icon: 'organizers' },
   { href: '/admin/console/verification', label: 'Verification', icon: 'verification' },
   { href: '/admin/console/payouts', label: 'Payouts', icon: 'payouts' },
@@ -64,7 +60,6 @@ export function AdminConsoleShell({ title, breadcrumb, children }: AdminConsoleS
       }
       footer={
         <>
-          <a href="/admin/dashboard">LEGACY CONSOLE</a> &middot;{' '}
           <a href="/" target="_blank" rel="noopener noreferrer">
             VIEW SITE
           </a>

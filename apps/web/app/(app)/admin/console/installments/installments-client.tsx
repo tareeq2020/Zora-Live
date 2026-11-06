@@ -13,7 +13,7 @@
    API without these endpoints shows the error state (redeploy pending). */
 
 import { useCallback, useState } from 'react';
-import { adminApi, errText, useAdminResource, AdminSkeleton, AdminError, AdminEmpty } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, AdminSkeleton, AdminError, AdminEmpty } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { crPrimaryBtn } from '../console-kit';
 
@@ -67,7 +67,7 @@ export default function AdminInstallmentsClient() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
-                <tr style={{ textAlign: 'left', fontFamily: 'var(--cr-mono)', fontSize: 11, letterSpacing: '.12em', color: 'var(--cr-mut)' }}>
+                <tr style={{ textAlign: 'left', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '.12em', color: 'var(--cr-mut)' }}>
                   <th style={{ padding: '10px 8px 10px 0' }}>ORDER</th><th>EVENT</th><th>BUYER</th><th>PAID</th><th>FEE KEPT</th><th>REFUND DUE</th><th>REFERENCE</th><th />
                 </tr>
               </thead>
@@ -75,7 +75,7 @@ export default function AdminInstallmentsClient() {
                 {rows.map((r) => (
                   <tr key={r.orderId} style={{ borderTop: '1px solid var(--cr-hair)' }}>
                     <td style={{ padding: '12px 8px 12px 0', fontFamily: 'var(--cr-mono)', fontSize: 12 }} title={r.orderId}>{r.ref}</td>
-                    <td style={{ paddingRight: 8 }}>{r.eventName}{r.orgHandle ? <><br /><span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{r.orgHandle}</span></> : null}</td>
+                    <td style={{ paddingRight: 8 }}>{r.eventName}{r.orgHandle ? <><br /><span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{r.orgHandle}</span></> : null}</td>
                     <td style={{ paddingRight: 8 }}>{r.buyerName || '—'}<br /><span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12 }}>{r.buyerPhone ? `+${r.buyerPhone.replace(/^\+/, '')}` : 'no phone'}</span></td>
                     <td style={{ fontFamily: 'var(--cr-mono)', paddingRight: 8 }}>{money(r.paid, r.currency)}</td>
                     <td style={{ fontFamily: 'var(--cr-mono)', paddingRight: 8 }}>{money(r.serviceFee, r.currency)}</td>

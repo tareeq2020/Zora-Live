@@ -18,7 +18,7 @@
 
 import { useCallback, useState } from 'react';
 import { CrDrawer, DataTable, StatusPill, type Column, type PillTone } from '@/app/components/cr';
-import { adminApi, ageLabel, errText, useAdminResource, useJsonLoader, useNow, whenLocal } from '../../dashboard/admin-kit';
+import { adminApi, ageLabel, errText, useAdminResource, useJsonLoader, useNow, whenLocal } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrMeta, CrSectionHead, crDangerBtn, crPrimaryBtn, useConsoleToast } from '../console-kit';
 
@@ -146,13 +146,13 @@ function PayoutsInner() {
         <span>
           {p.organizerName}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{p.organizerHandle}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{p.organizerHandle}</span>
         </span>
       ),
     },
     { key: 'amount', header: 'Amount', numeric: true, render: (p) => exact(p.amount) },
     { key: 'currency', header: 'Currency', render: (p) => <span style={{ fontFamily: 'var(--cr-mono)' }}>{p.currency}</span> },
-    { key: 'dest', header: 'Send to', render: (p) => { const s = destSummary(p); return s ? <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11 }}>{s}</span> : <span style={{ color: 'var(--cr-mut)' }}>—</span>; } },
+    { key: 'dest', header: 'Send to', render: (p) => { const s = destSummary(p); return s ? <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12 }}>{s}</span> : <span style={{ color: 'var(--cr-mut)' }}>—</span>; } },
     {
       key: 'act',
       header: '',
@@ -174,7 +174,7 @@ function PayoutsInner() {
         <span>
           {p.organizerName}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{p.organizerHandle}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{p.organizerHandle}</span>
         </span>
       ),
     },

@@ -7,6 +7,8 @@ import { StorefrontAnalyticsController } from './storefront-analytics.controller
 
 /* BS123: storefront analytics beacon (Web Premium v1, F4 / A10).
    POST /api/v/track {kind, org, event?, anonId, referrer?, utm?} → always 204.
+   kind: storefront | event | checkout (BS153: the checkout sheet opened; needs
+   an event; counted and deduped exactly like an event view).
    Aggregates only; never blocks the page; rate-limited per IP in memory. */
 
 const WINDOW_MS = 60_000;
@@ -33,8 +35,10 @@ export class AnalyticsController {
       const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
       if (!allowed(ip)) return;
       if (!body || typeof body !== 'object') return;
+      const kind = body.kind === 'storefront' || body.kind === 'event' || body.kind === 'checkout' ? body.kind : null;
+      if (!kind) return;
       await recordView(db(), {
-        kind: body.kind,
+        kind,
         org: String(body.org ?? ''),
         event: body.event ? String(body.event) : null,
         anonId: String(body.anonId ?? ''),

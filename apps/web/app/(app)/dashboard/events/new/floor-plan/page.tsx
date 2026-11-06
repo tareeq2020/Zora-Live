@@ -22,7 +22,7 @@ import { ORG_NAV, ORG_BRAND } from '../../../components/org-nav';
 // the page background, so it's content-plane, not chrome.
 const STYLE = `
 .zora-seatbuilder{--black:var(--cr-paper);--ink:var(--cr-card);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
-  --blue:var(--cr-blue);--teal:var(--cr-green);--amber:var(--cr-amber);
+  --blue:var(--cr-blue);--teal:var(--cr-green);--amber:var(--cr-brand);
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .zora-seatbuilder *{margin:0;padding:0;box-sizing:border-box}
@@ -31,17 +31,17 @@ const STYLE = `
 .zora-seatbuilder button{font-family:inherit}
 .zora-seatbuilder .top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
 .zora-seatbuilder .top-in{display:flex;align-items:center;gap:14px;width:100%}
-.zora-seatbuilder .top .title{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--mut)}
+.zora-seatbuilder .top .title{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--mut)}
 .zora-seatbuilder .top-actions{margin-left:auto;display:flex;gap:10px}
-.zora-seatbuilder .ghost{background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut);padding:11px 16px;cursor:pointer}
+.zora-seatbuilder .ghost{min-height:44px;background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut);padding:11px 16px;cursor:pointer}
 .zora-seatbuilder .ghost:hover{border-color:var(--mut);color:var(--bone)}
-.zora-seatbuilder .pub{background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 22px;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
-.zora-seatbuilder .pub:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.zora-seatbuilder .pub{min-height:44px;background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.14em;padding:11px 22px;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
+.zora-seatbuilder .pub:hover{background:var(--cr-primary-bg);border-color:var(--cr-primary-bg);color:var(--cr-primary-fg)}
 .zora-seatbuilder .grid{display:grid;grid-template-columns:1fr 330px;gap:0;min-height:0;border:1px solid var(--hair);border-radius:16px;overflow:hidden}
 @media(max-width:900px){.zora-seatbuilder .grid{grid-template-columns:1fr}}
 .zora-seatbuilder .stage{padding:20px;display:flex;flex-direction:column;gap:14px}
 .zora-seatbuilder .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.zora-seatbuilder .tool{display:flex;align-items:center;gap:7px;background:var(--ink);border:1px solid var(--hair);border-radius:10px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--mut);padding:10px 14px;cursor:pointer}
+.zora-seatbuilder .tool{min-height:44px;display:flex;align-items:center;gap:7px;background:var(--ink);border:1px solid var(--hair);border-radius:10px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--mut);padding:10px 14px;cursor:pointer}
 .zora-seatbuilder .tool.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
 .zora-seatbuilder .tool svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
 .zora-seatbuilder .tool-sep{width:1px;height:22px;background:var(--hair);margin:0 4px}
@@ -51,22 +51,22 @@ const STYLE = `
 .zora-seatbuilder .empty-map{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--mut);gap:8px;pointer-events:none}
 .zora-seatbuilder .empty-map svg{width:34px;height:34px;stroke:var(--mut);fill:none;stroke-width:1.6}
 .zora-seatbuilder .empty-map .et{font-size:14px;font-weight:500;color:var(--bone)}
-.zora-seatbuilder .empty-map .ed{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em}
+.zora-seatbuilder .empty-map .ed{font-family:var(--mono);font-size:12px;letter-spacing:.06em}
 .zora-seatbuilder #overlay{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
 .zora-seatbuilder #overlay.select{cursor:default}
 .zora-seatbuilder .zrect{cursor:pointer}
 .zora-seatbuilder .ztext{font-family:var(--mono);fill:#0A0A0B;font-weight:600;pointer-events:none}
 .zora-seatbuilder .zsub{font-family:var(--mono);fill:#0A0A0B;opacity:.7;pointer-events:none}
 .zora-seatbuilder .upload-row{display:flex;gap:10px;flex-wrap:wrap}
-.zora-seatbuilder .up-btn{display:inline-flex;align-items:center;gap:9px;background:var(--ink);border:1px dashed var(--hair);border-radius:10px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--mut);padding:11px 16px;cursor:pointer}
+.zora-seatbuilder .up-btn{min-height:44px;display:inline-flex;align-items:center;gap:9px;background:var(--ink);border:1px dashed var(--hair);border-radius:10px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--mut);padding:11px 16px;cursor:pointer}
 .zora-seatbuilder .up-btn:hover{border-color:var(--blue);color:var(--blue)}
 .zora-seatbuilder .up-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
-.zora-seatbuilder .up-name{font-family:var(--mono);font-size:11px;color:var(--teal);align-self:center}
+.zora-seatbuilder .up-name{font-family:var(--mono);font-size:12px;color:var(--teal);align-self:center}
 .zora-seatbuilder .panel{border-left:1px solid var(--hair);background:var(--ink);padding:20px;display:flex;flex-direction:column;gap:18px}
 @media(max-width:900px){.zora-seatbuilder .panel{border-left:none;border-top:1px solid var(--hair)}}
-.zora-seatbuilder .p-h{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--mut)}
-.zora-seatbuilder label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--mut);margin-bottom:7px}
-.zora-seatbuilder .in{width:100%;background:var(--black);border:1px solid var(--hair);border-radius:9px;color:var(--bone);font-family:var(--sans);font-size:14px;padding:11px 12px;outline:none}
+.zora-seatbuilder .p-h{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut)}
+.zora-seatbuilder label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--mut);margin-bottom:7px}
+.zora-seatbuilder .in{min-height:48px;font-size:16px;width:100%;background:var(--black);border:1px solid var(--hair);border-radius:9px;color:var(--bone);font-family:var(--sans);font-size:14px;padding:11px 12px;outline:none}
 .zora-seatbuilder .in:focus{border-color:var(--blue)}
 .zora-seatbuilder select.in{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A877E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center}
 .zora-seatbuilder .field{margin-bottom:14px}
@@ -74,24 +74,24 @@ const STYLE = `
 .zora-seatbuilder .swatches{display:flex;gap:8px}
 .zora-seatbuilder .sw{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid transparent}
 .zora-seatbuilder .sw.on{border-color:var(--bone)}
-.zora-seatbuilder .cap-pill{background:var(--cr-wash-blue);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--cr-on-wash-blue);display:flex;justify-content:space-between}
+.zora-seatbuilder .cap-pill{background:var(--cr-card2);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:var(--cr-ink);display:flex;justify-content:space-between}
 .zora-seatbuilder .cap-pill b{font-size:15px}
 .zora-seatbuilder .no-sel{color:var(--mut);font-family:var(--mono);font-size:12px;line-height:1.7;letter-spacing:.03em}
 .zora-seatbuilder .zlist{display:flex;flex-direction:column;gap:8px}
 .zora-seatbuilder .zitem{display:flex;align-items:center;gap:10px;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--black)}
-.zora-seatbuilder .zitem.on{border-color:var(--blue);background:var(--cr-wash-blue)}
+.zora-seatbuilder .zitem.on{border-color:var(--blue);background:var(--cr-card2)}
 .zora-seatbuilder .zitem .dot{width:12px;height:12px;border-radius:4px;flex-shrink:0}
 .zora-seatbuilder .zitem .zn{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.zora-seatbuilder .zitem .zc{font-family:var(--mono);font-size:10px;color:var(--mut)}
+.zora-seatbuilder .zitem .zc{font-family:var(--mono);font-size:12px;color:var(--mut)}
 .zora-seatbuilder .zitem .del{background:none;border:none;color:var(--mut);cursor:pointer;font-size:15px}
 .zora-seatbuilder .zitem .del:hover{color:var(--cr-red)}
 .zora-seatbuilder .summary{border-top:1px solid var(--hair);padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .zora-seatbuilder .stat{background:var(--black);border:1px solid var(--hair);border-radius:9px;padding:12px}
 .zora-seatbuilder .stat .sv{font-family:var(--mono);font-size:18px;font-weight:500}
-.zora-seatbuilder .stat .sl{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--mut);margin-top:3px}
+.zora-seatbuilder .stat .sl{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut);margin-top:3px}
 .zora-seatbuilder .btn-row{display:grid;gap:8px}
-.zora-seatbuilder .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);border-radius:10px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.12em;padding:13px;cursor:pointer;text-align:center;transition:background .18s,color .18s,border-color .18s}
-.zora-seatbuilder .btn:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)}
+.zora-seatbuilder .btn{min-height:44px;background:var(--bone);color:var(--black);border:1px solid var(--bone);border-radius:10px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.12em;padding:13px;cursor:pointer;text-align:center;transition:background .18s,color .18s,border-color .18s}
+.zora-seatbuilder .btn:hover{background:var(--cr-primary-bg);border-color:var(--cr-primary-bg);color:var(--cr-primary-fg)}
 .zora-seatbuilder .btn.sec{background:none;border:1px solid var(--hair);color:var(--mut)}
 .zora-seatbuilder .btn.sec:hover{border-color:var(--blue);color:var(--blue);background:none}
 /* BS127 — publish state, conflict banner, live seat manager (OrgFloorPlan mockup). */
@@ -135,7 +135,7 @@ const STYLE = `
 .zora-seatbuilder .counts .tot{font-weight:600}
 .zora-seatbuilder fieldset.pm{border:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:6px}
 .zora-seatbuilder fieldset.pm legend{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--bone)}
-.zora-seatbuilder fieldset.pm label{display:flex;gap:8px;align-items:center;font-family:var(--sans);font-size:15px;letter-spacing:0;color:var(--bone);margin:0;min-height:32px}
+.zora-seatbuilder fieldset.pm label{display:flex;gap:8px;align-items:center;font-family:var(--sans);font-size:15px;letter-spacing:0;color:var(--bone);margin:0;min-height:44px}
 .zora-seatbuilder fieldset.pm input{width:18px;height:18px;accent-color:#111111}
 .zora-seatbuilder .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--bone);color:var(--black);font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:13px 24px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
 .zora-seatbuilder .toast.show{opacity:1}
@@ -344,7 +344,7 @@ const SCRIPT = String.raw`
       const r=document.createElementNS(NS,'rect');
       r.setAttribute('x',Math.min(drawing.x0,drawing.x1)); r.setAttribute('y',Math.min(drawing.y0,drawing.y1));
       r.setAttribute('width',Math.abs(drawing.x1-drawing.x0)); r.setAttribute('height',Math.abs(drawing.y1-drawing.y0));
-      r.setAttribute('rx',10); r.setAttribute('fill','#3D5AFE'); r.setAttribute('fill-opacity',0.18); r.setAttribute('stroke','#3D5AFE'); r.setAttribute('stroke-dasharray','8 6'); r.setAttribute('stroke-width',2);
+      r.setAttribute('rx',10); r.setAttribute('fill','#FFD21F'); r.setAttribute('fill-opacity',0.3); r.setAttribute('stroke','#111111'); r.setAttribute('stroke-dasharray','8 6'); r.setAttribute('stroke-width',2);
       ov.appendChild(r);
     }
     renderList(); renderSummary();
@@ -361,7 +361,7 @@ const SCRIPT = String.raw`
     if(!z){ box.innerHTML='<p class="no-sel">Draw a zone on the map, or pick one from the list below, to set its name, seating, capacity and price.</p>'; return; }
     box.innerHTML =
       '<div class="field"><label>ZONE NAME</label><input class="in" id="e-name" value="'+esc(z.name)+'"></div>'+
-      '<div class="field"><label>TICKET TIER</label><select class="in" id="e-tier">'+tierOptions(z.tierId||'')+'</select><p class="no-sel" style="font-size:10.5px;margin-top:7px">Link each zone to a sellable ticket tier so buyer checkout can reserve inventory.</p></div>'+
+      '<div class="field"><label>TICKET TIER</label><select class="in" id="e-tier">'+tierOptions(z.tierId||'')+'</select><p class="no-sel" style="font-size:12px;margin-top:7px">Link each zone to a sellable ticket tier so buyer checkout can reserve inventory.</p></div>'+
       '<div class="field"><label>ZONE TYPE</label><select class="in" id="e-type">'+
         '<option value="seated"'+(z.type==='seated'?' selected':'')+'>Assigned seating (rows &amp; seats)</option>'+
         '<option value="table"'+(z.type==='table'?' selected':'')+'>Table reservations (whole tables)</option>'+

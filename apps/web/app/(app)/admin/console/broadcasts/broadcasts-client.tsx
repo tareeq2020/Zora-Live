@@ -15,7 +15,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { adminApi, useAdminResource } from '../../dashboard/admin-kit';
+import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 
 // ── contracts (mirror @zora/core + admin-broadcasts.controller) ──────────────
@@ -147,19 +147,20 @@ export default function AdminBroadcastsClient() {
   ];
 
   const field: React.CSSProperties = {
-    height: 36,
-    borderRadius: 9,
-    border: '1px solid var(--cr-hair)',
+    // handoff input: 48px, radius 12, 2px border, 16px text
+    minHeight: 48,
+    borderRadius: 12,
+    border: '2px solid var(--cr-hair)',
     background: 'var(--cr-card)',
     color: 'var(--cr-ink)',
     fontFamily: 'var(--cr-sans)',
-    fontSize: 13,
-    padding: '0 10px',
+    fontSize: 16,
+    padding: '0 12px',
     width: '100%',
   };
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--cr-mono)',
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: 'var(--cr-mut)',
@@ -177,7 +178,7 @@ export default function AdminBroadcastsClient() {
               Compose a broadcast
             </h2>
             {data ? (
-              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-ink2)' }}>
+              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-ink2)' }}>
                 Monthly SMS cap {fmt(data.cap.used)}/{fmt(data.cap.limit)} · {fmt(data.cap.remaining)} left
               </span>
             ) : null}
@@ -339,7 +340,7 @@ export default function AdminBroadcastsClient() {
               className="cr-btn"
               onClick={send}
               disabled={!canSend}
-              style={canSend ? { borderColor: 'var(--cr-blue)', color: 'var(--cr-blue)', fontWeight: 600 } : undefined}
+              style={canSend ? { background: 'var(--cr-primary-bg)', borderColor: 'var(--cr-primary-bg)', color: 'var(--cr-primary-fg)' } : undefined}
             >
               {busy === 'send' ? 'Sending…' : preview ? `Send to ${fmt(preview.audience.people)}` : 'Send'}
             </button>
