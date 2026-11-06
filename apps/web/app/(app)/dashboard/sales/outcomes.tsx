@@ -31,10 +31,50 @@ export function toneForOutcome(o: string): PillTone {
   }
 }
 
-export function OutcomeChip({ outcome, label }: { outcome: string; label: string }) {
+/* BS163: a chip holds a short word or two; the reason is a plain line under it.
+   Long labels ("Buyer didn't complete: number can't receive mobile money") in
+   one uppercase pill broke the table into a tall blob. */
+const SHORT: Record<string, string> = {
+  paid: 'Paid',
+  paid_after_retry: 'Paid',
+  recovered: 'Recovered',
+  in_progress: 'In progress',
+  abandoned: 'Abandoned',
+  system_error: 'Not paid',
+  buyer_didnt_complete: 'Not completed',
+  underpaid: 'Underpaid',
+  paid_unseatable: 'No seat',
+  refunded: 'Refunded',
+  comp: 'Comp',
+  door_sale: 'Door sale',
+};
+const NOTE: Record<string, string> = {
+  paid_after_retry: 'After a failed try',
+  recovered: 'Paid in another order',
+  in_progress: 'Waiting for the buyer',
+  abandoned: 'Left before paying',
+  system_error: 'Not the buyer. ZoraPass is on it',
+  buyer_didnt_complete: "The buyer didn't finish paying",
+  underpaid: 'Paid less than the total',
+  paid_unseatable: 'Paid, but the seat was gone',
+};
+
+/** Short chip text + the reason line for one outcome. The reason prefers the
+    API label's detail (after "…: "), so x-bridge reasons show as written. */
+export function splitOutcome(outcome: string, label?: string | null): { chip: string; note: string | null } {
+  const chip = SHORT[outcome] ?? (label || outcome);
+  const i = label ? label.indexOf(': ') : -1;
+  const detail = i > 0 ? label!.slice(i + 2).trim() : '';
+  const note = detail ? detail.charAt(0).toUpperCase() + detail.slice(1) : NOTE[outcome] ?? null;
+  return { chip, note };
+}
+
+export function OutcomeChip({ outcome, label, withNote = true }: { outcome: string; label: string; withNote?: boolean }) {
+  const { chip, note } = splitOutcome(outcome, label);
   return (
-    <span className="of-pill">
-      <StatusPill tone={toneForOutcome(outcome)} label={label} />
+    <span className="of-pill" title={label}>
+      <StatusPill tone={toneForOutcome(outcome)} label={chip} />
+      {withNote && note ? <span className="of-pill-note">{note}</span> : null}
     </span>
   );
 }
