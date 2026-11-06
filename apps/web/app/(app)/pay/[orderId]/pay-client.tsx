@@ -11,7 +11,8 @@
    Copy: sentence-case states + mono labels, no chips, Bungee only on the 20px button. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { networkFromNumber } from '../../../components/checkout-flow-v2';
+import PhoneField from '../../../components/phone-field';
+import { groupNational, nationalDigits, networkFromNumber, toE164 } from '../../../components/phone';
 import { dayLabel, shortDay, daysUntil, moneyLabel, type ScheduleRow } from '../../../lib/installments';
 
 type View = {
@@ -50,13 +51,7 @@ const POLL_MS = 3000;
 const POLL_MAX = 60;
 const PAYABLE = new Set(['mobile', 'billpay', 'card']);
 
-function localDigits(raw: string): string {
-  let d = raw.replace(/\D/g, '');
-  if (d.startsWith('255')) d = d.slice(3);
-  if (d.startsWith('0')) d = d.slice(1);
-  return d.slice(0, 9);
-}
-const groupPhone = (d: string) => [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)].filter(Boolean).join(' ');
+const groupPhone = (d: string) => groupNational(d);
 
 export default function PayClient({ orderId }: { orderId: string }) {
   const [state, setState] = useState<'loading' | 'verify' | 'ready' | 'error'>('loading');
@@ -101,7 +96,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
       const v = (await r.json()) as View;
       setView(v);
       setState('ready');
-      if (v.phone && !payer) setPayer(localDigits(v.phone));
+      if (v.phone && !payer) setPayer(nationalDigits(v.phone));
       return v;
     } catch {
       setState('error');
@@ -143,7 +138,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
       const r = await fetch('/api/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `+255${vPhone}` }),
+        body: JSON.stringify({ phone: toE164(vPhone) }),
       });
       if (r.status === 429) {
         const d = await r.json().catch(() => ({}));
@@ -168,7 +163,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
       const r = await fetch('/api/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `+255${vPhone}`, code: code.trim() }),
+        body: JSON.stringify({ phone: toE164(vPhone), code: code.trim() }),
       });
       if (!r.ok) return setNotice({ kind: 'error', text: 'That code didn’t work. Check it and try again.' });
       const v = await load();
@@ -196,7 +191,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
       const res = await fetch(`/api/checkout/${encodeURIComponent(orderId)}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method, payerPhone: `+255${payer}`, mno: method === 'mobile' ? mno?.id : undefined }),
+        body: JSON.stringify({ method, payerPhone: toE164(payer), mno: method === 'mobile' ? mno?.id : undefined }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.status === 429) {
@@ -303,23 +298,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
       <div className="zpay-card">
         <span className="zpay-k">YOUR BOOKING</span>
         <p>Enter the phone number you booked with. We&apos;ll text you a code so only you can see this booking.</p>
-        <label className="zpay-field">
-          <span>PHONE</span>
-          <span className="zpay-tel">
-            <span className="zpay-cc" aria-hidden="true">
-              +255
-            </span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel-national"
-              aria-label="Phone number, after +255"
-              placeholder="712 345 678"
-              value={groupPhone(vPhone)}
-              onChange={(e) => setVPhone(localDigits(e.target.value))}
-            />
-          </span>
-        </label>
+        <PhoneField className="zpay-phone" label="PHONE" value={vPhone} onChange={(v) => setVPhone(v.national)} />
         {codeSent ? (
           <label className="zpay-field">
             <span>CODE</span>
@@ -465,23 +444,7 @@ export default function PayClient({ orderId }: { orderId: string }) {
               </div>
             ) : null}
             {editPayer || !payer ? (
-              <label className="zpay-field">
-                <span>PAY FROM</span>
-                <span className="zpay-tel">
-                  <span className="zpay-cc" aria-hidden="true">
-                    +255
-                  </span>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    aria-label="Phone number to pay from, after +255"
-                    placeholder="712 345 678"
-                    value={groupPhone(payer)}
-                    onChange={(e) => setPayer(localDigits(e.target.value))}
-                  />
-                </span>
-              </label>
+              <PhoneField className="zpay-phone" label="PAY FROM" value={payer} onChange={(v) => setPayer(v.national)} />
             ) : null}
             <button type="button" className="zpay-primary" disabled={busy} aria-busy={busy} onClick={pay}>
               <span>PAY {cur === 'TZS' ? 'TSH' : cur} {Math.round(next.amount).toLocaleString('en-US')}</span>
@@ -585,9 +548,7 @@ const STYLE = `
 .zpay .zpay-field > span:first-child{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut)}
 .zpay .zpay-field input{height:48px;border-radius:12px;border:2px solid var(--dash);background:var(--bk);color:var(--bone);padding:0 14px;font-size:16px;font-family:var(--mono);width:100%}
 .zpay .zpay-field input:focus{border-color:var(--yl);outline:none}
-.zpay .zpay-tel{display:flex}
-.zpay .zpay-cc{display:flex;align-items:center;padding:0 12px;border:2px solid var(--dash);border-right:none;border-radius:12px 0 0 12px;font-family:var(--mono)}
-.zpay .zpay-tel input{border-radius:0 12px 12px 0}
+.zpay .zpay-phone{margin:0;--zph-bg:var(--bk);--zph-ink:var(--bone);--zph-mut:var(--mut);--zph-line:var(--dash);--zph-focus:var(--yl);--zph-ring:var(--yl);--zph-err:#FFB4AB}
 .zpay .zpay-methods{display:flex;flex-wrap:wrap;gap:8px}
 .zpay .zpay-method{flex:1;min-width:120px;min-height:48px;display:flex;align-items:center;gap:10px;padding:0 12px;border-radius:12px;border:2px solid var(--dash);font-weight:700;font-size:14px;cursor:pointer}
 .zpay .zpay-method.on{border-color:var(--yl)}

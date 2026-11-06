@@ -2,8 +2,8 @@
 
 /* PR-11 — the reusable WEB CHECKOUT FLOW (v1).
 
-   BS122: kept for one release as the fallback behind the zp_checkout_v2 flag —
-   checkout-flow.tsx picks v1 or v2. Do not add features here.
+   BS122: the fallback behind the zp_checkout_v2 flag — checkout-flow.tsx
+   picks v1 or v2. With the flag off this is the live checkout (BS161).
 
    One self-contained client component that drives the real payments contract end
    to end and replaces the old "claim in the app" dead-end. Surfaced from the
@@ -14,9 +14,10 @@
 
    Steps (a..e), each mapped to a backend endpoint:
      cart   — tiers + qty, availability from GET /api/inventory (sold-out disabled)
-     buyer  — phone / email / age attestation / method + network
+     buyer  — phone / email / age attestation / method
               → POST /api/checkout  (409 sold_out · 503 busy|sales_paused · 200 {orderId,total})
-     pay    — method-specific collection
+     pay    — method-specific collection. BS161: mobile money is ONE screen —
+              total + hold, network cards, the number right under them, PAY.
               → POST /api/checkout/:orderId/pay  (mobile PIN · billpay control no. · card redirect)
      poll   — GET /api/orders/:orderId/status every ~3s until terminal
      done   — paid → scannable QR credentials · short/unseatable → apology · failed → retry
@@ -33,14 +34,14 @@ import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { trackProductEvent } from './product-analytics';
 import { sendCheckoutBeacon } from './view-beacon';
+import PhoneField from './phone-field';
+import { groupNational, isValidNational, networkFromNumber, toE164 } from './phone';
 
 import type { CheckoutTier, CheckoutFlowProps } from './checkout-types';
 
-// BS47: 'network' is a dedicated step — the buyer picks a METHOD first (mobile
-// / bill pay / card), and only mobile money asks a follow-up "which network"
-// question, on its own screen, with the network's own logo rather than a bare
-// text label.
-type Step = 'cart' | 'buyer' | 'network' | 'pay' | 'poll' | 'done';
+// BS161: no separate network step. Mobile money picks the network on the pay
+// screen, with the number right under the logo cards.
+type Step = 'cart' | 'buyer' | 'pay' | 'poll' | 'done';
 type Method = 'mobile' | 'billpay' | 'card';
 
 type PoolSnapshot = { tierId: string; available: number };
@@ -84,7 +85,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   const [invError, setInvError] = useState(false);
 
   // buyer
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(''); // national digits, e.g. 712345678
   const [email, setEmail] = useState('');
   const [ageAttested, setAgeAttested] = useState(false);
   const [method, setMethod] = useState<Method>('mobile');
@@ -98,6 +99,8 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   // checkout / pay
   const [order, setOrder] = useState<Order | null>(null);
   const [payerName, setPayerName] = useState('');
+  const [payPhone, setPayPhone] = useState(''); // the number that pays; starts as the buyer phone
+  const [phoneErr, setPhoneErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [billPayNumber, setBillPayNumber] = useState<string | null>(null);
@@ -128,6 +131,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
       : tiers.length === 1 ? { [tiers[0].tierId]: 1 } : {});
     setOrder(null);
     setNotice(null);
+    setPhoneErr(null);
     setBillPayNumber(null);
     setRedirectUrl(null);
     setStatusVal(null);
@@ -188,42 +192,33 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
     setQty((prev) => ({ ...prev, [tierId]: clamped }));
   }
 
-  // BS47: the buyer step's own CONTINUE — validates, then either advances to
-  // the dedicated network-choice screen (mobile money) or goes straight to
-  // checkout (bill pay / card have no follow-up question).
-  function continueFromBuyer() {
-    setNotice(null);
-    if (!phone.trim()) return setNotice({ kind: 'error', text: 'Enter your phone number.' });
-    if (!email.trim()) return setNotice({ kind: 'error', text: 'Enter your email.' });
-    if (!ageAttested) return setNotice({ kind: 'error', text: 'Please confirm you are 18 or older.' });
-    if (!anyInCart) return setNotice({ kind: 'error', text: 'Add at least one pass.' });
-    if (method === 'mobile') {
-      setStep('network');
-      return;
-    }
-    submitCheckout();
-  }
+  const phoneError = (n: string) => (!n ? 'Enter your phone number.' : isValidNational(n) ? null : 'Check the number: 9 digits after +255, starting 6 or 7.');
 
-  // ── (c) POST /api/checkout ──────────────────────────────────────────────
+  // ── (c) POST /api/checkout — the buyer step's CONTINUE holds the passes ──
   async function submitCheckout() {
     setNotice(null);
-    if (!phone.trim()) return setNotice({ kind: 'error', text: 'Enter your phone number.' });
+    const bad = phoneError(phone);
+    setPhoneErr(bad);
+    if (bad) return;
     if (!email.trim()) return setNotice({ kind: 'error', text: 'Enter your email.' });
     if (!ageAttested) return setNotice({ kind: 'error', text: 'Please confirm you are 18 or older.' });
     if (!anyInCart) return setNotice({ kind: 'error', text: 'Add at least one pass.' });
 
+    // The network starts from the buyer's number; the pay screen can change it.
+    const net = networkFromNumber(phone)?.id || network;
+    setNetwork(net);
     setBusy(true);
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: phone.trim(),
+          phone: toE164(phone),
           email: email.trim(),
           ageAttested,
           cart: cartLines.map((l) => ({ tier: l.tier.tierId, quantity: l.q, ...(l.tier.seatIds?.length ? { seatIds: l.tier.seatIds } : {}) })),
           method,
-          network: method === 'mobile' ? network : undefined,
+          network: method === 'mobile' ? net : undefined,
         }),
       });
 
@@ -240,6 +235,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
           method,
         });
         setPayerName('');
+        setPayPhone(phone);
         setStep('pay');
         return;
       }
@@ -290,8 +286,10 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   async function submitPay() {
     if (!order) return;
     setNotice(null);
-    const payerPhone = phone.trim();
-    if (!payerPhone) return setNotice({ kind: 'error', text: 'Enter the phone paying.' });
+    const bad = phoneError(payPhone);
+    setPhoneErr(bad);
+    if (bad) return;
+    const payerPhone = toE164(payPhone);
     if ((method === 'billpay' || method === 'card') && !payerName.trim()) {
       return setNotice({ kind: 'error', text: 'Enter the payer name.' });
     }
@@ -366,6 +364,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   function retryPayment() {
     stopPolling();
     setNotice(null);
+    setPhoneErr(null);
     setBillPayNumber(null);
     setRedirectUrl(null);
     setStatusVal(null);
@@ -474,10 +473,12 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
               <p className="zco-event">Who&apos;s this for?</p>
               <p className="zco-when">We&apos;ll send your pass here. Guest checkout works.</p>
 
-              <label className="zco-field">
-                <span>Phone</span>
-                <input inputMode="tel" placeholder="0712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </label>
+              <PhoneField
+                label="Phone"
+                value={phone}
+                error={phoneErr}
+                onChange={(v) => (setPhone(v.national), setPhoneErr(null))}
+              />
               <label className="zco-field">
                 <span>Email</span>
                 <input type="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -498,40 +499,16 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
                 <span>I confirm I am 18 or older.</span>
               </label>
 
-              <button className="zco-pay" disabled={busy} onClick={continueFromBuyer}>
-                {method === 'mobile' ? 'CONTINUE →' : busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT →'}
-              </button>
-            </>
-          ) : null}
-
-          {/* ── (b2) NETWORK — mobile money only, its own screen with logos ── */}
-          {step === 'network' ? (
-            <>
-              <button className="zco-back" onClick={() => (setNotice(null), setStep('buyer'))}>
-                ← Back
-              </button>
-              <p className="zco-event">Which mobile money?</p>
-              <p className="zco-when">We&apos;ll send a payment prompt to {phone}.</p>
-
-              <div className="zco-net-grid">
-                {NETWORKS.map((n) => (
-                  <button key={n.id} className={'zco-net-card' + (network === n.id ? ' on' : '')} onClick={() => setNetwork(n.id)}>
-                    <img src={n.logo} alt="" />
-                    <span>{n.label}</span>
-                  </button>
-                ))}
-              </div>
-
               <button className="zco-pay" disabled={busy} onClick={submitCheckout}>
                 {busy ? 'HOLDING YOUR PASSES…' : 'CONTINUE TO PAYMENT →'}
               </button>
             </>
           ) : null}
 
-          {/* ── (d) PAY ── */}
+          {/* ── (d) PAY — mobile money: network cards, the number under them, PAY ── */}
           {step === 'pay' && order ? (
             <>
-              <p className="zco-event">Confirm payment</p>
+              <p className="zco-event">{method === 'mobile' ? 'Pay with mobile money' : 'Confirm payment'}</p>
               <div className="zco-honest">
                 <div className="zco-line zco-total">
                   <span className="zco-lbl">Total to pay</span>
@@ -544,19 +521,54 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
                 </p>
               </div>
 
-              <label className="zco-field">
-                <span>{method === 'mobile' ? 'Mobile money number' : 'Payer phone'}</span>
-                <input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </label>
-              {method === 'billpay' || method === 'card' ? (
-                <label className="zco-field">
-                  <span>Payer name</span>
-                  <input placeholder="Full name" value={payerName} onChange={(e) => setPayerName(e.target.value)} />
-                </label>
-              ) : null}
               {method === 'mobile' ? (
-                <p className="zco-muted">Charging {NETWORKS.find((n) => n.id === network)?.label || network}.</p>
-              ) : null}
+                <>
+                  <span className="zco-method-lab zco-net-lab" id="zco-net-lab">Network</span>
+                  <div className="zco-net-grid" role="radiogroup" aria-labelledby="zco-net-lab">
+                    {NETWORKS.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={network === n.id}
+                        className={'zco-net-card' + (network === n.id ? ' on' : '')}
+                        onClick={() => setNetwork(n.id)}
+                      >
+                        <img src={n.logo} alt="" />
+                        <span>{n.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <PhoneField
+                    label="Mobile money number"
+                    value={payPhone}
+                    error={phoneErr}
+                    hint="We send the payment prompt to this number."
+                    onChange={(v) => {
+                      // Pick the network from the number when its prefix changes;
+                      // a tap on a card still wins until the prefix changes again.
+                      const was = networkFromNumber(payPhone)?.id;
+                      const now = networkFromNumber(v.national)?.id;
+                      if (now && now !== was) setNetwork(now);
+                      setPayPhone(v.national);
+                      setPhoneErr(null);
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <PhoneField
+                    label="Payer phone"
+                    value={payPhone}
+                    error={phoneErr}
+                    onChange={(v) => (setPayPhone(v.national), setPhoneErr(null))}
+                  />
+                  <label className="zco-field">
+                    <span>Payer name</span>
+                    <input placeholder="Full name" value={payerName} onChange={(e) => setPayerName(e.target.value)} />
+                  </label>
+                </>
+              )}
 
               <button className="zco-pay" disabled={busy} onClick={submitPay}>
                 {busy ? 'STARTING…' : `PAY ${cur(currency)} ${fmt(order.total)}`}
@@ -571,7 +583,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
               {method === 'mobile' ? (
                 <>
                   <h3>Approve on your phone</h3>
-                  <p>Enter your mobile-money PIN on the prompt we just sent to {phone || 'your phone'}.</p>
+                  <p>Enter your mobile-money PIN on the prompt we just sent to {payPhone ? `+255 ${groupNational(payPhone)}` : 'your phone'}.</p>
                 </>
               ) : method === 'billpay' && billPayNumber ? (
                 <>
@@ -810,10 +822,12 @@ const STYLE = `
 	.zco-seg{display:flex;gap:8px;margin-top:10px}
 	.zco-seg-btn{flex:1;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--z-mut);font-family:var(--mono);font-size:12px;letter-spacing:.03em;padding:13px 4px;cursor:pointer}
 	.zco-seg-btn.on{border-color:var(--zp-border-strong);color:var(--zp-color-board-black);background:var(--zp-color-signal-yellow)}
-	.zco-net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+	.zco-net-lab{display:block;margin-top:20px}
+	.zco-net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 	.zco-net-card{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-lg);padding:16px 10px;cursor:pointer;color:var(--zp-color-board-black);font-family:var(--mono);font-size:12px;letter-spacing:.04em}
 	.zco-net-card img{width:40px;height:40px;object-fit:contain;border-radius:8px}
-	.zco-net-card.on{border-color:var(--zp-border-strong);background:var(--zp-color-signal-yellow)}
+	.zco-net-card.on{border-color:var(--zp-color-board-black);background:var(--zp-color-signal-yellow)}
+	.zco-net-card:focus-visible{outline:3px solid var(--zp-color-board-black);outline-offset:2px}
 	.zco-check{display:flex;align-items:center;gap:11px;margin-top:22px;font-size:14px;color:var(--zp-color-board-black);cursor:pointer}
 	.zco-check input{width:20px;height:20px;accent-color:var(--zp-color-board-black);flex-shrink:0}
 	.zco-pay{width:100%;background:var(--zp-color-board-black);color:var(--zp-color-signal-yellow);border:none;font-family:var(--zp-font-family-display);font-size:20px;font-weight:400;letter-spacing:0;padding:18px;border-radius:var(--zp-radius-lg);cursor:pointer;margin-top:24px;transition:background .2s,transform .2s}

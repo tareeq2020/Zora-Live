@@ -10,6 +10,8 @@
 import { useEffect, useState } from 'react';
 import SharePayFlow from '../../../components/share-pay-flow';
 import { ZP_FLOW_CSS } from '../../../components/zp-flow-css';
+import PhoneField from '../../../components/phone-field';
+import { toE164 } from '../../../components/phone';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -36,12 +38,12 @@ export default function JoinInvitee({ token }: { token: string }) {
   }, [token]);
 
   async function claimAndPay() {
-    if (!phone.trim() || phone.replace(/\D/g, '').length < 9) { setNotice('Enter the phone you pay with.'); return; }
+    if (phone.length !== 9) { setNotice('Enter the phone you pay with.'); return; }
     setNotice(null); setBusy(true);
     try {
       const res = await fetch('/api/splits/claim', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, phone: phone.trim() }),
+        body: JSON.stringify({ token, phone: toE164(phone) }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.status === 200 && d.alreadyPaid) { setPaid(true); return; }
@@ -76,7 +78,7 @@ export default function JoinInvitee({ token }: { token: string }) {
         ) : preview.alreadyPaid ? (
           <Receipt preview={preview} />
         ) : order ? (
-          <SharePayFlow orderId={order.orderId} amount={order.amount} phone={phone.trim()} eventName={preview.eventName} onPaid={() => setPaid(true)} />
+          <SharePayFlow orderId={order.orderId} amount={order.amount} phone={phone} eventName={preview.eventName} onPaid={() => setPaid(true)} />
         ) : (
           <>
             <div className="ji-invite"><span className="zpf-av host">{(preview.hostName || 'A')[0].toUpperCase()}</span>
@@ -89,9 +91,7 @@ export default function JoinInvitee({ token }: { token: string }) {
             <p className="ji-proof">{preview.paidCount} OF {preview.capacityN} ALREADY PAID</p>
             <p className="ji-trust">You only pay <b>your share</b> — it goes straight to the table, not to the host. Card or mobile money. If the table doesn&apos;t fill, your share is refunded <b>within 24 hours</b>. Nobody plays banker.</p>
             {notice ? <div className="zpf-err" role="alert">{notice}</div> : null}
-            <label className="zpf-lab" htmlFor="ji-phone">Your mobile-money number</label>
-            <div className="zpf-field"><span className="pfx">+255</span>
-              <input id="ji-phone" inputMode="tel" placeholder="712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+            <PhoneField id="ji-phone" label="Your mobile-money number" value={phone} onChange={(v) => setPhone(v.national)} />
             <button className="zpf-btn" disabled={busy} onClick={claimAndPay}>PAY MY SHARE{busy ? <span className="spin" aria-label="Joining" /> : <span aria-hidden="true">→</span>}</button>
             <p className="zpf-foot">ZORAPASS · SECURE CHECKOUT</p>
           </>
