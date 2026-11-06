@@ -15,6 +15,7 @@
    refund is what the money math needs; who pushes the button is an admin concern. */
 import { tx } from './db';
 import { releaseOrderInventory } from './inventory';
+import { logOrderEvent } from './order-events';
 import { ORDER_STATUS, REFUNDABLE_STATUSES, isRefundable } from './order-status';
 
 type Sql = any;
@@ -83,6 +84,7 @@ export async function refundOrder(sql: Sql, orderId: string, amount?: number | n
       await releaseOrderInventory(t, orderId);
     }
 
+    await logOrderEvent(t, orderId, 'refunded', { amount: delta, refundedTotal: refunded, gross, full: fullyRefunded });
     return { ok: true, orderId, refunded, gross, fullyRefunded };
   }, sql);
 }

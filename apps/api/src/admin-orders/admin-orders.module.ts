@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { OrgModule } from '../org/org.module';
-import { AdminOrdersController } from './admin-orders.controller';
+import { AdminFunnelController, AdminOrdersController } from './admin-orders.controller';
 import { AdminOrdersService } from './admin-orders.service';
+import { AdminFunnelService } from './admin-funnel.service';
 
 /* admin-orders module (BS43 / plan #3) — the super-admin cart/order view.
    Read-only. Imports OrgModule for OrgScopeService (event names + organizer
@@ -10,8 +11,8 @@ import { AdminOrdersService } from './admin-orders.service';
    hold everything — 0014 only adds the indexes the new access pattern needs. */
 @Module({
   imports: [OrgModule],
-  controllers: [AdminOrdersController],
-  providers: [AdminOrdersService],
+  controllers: [AdminOrdersController, AdminFunnelController],
+  providers: [AdminOrdersService, AdminFunnelService],
   exports: [AdminOrdersService],
 })
 export class AdminOrdersModule {}

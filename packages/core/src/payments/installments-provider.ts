@@ -23,6 +23,7 @@
    contract notes (docs/plans/web-premium-v1.md); the sandbox does not exist yet,
    so anything marked TODO(xbridge-v1) must be checked against it before the flag
    is turned on for a real organizer. */
+import { logCallbackReceived } from '../order-events';
 import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { alertOps } from '../ops';
 import { xbridgeConfig, xbridgeRequest, normalizeMsisdn, XbridgeHttpError } from './xbridge';
@@ -118,7 +119,9 @@ export async function payInstallment(sql: Sql, input: PayInstallmentInput): Prom
     if (isDefinitiveRefusal(e)) {
       await sql`update payment_transaction set status = 'failed', updated_at = now()
                  where transaction_id = ${input.transactionId} and status = 'created'`;
-      throw new InstallmentAttemptRefused('provider_refused', 'the payment provider refused this payment — try again or use another method');
+      const refused = new InstallmentAttemptRefused('provider_refused', 'the payment provider refused this payment — try again or use another method');
+      (refused as any).cause = e; // BS153: initiatePayment stores the real gateway reason
+      throw refused;
     }
     throw e;
   }
@@ -327,6 +330,7 @@ export async function handleReceivableWebhook(
       on conflict (transaction_id) do nothing`;
   }
 
+  await logCallbackReceived(sql, txId, { provider: 'xbridge-receivable', type: ev.type });
   const status = await applyOutcome(sql, txId, 'successful', ev.payment.amount);
   if (ev.type === 'receivable.overpaid') {
     await alertOps(sql, 'installment_receivable_overpaid', orderId, `${ev.paidAmount ?? '?'}/${ev.receivableAmount ?? '?'}`);

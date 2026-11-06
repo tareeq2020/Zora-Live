@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { trackProductEvent } from './product-analytics';
+import { sendCheckoutBeacon } from './view-beacon';
 
 import type { CheckoutTier, CheckoutFlowProps } from './checkout-types';
 
@@ -68,7 +69,7 @@ const formatHoldExpiry = (value?: string) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when, tiers, accent, seatMode, onSeatTaken, onHold, onResult }: CheckoutFlowProps) {
+export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when, tiers, accent, seatMode, onSeatTaken, onHold, onResult, organizerHandle }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
 
   // BS22: splittable tiers link into the dedicated split flow (the aura-branded
@@ -119,6 +120,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   useEffect(() => {
     if (!open) return;
     trackProductEvent('web_checkout_opened', { eventId, eventName, count: tiers.length, source: 'checkout_flow' });
+    sendCheckoutBeacon(organizerHandle, eventId); // BS153: aggregate funnel count
     // BS126: seat-map picks arrive on the tiers — go straight to the buyer step.
     setStep(seatMode ? 'buyer' : 'cart');
     setQty(seatMode

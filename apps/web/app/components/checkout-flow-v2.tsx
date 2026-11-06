@@ -36,6 +36,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { trackProductEvent } from './product-analytics';
+import { sendCheckoutBeacon } from './view-beacon';
 import { stockStatus } from './event-card';
 import type { CheckoutFlowProps, CheckoutTier } from './checkout-types';
 import { dayLabel, ruleText, type InstallmentQuote, type ScheduleRow } from '../lib/installments';
@@ -148,6 +149,7 @@ export default function CheckoutFlowV2({
   onSeatTaken,
   onHold,
   onResult,
+  organizerHandle,
 }: CheckoutFlowProps) {
   const currency = tiers[0]?.currency || 'TZS';
   const money = (n: number) => `${curLabel(currency)} ${fmt(n)}`;
@@ -193,6 +195,7 @@ export default function CheckoutFlowV2({
   useEffect(() => {
     if (!open) return;
     trackProductEvent('web_checkout_opened', { eventId, eventName, count: tiers.length, source: 'checkout_v2' });
+    sendCheckoutBeacon(organizerHandle, eventId); // BS153: aggregate funnel count
     setStep('passes');
     const init: Record<string, number> = {};
     for (const t of tiers) if (t.seatIds?.length) init[t.tierId] = t.seatIds.length;

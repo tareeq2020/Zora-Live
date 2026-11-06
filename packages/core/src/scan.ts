@@ -29,6 +29,7 @@
    database, constant-time, key-rotation aware. That is what makes the signature
    half of the gate offline-capable in principle; the state half needs the row,
    and the offline QUEUE is deliberately deferred (see the plan's NOT-in-scope). */
+import { logOrderEvent, orderIdForCredential } from './order-events';
 import { tx } from './db';
 import { QR_SCHEME, verifyCredential } from './credentials';
 
@@ -300,6 +301,9 @@ export async function scanCredential(sql: Sql, input: ScanCredentialInput): Prom
     // Belt and braces: the lock above already guarantees this, but a guarded
     // UPDATE means a future caller that forgets the lock still cannot double-scan.
     if (!updated) return scanFail('already_scanned', toPass(row));
+    // BS153: the door step of the order's funnel (best-effort, same tx).
+    const orderId = await orderIdForCredential(t, row.id);
+    await logOrderEvent(t, orderId, 'checked_in', { publicRef: row.public_ref ?? null, eventId: row.event_id ?? null, by: input.actor.name ?? null });
 
     const [after] = (await t`
       select ${t.unsafe(PASS_SELECT)} ${t.unsafe(PASS_FROM)} where c.id = ${row.id}`) as CredRow[];

@@ -1,66 +1,110 @@
 'use client';
 
-/* PR-BS72 · Lane C — super-admin ORDERS & CARTS, on the Control-Room v2 lib.
+/* Super-admin ORDERS & CARTS (BS72 on the CR lib; BS153 funnel + detail page).
 
-   Restyles the BS45 orders view onto the CR primitives. Hierarchy (plan "Orders
-   & Carts"): ① a filterable table of EVERY state (pending / paid / failed /
-   expired) → ② a row → drawer (line items · buyer · payment attempt · issued
-   credentials) → ③ search by phone / email / id.
+   ① A funnel strip: views → checkout opened → carts → payment started → gateway
+     accepted → paid → passes delivered → checked in, with the drop between each
+     (GET /api/admin/funnel). Pre-cart stages are aggregate counts, never people.
+   ② Every order in every state (GET /api/admin/orders): the Payment column shows
+     the REAL latest attempt (method · status · short error), and a chip says how
+     far the cart got. Each row opens /admin/console/orders/<id>, the full detail.
 
-   WIRED (not stubbed): reads the SAME real endpoint the legacy section uses —
-   GET /api/admin/orders (shipped BS45; keyset-paged, recent window by default).
-   A split (table_share) order has no order_item, so the API returns `seats` and
-   the drawer renders those instead of a blank cart (the OV8 trap). */
+   BS153 fixed the "no attempt" bug: the API returns `attempts[]` /
+   `latestAttempt`, the old client read a singular `attempt` that never existed. */
 
-import { useCallback, useState } from 'react';
-import { CrDrawer, DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
+import Link from 'next/link';
+import { useCallback, useMemo, useState } from 'react';
+import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
 import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
+import { STAGE_LABEL, attemptLine, money, stageTone, when } from './order-format';
 
-type Line = { tierName: string | null; quantity: number; unitPrice: number };
-type Seat = { shareIndex: number; state: string; amount: number; payerName: string | null };
-type Cred = { publicRef: string | null; state: string };
+type Attempt = { method: string | null; status: string; error: string | null; at: string };
 type Order = {
   id: string;
   status: string;
   type: string | null;
   createdAt: string;
   currency: string;
-  total: number | null;
+  targetValue: number;
+  cartValue: number;
   eventId: string | null;
   eventName: string | null;
-  organizerHandle: string | null;
-  buyer: { phone: string | null; email: string | null; masked?: boolean } | null;
-  attempt: { method: string | null; fspId: string | null; reference: string | null } | null;
-  lines: Line[];
-  seats?: Seat[];
-  credentials?: Cred[];
+  organizerName: string | null;
+  buyer: { name: string | null; phone: string | null; email: string | null } | null;
+  piiRedacted: boolean;
+  stageReached: string;
+  latestAttempt: Attempt | null;
 };
-type Filters = { statuses?: string[]; events?: { id: string; name: string }[] };
-type Payload = { orders: Order[]; nextCursor?: string | null; filters?: Filters };
+type Filters = {
+  statuses: string[];
+  events: { id: string; name: string | null; organizerHandle: string | null }[];
+  organizers: { handle: string; name: string }[];
+};
+type Payload = { orders: Order[]; nextCursor?: string | null };
+type Stage = { stage: string; count: number; fromPrev: number | null; dropPct: number | null };
+type Funnel = {
+  window: { days: number };
+  stages: Stage[];
+  unique: { eventVisitors: number; checkoutVisitors: number };
+  dropoff: {
+    topGatewayErrors: { error: string; attempts: number }[];
+    expiredNoAttempt: number;
+    openNoAttempt: number;
+    attemptsTimedOut: number;
+    failedAfterPush: number;
+    gatewayRejected: number;
+    shortPayments: number;
+  };
+};
 
-const money = (n: number | null, cur: string) => (n == null ? '—' : `${Number(n).toLocaleString('en-US')} ${cur || ''}`.trim());
-const when = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const FUNNEL_LABEL: Record<string, string> = {
+  event_views: 'Event views',
+  checkout_opened: 'Checkout opened',
+  carts_created: 'Carts',
+  payment_started: 'Payment started',
+  gateway_accepted: 'Gateway accepted',
+  paid: 'Paid',
+  passes_delivered: 'Passes delivered',
+  checked_in: 'Checked in',
+};
+
+const loadFilters = () => adminApi<Filters>('/api/admin/orders/filters');
 
 export default function AdminOrdersClient() {
   const [status, setStatus] = useState('');
   const [event, setEvent] = useState('');
+  const [org, setOrg] = useState('');
+  const [days, setDays] = useState(7);
   const [q, setQ] = useState(''); // input
-  const [query, setQuery] = useState(''); // committed (on submit) — avoids a fetch per keystroke
-  const [open, setOpen] = useState<Order | null>(null);
+  const [query, setQuery] = useState(''); // committed on submit — no fetch per keystroke
 
-  const load = useCallback(() => {
+  const filters = useAdminResource<Filters>(loadFilters);
+
+  const loadOrders = useCallback(() => {
     const qs = new URLSearchParams();
     if (status) qs.set('status', status);
     if (event) qs.set('event', event);
+    if (org) qs.set('organizer', org);
     if (query.trim()) qs.set('q', query.trim());
-    qs.set('limit', '25');
+    qs.set('limit', '50');
     return adminApi<Payload>(`/api/admin/orders?${qs.toString()}`);
-  }, [status, event, query]);
+  }, [status, event, org, query]);
+  const res = useAdminResource<Payload>(loadOrders);
 
-  const res = useAdminResource<Payload>(load);
+  const loadFunnel = useCallback(() => {
+    const qs = new URLSearchParams({ days: String(days) });
+    if (org) qs.set('org', org);
+    if (event) qs.set('event', event);
+    return adminApi<Funnel>(`/api/admin/funnel?${qs.toString()}`);
+  }, [days, org, event]);
+  const funnel = useAdminResource<Funnel>(loadFunnel);
+
   const orders = res.data?.orders ?? [];
-  const filters = res.data?.filters;
+  const events = useMemo(
+    () => (filters.data?.events ?? []).filter((e) => !org || String(e.organizerHandle ?? '').toLowerCase() === org.toLowerCase()),
+    [filters.data, org],
+  );
 
   const cols: Column<Order>[] = [
     {
@@ -68,15 +112,10 @@ export default function AdminOrdersClient() {
       header: 'Buyer',
       primary: true,
       render: (o) => (
-        <span>
+        <Link href={`/admin/console/orders/${o.id}`} className="ord-link">
           {o.buyer?.phone || o.buyer?.email || 'Unknown'}
-          {o.buyer?.masked ? (
-            <>
-              <br />
-              <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>contact hidden (never paid)</span>
-            </>
-          ) : null}
-        </span>
+          {o.piiRedacted ? <span className="ord-sub">contact hidden (never paid)</span> : null}
+        </Link>
       ),
     },
     { key: 'event', header: 'Event', render: (o) => o.eventName || o.eventId || '—' },
@@ -85,22 +124,126 @@ export default function AdminOrdersClient() {
       header: 'Status',
       render: (o) => <StatusPill tone={toneForStatus(o.status)} label={o.status + (o.type === 'table_share' ? ' · split' : '')} />,
     },
-    { key: 'at', header: 'When', render: (o) => when(o.createdAt) },
-    { key: 'total', header: `Total`, numeric: true, render: (o) => money(o.total, o.currency) },
+    {
+      key: 'stage',
+      header: 'Stage',
+      render: (o) => <span className={`ord-chip ord-chip-${stageTone(o.stageReached)}`}>{STAGE_LABEL[o.stageReached] ?? o.stageReached}</span>,
+    },
+    {
+      key: 'pay',
+      header: 'Payment',
+      render: (o) => (
+        <span className={`ord-pay${o.latestAttempt?.error ? ' ord-pay-err' : ''}`} title={o.latestAttempt?.error ?? undefined}>
+          {attemptLine(o.latestAttempt)}
+        </span>
+      ),
+    },
+    { key: 'at', header: 'When', render: (o) => <span className="ord-mono">{when(o.createdAt)}</span> },
+    { key: 'total', header: 'Total', numeric: true, render: (o) => money(o.targetValue || o.cartValue, o.currency) },
     {
       key: 'act',
       header: '',
       render: (o) => (
-        <button type="button" className="cr-btn" onClick={() => setOpen(o)}>
-          Open cart
-        </button>
+        <Link href={`/admin/console/orders/${o.id}`} className="cr-btn">
+          Open
+        </Link>
       ),
     },
   ];
 
+  const f = funnel.data;
   return (
     <AdminConsoleShell title="Orders & carts">
       <div className="cr-stack">
+        <section className="cr-panel" aria-label="Cart funnel">
+          <div className="cr-panel-head">
+            <h2 className="cr-section-h" style={{ margin: 0 }}>
+              Funnel
+            </h2>
+            <div className="ord-controls">
+              <div className="ord-range" role="group" aria-label="Funnel window">
+                {[7, 30, 90].map((d) => (
+                  <button key={d} type="button" className={`ord-range-b${days === d ? ' is-on' : ''}`} aria-pressed={days === d} onClick={() => setDays(d)}>
+                    {d}D
+                  </button>
+                ))}
+              </div>
+              <select className="cr-select cr-auto" aria-label="Filter by organizer" value={org} onChange={(e) => { setOrg(e.target.value); setEvent(''); }}>
+                <option value="">All organizers</option>
+                {(filters.data?.organizers ?? []).map((o) => (
+                  <option key={o.handle} value={o.handle}>
+                    {o.name || o.handle}
+                  </option>
+                ))}
+              </select>
+              <select className="cr-select cr-auto" aria-label="Filter by event" value={event} onChange={(e) => setEvent(e.target.value)}>
+                <option value="">All events</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name || ev.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {funnel.status === 'error' ? (
+            <p className="ord-note">Couldn&apos;t load the funnel: {funnel.error}</p>
+          ) : !f ? (
+            <div className="ord-funnel" aria-busy="true">
+              {Object.keys(FUNNEL_LABEL).map((k) => (
+                <div key={k} className="ord-stage">
+                  <span className="cr-skel" style={{ height: 40, display: 'block' }} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <ol className="ord-funnel">
+                {f.stages.map((s, i) => (
+                  <li key={s.stage} className={`ord-stage${i < 2 ? ' is-agg' : ''}`}>
+                    <span className="ord-stage-k">{FUNNEL_LABEL[s.stage] ?? s.stage}</span>
+                    <span className="ord-stage-v">{s.count.toLocaleString('en-US')}</span>
+                    <span className="ord-stage-d">
+                      {s.dropPct == null ? (i === 0 ? `${f.unique.eventVisitors.toLocaleString('en-US')} unique` : '—') : `−${s.dropPct}%`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="ord-why">
+                <span className="ord-why-h">Why carts didn&apos;t pay · {f.window.days}d</span>
+                <span>
+                  <b>{f.dropoff.expiredNoAttempt}</b> expired, no payment
+                </span>
+                <span>
+                  <b>{f.dropoff.openNoAttempt}</b> open, no payment
+                </span>
+                <span>
+                  <b>{f.dropoff.gatewayRejected}</b> refused by gateway
+                </span>
+                <span>
+                  <b>{f.dropoff.attemptsTimedOut}</b> timed out
+                </span>
+                <span>
+                  <b>{f.dropoff.failedAfterPush}</b> failed after push
+                </span>
+                <span>
+                  <b>{f.dropoff.shortPayments}</b> short
+                </span>
+              </div>
+              {f.dropoff.topGatewayErrors.length ? (
+                <ul className="ord-errors" aria-label="Top gateway errors">
+                  {f.dropoff.topGatewayErrors.map((e) => (
+                    <li key={e.error}>
+                      <b>{e.attempts}×</b> <span>{e.error}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </section>
+
         <section className="cr-panel">
           <div className="cr-panel-head">
             <h2 className="cr-section-h" style={{ margin: 0 }}>
@@ -111,21 +254,13 @@ export default function AdminOrdersClient() {
                 e.preventDefault();
                 setQuery(q);
               }}
-              style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
+              className="ord-controls"
             >
               <select className="cr-select cr-auto" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
-                {(filters?.statuses ?? []).map((s) => (
+                {(filters.data?.statuses ?? []).map((s) => (
                   <option key={s} value={s}>
                     {s}
-                  </option>
-                ))}
-              </select>
-              <select className="cr-select cr-auto" aria-label="Filter by event" value={event} onChange={(e) => setEvent(e.target.value)}>
-                <option value="">All events</option>
-                {(filters?.events ?? []).map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name || ev.id}
                   </option>
                 ))}
               </select>
@@ -135,7 +270,7 @@ export default function AdminOrdersClient() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Phone, email or id"
                 aria-label="Search orders"
-                style={{ minWidth: 180 }}
+                style={{ minWidth: 160 }}
               />
               <button type="submit" className="cr-btn">
                 Search
@@ -156,111 +291,52 @@ export default function AdminOrdersClient() {
           />
 
           {res.data?.nextCursor ? (
-            <p style={{ marginTop: 12, fontSize: 12, color: 'var(--cr-ink2)' }}>
-              Showing the {orders.length} most recent matches — narrow the filters to reach older ones.
-            </p>
+            <p className="ord-note">Showing the {orders.length} most recent matches. Narrow the filters to reach older ones.</p>
           ) : null}
         </section>
       </div>
 
-      {open ? <CartDrawer order={open} onClose={() => setOpen(null)} /> : null}
+      <style dangerouslySetInnerHTML={{ __html: ORDERS_CSS }} />
     </AdminConsoleShell>
   );
 }
 
-/* The drawer IS the feature: the whole attempted cart in one place. BS73 — now
-   built on the shared <CrDrawer> primitive (focus-trap + Esc + scrim + restore-
-   focus) instead of a hand-rolled modal; the body is unchanged. */
-function CartDrawer({ order: o, onClose }: { order: Order; onClose: () => void }) {
-  const isSplit = o.type === 'table_share' || (o.seats?.length ?? 0) > 0;
-  const line: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--cr-hair)' };
-  return (
-    <CrDrawer open onClose={onClose} ariaLabel="Order detail" title={o.eventName || o.eventId || 'Order'} subtitle={o.id}>
-      <>
-        <div style={{ marginTop: 2, display: 'grid', gap: 2 }}>
-          <div style={line}>
-            <span style={{ color: 'var(--cr-ink2)' }}>Status</span>
-            <StatusPill tone={toneForStatus(o.status)} label={o.status} />
-          </div>
-          <div style={line}>
-            <span style={{ color: 'var(--cr-ink2)' }}>Placed</span>
-            <b style={{ fontFamily: 'var(--cr-mono)' }}>{when(o.createdAt)}</b>
-          </div>
-          <div style={line}>
-            <span style={{ color: 'var(--cr-ink2)' }}>Total</span>
-            <b style={{ fontFamily: 'var(--cr-mono)' }}>{money(o.total, o.currency)}</b>
-          </div>
-          <div style={line}>
-            <span style={{ color: 'var(--cr-ink2)' }}>Buyer</span>
-            <b style={{ textAlign: 'right' }}>
-              {o.buyer?.masked
-                ? 'Hidden — never paid'
-                : `${o.buyer?.phone || '—'}${o.buyer?.email ? ` · ${o.buyer.email}` : ''}`}
-            </b>
-          </div>
-          <div style={line}>
-            <span style={{ color: 'var(--cr-ink2)' }}>Payment</span>
-            <b style={{ fontFamily: 'var(--cr-mono)', textAlign: 'right' }}>
-              {o.attempt?.method || 'no attempt'}
-              {o.attempt?.fspId ? ` · ${o.attempt.fspId}` : ''}
-              {o.attempt?.reference ? ` · ${o.attempt.reference}` : ''}
-            </b>
-          </div>
-        </div>
-
-        <h4 style={{ margin: '18px 0 6px', fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--cr-mut)' }}>
-          {isSplit ? 'TABLE SEATS' : 'ITEMS'}
-        </h4>
-        {isSplit ? (
-          (o.seats ?? []).length === 0 ? (
-            <p style={{ color: 'var(--cr-ink2)', fontSize: 13 }}>No seats on this table yet.</p>
-          ) : (
-            <div>
-              {(o.seats ?? []).map((s) => (
-                <div key={s.shareIndex} style={line}>
-                  <span>
-                    Seat {s.shareIndex + 1}
-                    {s.payerName ? ` · ${s.payerName}` : ''}
-                  </span>
-                  <span style={{ fontFamily: 'var(--cr-mono)', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                    {money(s.amount, o.currency)}
-                    <StatusPill tone={toneForStatus(s.state)} label={s.state} />
-                  </span>
-                </div>
-              ))}
-            </div>
-          )
-        ) : o.lines.length === 0 ? (
-          <p style={{ color: 'var(--cr-ink2)', fontSize: 13 }}>No line items on this order.</p>
-        ) : (
-          <div>
-            {o.lines.map((l, i) => (
-              <div key={i} style={line}>
-                <span>
-                  {l.quantity} × {l.tierName || 'Ticket'}
-                </span>
-                <span style={{ fontFamily: 'var(--cr-mono)' }}>{money(l.unitPrice * l.quantity, o.currency)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {(o.credentials?.length ?? 0) > 0 ? (
-          <>
-            <h4 style={{ margin: '18px 0 6px', fontFamily: 'var(--cr-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--cr-mut)' }}>
-              PASSES ISSUED
-            </h4>
-            <div>
-              {(o.credentials ?? []).map((c, i) => (
-                <div key={i} style={line}>
-                  <span style={{ fontFamily: 'var(--cr-mono)' }}>{c.publicRef || '—'}</span>
-                  <StatusPill tone={toneForStatus(c.state === 'issued' ? 'paid' : c.state)} label={c.state} />
-                </div>
-              ))}
-            </div>
-          </>
-        ) : null}
-      </>
-    </CrDrawer>
-  );
+/* Page-level styles only (shared CR primitives are BS154's). Flat, bone/black,
+   data in mono, one yellow accent. */
+const ORDERS_CSS = `
+.ord-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ord-range { display: inline-flex; border: 1px solid var(--cr-hair); border-radius: 8px; overflow: hidden; }
+.ord-range-b { font: 600 11px/1 var(--cr-mono); letter-spacing: .06em; padding: 9px 11px; background: transparent; color: var(--cr-ink2); border: 0; cursor: pointer; }
+.ord-range-b + .ord-range-b { border-left: 1px solid var(--cr-hair); }
+.ord-range-b.is-on { background: var(--cr-ink); color: var(--cr-paper); }
+.ord-funnel { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border: 1px solid var(--cr-hair); border-radius: 10px; overflow: hidden; }
+.ord-stage { padding: 12px 12px 10px; display: grid; gap: 4px; border-left: 1px solid var(--cr-hair); min-width: 0; }
+.ord-stage:first-child { border-left: 0; }
+.ord-stage.is-agg { background: var(--cr-card2); }
+.ord-stage-k { font: 600 10px/1.2 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
+.ord-stage-v { font: 600 22px/1.1 var(--cr-mono); color: var(--cr-ink); }
+.ord-stage-d { font: 500 11px/1 var(--cr-mono); color: var(--cr-ink2); }
+.ord-stage:nth-child(6) .ord-stage-v { box-shadow: inset 0 -4px 0 var(--cr-blue); justify-self: start; }
+.ord-why { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); }
+.ord-why b { color: var(--cr-ink); }
+.ord-why-h { width: 100%; font: 600 10px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); }
+.ord-errors { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.ord-errors li { font: 500 12px/1.4 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
+.ord-errors b { color: var(--cr-red); }
+.ord-link { color: inherit; text-decoration: none; font-weight: 600; }
+.ord-link:hover { text-decoration: underline; }
+.ord-sub { display: block; font: 400 11px/1.3 var(--cr-mono); color: var(--cr-mut); }
+.ord-mono { font-family: var(--cr-mono); font-size: 12px; }
+.ord-pay { font: 500 12px/1.35 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
+.ord-pay-err { color: var(--cr-red); }
+.ord-chip { display: inline-block; font: 600 10px/1 var(--cr-mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--cr-hair); color: var(--cr-ink2); white-space: nowrap; }
+.ord-chip-good { background: var(--cr-ink); color: var(--cr-paper); border-color: var(--cr-ink); }
+.ord-chip-mid { border-color: var(--cr-ink); color: var(--cr-ink); }
+.ord-note { margin-top: 12px; font-size: 12px; color: var(--cr-ink2); }
+@media (max-width: 900px) {
+  .ord-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ord-stage { border-left: 0; border-top: 1px solid var(--cr-hair); }
+  .ord-stage:nth-child(odd) { border-right: 1px solid var(--cr-hair); }
+  .ord-stage:nth-child(-n+2) { border-top: 0; }
 }
+`;
