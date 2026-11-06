@@ -24,6 +24,7 @@
    so anything marked TODO(xbridge-v1) must be checked against it before the flag
    is turned on for a real organizer. */
 import { logCallbackReceived } from '../order-events';
+import { captureCallback } from '../gateway-capture';
 import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { alertOps } from '../ops';
 import { xbridgeConfig, xbridgeRequest, normalizeMsisdn, XbridgeHttpError } from './xbridge';
@@ -288,6 +289,7 @@ export async function handleReceivableWebhook(
     if (prev?.applied) return { http: 200, body: { received: true, deduped: true } };
     row = prev; // an earlier delivery failed mid-way — reprocess
   }
+  await captureCallback(sql, row?.id, null, rawBody); // BS157, best-effort
   const done = async (body: Record<string, unknown>): Promise<ReceivableWebhookResult> => {
     await sql`update webhook_event set applied = true where id = ${row.id}`;
     return { http: 200, body: { received: true, ...body } };

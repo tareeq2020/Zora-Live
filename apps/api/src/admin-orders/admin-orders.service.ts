@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import {
   db, ORDER_STATUSES, wasEverPaid, orderStageReached, attemptAccepted, buildTimeline, timelineDurations,
   ORDER_STAGES, type OrderStage, type RawEntry, type TimelineEntry,
+  cartOutcome, explainOutcome, isCartOutcome, issuesPasses, earnsCollected, CART_OUTCOMES, OUTCOME_LABELS,
+  matchRecoveries, type CartOutcome,
 } from '@zora/core';
+import { outcomeRows, recoveryCandidates } from './outcome-sql';
 import { OrgScopeService } from '../org/org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -96,6 +99,11 @@ export interface AdminOrderAttempt {
   /** BS153: why the gateway refused it (sanitized), and when. */
   error: string | null;
   errorAt: string | null;
+  /** BS157: a short reason from a callback / status body, when x-bridge gave one. */
+  failureReason: string | null;
+  /** BS157: when the last status-read body was stored; the body itself is on the detail only. */
+  gatewayStatusAt: string | null;
+  gatewayStatus?: Record<string, unknown> | null;
   scheduleN: number | null;
   createdAt: string;
   updatedAt: string | null;
@@ -141,6 +149,13 @@ export interface AdminOrderRow {
   stageReached: OrderStage;
   /** BS153: the newest attempt, for the list's Payment column. Null = none started. */
   latestAttempt: { method: string | null; status: string; error: string | null; at: string } | null;
+  /** BS157: what happened to this cart (@zora/core cartOutcome). */
+  outcome: CartOutcome;
+  outcomeDetail: string | null;
+  /** BS157: the order that paid for this cart's buyer, when outcome is 'recovered'. */
+  recoveredBy: string | null;
+  /** BS157: the raw stored failure reason behind outcomeDetail (unmapped values kept). */
+  outcomeReason: string | null;
 }
 
 /** BS153: one cart, inside out — GET /api/admin/orders/:id. */
@@ -154,12 +169,20 @@ export interface AdminOrderDetail extends AdminOrderRow {
     publicRef: string | null; state: string; tierId: string | null; seatLabel: string | null;
     issuedAt: string | null; scannedAt: string | null; scannedBy: string | null; confirmedAt: string | null;
   }[];
-  callbacks: { transactionId: string | null; provider: string | null; receivedAt: string; applied: boolean }[];
+  callbacks: {
+    transactionId: string | null; provider: string | null; receivedAt: string; applied: boolean;
+    /** BS157: the sanitized callback body (null before 0036). */
+    payload: Record<string, unknown> | null;
+  }[];
+  /** BS157: one plain line on why the cart has this outcome. */
+  outcomeExplanation: string;
   holds: { state: string; quantity: number; expiresAt: string | null; createdAt: string | null }[];
 }
 
 export interface AdminOrdersQuery {
   status?: string | null;
+  /** BS157: one of CART_OUTCOMES; filtered in SQL (outcome-sql.ts). */
+  outcome?: string | null;
   eventId?: string | null;
   organizerHandle?: string | null;
   q?: string | null;
@@ -187,6 +210,9 @@ interface Decorated {
   splitByOrder: Map<string, AdminOrderSplit>;
   attemptsByOrder: Map<string, AdminOrderAttempt[]>;
   credsByOrder: Map<string, AdminOrderCredential[]>;
+  /** BS157: orders with a live hold, and recovered cart → paying order. */
+  holdLive: Set<string>;
+  recoveredBy: Map<string, string>;
 }
 
 const iso = (v: Date | string | null | undefined): string | null =>
@@ -229,6 +255,7 @@ export class AdminOrdersService {
     const [events, orgs] = await Promise.all([this.scope.readEvents(), this.organizers.list()]);
     return {
       statuses: [...ORDER_STATES],
+      outcomes: CART_OUTCOMES.map((k) => ({ id: k, label: OUTCOME_LABELS[k] })),
       events: events
         .filter(Boolean)
         .map((e) => ({ id: e.id as string, name: (e.name as string) ?? null, organizerHandle: (e.organizerHandle as string) ?? null })),
@@ -265,6 +292,15 @@ export class AdminOrdersService {
     }
 
     const status = query.status ? String(query.status) : null;
+    const outcome = isCartOutcome(query.outcome) ? query.outcome : null;
+    // BS157: the outcome filter runs the outcome-sql rules over the same scope.
+    const outcomeIds = outcome
+      ? sql`select z.id from (${outcomeRows(sql, sql`
+          select o.id from "order" o
+           where (${status}::text is null or o.status = ${status})
+             and (${eventIds}::text[] is null or o.event_id = any(${eventIds}))
+             and (${from}::timestamptz is null or o.created_at >= ${from}::timestamptz)`)}) z where z.outcome = ${outcome}`
+      : null;
     const limit = Math.max(1, Math.min(Number(query.limit) || DEFAULT_LIMIT, MAX_LIMIT));
     const cursor = decodeCursor(query.cursor);
 
@@ -297,6 +333,7 @@ export class AdminOrdersService {
              o.refunded_amount as refunded_amount,
              o.refunded_at     as refunded_at,
              o.notified_at     as notified_at,
+             o.channel         as channel,
              c.id              as customer_id,
              c.phone           as phone,
              c.email           as email,
@@ -306,6 +343,7 @@ export class AdminOrdersService {
        where (${status}::text is null or o.status = ${status})
          and (${eventIds}::text[] is null or o.event_id = any(${eventIds}))
          and (${from}::timestamptz is null or o.created_at >= ${from}::timestamptz)
+         and ${outcomeIds ? sql`o.id in (${outcomeIds})` : sql`true`}
          and (${cursor ? cursor.createdAt : null}::timestamptz is null
               or (o.created_at, o.id) < (${cursor ? cursor.createdAt : null}::timestamptz,
                                          ${cursor ? cursor.id : null}::uuid))
@@ -340,7 +378,7 @@ export class AdminOrdersService {
     }
 
     const orderIds = page.map((o) => o.id);
-    const decorated = await this.decorate(sql, orderIds);
+    const decorated = await this.decorate(sql, orderIds, page);
 
     const orgByHandle = new Map((await this.organizers.list()).map((o) => [o.handle, o.name]));
     const orders: AdminOrderRow[] = page.map((o) => this.toRow(o, eventById, orgByHandle, decorated));
@@ -364,6 +402,10 @@ export class AdminOrdersService {
     const attempts = decorated.attemptsByOrder.get(o.id) ?? [];
     const credentials = decorated.credsByOrder.get(o.id) ?? [];
     const latest = attempts.length ? attempts[attempts.length - 1] : null;
+    const outcome = cartOutcome({
+      status: o.status, type: o.type, channel: o.channel, createdAt: o.created_at, attempts,
+      holdLive: decorated.holdLive.has(o.id), recoveredBy: decorated.recoveredBy.get(o.id) ?? null,
+    });
 
     // OV8 — a cart that never took money, past the window, loses its contact.
     const piiCutoff = Date.now() - NEVER_PAID_PII_DAYS * 86_400_000;
@@ -413,6 +455,10 @@ export class AdminOrdersService {
       latestAttempt: latest
         ? { method: latest.method, status: latest.status, error: latest.error, at: latest.errorAt ?? latest.updatedAt ?? latest.createdAt }
         : null,
+      outcome: outcome.outcome,
+      outcomeDetail: outcome.outcomeDetail,
+      recoveredBy: outcome.recoveredBy,
+      outcomeReason: outcome.reasonRaw,
     };
   }
 
@@ -430,7 +476,7 @@ export class AdminOrdersService {
     if (!o) return null;
 
     const [events, orgs, decorated] = await Promise.all([
-      this.scope.readEvents(), this.organizers.list(), this.decorate(sql, [id]),
+      this.scope.readEvents(), this.organizers.list(), this.decorate(sql, [id], [o]),
     ]);
     const eventById = new Map<string, any>(events.filter(Boolean).map((e) => [e.id as string, e]));
     const orgByHandle = new Map(orgs.map((x) => [x.handle, x.name]));
@@ -447,11 +493,17 @@ export class AdminOrdersService {
         select c.public_ref, c.state, c.tier_id, c.seat_label, c.issued_at, c.scanned_at, c.scanned_by_name, c.confirmed_at
           from credential c join split_share ss on ss.id = c.split_share_id where ss.order_id = ${id}::uuid`,
       txIds.length
-        ? sql`select transaction_id, provider, received_at, applied from webhook_event
+        ? sql`select transaction_id, provider, received_at, applied, payload from webhook_event
                where transaction_id = any(${txIds}) and provider <> 'ops-alert' order by received_at asc`
         : Promise.resolve([] as any[]),
       sql`select state, quantity, expires_at, created_at from inventory_hold where order_id = ${id}::uuid order by created_at asc`,
     ]);
+    // BS157: the last status-read body per attempt (kept off the list: up to 8 KB each).
+    const statusBodies = txIds.length
+      ? ((await sql`select transaction_id, gateway_status from payment_transaction where transaction_id = any(${txIds})`) as any[])
+      : [];
+    const bodyByTx = new Map(statusBodies.map((r) => [r.transaction_id, r.gateway_status ?? null]));
+    for (const a of attempts) a.gatewayStatus = bodyByTx.get(a.transactionId) ?? null;
 
     const loggedEntries: RawEntry[] = (logged as any[]).map((e) => ({
       at: iso(e.at) as string,
@@ -520,14 +572,18 @@ export class AdminOrdersService {
         publicRef: p.public_ref, state: p.state, tierId: p.tier_id, seatLabel: p.seat_label ?? null,
         issuedAt: iso(p.issued_at), scannedAt: iso(p.scanned_at), scannedBy: p.scanned_by_name ?? null, confirmedAt: iso(p.confirmed_at),
       })),
-      callbacks: (hooks as any[]).map((h) => ({ transactionId: h.transaction_id, provider: h.provider, receivedAt: iso(h.received_at) as string, applied: !!h.applied })),
+      callbacks: (hooks as any[]).map((h) => ({
+        transactionId: h.transaction_id, provider: h.provider, receivedAt: iso(h.received_at) as string, applied: !!h.applied,
+        payload: h.payload && typeof h.payload === 'object' ? h.payload : null,
+      })),
+      outcomeExplanation: explainOutcome({ ...row, reasonRaw: row.outcomeReason }, row.attempts),
       holds: holdRows.map((h) => ({ state: h.state, quantity: Number(h.quantity), expiresAt: iso(h.expires_at), createdAt: iso(h.created_at) })),
     };
   }
 
   /** Line items, split seats, payment attempts and credentials for ONE page of
       orders. Five queries for the whole page, never per row. */
-  private async decorate(sql: any, orderIds: string[]): Promise<Decorated> {
+  private async decorate(sql: any, orderIds: string[], rows: any[]): Promise<Decorated> {
     const itemRows = (await sql`
       select oi.order_id       as order_id,
              oi.product_tier_id as tier_id,
@@ -585,7 +641,7 @@ export class AdminOrdersService {
     const attemptRows = (await sql`
       select order_id, transaction_id, method, fsp_id, amount, currency, status,
              order_reference, bill_pay_number, collected_amount, created_at, updated_at,
-             error, error_at, schedule_n
+             error, error_at, schedule_n, failure_reason, gateway_status_at
         from payment_transaction
        where order_id = any(${orderIds}::uuid[])
        order by created_at asc`) as {
@@ -594,6 +650,7 @@ export class AdminOrdersService {
       order_reference: string | null; bill_pay_number: string | null;
       collected_amount: string | number | null; created_at: Date; updated_at: Date | null;
       error: string | null; error_at: Date | null; schedule_n: number | null;
+      failure_reason: string | null; gateway_status_at: Date | null;
     }[];
 
     // Credentials reach an order two ways: through order_item (GA/VIP) and
@@ -680,6 +737,8 @@ export class AdminOrdersService {
         billPayNumber: a.bill_pay_number,
         error: a.error ?? null,
         errorAt: iso(a.error_at),
+        failureReason: a.failure_reason ?? null,
+        gatewayStatusAt: iso(a.gateway_status_at),
         scheduleN: a.schedule_n == null ? null : Number(a.schedule_n),
         createdAt: iso(a.created_at) as string,
         updatedAt: iso(a.updated_at),
@@ -694,6 +753,25 @@ export class AdminOrdersService {
       credsByOrder.set(c.order_id, arr);
     }
 
-    return { linesByOrder, splitByOrder, attemptsByOrder, credsByOrder };
+    // ── BS157: outcome inputs, batched for the page ──
+    const holdRows = (await sql`
+      select order_id from inventory_hold
+       where order_id = any(${orderIds}::uuid[]) and state = 'held' and expires_at > now()
+      union
+      select hold_order_id from seat_inventory
+       where hold_order_id = any(${orderIds}::uuid[]) and state = 'held' and hold_expires_at > now()`) as { order_id: string }[];
+    const holdLive = new Set(holdRows.map((r) => r.order_id));
+
+    // Only a cart that never paid can be recovered; one query for the page.
+    const carts = rows.filter((r) => r.type !== 'comp' && !String(r.channel ?? 'online').startsWith('gate')
+      && !issuesPasses(r.status) && !earnsCollected(r.status));
+    let recoveredBy = new Map<string, string>();
+    if (carts.length) {
+      const toCart = (r: any) => ({ id: r.id, eventId: r.event_id, createdAt: r.created_at, customerId: r.customer_id, phone: r.phone });
+      const candidates = (await recoveryCandidates(sql, carts.map(toCart))) as any[];
+      recoveredBy = matchRecoveries(carts.map(toCart), candidates.map(toCart));
+    }
+
+    return { linesByOrder, splitByOrder, attemptsByOrder, credsByOrder, holdLive, recoveredBy };
   }
 }

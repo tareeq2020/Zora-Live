@@ -2,7 +2,7 @@ import { Controller, Get, Module, Post, Param, Body, Req, Res } from '@nestjs/co
 import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
 import {
-  db, initiatePayment, reconcile, resolveTransactionId, qrPayload, logCallbackReceived,
+  db, initiatePayment, reconcile, resolveTransactionId, qrPayload, logCallbackReceived, captureCallback,
   issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type PaymentMethod,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
@@ -179,6 +179,7 @@ export class PaymentsController {
         values ('bridge', ${dedupKey}, ${transactionId})
         on conflict (provider, dedup_key) do nothing returning id`;
       if (!inserted) return res.status(200).json({ received: true, deduped: true });
+      await captureCallback(sql, inserted.id, transactionId, rawBody); // BS157, best-effort
       await logCallbackReceived(sql, transactionId, { provider: 'xbridge' }); // BS153, best-effort
 
       if (transactionId) await reconcile(sql, transactionId); // trust status, not the payload
