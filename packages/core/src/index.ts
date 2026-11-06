@@ -31,7 +31,13 @@ export {
   xbridgeConfig, normalizeMsisdn, cardCheckoutUrl,
   collectMobile, collectBillPay, collectCard, collectionStatus, BILLPAY_CONNECTION,
   __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus, __setMockReject,
+  __setMockSandboxDelay, sandboxOutcomeFor, SANDBOX_FAIL_NUMBERS, SANDBOX_OK_NUMBER,
 } from './payments/xbridge';
+// BS158: admin "Send payment prompt".
+export {
+  adminPush, adminPushPreview, AdminPushRefused, ADMIN_PUSH_LIMITS, tanzanianMobile, maskPhone,
+} from './payments/admin-push';
+export type { AdminPushCode, AdminPushInput, AdminPushResult, AdminPushPreview } from './payments/admin-push';
 export type {
   XbridgeConfig,
   CollectMobileInput, CollectMobileResponse,

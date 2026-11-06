@@ -191,6 +191,60 @@ function mockStatusFromFile(transactionId: string): CollectionStatusResponse | n
 /** Test seam: clear all forced mock statuses. */
 export function __clearMockCollectionStatus(): void {
   _mockStatus.clear();
+  _sandboxPushes.clear();
+}
+
+/* BS158: MOCK mode answers x-bridge's sandbox test numbers the way the sandbox
+   does. A push to a "fail" number reads PENDING, then FAILED with that
+   failureReason about 3 s after the push; a push to 700001111 reads COMPLETED.
+   Matched on the last 9 digits. Mock only, and the forced-status seams above
+   still win. The record is per process (the API that pushed is the one that
+   reads). */
+export const SANDBOX_FAIL_NUMBERS: Readonly<Record<string, string>> = {
+  '+255700003301': 'payer_no_response',
+  '+255700003302': 'payer_cancelled',
+  '+255700003303': 'insufficient_funds',
+  '+255700003304': 'wrong_pin',
+  '+255700003305': 'invalid_number',
+  '+255700003306': 'provider_error',
+  '+255700003307': 'unknown',
+  '+255700002222': 'payer_cancelled',
+};
+export const SANDBOX_OK_NUMBER = '+255700001111';
+
+let _sandboxDelayMs = 3000;
+/** Test seam: how long a sandbox "fail" number stays PENDING (default 3000 ms). */
+export function __setMockSandboxDelay(ms: number): void {
+  _sandboxDelayMs = Math.max(0, Number(ms) || 0);
+}
+
+const _sandboxPushes = new Map<string, { failureReason: string | null; at: number; amount: number }>();
+
+/** The sandbox outcome a number is wired to, or null for any other number. */
+export function sandboxOutcomeFor(phone: string | null | undefined): { status: 'FAILED' | 'COMPLETED'; failureReason: string | null } | null {
+  const last9 = String(phone ?? '').replace(/\D/g, '').slice(-9);
+  if (last9.length !== 9) return null;
+  const key = '+255' + last9;
+  if (key === SANDBOX_OK_NUMBER) return { status: 'COMPLETED', failureReason: null };
+  const reason = SANDBOX_FAIL_NUMBERS[key];
+  return reason ? { status: 'FAILED', failureReason: reason } : null;
+}
+
+function rememberSandboxPush(transactionId: string, phone: string, amount: number): void {
+  const out = sandboxOutcomeFor(phone);
+  if (!out) return;
+  if (_sandboxPushes.size >= 5000) _sandboxPushes.delete(_sandboxPushes.keys().next().value as string);
+  _sandboxPushes.set(transactionId, { failureReason: out.failureReason, at: Date.now(), amount });
+}
+
+function sandboxStatus(transactionId: string): CollectionStatusResponse | null {
+  const p = _sandboxPushes.get(transactionId);
+  if (!p) return null;
+  const amount = String(p.amount);
+  const base = { transactionId, amount, orderReference: 'MOCK-' + transactionId };
+  if (p.failureReason == null) return { ...base, status: 'COMPLETED', collectedAmount: amount, failureReason: null };
+  if (Date.now() - p.at < _sandboxDelayMs) return { ...base, status: 'PENDING', failureReason: null };
+  return { ...base, status: 'FAILED', collectedAmount: '0', failureReason: p.failureReason };
 }
 
 /* ── Collection contracts ─────────────────────────────────────────────── */
@@ -213,6 +267,7 @@ export interface CollectMobileResponse {
 export async function collectMobile(input: CollectMobileInput, cfg = xbridgeConfig()): Promise<CollectMobileResponse> {
   if (cfg.mock) {
     mockRejection('/collection/mobile', input.payerPhone);
+    rememberSandboxPush(input.transactionId, input.payerPhone, input.amount);
     const m = mockCollect(input.transactionId);
     return { orderReference: m.orderReference, gatewayResponse: m.gatewayResponse };
   }
@@ -304,6 +359,9 @@ export interface CollectionStatusResponse {
   amount?: string; // gateway returns money as strings
   collectedAmount?: string;
   orderReference?: string;
+  /** On FAILED: payer_no_response | payer_cancelled | insufficient_funds |
+      wrong_pin | invalid_number | provider_error | unknown. Null otherwise. */
+  failureReason?: string | null;
 }
 
 /** Poll collection status. GET /collection/status. x-bridge looks the provider
@@ -313,7 +371,7 @@ export async function collectionStatus(
   cfg = xbridgeConfig(),
 ): Promise<CollectionStatusResponse> {
   if (cfg.mock) {
-    const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId);
+    const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId) ?? sandboxStatus(transactionId);
     if (forced) return forced;
     return {
       transactionId,

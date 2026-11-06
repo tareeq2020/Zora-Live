@@ -18,6 +18,7 @@ import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/compone
 import { AdminError, AdminSkeleton, adminApi, useAdminResource } from '../../admin-kit';
 import { AdminConsoleShell } from '../../console-shell';
 import { ORDER_STAGES, STAGE_LABEL, gap, money, whenFull, outcomeText, outcomeTone } from '../order-format';
+import { FAILURE_WORDS, PushPanel, type PushPreview } from './push-panel';
 
 type Attempt = {
   transactionId: string;
@@ -94,9 +95,11 @@ type Detail = {
   holds: { state: string; quantity: number; expiresAt: string | null }[];
   timeline: Entry[];
   durations: Record<string, number | null>;
+  /** BS158: can an admin send a payment prompt now, and for how much. */
+  push?: PushPreview | null;
 };
 
-const FAIL_STEPS = new Set(['gateway_rejected', 'failed', 'short', 'expired']);
+const FAIL_STEPS = new Set(['gateway_rejected', 'failed', 'short', 'expired', 'admin_push_refused']);
 const DURATION_LABEL: Record<string, string> = {
   cartToPayRequest: 'Cart → pay',
   payRequestToGateway: 'Pay → gateway',
@@ -173,7 +176,18 @@ export default function OrderDetailClient({ id }: { id: string }) {
         </span>
       ),
     },
-    { key: 'err', header: 'Error', render: (a) => (a.error ? <span className="od-err od-wrap">{a.error}</span> : '—') },
+    {
+      key: 'err',
+      header: 'Error',
+      render: (a) =>
+        a.error ? (
+          <span className="od-err od-wrap">{a.error}</span>
+        ) : a.failureReason ? (
+          <span className="od-wrap">{FAILURE_WORDS[a.failureReason] ?? a.failureReason}</span>
+        ) : (
+          '—'
+        ),
+    },
     { key: 'at', header: 'Started · updated', render: (a) => <span className="od-mono">{whenFull(a.createdAt)} · {whenFull(a.errorAt ?? a.updatedAt)}</span> },
   ];
 
@@ -243,6 +257,9 @@ export default function OrderDetailClient({ id }: { id: string }) {
             </div>
           </dl>
         </section>
+
+        {/* ── BS158: admin payment prompt ── */}
+        <PushPanel o={o} onDetail={res.set} />
 
         {/* ── stage bar ── */}
         <section className="cr-panel" aria-label="Stage reached">
