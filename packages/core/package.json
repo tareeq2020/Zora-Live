@@ -19,6 +19,10 @@
       "types": "./src/product-analytics.ts",
       "default": "./src/product-analytics.ts"
     },
+    "./cart-outcome": {
+      "types": "./src/cart-outcome.ts",
+      "default": "./src/cart-outcome.ts"
+    },
     "./installments": {
       "types": "./src/installments.ts",
       "default": "./src/installments.ts"

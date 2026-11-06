@@ -23,6 +23,7 @@ import { sendCredentialEmail } from '../email';
 import { emailBrandForEvent } from '../theme-resolve';
 import { publicWebOrigin } from '../origins';
 import { logOrderEvent, recordGatewayRejection } from '../order-events';
+import { captureStatusRead } from '../gateway-capture';
 import { alertOps } from '../ops';
 import { isCommissionRate } from '../commission';
 import { ORDER_STATUS, PASS_ISSUING_STATUSES, isPayable, issuesPasses } from '../order-status';
@@ -606,6 +607,7 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
   // TODO(BS138): poll the /v1 payment status here once x-bridge publishes it.
   if (txr.provider === 'xbridge_v1') return 'pending';
   const status = await collectionStatus(transactionId);
+  await captureStatusRead(sql, transactionId, status); // BS157, best-effort
   const outcome = mapStatus(status);
   const collected =
     outcome === 'successful' || outcome === 'short'
@@ -1040,12 +1042,18 @@ export async function organizerContactForEvent(
 export { alertOps } from '../ops';
 
 /** Resolve a raw webhook body to our transaction_id. Selcom forwards `transid`
-    (= our id); ClickPesa forwards only `orderReference`/`reference` (H3) — resolve
-    it back via the tx row. Returns null when unresolvable (still dedup-logged). */
+    (= our id); x-bridge's collection.updated sends `transactionId` (= our id,
+    checked against our rows); ClickPesa forwards only `orderReference`/`reference`
+    (H3) — resolve it back via the tx row. Returns null when unresolvable (still dedup-logged). */
 export async function resolveTransactionId(sql: Sql, rawBody: string): Promise<string | null> {
   let j: Record<string, unknown> = {};
   try { j = JSON.parse(rawBody); } catch { return null; }
   if (typeof j.transid === 'string') return j.transid;
+  // BS157: x-bridge's collection.updated callback names our id `transactionId`.
+  if (typeof j.transactionId === 'string' && j.transactionId) {
+    const [row] = await sql`select transaction_id from payment_transaction where transaction_id = ${j.transactionId}`;
+    if (row) return row.transaction_id;
+  }
   const orderRef = (j.orderReference ?? j.reference) as string | undefined;
   if (orderRef) {
     const [row] = await sql`

@@ -30,7 +30,10 @@ export class AdminOrdersController {
   }
 
   /**
-   * GET /api/admin/orders?status=&event=&organizer=&q=&limit=&cursor=&days=
+   * GET /api/admin/orders?status=&outcome=&event=&organizer=&q=&limit=&cursor=&days=
+   *
+   * BS157: `outcome` is one of the cart outcomes (@zora/core CART_OUTCOMES);
+   * an unknown value is ignored.
    *
    * `days=0` explicitly disables the recent window — allowed, but it has to be
    * asked for; the default never scans the whole table.
@@ -38,6 +41,7 @@ export class AdminOrdersController {
   @Get()
   async list(
     @Query('status') status?: string,
+    @Query('outcome') outcome?: string,
     @Query('event') event?: string,
     @Query('organizer') organizer?: string,
     @Query('q') q?: string,
@@ -49,6 +53,7 @@ export class AdminOrdersController {
     const parsedDays = days != null && days !== '' ? parseInt(days, 10) : NaN;
     return this.orders.list({
       status: status && status !== 'all' ? status : null,
+      outcome: outcome && outcome !== 'all' ? outcome : null,
       eventId: event && event !== 'all' ? event : null,
       organizerHandle: organizer && organizer !== 'all' ? organizer : null,
       q: q || null,

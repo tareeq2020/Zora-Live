@@ -10,14 +10,18 @@
      far the cart got. Each row opens /admin/console/orders/<id>, the full detail.
 
    BS153 fixed the "no attempt" bug: the API returns `attempts[]` /
-   `latestAttempt`, the old client read a singular `attempt` that never existed. */
+   `latestAttempt`, the old client read a singular `attempt` that never existed.
+
+   BS157: each row leads with its cart OUTCOME (paid after retry, recovered in
+   another cart, system error, buyer didn't complete…), raw status small beneath.
+   The funnel's "why carts didn't pay" counts outcomes; each count filters the list. */
 
 import Link from 'next/link';
 import { useCallback, useMemo, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
 import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
-import { STAGE_LABEL, attemptLine, money, stageTone, when } from './order-format';
+import { STAGE_LABEL, attemptLine, money, stageTone, when, OUTCOME_ORDER, outcomeText, outcomeTone } from './order-format';
 
 type Attempt = { method: string | null; status: string; error: string | null; at: string };
 type Order = {
@@ -35,9 +39,13 @@ type Order = {
   piiRedacted: boolean;
   stageReached: string;
   latestAttempt: Attempt | null;
+  outcome?: string;
+  outcomeDetail?: string | null;
+  recoveredBy?: string | null;
 };
 type Filters = {
   statuses: string[];
+  outcomes?: { id: string; label: string }[];
   events: { id: string; name: string | null; organizerHandle: string | null }[];
   organizers: { handle: string; name: string }[];
 };
@@ -47,6 +55,9 @@ type Funnel = {
   window: { days: number };
   stages: Stage[];
   unique: { eventVisitors: number; checkoutVisitors: number };
+  /** BS157; absent on an API from before it. */
+  outcomes?: Record<string, number>;
+  outcomeDetails?: Record<string, Record<string, number>>;
   dropoff: {
     topGatewayErrors: { error: string; attempts: number }[];
     expiredNoAttempt: number;
@@ -69,10 +80,23 @@ const FUNNEL_LABEL: Record<string, string> = {
   checked_in: 'Checked in',
 };
 
+/** Outcomes whose sub-reasons are worth a line in the funnel. */
+const SUB_REASON_OUTCOMES = new Set(['buyer_didnt_complete', 'system_error', 'recovered']);
+/** "cancelled by buyer", "network/provider problem (not the buyer)", … */
+function detailText(outcome: string, detail: string): string {
+  if (outcome === 'recovered') return outcomeText(detail).toLowerCase();
+  const full = outcomeText(outcome, detail);
+  const i = full.indexOf(': ');
+  return i >= 0 ? full.slice(i + 2) : detail.replace(/_/g, ' ');
+}
+
 const loadFilters = () => adminApi<Filters>('/api/admin/orders/filters');
 
 export default function AdminOrdersClient() {
   const [status, setStatus] = useState('');
+  const [outcome, setOutcome] = useState('');
+  // Set when an outcome is picked from the funnel, so the list uses its window.
+  const [listDays, setListDays] = useState<number | null>(null);
   const [event, setEvent] = useState('');
   const [org, setOrg] = useState('');
   const [days, setDays] = useState(7);
@@ -84,12 +108,14 @@ export default function AdminOrdersClient() {
   const loadOrders = useCallback(() => {
     const qs = new URLSearchParams();
     if (status) qs.set('status', status);
+    if (outcome) qs.set('outcome', outcome);
+    if (listDays) qs.set('days', String(listDays));
     if (event) qs.set('event', event);
     if (org) qs.set('organizer', org);
     if (query.trim()) qs.set('q', query.trim());
     qs.set('limit', '50');
     return adminApi<Payload>(`/api/admin/orders?${qs.toString()}`);
-  }, [status, event, org, query]);
+  }, [status, outcome, listDays, event, org, query]);
   const res = useAdminResource<Payload>(loadOrders);
 
   const loadFunnel = useCallback(() => {
@@ -121,8 +147,19 @@ export default function AdminOrdersClient() {
     { key: 'event', header: 'Event', render: (o) => o.eventName || o.eventId || '—' },
     {
       key: 'status',
-      header: 'Status',
-      render: (o) => <StatusPill tone={toneForStatus(o.status)} label={o.status + (o.type === 'table_share' ? ' · split' : '')} />,
+      header: 'Outcome',
+      render: (o) =>
+        o.outcome ? (
+          <span className="ord-out">
+            <span className={`ord-chip ord-chip-${outcomeTone(o.outcome)}`}>{outcomeText(o.outcome, o.outcomeDetail)}</span>
+            <span className="ord-raw">
+              {o.status}
+              {o.type === 'table_share' ? ' · split' : ''}
+            </span>
+          </span>
+        ) : (
+          <StatusPill tone={toneForStatus(o.status)} label={o.status + (o.type === 'table_share' ? ' · split' : '')} />
+        ),
     },
     {
       key: 'stage',
@@ -210,27 +247,60 @@ export default function AdminOrdersClient() {
                   </li>
                 ))}
               </ol>
-              <div className="ord-why">
-                <span className="ord-why-h">Why carts didn&apos;t pay · {f.window.days}d</span>
-                <span>
-                  <b>{f.dropoff.expiredNoAttempt}</b> expired, no payment
-                </span>
-                <span>
-                  <b>{f.dropoff.openNoAttempt}</b> open, no payment
-                </span>
-                <span>
-                  <b>{f.dropoff.gatewayRejected}</b> refused by gateway
-                </span>
-                <span>
-                  <b>{f.dropoff.attemptsTimedOut}</b> timed out
-                </span>
-                <span>
-                  <b>{f.dropoff.failedAfterPush}</b> failed after push
-                </span>
-                <span>
-                  <b>{f.dropoff.shortPayments}</b> short
-                </span>
-              </div>
+              {f.outcomes ? (
+                <div className="ord-why" role="group" aria-label="What happened to each cart">
+                  <span className="ord-why-h">Why carts didn&apos;t pay · what happened to each cart · {f.window.days}d</span>
+                  {OUTCOME_ORDER.map((k) => {
+                    const n = f.outcomes?.[k] ?? 0;
+                    const on = outcome === k;
+                    const subs = Object.entries(f.outcomeDetails?.[k] ?? {}).filter(([, v]) => v > 0);
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`ord-why-b ord-why-${outcomeTone(k)}${on ? ' is-on' : ''}${n === 0 ? ' is-zero' : ''}`}
+                        aria-pressed={on}
+                        onClick={() => {
+                          setOutcome(on ? '' : k);
+                          setListDays(on ? null : f.window.days);
+                          if (!on) document.getElementById('ord-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                      >
+                        <span>
+                          <b>{n.toLocaleString('en-US')}</b> {outcomeText(k)}
+                        </span>
+                        {SUB_REASON_OUTCOMES.has(k) && subs.length ? (
+                          <span className="ord-why-sub">
+                            {subs.map(([d, v]) => `${v} ${detailText(k, d)}`).join(' · ')}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="ord-why">
+                  <span className="ord-why-h">Why carts didn&apos;t pay · {f.window.days}d</span>
+                  <span>
+                    <b>{f.dropoff.expiredNoAttempt}</b> expired, no payment
+                  </span>
+                  <span>
+                    <b>{f.dropoff.openNoAttempt}</b> open, no payment
+                  </span>
+                  <span>
+                    <b>{f.dropoff.gatewayRejected}</b> refused by gateway
+                  </span>
+                  <span>
+                    <b>{f.dropoff.attemptsTimedOut}</b> timed out
+                  </span>
+                  <span>
+                    <b>{f.dropoff.failedAfterPush}</b> failed after push
+                  </span>
+                  <span>
+                    <b>{f.dropoff.shortPayments}</b> short
+                  </span>
+                </div>
+              )}
               {f.dropoff.topGatewayErrors.length ? (
                 <ul className="ord-errors" aria-label="Top gateway errors">
                   {f.dropoff.topGatewayErrors.map((e) => (
@@ -244,7 +314,7 @@ export default function AdminOrdersClient() {
           )}
         </section>
 
-        <section className="cr-panel">
+        <section className="cr-panel" id="ord-list">
           <div className="cr-panel-head">
             <h2 className="cr-section-h" style={{ margin: 0 }}>
               Every order &amp; cart
@@ -256,6 +326,22 @@ export default function AdminOrdersClient() {
               }}
               className="ord-controls"
             >
+              <select
+                className="cr-select cr-auto"
+                aria-label="Filter by outcome"
+                value={outcome}
+                onChange={(e) => {
+                  setOutcome(e.target.value);
+                  setListDays(null);
+                }}
+              >
+                <option value="">All outcomes</option>
+                {(filters.data?.outcomes ?? OUTCOME_ORDER.map((id) => ({ id, label: outcomeText(id) }))).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.label}
+                  </option>
+                ))}
+              </select>
               <select className="cr-select cr-auto" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 {(filters.data?.statuses ?? []).map((s) => (
@@ -290,6 +376,21 @@ export default function AdminOrdersClient() {
             emptyBody={<span>Widen the filters, or search the number the caller gave you.</span>}
           />
 
+          {outcome ? (
+            <p className="ord-note">
+              Showing {outcomeText(outcome).toLowerCase()} carts{listDays ? ` from the last ${listDays} days` : ''}.{' '}
+              <button
+                type="button"
+                className="cr-linkbtn ord-clear"
+                onClick={() => {
+                  setOutcome('');
+                  setListDays(null);
+                }}
+              >
+                Show every outcome
+              </button>
+            </p>
+          ) : null}
           {res.data?.nextCursor ? (
             <p className="ord-note">Showing the {orders.length} most recent matches. Narrow the filters to reach older ones.</p>
           ) : null}
@@ -335,6 +436,19 @@ const ORDERS_CSS = `
 .ord-chip-good { background: var(--cr-ink); color: var(--cr-paper); border-color: var(--cr-ink); }
 .ord-chip-mid { border-color: var(--cr-ink); color: var(--cr-ink); }
 .ord-note { margin-top: 12px; font-size: 12px; color: var(--cr-ink2); }
+.ord-out { display: inline-grid; gap: 4px; justify-items: start; min-width: 0; max-width: 100%; }
+.ord-out .ord-chip { white-space: normal; line-height: 1.25; max-width: 100%; overflow-wrap: anywhere; }
+.ord-raw { font: 500 12px/1.2 var(--cr-mono); color: var(--cr-mut); }
+.ord-chip-alert { border-color: var(--cr-red); color: var(--cr-red); }
+.ord-why-b { display: inline-grid; gap: 2px; font: 500 12px/1.3 var(--cr-mono); color: var(--cr-ink2); background: transparent; border: 1px solid var(--cr-hair); border-radius: 8px; padding: 6px 10px; min-height: 44px; cursor: pointer; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.ord-why-b b { color: var(--cr-ink); margin-right: 4px; }
+.ord-why-b:hover { border-color: var(--cr-ink); }
+.ord-why-b.ord-why-alert b { color: var(--cr-red); }
+.ord-why-b.is-zero { color: var(--cr-mut); }
+.ord-why-b.is-on { background: var(--cr-sel-bg); color: var(--cr-sel-fg); border-color: var(--cr-sel-bg); }
+.ord-why-b.is-on b { color: var(--cr-sel-fg); }
+.ord-why-sub { font: 500 12px/1.3 var(--cr-mono); color: inherit; opacity: .85; }
+.ord-clear { min-height: 44px; }
 @media (max-width: 900px) {
   .ord-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ord-stage { border-left: 0; border-top: 1px solid var(--cr-hair); }
