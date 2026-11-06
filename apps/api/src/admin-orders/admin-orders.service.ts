@@ -5,7 +5,7 @@ import {
   cartOutcome, explainOutcome, isCartOutcome, issuesPasses, earnsCollected, CART_OUTCOMES, OUTCOME_LABELS,
   matchRecoveries, type CartOutcome,
 } from '@zora/core';
-import { outcomeRows, recoveryCandidates } from './outcome-sql';
+import { outcomeRows, recoveryCandidates, acceptedAtSql, acceptTrackedSinceMs } from './outcome-sql';
 import { OrgScopeService } from '../org/org-scope.service';
 import { OrganizerRepo } from '../storage/organizer-repo';
 
@@ -104,6 +104,8 @@ export interface AdminOrderAttempt {
   /** BS157: when the last status-read body was stored; the body itself is on the detail only. */
   gatewayStatusAt: string | null;
   gatewayStatus?: Record<string, unknown> | null;
+  /** BS159: when the gateway accepted it (accepted_at, or the logged gateway_accepted step). */
+  acceptedAt: string | null;
   scheduleN: number | null;
   createdAt: string;
   updatedAt: string | null;
@@ -405,6 +407,7 @@ export class AdminOrdersService {
     const outcome = cartOutcome({
       status: o.status, type: o.type, channel: o.channel, createdAt: o.created_at, attempts,
       holdLive: decorated.holdLive.has(o.id), recoveredBy: decorated.recoveredBy.get(o.id) ?? null,
+      acceptTrackedSinceMs: acceptTrackedSinceMs(),
     });
 
     // OV8 — a cart that never took money, past the window, loses its contact.
@@ -639,18 +642,19 @@ export class AdminOrdersService {
       : [];
 
     const attemptRows = (await sql`
-      select order_id, transaction_id, method, fsp_id, amount, currency, status,
-             order_reference, bill_pay_number, collected_amount, created_at, updated_at,
-             error, error_at, schedule_n, failure_reason, gateway_status_at
-        from payment_transaction
-       where order_id = any(${orderIds}::uuid[])
-       order by created_at asc`) as {
+      select pt.order_id, pt.transaction_id, pt.method, pt.fsp_id, pt.amount, pt.currency, pt.status,
+             pt.order_reference, pt.bill_pay_number, pt.collected_amount, pt.created_at, pt.updated_at,
+             pt.error, pt.error_at, pt.schedule_n, pt.failure_reason, pt.gateway_status_at,
+             ${acceptedAtSql(sql)} as accepted_at
+        from payment_transaction pt
+       where pt.order_id = any(${orderIds}::uuid[])
+       order by pt.created_at asc`) as {
       order_id: string; transaction_id: string; method: string | null; fsp_id: string | null;
       amount: string | number | null; currency: string | null; status: string;
       order_reference: string | null; bill_pay_number: string | null;
       collected_amount: string | number | null; created_at: Date; updated_at: Date | null;
       error: string | null; error_at: Date | null; schedule_n: number | null;
-      failure_reason: string | null; gateway_status_at: Date | null;
+      failure_reason: string | null; gateway_status_at: Date | null; accepted_at: Date | null;
     }[];
 
     // Credentials reach an order two ways: through order_item (GA/VIP) and
@@ -739,6 +743,7 @@ export class AdminOrdersService {
         errorAt: iso(a.error_at),
         failureReason: a.failure_reason ?? null,
         gatewayStatusAt: iso(a.gateway_status_at),
+        acceptedAt: iso(a.accepted_at),
         scheduleN: a.schedule_n == null ? null : Number(a.schedule_n),
         createdAt: iso(a.created_at) as string,
         updatedAt: iso(a.updated_at),

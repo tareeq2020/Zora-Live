@@ -60,6 +60,14 @@ export const CART_OPEN_GRACE_MS = 15 * 60_000;
 /** A paid cart by the same buyer within this long after a failed one recovers it. */
 export const RECOVERY_WINDOW_MS = 24 * 3600_000;
 
+/** BS159: from this time on we know whether the gateway took each attempt
+    (order_event 'gateway_accepted' since BS153, then payment_transaction.accepted_at).
+    BS153 started logging at about 12:06 UTC on 6 Nov; this sits a little after,
+    so every attempt from here on was logged. Older attempts with no reference
+    keep the legacy guess and an honest "not recorded" reason. */
+export const ACCEPT_TRACKED_SINCE = '2026-11-06T12:30:00Z';
+export const ACCEPT_TRACKED_SINCE_MS = Date.parse(ACCEPT_TRACKED_SINCE);
+
 export interface OutcomeAttempt {
   status: string;
   orderReference?: string | null;
@@ -67,6 +75,10 @@ export interface OutcomeAttempt {
   error?: string | null;
   failureReason?: string | null;
   createdAt?: string | Date | null;
+  /** BS159: when the gateway took the attempt (accepted_at, or the logged gateway_accepted step). */
+  acceptedAt?: string | Date | null;
+  /** BS159: 'mobile' | 'billpay' | 'card' (names the legacy refusal reason). */
+  method?: string | null;
 }
 
 export type AttemptKind = 'paid' | 'short' | 'in_flight' | 'refused' | 'declined' | 'timed_out';
@@ -78,21 +90,48 @@ const ms = (v: string | Date | null | undefined): number | null => {
 };
 
 /** What one attempt says. `refused` = the gateway never took it: it has an
-    error, or (legacy, before errors were stored) it never got a gateway
-    reference and stayed `created` past the send grace or was expired by reconcile. */
+    error, or it never got a gateway reference (nor an accepted_at) and stayed
+    `created` past the send grace or was expired by reconcile. An attempt the
+    gateway accepted is never refused: a later expiry is `timed_out`. */
 export function classifyAttempt(a: OutcomeAttempt, now = Date.now()): AttemptKind {
-  const hasRef = !!(a.orderReference || a.billPayNumber);
+  const taken = !!(a.orderReference || a.billPayNumber || a.acceptedAt);
   if (a.status === 'successful') return 'paid';
   if (a.status === 'partial') return 'short';
-  if (a.error) return 'refused';
+  if (a.error && !a.acceptedAt) return 'refused';
   if (a.status === 'pending' || a.status === 'processing') return 'in_flight';
   if (a.status === 'created') {
-    if (hasRef) return 'in_flight';
+    if (taken) return 'in_flight';
     const t = ms(a.createdAt);
     return t != null && now - t < ATTEMPT_SEND_GRACE_MS ? 'in_flight' : 'refused';
   }
-  if (a.status === 'expired') return hasRef ? 'timed_out' : 'refused';
+  if (a.status === 'expired') return taken ? 'timed_out' : 'refused';
   return 'declined'; // 'failed' (and anything unknown): the gateway took it, then said no
+}
+
+/** BS159: system_error sub-reasons for a cart the gateway never took. */
+export const REFUSAL_REASONS = [
+  'gateway_refused', 'card_unavailable', 'method_unavailable', 'no_gateway_reference', 'not_recorded',
+] as const;
+export type RefusalReason = (typeof REFUSAL_REASONS)[number];
+
+/** x-bridge's "no provider on this account for that method" (422). */
+export const NO_PROVIDER_ERROR = 'NO_PROVIDER_FOR_METHOD';
+
+/** Why a REFUSED attempt was refused (same rules as outcome-sql.ts):
+    NO_PROVIDER_FOR_METHOD error → card_unavailable (card) | method_unavailable;
+    other error → gateway_refused; no error and created after the cut-over →
+    no_gateway_reference (we logged no acceptance, so it truly never got through);
+    older: card → card_unavailable (x-bridge never had a card provider for us),
+    else not_recorded (the reason was not stored before 6 Nov). */
+export function refusalReason(a: OutcomeAttempt, cutoverMs = ACCEPT_TRACKED_SINCE_MS): RefusalReason {
+  const card = String(a.method ?? '').toLowerCase() === 'card';
+  if (a.error) {
+    if (a.error.toUpperCase().includes(NO_PROVIDER_ERROR)) return card ? 'card_unavailable' : 'method_unavailable';
+    return 'gateway_refused';
+  }
+  const t = ms(a.createdAt);
+  if (t != null && t >= cutoverMs) return 'no_gateway_reference';
+  return card ? 'card_unavailable' : 'not_recorded';
 }
 
 export interface OutcomeInput {
@@ -107,12 +146,15 @@ export interface OutcomeInput {
   /** Another order of the same buyer that paid for the same event (matchRecoveries). */
   recoveredBy?: string | null;
   now?: number;
+  /** BS159: attempts created at/after this are "acceptance tracked" (default ACCEPT_TRACKED_SINCE). */
+  acceptTrackedSinceMs?: number;
 }
 
 export interface OutcomeResult {
   outcome: CartOutcome;
-  /** Sub-reason: abandoned → order status; system_error → gateway_refused |
-      no_gateway_reference | provider_error; buyer_didnt_complete → the mapped
+  /** Sub-reason: abandoned → order status; system_error → a RefusalReason
+      (gateway_refused | card_unavailable | method_unavailable |
+      no_gateway_reference | not_recorded) or provider_error; buyer_didnt_complete → the mapped
       x-bridge failureReason when one was captured (payer_no_response,
       payer_cancelled, insufficient_funds, wrong_pin, invalid_number, unknown),
       else declined | timed_out | installment_defaulted; recovered → the outcome
@@ -168,7 +210,8 @@ function unpaidOutcome(o: OutcomeInput, kinds: AttemptKind[], now: number): Outc
   if (o.status === 'installment_defaulted') return done('buyer_didnt_complete', 'installment_defaulted');
   if (!o.attempts.length) return done('abandoned', o.status);
   if (kinds.every((k) => k === 'refused')) {
-    return done('system_error', o.attempts.some((a) => a.error) ? 'gateway_refused' : 'no_gateway_reference');
+    // The newest attempt says why.
+    return done('system_error', refusalReason(o.attempts[o.attempts.length - 1], o.acceptTrackedSinceMs));
   }
   // The gateway took at least one attempt; the newest one it took says why.
   let i = kinds.length - 1;
@@ -182,6 +225,11 @@ function unpaidOutcome(o: OutcomeInput, kinds: AttemptKind[], now: number): Outc
 
 /** Sub-reason words after "Buyer didn't complete: " / "System error: ". */
 export const DETAIL_LABELS: Record<string, string> = {
+  gateway_refused: 'x-bridge refused the request',
+  card_unavailable: "card isn't available at x-bridge",
+  method_unavailable: "this payment method isn't available at x-bridge",
+  no_gateway_reference: 'request never reached x-bridge',
+  not_recorded: "didn't reach x-bridge; the reason wasn't recorded before 6 Nov",
   payer_no_response: 'timed out: no approval',
   payer_cancelled: 'cancelled by buyer',
   insufficient_funds: 'not enough balance',
@@ -194,10 +242,12 @@ export const DETAIL_LABELS: Record<string, string> = {
   provider_error: 'network/provider problem (not the buyer)',
 };
 
+const SYSTEM_ERROR_DETAILS = new Set<string>([...REFUSAL_REASONS, 'provider_error']);
+
 /** The chip text: "Buyer didn't complete: timed out", "Paid", … */
 export function outcomeLabel(outcome: string, detail?: string | null): string {
   const base = (OUTCOME_LABELS as Record<string, string>)[outcome] ?? outcome;
-  if (outcome === 'system_error' && detail === 'provider_error') return `System error: ${DETAIL_LABELS.provider_error}`;
+  if (outcome === 'system_error' && detail && SYSTEM_ERROR_DETAILS.has(detail)) return `System error: ${DETAIL_LABELS[detail]}`;
   if (outcome !== 'buyer_didnt_complete') return base;
   const d = detail ? DETAIL_LABELS[detail] ?? detail : '';
   return d ? `${base}: ${d}` : base;
@@ -217,10 +267,14 @@ export function explainOutcome(
     case 'in_progress': return 'Still open: the hold is live or a payment is on its way.';
     case 'abandoned': return 'The buyer made a cart but never started a payment.';
     case 'system_error':
-      if (r.outcomeDetail === 'provider_error') return 'x-bridge reported a network or provider problem. Not the buyer; a retry may work.';
-      return r.outcomeDetail === 'gateway_refused'
-        ? 'The gateway refused every payment request. This is our integration, not the buyer.'
-        : 'Payment requests never reached the gateway (no reference came back). This is our integration, not the buyer.';
+      switch (r.outcomeDetail) {
+        case 'provider_error': return 'x-bridge reported a network or provider problem. Not the buyer; a retry may work.';
+        case 'gateway_refused': return 'The gateway refused every payment request. This is our integration, not the buyer.';
+        case 'card_unavailable': return "Card isn't available at x-bridge: our account has no card provider, so card requests never went through. Not the buyer.";
+        case 'method_unavailable': return "x-bridge has no provider for this payment method on our account. Not the buyer.";
+        case 'not_recorded': return "The payment request didn't reach x-bridge. Before 6 Nov we didn't store why, so the exact reason isn't known. Not the buyer.";
+        default: return 'Payment requests never reached the gateway (it did not accept them and no reference came back). This is our integration, not the buyer.';
+      }
     case 'buyer_didnt_complete':
       switch (r.outcomeDetail) {
         case 'timed_out': return 'The gateway sent the request, but it was not approved before we stopped waiting.';

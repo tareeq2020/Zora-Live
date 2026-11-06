@@ -92,9 +92,9 @@ function detailText(outcome: string, detail: string): string {
 
 const loadFilters = () => adminApi<Filters>('/api/admin/orders/filters');
 
-export default function AdminOrdersClient() {
+export default function AdminOrdersClient({ initialOutcome = '' }: { initialOutcome?: string }) {
   const [status, setStatus] = useState('');
-  const [outcome, setOutcome] = useState('');
+  const [outcome, setOutcome] = useState(OUTCOME_ORDER.includes(initialOutcome) ? initialOutcome : '');
   // Set when an outcome is picked from the funnel, so the list uses its window.
   const [listDays, setListDays] = useState<number | null>(null);
   const [event, setEvent] = useState('');

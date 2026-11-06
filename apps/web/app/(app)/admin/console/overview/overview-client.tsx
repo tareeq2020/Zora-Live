@@ -74,6 +74,7 @@ const KIND_LABEL: [string, string, Severity][] = [
   ['payment_short', 'Under-paid', 'critical'],
   ['paid_no_passes', 'Paid, no tickets', 'critical'],
   ['payment_stuck', 'Payment stuck', 'high'],
+  ['prompt_timeouts_high', 'Prompts timing out', 'high'],
   ['ops_alert', 'Ops alerts', 'high'],
   ['payout_request', 'Payouts', 'high'],
   ['installment_refund', 'Installment refunds', 'high'],

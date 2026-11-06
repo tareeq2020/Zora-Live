@@ -46,11 +46,13 @@ export interface AttemptLike {
   orderReference?: string | null;
   billPayNumber?: string | null;
   error?: string | null;
+  /** BS159: set when the gateway accepted the attempt. */
+  acceptedAt?: string | Date | null;
 }
 
 /** Did the gateway take this attempt (a push/control number/card page went out)? */
 export function attemptAccepted(a: AttemptLike): boolean {
-  if (a.orderReference || a.billPayNumber) return true;
+  if (a.acceptedAt || a.orderReference || a.billPayNumber) return true;
   if (['pending', 'processing', 'successful', 'partial'].includes(a.status)) return true;
   return a.status === 'failed' && !a.error;
 }
