@@ -7,8 +7,11 @@
 #
 # Web (apps/web) stays on Vercel; it proxies /api/* to API_URL (set it to
 # https://api.zorapass.com in Vercel and redeploy — rewrites bake at build).
-# Postgres stays on Supabase: DATABASE_URL must be the SESSION pooler (:5432)
-# — migrations and the worker's advisory lock need session mode.
+# Postgres stays on Supabase. Connection budget (BS156): the SESSION pooler
+# (:5432) allows only `pool_size` clients (15) in total, so only the worker
+# (its singleton advisory lock pins a connection) and migrations use it. The API
+# uses the TRANSACTION pooler (:6543, PG_PREPARE=false); it only takes
+# transaction-scoped advisory locks, which work there.
 #
 # Setup + cutover: docs/deploy/render.md. Every `sync: false` value is entered
 # once in the Render dashboard (never committed).
@@ -17,10 +20,10 @@ envVarGroups:
   - name: zora-backend
     envVars:
       # ── Database (required) ─────────────────────────────────────────
-      - key: DATABASE_URL            # Supabase SESSION pooler :5432
+      - key: DATABASE_URL            # Supabase SESSION pooler :5432 (worker); the API overrides it
         sync: false
-      - key: PG_POOL_MAX
-        value: "10"
+      - key: PG_POOL_MAX             # worker: 4 (+4 while a deploy overlaps) + migrate 1 stays under 15
+        value: "4"
       # ── Secrets (required) — copy the CURRENT production values ────
       - key: SESSION_SECRET          # changing it logs everyone out
         sync: false
@@ -122,6 +125,15 @@ services:
       - key: NODE_VERSION
         value: "22"
       - fromGroup: zora-backend
+      # Service values win over the group (BS156).
+      - key: DATABASE_URL            # Supabase TRANSACTION pooler :6543
+        sync: false
+      - key: DATABASE_URL_MIGRATE    # Supabase SESSION pooler :5432 — preDeploy migrations need its advisory lock
+        sync: false
+      - key: PG_PREPARE              # the transaction pooler forbids prepared statements
+        value: "false"
+      - key: PG_POOL_MAX
+        value: "10"
 
   - type: worker
     name: zora-worker
