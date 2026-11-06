@@ -6,14 +6,19 @@
      time since the previous step → attempts with gateway refs and errors in full
      → items / seats, passes, notifications, check-ins, refunds, callbacks.
    Steps for orders from before the log existed are rebuilt from the tables and
-   marked "derived". The old drawer had no order actions; this page replaces it. */
+   marked "derived". The old drawer had no order actions; this page replaces it.
+
+   BS157: the header leads with the cart OUTCOME and one line on why (with a
+   link to the cart that recovered it), and each attempt has a collapsible
+   "What x-bridge sent": its stored callback bodies and last status body. */
 
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
 import { AdminError, AdminSkeleton, adminApi, useAdminResource } from '../../admin-kit';
 import { AdminConsoleShell } from '../../console-shell';
-import { ORDER_STAGES, STAGE_LABEL, gap, money, whenFull } from '../order-format';
+import { ORDER_STAGES, STAGE_LABEL, gap, money, whenFull, outcomeText, outcomeTone } from '../order-format';
+import { FAILURE_WORDS, PushPanel, type PushPreview } from './push-panel';
 
 type Attempt = {
   transactionId: string;
@@ -26,6 +31,9 @@ type Attempt = {
   billPayNumber: string | null;
   error: string | null;
   errorAt: string | null;
+  failureReason?: string | null;
+  gatewayStatus?: Record<string, unknown> | null;
+  gatewayStatusAt?: string | null;
   scheduleN: number | null;
   createdAt: string;
   updatedAt: string | null;
@@ -78,13 +86,20 @@ type Detail = {
   stageReached: string;
   attempts: Attempt[];
   passes: Pass[];
-  callbacks: { transactionId: string | null; provider: string | null; receivedAt: string; applied: boolean }[];
+  callbacks: { transactionId: string | null; provider: string | null; receivedAt: string; applied: boolean; payload?: Record<string, unknown> | null }[];
+  outcome?: string;
+  outcomeDetail?: string | null;
+  outcomeReason?: string | null;
+  outcomeExplanation?: string;
+  recoveredBy?: string | null;
   holds: { state: string; quantity: number; expiresAt: string | null }[];
   timeline: Entry[];
   durations: Record<string, number | null>;
+  /** BS158: can an admin send a payment prompt now, and for how much. */
+  push?: PushPreview | null;
 };
 
-const FAIL_STEPS = new Set(['gateway_rejected', 'failed', 'short', 'expired']);
+const FAIL_STEPS = new Set(['gateway_rejected', 'failed', 'short', 'expired', 'admin_push_refused']);
 const DURATION_LABEL: Record<string, string> = {
   cartToPayRequest: 'Cart → pay',
   payRequestToGateway: 'Pay → gateway',
@@ -161,7 +176,18 @@ export default function OrderDetailClient({ id }: { id: string }) {
         </span>
       ),
     },
-    { key: 'err', header: 'Error', render: (a) => (a.error ? <span className="od-err od-wrap">{a.error}</span> : '—') },
+    {
+      key: 'err',
+      header: 'Error',
+      render: (a) =>
+        a.error ? (
+          <span className="od-err od-wrap">{a.error}</span>
+        ) : a.failureReason ? (
+          <span className="od-wrap">{FAILURE_WORDS[a.failureReason] ?? a.failureReason}</span>
+        ) : (
+          '—'
+        ),
+    },
     { key: 'at', header: 'Started · updated', render: (a) => <span className="od-mono">{whenFull(a.createdAt)} · {whenFull(a.errorAt ?? a.updatedAt)}</span> },
   ];
 
@@ -188,10 +214,26 @@ export default function OrderDetailClient({ id }: { id: string }) {
               </div>
             </div>
             <div className="od-head-side">
+              {o.outcome ? (
+                <span className={`od-out od-out-${outcomeTone(o.outcome)}`}>{outcomeText(o.outcome, o.outcomeDetail)}</span>
+              ) : null}
               <StatusPill tone={toneForStatus(o.status)} label={o.status} />
               <div className="od-value">{money(o.targetValue || o.cartValue, o.currency)}</div>
             </div>
           </div>
+          {o.outcomeExplanation ? (
+            <p className="od-why">
+              {o.outcomeExplanation}
+              {o.recoveredBy ? (
+                <>
+                  {' '}
+                  <Link href={`/admin/console/orders/${o.recoveredBy}`} className="od-why-link">
+                    Open the cart that paid →
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          ) : null}
           <dl className="od-facts">
             <div>
               <dt>Buyer</dt>
@@ -215,6 +257,9 @@ export default function OrderDetailClient({ id }: { id: string }) {
             </div>
           </dl>
         </section>
+
+        {/* ── BS158: admin payment prompt ── */}
+        <PushPanel o={o} onDetail={res.set} />
 
         {/* ── stage bar ── */}
         <section className="cr-panel" aria-label="Stage reached">
@@ -415,6 +460,33 @@ export default function OrderDetailClient({ id }: { id: string }) {
             emptyTitle="No payment started"
             emptyBody={<span>The buyer made a cart but never asked to pay.</span>}
           />
+          {o.attempts.map((a) => {
+            const hooks = o.callbacks.filter((c) => c.transactionId === a.transactionId && c.payload);
+            const empty = !hooks.length && !a.gatewayStatus;
+            return (
+              <details key={a.transactionId} className="od-sent">
+                <summary>
+                  What x-bridge sent · <span className="od-mono od-wrap">{a.transactionId}</span>
+                  {a.failureReason ? <span className="od-sent-r"> · reason {a.failureReason}</span> : null}
+                </summary>
+                {empty ? (
+                  <p className="od-note">Nothing stored for this attempt (bodies are kept from BS157 on).</p>
+                ) : null}
+                {hooks.map((c, i) => (
+                  <div key={i} className="od-sent-b">
+                    <h3 className="od-sub">Callback · {whenFull(c.receivedAt)}</h3>
+                    <pre className="od-pre">{JSON.stringify(c.payload, null, 2)}</pre>
+                  </div>
+                ))}
+                {a.gatewayStatus ? (
+                  <div className="od-sent-b">
+                    <h3 className="od-sub">Last status read · {whenFull(a.gatewayStatusAt)}</h3>
+                    <pre className="od-pre">{JSON.stringify(a.gatewayStatus, null, 2)}</pre>
+                  </div>
+                ) : null}
+              </details>
+            );
+          })}
         </section>
       </div>
       <style dangerouslySetInnerHTML={{ __html: DETAIL_CSS }} />
@@ -440,6 +512,17 @@ const DETAIL_CSS = `
 .od-id { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font: 500 12px/1.3 var(--cr-mono); color: var(--cr-ink2); overflow-wrap: anywhere; }
 .od-id span { min-width: 0; overflow-wrap: anywhere; }
 .od-value { font: 600 24px/1 var(--cr-mono); color: var(--cr-ink); }
+.od-out { font: 600 12px/1.25 var(--cr-mono); letter-spacing: .06em; text-transform: uppercase; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--cr-hair); color: var(--cr-ink2); max-width: 100%; overflow-wrap: anywhere; text-align: right; }
+.od-out-good { background: var(--cr-ink); color: var(--cr-paper); border-color: var(--cr-ink); }
+.od-out-mid { border-color: var(--cr-ink); color: var(--cr-ink); }
+.od-out-alert { border-color: var(--cr-red); color: var(--cr-red); }
+.od-why { margin: 12px 0 0; font-size: 14px; line-height: 1.45; color: var(--cr-ink); overflow-wrap: anywhere; }
+.od-why-link { display: inline-flex; align-items: center; min-height: 44px; font: 600 12px/1 var(--cr-mono); letter-spacing: .06em; color: var(--cr-ink); }
+.od-sent { border-top: 1px solid var(--cr-hair); margin-top: 8px; }
+.od-sent summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font: 600 12px/1.3 var(--cr-mono); letter-spacing: .04em; color: var(--cr-ink); }
+.od-sent-r { color: var(--cr-ink2); font-weight: 500; }
+.od-sent-b { margin-bottom: 10px; }
+.od-pre { margin: 0; padding: 10px; background: var(--cr-card2); border: 1px solid var(--cr-hair); border-radius: 8px; font: 500 12px/1.45 var(--cr-mono); color: var(--cr-ink); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-height: 360px; overflow-y: auto; }
 .od-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 16px 0 0; border-top: 1px solid var(--cr-hair); }
 .od-facts > div { padding: 10px 12px 0 0; min-width: 0; }
 .od-facts dt { font: 600 12px/1 var(--cr-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cr-mut); margin-bottom: 6px; }
@@ -481,6 +564,7 @@ const DETAIL_CSS = `
 @media (max-width: 520px) {
   .od-facts { grid-template-columns: minmax(0, 1fr); }
   .od-head-side { justify-items: start; }
+  .od-out { text-align: left; }
   .od-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .od-tl-i { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .od-tl-t { grid-auto-flow: column; justify-content: start; gap: 8px; align-items: baseline; }

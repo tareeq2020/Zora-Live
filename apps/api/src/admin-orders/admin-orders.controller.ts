@@ -1,6 +1,11 @@
-import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { db, adminPush, adminPushPreview, AdminPushRefused, maskPhone, reconcile } from '@zora/core';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
+import { EntityStore } from '../storage/entity-store';
+import { AuditService } from '../audit/audit.module';
+import { DEFAULT_SETTINGS } from '../common/defaults';
 import { AdminOrdersService } from './admin-orders.service';
 import { AdminFunnelService } from './admin-funnel.service';
 
@@ -20,7 +25,21 @@ import { AdminFunnelService } from './admin-funnel.service';
 @Controller('admin/orders')
 @UseGuards(SessionGuard)
 export class AdminOrdersController {
-  constructor(private readonly orders: AdminOrdersService) {}
+  constructor(
+    private readonly orders: AdminOrdersService,
+    private readonly entities: EntityStore,
+    private readonly audit: AuditService,
+  ) {}
+
+  /** Mobile money on/off (BS47: absent = on) and the hold TTL, from settings. */
+  private async payConfig() {
+    const settings = await this.entities.read<any>('settings', DEFAULT_SETTINGS);
+    const methods = settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
+    return {
+      mobileEnabled: methods.mobile !== false,
+      holdTtlSecs: Number.isInteger(settings?.hold_ttl_seconds) ? settings.hold_ttl_seconds : 900,
+    };
+  }
 
   /** GET /api/admin/orders/filters — the dropdown vocabulary (events, orgs,
       statuses) so the UI never hard-codes a status list that drifts. */
@@ -30,7 +49,10 @@ export class AdminOrdersController {
   }
 
   /**
-   * GET /api/admin/orders?status=&event=&organizer=&q=&limit=&cursor=&days=
+   * GET /api/admin/orders?status=&outcome=&event=&organizer=&q=&limit=&cursor=&days=
+   *
+   * BS157: `outcome` is one of the cart outcomes (@zora/core CART_OUTCOMES);
+   * an unknown value is ignored.
    *
    * `days=0` explicitly disables the recent window — allowed, but it has to be
    * asked for; the default never scans the whole table.
@@ -38,6 +60,7 @@ export class AdminOrdersController {
   @Get()
   async list(
     @Query('status') status?: string,
+    @Query('outcome') outcome?: string,
     @Query('event') event?: string,
     @Query('organizer') organizer?: string,
     @Query('q') q?: string,
@@ -49,6 +72,7 @@ export class AdminOrdersController {
     const parsedDays = days != null && days !== '' ? parseInt(days, 10) : NaN;
     return this.orders.list({
       status: status && status !== 'all' ? status : null,
+      outcome: outcome && outcome !== 'all' ? outcome : null,
       eventId: event && event !== 'all' ? event : null,
       organizerHandle: organizer && organizer !== 'all' ? organizer : null,
       q: q || null,
@@ -63,10 +87,77 @@ export class AdminOrdersController {
       (logged events merged with ones derived from the tables for old orders).
       Declared after `filters` so that path still wins. */
   @Get(':id')
-  async detail(@Param('id') id: string) {
+  async detail(@Param('id') id: string, @Query('reconcile') refresh?: string) {
+    // BS158: the push panel polls with ?reconcile=1 so an open attempt is read
+    // from x-bridge (like the buyer's status page) instead of waiting on a callback.
+    if (refresh === '1' && /^[0-9a-f-]{36}$/i.test(id)) {
+      const sql = db();
+      const open = await sql`
+        select transaction_id from payment_transaction
+         where order_id = ${id}::uuid and error is null and status in ('created', 'pending', 'processing')
+         order by created_at asc limit 5`;
+      for (const t of open) {
+        try { await reconcile(sql, t.transaction_id); }
+        catch (e) { console.error('admin reconcile failed', t.transaction_id, (e as Error)?.message); }
+      }
+    }
     const order = await this.orders.detail(id);
     if (!order) throw new NotFoundException({ error: 'order_not_found' });
-    return order;
+    const { mobileEnabled } = await this.payConfig();
+    const push = await adminPushPreview(db(), id, { mobileEnabled }).catch((e) => {
+      console.error('admin push preview failed', (e as Error)?.message);
+      return null;
+    });
+    return { ...order, push };
+  }
+
+  /**
+   * BS158: POST /api/admin/orders/:id/push { phone?, note? } — send a mobile-money
+   * prompt for the cart's own amount. Refusals: 400 invalid_phone, 403
+   * method_disabled, 404 order_not_found, 409 not_payable | attempt_in_flight |
+   * inventory_unavailable, 429 rate_limited. A gateway refusal is 502 with the
+   * sanitized error (also stored on the attempt). Every call is audited.
+   */
+  @Post(':id/push')
+  async push(@Param('id') id: string, @Body() body: any, @Req() req: Request, @Res() res: Response) {
+    if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return res.status(404).json({ error: 'order_not_found' });
+    const phone = body?.phone == null ? null : String(body.phone).slice(0, 40);
+    const note = body?.note == null ? null : String(body.note).slice(0, 280);
+    const s: any = req.session || {};
+    const admin = { id: String(s.userId || 'admin'), name: String(s.userId ? `user ${s.userId}` : 'admin') };
+    const { mobileEnabled, holdTtlSecs } = await this.payConfig();
+    const callbackUrl = `${process.env.PUBLIC_ORIGIN || ''}/api/webhooks/xbridge`;
+    const audit = (result: string, masked: string | null, amount: number | null) =>
+      this.audit.record(
+        'admin.order.push',
+        `${admin.name} → order ${id} · ${masked ?? 'no number'} · ${amount != null ? `${amount} TZS` : 'amount n/a'} · ${result}${note ? ` · note: ${note}` : ''}`,
+        req.ip, admin.id,
+      ).catch((e) => console.error('audit write failed', (e as Error)?.message));
+
+    try {
+      const r = await adminPush(db(), { orderId: id, phone, note, admin, mobileEnabled, callbackUrl, holdTtlSecs });
+      await audit(r.gateway === 'accepted' ? `accepted (${r.transactionId})` : `gateway rejected (${r.transactionId}): ${r.error}`, r.phone, r.amount);
+      const out = {
+        transactionId: r.transactionId, status: r.status, gateway: r.gateway,
+        ...(r.error ? { error: r.error } : {}),
+        amount: r.amount, phone: r.phone, scheduleN: r.scheduleN, revivedFrom: r.revivedFrom,
+      };
+      return res.status(r.gateway === 'accepted' ? 200 : 502).json(out);
+    } catch (e) {
+      if (e instanceof AdminPushRefused) {
+        await audit(`refused: ${e.code}`, e.extra.phone ?? maskPhone(phone), e.extra.amount ?? null);
+        if (e.extra.retryAfterSecs) res.setHeader('Retry-After', String(e.extra.retryAfterSecs));
+        return res.status(e.httpStatus).json({
+          error: e.code, message: e.message,
+          ...(e.extra.status ? { status: e.extra.status } : {}),
+          ...(e.extra.reason ? { reason: e.extra.reason } : {}),
+          ...(e.extra.retryAfterSecs ? { retryAfterSecs: e.extra.retryAfterSecs } : {}),
+        });
+      }
+      console.error('admin push failed', (e as Error)?.message);
+      await audit('error', maskPhone(phone), null);
+      return res.status(500).json({ error: 'push_failed' });
+    }
   }
 }
 

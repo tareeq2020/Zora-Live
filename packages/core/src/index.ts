@@ -31,7 +31,13 @@ export {
   xbridgeConfig, normalizeMsisdn, cardCheckoutUrl,
   collectMobile, collectBillPay, collectCard, collectionStatus, BILLPAY_CONNECTION,
   __resetTokenCache, __setMockCollectionStatus, __clearMockCollectionStatus, __setMockReject,
+  __setMockSandboxDelay, sandboxOutcomeFor, SANDBOX_FAIL_NUMBERS, SANDBOX_OK_NUMBER,
 } from './payments/xbridge';
+// BS158: admin "Send payment prompt".
+export {
+  adminPush, adminPushPreview, AdminPushRefused, ADMIN_PUSH_LIMITS, tanzanianMobile, maskPhone,
+} from './payments/admin-push';
+export type { AdminPushCode, AdminPushInput, AdminPushResult, AdminPushPreview } from './payments/admin-push';
 export type {
   XbridgeConfig,
   CollectMobileInput, CollectMobileResponse,
@@ -83,6 +89,16 @@ export {
   buildTimeline, timelineDurations, funnelWithDropoff,
 } from './order-funnel';
 export type { FunnelStage, OrderStage, TimelineEntry, RawEntry } from './order-funnel';
+// BS157: one outcome per cart (pure) + best-effort capture of what x-bridge sends.
+export {
+  CART_OUTCOMES, UNPAID_OUTCOMES, OUTCOME_LABELS, ATTEMPT_SEND_GRACE_MS, CART_OPEN_GRACE_MS, RECOVERY_WINDOW_MS,
+  isCartOutcome, classifyAttempt, cartOutcome, outcomeLabel, explainOutcome, normalizeBuyerPhone, matchRecoveries,
+  FAILURE_REASONS, mapFailureReason, DETAIL_LABELS,
+} from './cart-outcome';
+export type { CartOutcome, OutcomeAttempt, OutcomeInput, OutcomeResult, RecoveryOrder, AttemptKind, FailureReason } from './cart-outcome';
+export {
+  CAPTURE_MAX_CHARS, REASON_FIELDS, sanitizeGatewayPayload, extractFailureReason, extractReason, captureCallback, captureStatusRead,
+} from './gateway-capture';
 // BS38: the ONE earnings read (net of the stamped commission, net of refunds),
 // shared by the sales summary and the payout balance so they cannot drift.
 export {

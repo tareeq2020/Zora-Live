@@ -12,7 +12,9 @@ export type OrderStep =
   | 'cart_created' | 'pay_requested' | 'gateway_accepted' | 'gateway_rejected'
   | 'callback_received' | 'status_changed'
   | 'paid' | 'short' | 'failed' | 'expired' | 'hold_released' | 'refunded'
-  | 'passes_issued' | 'buyer_notified' | 'checked_in';
+  | 'passes_issued' | 'buyer_notified' | 'checked_in'
+  // BS158: an admin sent (or tried to send) a payment prompt from the console.
+  | 'admin_push_requested' | 'admin_push_refused';
 
 type Detail = Record<string, unknown>;
 

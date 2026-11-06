@@ -60,10 +60,9 @@ type Credential = { qr: string; code: string; publicRef: string; tier: string; s
 type Notice = { kind: 'error' | 'info'; text: string } | null;
 
 // Today's behaviour when GET /api/payment-methods is unavailable.
-const FALLBACK_GROUPS: MethodGroup[] = [
-  { id: 'mobile', label: 'Mobile money' },
-  { id: 'card', label: 'Card' },
-];
+// Used only when /api/payment-methods can't be read: Mobile money alone, so a
+// method that was switched off is never offered on a network error.
+const FALLBACK_GROUPS: MethodGroup[] = [{ id: 'mobile', label: 'Mobile money' }];
 // The pay endpoint accepts exactly these; a group the API lists that the pay
 // contract can't take yet (e.g. QR before x-bridge ships it) is not offered.
 const PAYABLE: ReadonlySet<string> = new Set(['mobile', 'billpay', 'card']);
