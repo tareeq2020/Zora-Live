@@ -30,7 +30,9 @@ export class OrgSalesController {
   }
 
   // BS58: filters + keyset paging. All optional; each only narrows within the
-  // org's owned-event scope. Returns { rows, nextCursor }.
+  // org's owned-event scope. Returns { rows, nextCursor }. BS160: ?outcome=
+  // (a cart outcome) narrows too; rows carry outcome, outcomeLabel,
+  // outcomeDetail and stageReached.
   @Get('orders')
   async orders(
     @Req() req: Request,
@@ -42,11 +44,13 @@ export class OrgSalesController {
     @Query('to') to?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
+    @Query('outcome') outcome?: string,
   ) {
     const handle = req.actingHandle as string;
     const parsed = limit != null ? parseInt(limit, 10) : NaN;
     return this.sales.orders(handle, {
       eventId, tier, status, q, from, to, cursor,
+      outcome: outcome && outcome !== 'all' ? outcome : undefined,
       limit: Number.isFinite(parsed) ? parsed : 50,
     });
   }
