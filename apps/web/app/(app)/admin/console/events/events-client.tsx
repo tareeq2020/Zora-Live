@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

@@ -48,11 +48,16 @@ module.exports = {
   // build-order dependency on packages/core's dist (Vercel-safe).
   transpilePackages: ['@zora/core'],
   async redirects() {
-    return CONVERTED_PAGES.map((p) => ({
-      source: `/${p}.html`,
-      destination: `/${p}`,
-      permanent: true,
-    }));
+    return [
+      ...CONVERTED_PAGES.map((p) => ({
+        source: `/${p}.html`,
+        destination: `/${p}`,
+        permanent: true,
+      })),
+      // BS151: the legacy admin console is retired; old bookmarks land on the console.
+      { source: '/admin/dashboard', destination: '/admin/console/overview', permanent: true },
+      { source: '/admin/dashboard/:path*', destination: '/admin/console/overview', permanent: true },
+    ];
   },
   async rewrites() {
     return {

@@ -14,7 +14,7 @@
 
 import { useCallback, useState } from 'react';
 import { CrDrawer, DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { adminApi, useAdminResource } from '../../dashboard/admin-kit';
+import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 
 type Line = { tierName: string | null; quantity: number; unitPrice: number };

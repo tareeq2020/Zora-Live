@@ -8,7 +8,7 @@
    Minimum 8 characters, enforced client-side (as before) and by the API. */
 
 import { useState, type FormEvent } from 'react';
-import { adminApi, errText } from '../../dashboard/admin-kit';
+import { adminApi, errText } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrSectionHead, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

@@ -52,7 +52,7 @@ for (const [section, clientFile] of SECTIONS) {
     const src = readFileSync(client, 'utf8');
     const problems = [];
     if (!src.includes('AdminConsoleShell')) problems.push('does not render AdminConsoleShell');
-    if (!src.includes("from '../../dashboard/admin-kit'")) problems.push('does not reuse the shared admin-kit endpoints');
+    if (!src.includes("from '../admin-kit'")) problems.push('does not reuse the shared admin-kit endpoints');
     if (!navBlock.includes(`/admin/console/${section}`)) problems.push('nav does not link to the console route');
     if (problems.length) bad(`${section}: migrated to the CR console`, problems.join('; '));
     else ok(`${section}: migrated to the CR console`);

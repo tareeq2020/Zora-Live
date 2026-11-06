@@ -12,7 +12,7 @@
 
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { StatusPill, type PillTone } from '@/app/components/cr';
-import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrSectionHead, useConsoleToast } from '../console-kit';
 

@@ -15,7 +15,7 @@
 
 import { useState } from 'react';
 import { DataTable, StatusPill, CrDrawer, type Column, type PillTone } from '@/app/components/cr';
-import { adminApi, errText, money, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, money, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrSectionHead, crDangerBtn, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

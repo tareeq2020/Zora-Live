@@ -15,7 +15,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { DataTable, StatusPill, toneForStatus, type Column } from '@/app/components/cr';
-import { adminApi, useAdminResource } from '../../dashboard/admin-kit';
+import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 
 // ── contracts (mirror @zora/core + admin-broadcasts.controller) ──────────────

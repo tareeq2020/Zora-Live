@@ -20,6 +20,7 @@ Last updated: 2026-10-31 (final train)
 | R5 Installments | BS132–BS136, BS144 | `zp_installments` (per org) | released DARK (final train) — keep OFF until x-bridge /v1 (BS138) |
 | R6 Hardening + x-bridge /v1 | BS137 ✅, BS138 ⛔, BS145–BS146 todo | — | partial |
 | R8 Backend on Render (api.zorapass.com) | BS142 | — | released (PR #223) — owner cutover pending |
+| R9 Dashboards: design + ops truth | BS151–BS154 | — | in progress (owner request 2026-11-06) |
 | R7 Admin Google sign-in | BS141 | — (on when GOOGLE_CLIENT_ID/SECRET set) | released (PR #213) — needs OAuth keys |
 
 ## PRs
@@ -65,6 +66,10 @@ Last updated: 2026-10-31 (final train)
 | BS149 | Post-deploy QA: category chips never matched free-text categories (mapped to buckets), checkout v1 CONTINUE Bungee 14px→20px, native controls dark on bone (color-scheme:light), WhatsApp icon squashed on phones, 7 undefined --zp-* tokens aliased, colour-reset specificity trap removed app-wide (10 more files) | R6 | 0 | BS147 | live /qa 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/232 | organizer login page fixes ride with BS148 |
 | BS148 | Google sign-in for organizers (sign in + sign up) + /dashboard/login handoff fixes | R7 | 0 | BS141 | owner request 2026-10-31 | merged | https://github.com/tareeq2020/Zora-Live/pull/234 | migration 0034 (app_user.google_sub); same callback URI; org-google + admin-google e2e PASS; login + signup restyled |
 | BS150 | Production pay failed: "Credentials for GODIGITAL not found". Stop naming a provider: mobile / card / status calls send no fspId (x-bridge routes by method); billpay pins the connection x-bridge still requires; FSP routing UI, PUT /settings/fsp-routing and resolveFsp removed; payment_completed analytics reported the provider as the method (fixed) | hotfix | 0 | — | prod log 2026-11-03 | merged | https://github.com/tareeq2020/Zora-Live/pull/236 | payments, installments×4, split×2, payouts, gate-sales, admin-orders, payment-methods, checkout-http e2e PASS |
+| BS151 | Retire the legacy /admin/dashboard: helpers moved to admin/console/admin-kit.tsx (state atoms on CR classes), legacy folder deleted, /admin/dashboard(/*) 308 → /admin/console/overview, LEGACY CONSOLE footer link removed | R9 | 0 | — | owner 2026-11-06 #2 | merged | https://github.com/tareeq2020/Zora-Live/pull/240 | next build + admin-console-routes test PASS; redirect verified locally |
+| BS152 | Real admin "Needs attention" queue (was 5 hardcoded mock rows): GET /api/admin/attention from live data | R9 | A | BS151 | owner 2026-11-06 #3 | todo | | |
+| BS153 | Cart funnel: fix "no attempt" (UI read `attempt`, API sends `attempts`), per-order step log, persisted x-bridge errors, platform funnel strip, /admin/console/orders/[id] detail page | R9 | B | BS151 | owner 2026-11-06 #4 | todo | | |
+| BS154 | Dashboards follow the design handoff: CR tokens/components (no off-palette tints, aura, shadows; one yellow accent per chart; data in mono) + live audit of every admin console and organizer dashboard page at 1280/390 | R9 | C | BS151 | owner 2026-11-06 #1 | todo | | |
 ## Decisions log
 - 2026-11-03 · Owner: x-bridge picks the provider and credentials. Zora sends no fspId and keeps no routing setting (BS150). Billpay pins CLICKPESA only until x-bridge stops requiring fspId on /collection/billpay; confirm CLICKPESA is connected for billpay.
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.

@@ -4,16 +4,8 @@
    surfaces (verification · payouts · organizers · payments · scanner · media ·
    access).
 
-   The legacy /admin/dashboard sections relied on admin-kit's ToastProvider,
-   whose `.toast` styling lives in the legacy imperative stylesheet and does NOT
-   resolve inside the CR shell. Rather than pull legacy CSS into the console, we
-   ship a tiny CR-native toast here, styled entirely with `--cr-*` tokens, so
-   every ported page keeps its success / error feedback while staying on-theme.
-
-   The data plumbing (adminApi / useAdminResource / errText / ageLabel / …) is
-   still reused verbatim from ../../dashboard/admin-kit — same endpoints, same
-   401 handling — so no API behaviour changes. This file only adds presentation
-   and small CR-styled form atoms shared across the ported pages. */
+   A CR-native toast styled with `--cr-*` tokens, plus small CR form atoms.
+   Data plumbing (adminApi / useAdminResource / errText / …) lives in ./admin-kit. */
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
