@@ -13,7 +13,7 @@
    API without these endpoints shows the error state (redeploy pending). */
 
 import { useCallback, useState } from 'react';
-import { adminApi, errText, useAdminResource, AdminSkeleton, AdminError, AdminEmpty } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, AdminSkeleton, AdminError, AdminEmpty } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { crPrimaryBtn } from '../console-kit';
 

@@ -13,7 +13,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { DataTable, type Column } from '@/app/components/cr';
-import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrSectionHead, crDangerBtn, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

@@ -664,7 +664,7 @@ export default function DashboardClient() {
 }
 
 // BS50 (Lane 3A): re-skinned onto DESIGN.md's Control-room plane, the SAME
-// dark token set already running in production on /admin/dashboard
+// dark token set the (now retired, BS151) /admin/dashboard used
 // (admin-style.ts) — not a new design, applying the existing one. Two
 // semantic corrections made while doing this (not blind token swaps):
 //   1. old --ink meant TEXT color; the reference dark system's --ink means a

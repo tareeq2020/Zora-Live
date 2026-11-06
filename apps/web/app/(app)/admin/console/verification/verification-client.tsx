@@ -20,7 +20,7 @@
 
 import { useCallback, useState } from 'react';
 import { CrDrawer, DataTable, StatusPill, type Column, type PillTone } from '@/app/components/cr';
-import { adminApi, ageLabel, errText, useAdminResource, useJsonLoader, useNow, whenLocal } from '../../dashboard/admin-kit';
+import { adminApi, ageLabel, errText, useAdminResource, useJsonLoader, useNow, whenLocal } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrMeta, CrSectionHead, crDangerBtn, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

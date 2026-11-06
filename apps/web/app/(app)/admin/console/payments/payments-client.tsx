@@ -8,7 +8,7 @@
    each method, so there is nothing to choose here. */
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { adminApi, errText, useAdminResource, useJsonLoader } from '../../dashboard/admin-kit';
+import { adminApi, errText, useAdminResource, useJsonLoader } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 import { ConsoleToastProvider, CrField, CrSectionHead, crPrimaryBtn, useConsoleToast } from '../console-kit';
 

@@ -174,8 +174,7 @@ export async function middleware(req: NextRequest) {
     }
     const url = req.nextUrl.clone();
     if (isAdmin) {
-      // BS88: land admins on the Control-Room v2 console (Lane C), not the legacy
-      // /admin/dashboard. Redirect (not rewrite) so the visible URL + usePathname
+      // BS88: land admins on the Control-Room v2 console. Redirect (not rewrite) so the visible URL + usePathname
       // match the console's path-based nav highlighting.
       url.pathname = '/admin/console/overview';
       url.hash = '';

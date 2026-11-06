@@ -28,7 +28,7 @@ import {
   type ChartRange,
   type Column,
 } from '@/app/components/cr';
-import { adminApi, useAdminResource } from '../../dashboard/admin-kit';
+import { adminApi, useAdminResource } from '../admin-kit';
 import { AdminConsoleShell } from '../console-shell';
 
 // ── /api/admin/analytics response (Lane D contract — same shape as org) ──────
