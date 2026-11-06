@@ -327,8 +327,8 @@ export async function handleReceivableWebhook(
     }
     txId = `ZORA-RCV-${ev.payment.id ?? dedupKey}`.slice(0, 200);
     await sql`
-      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status, schedule_n, provider)
-      values (${orderId}::uuid, ${txId}, 'billpay', null, ${Number(next.amount)}, 'pending', ${Number(next.n)}, 'xbridge_v1')
+      insert into payment_transaction (order_id, transaction_id, method, fsp_id, amount, status, schedule_n, provider, accepted_at)
+      values (${orderId}::uuid, ${txId}, 'billpay', null, ${Number(next.amount)}, 'pending', ${Number(next.n)}, 'xbridge_v1', now())
       on conflict (transaction_id) do nothing`;
   }
 

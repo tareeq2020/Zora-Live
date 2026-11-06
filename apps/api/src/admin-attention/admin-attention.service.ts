@@ -8,7 +8,8 @@ import { EntityStore } from '../storage/entity-store';
 
    One read over every queue where a person has to act, built from live data:
      critical  money taken, nothing delivered (flagged orders, paid without passes)
-     high      payments stuck in flight, ops alerts, payouts, installment refunds
+     high      payments stuck in flight, ops alerts, payouts, installment refunds,
+               mobile prompts timing out far above normal (BS159)
      normal    KYC / sign-up reviews (high past 24h), paid buyers never notified
 
    Abandoned carts (pending, no attempt) are NOT here: that is funnel drop-off.
@@ -22,6 +23,7 @@ export type AttentionKind =
   | 'payment_short'
   | 'paid_no_passes'
   | 'payment_stuck'
+  | 'prompt_timeouts_high'
   | 'ops_alert'
   | 'payout_request'
   | 'installment_refund'
@@ -51,7 +53,7 @@ export interface AttentionResponse {
 }
 
 export const ATTENTION_KINDS: readonly AttentionKind[] = [
-  'paid_unseatable', 'payment_short', 'paid_no_passes', 'payment_stuck', 'ops_alert',
+  'paid_unseatable', 'payment_short', 'paid_no_passes', 'payment_stuck', 'prompt_timeouts_high', 'ops_alert',
   'payout_request', 'installment_refund', 'kyc_review', 'org_signup', 'buyer_not_notified',
 ];
 
@@ -70,6 +72,17 @@ const STUCK_WINDOW_DAYS = 7;
 const OPS_ALERT_HOURS = 72;
 const OPS_ALERT_SCAN = 500;
 const KYC_SLA_HOURS = 24;
+
+/* BS159: "prompts are timing out". Over the last TIMEOUT_WINDOW_HOURS, of the
+   mobile attempts the gateway accepted (accepted_at or a reference), the share
+   that timed out (expired, or failureReason payer_no_response) must reach
+   TIMEOUT_SHARE_MIN and be at least TIMEOUT_SPIKE_FACTOR × the share of the
+   TIMEOUT_BASELINE_DAYS before the window. Needs TIMEOUT_MIN_ACCEPTED attempts. */
+export const TIMEOUT_WINDOW_HOURS = 3;
+export const TIMEOUT_MIN_ACCEPTED = 8;
+export const TIMEOUT_SHARE_MIN = 0.5;
+export const TIMEOUT_SPIKE_FACTOR = 2;
+export const TIMEOUT_BASELINE_DAYS = 7;
 const DEFAULT_CURRENCY = 'TZS';
 
 const RANK: Record<AttentionSeverity, number> = { critical: 0, high: 1, normal: 2 };
@@ -148,7 +161,7 @@ export class AdminAttentionService {
 
     const flagged = [...FLAGGED_MONEY_STATUSES] as string[];
 
-    const [flaggedRows, flaggedCounts, noPassRows, unnotifiedRows, stuckRows, alertRows, payoutRows, refundRows] =
+    const [flaggedRows, flaggedCounts, noPassRows, unnotifiedRows, stuckRows, alertRows, payoutRows, refundRows, timeoutRows] =
       await Promise.all([
         // ── critical: flagged money (payment_short / paid_unseatable) ──
         sql`
@@ -244,6 +257,24 @@ export class AdminAttentionService {
            where refund_status = 'pending'
            order by coalesce(closed_at, created_at) asc
            limit ${PER_QUEUE}`,
+
+        // ── high: mobile prompts timing out (one aggregate row; payment_transaction_mobile_created) ──
+        sql`
+          select count(*) filter (where recent)::int as n,
+                 count(*) filter (where recent and timed_out)::int as timed_out,
+                 count(*) filter (where recent and provider_error)::int as provider_error,
+                 min(created_at) filter (where recent) as since,
+                 count(*) filter (where not recent)::int as base_n,
+                 count(*) filter (where not recent and timed_out)::int as base_timed_out
+            from (
+              select pt.created_at,
+                     pt.created_at >= now() - make_interval(hours => ${TIMEOUT_WINDOW_HOURS}) as recent,
+                     (pt.status = 'expired' or lower(coalesce(pt.failure_reason, '')) = 'payer_no_response') as timed_out,
+                     lower(coalesce(pt.failure_reason, '')) = 'provider_error' as provider_error
+                from payment_transaction pt
+               where pt.method = 'mobile'
+                 and pt.created_at >= now() - make_interval(days => ${TIMEOUT_BASELINE_DAYS}, hours => ${TIMEOUT_WINDOW_HOURS})
+                 and (pt.accepted_at is not null or pt.order_reference is not null or pt.bill_pay_number is not null)) s`,
       ]);
 
     // flagged money
@@ -316,6 +347,25 @@ export class AdminAttentionService {
         currency: r.currency || DEFAULT_CURRENCY,
         since: iso(r.created_at) as string,
         href: orderHref(r.order_id),
+      });
+    }
+
+    const spike = promptTimeoutSpike((timeoutRows as any[])[0]);
+    if (spike) {
+      counts.prompt_timeouts_high = 1;
+      items.push({
+        id: 'prompt_timeouts_high',
+        kind: 'prompt_timeouts_high',
+        severity: 'high',
+        title: spike.title,
+        detail: spike.detail,
+        organizerHandle: null,
+        organizerName: null,
+        eventName: null,
+        amount: null,
+        currency: null,
+        since: iso(spike.since) ?? new Date(now).toISOString(),
+        href: '/admin/console/orders?outcome=buyer_didnt_complete',
       });
     }
 
@@ -438,4 +488,29 @@ export class AdminAttentionService {
 
     return { generatedAt: new Date(now).toISOString(), counts, items: items.slice(0, MAX_ITEMS) };
   }
+}
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/** BS159: the timeout-spike rule over the aggregate row; null = no alert. */
+export function promptTimeoutSpike(r: any): { title: string; detail: string; since: Date | string | null } | null {
+  if (!r) return null;
+  const n = Number(r.n ?? 0);
+  const timedOut = Number(r.timed_out ?? 0);
+  const baseN = Number(r.base_n ?? 0);
+  if (n < TIMEOUT_MIN_ACCEPTED) return null;
+  const share = timedOut / n;
+  const baseShare = baseN ? Number(r.base_timed_out ?? 0) / baseN : null;
+  if (share < TIMEOUT_SHARE_MIN) return null;
+  if (baseShare != null && share < baseShare * TIMEOUT_SPIKE_FACTOR) return null;
+  const normal = baseShare == null ? `no ${TIMEOUT_BASELINE_DAYS}-day history` : `${TIMEOUT_BASELINE_DAYS}-day normal: ${pct(baseShare)}`;
+  const prov = Number(r.provider_error ?? 0);
+  return {
+    title: `Prompts are timing out: ${timedOut} of ${n} in the last ${TIMEOUT_WINDOW_HOURS}h (${normal})`,
+    detail: [
+      'Mobile money prompts sent but not approved in time. Check x-bridge and the mobile networks.',
+      prov ? `${prov} of ${n} (${pct(prov / n)}) also failed with provider_error.` : null,
+    ].filter(Boolean).join(' '),
+    since: r.since ?? null,
+  };
 }

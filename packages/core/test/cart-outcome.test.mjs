@@ -78,9 +78,78 @@ test('system_error: every attempt refused by the gateway', () => {
 
 test('system_error: legacy GODIGITAL attempt (created, no order_reference, cart expired)', () => {
   assert.equal(classifyAttempt(GODIGITAL_LEGACY, NOW), 'refused');
-  assert.deepEqual(pick(out({ status: 'expired', attempts: [GODIGITAL_LEGACY] })), ['system_error', 'no_gateway_reference', null]);
+  // BS159: before acceptance was tracked, the reason is honestly "not recorded"
+  assert.deepEqual(pick(out({ status: 'expired', attempts: [GODIGITAL_LEGACY] })), ['system_error', 'not_recorded', null]);
   // reconcile later expired the stuck attempt: still ours, not the buyer's
   assert.equal(out({ status: 'expired', attempts: [{ status: 'expired', createdAt: ago(550) }] }).outcome, 'system_error');
+});
+
+/* ── BS159: accepted_at, the cut-over, honest refusal reasons ── */
+const { refusalReason, ACCEPT_TRACKED_SINCE_MS, REFUSAL_REASONS, attemptAccepted } = core;
+const NEW_NOW = ACCEPT_TRACKED_SINCE_MS + 6 * 3600_000; // after the cut-over
+const newAgo = (min) => new Date(NEW_NOW - min * 60_000).toISOString();
+const outNew = (o) => cartOutcome({ now: NEW_NOW, createdAt: newAgo(600), attempts: [], ...o });
+const NO_PROVIDER = 'x-bridge /collection/card failed: 422 {"statusCode":422,"code":"NO_PROVIDER_FOR_METHOD","message":"No provider"}';
+
+test('accepted_at + expired -> timed_out, never refused (even with no reference)', () => {
+  const a = { status: 'expired', method: 'mobile', acceptedAt: newAgo(299), createdAt: newAgo(300) };
+  assert.equal(classifyAttempt(a, NEW_NOW), 'timed_out');
+  assert.deepEqual(pick(outNew({ status: 'expired', attempts: [a] })), ['buyer_didnt_complete', 'timed_out', null]);
+  // with x-bridge's reason, that reason wins
+  assert.deepEqual(pick(outNew({ status: 'expired', attempts: [{ ...a, failureReason: 'payer_no_response' }] })),
+    ['buyer_didnt_complete', 'payer_no_response', null]);
+  // a legacy-dated row with an accept is also never refused
+  assert.equal(classifyAttempt({ status: 'expired', acceptedAt: ago(500), createdAt: ago(500) }, NOW), 'timed_out');
+  // accepted but still 'created' is in flight, not refused
+  assert.equal(classifyAttempt({ status: 'created', acceptedAt: newAgo(30), createdAt: newAgo(30) }, NEW_NOW), 'in_flight');
+  assert.equal(attemptAccepted({ status: 'expired', acceptedAt: newAgo(1) }), true);
+  assert.equal(attemptAccepted({ status: 'expired' }), false);
+});
+
+test('after the cut-over: no accept + no ref -> truly refused (no_gateway_reference)', () => {
+  const created = { status: 'created', method: 'mobile', createdAt: newAgo(30) };
+  const expired = { status: 'expired', method: 'mobile', createdAt: newAgo(30) };
+  assert.equal(classifyAttempt(created, NEW_NOW), 'refused');
+  assert.deepEqual(pick(outNew({ status: 'expired', attempts: [created] })), ['system_error', 'no_gateway_reference', null]);
+  assert.deepEqual(pick(outNew({ status: 'expired', attempts: [expired] })), ['system_error', 'no_gateway_reference', null]);
+  // a card row after the cut-over with no error is "never reached", not guessed
+  assert.equal(refusalReason({ ...expired, method: 'card' }), 'no_gateway_reference');
+  // the cut-over can be moved (the API reads it from config)
+  assert.equal(outNew({ status: 'expired', attempts: [expired], acceptTrackedSinceMs: NEW_NOW }).outcomeDetail, 'not_recorded');
+});
+
+test('legacy rows: card -> card_unavailable, mobile/billpay -> not_recorded', () => {
+  const legacy = (method, status = 'expired') => ({ status, method, createdAt: ago(550) });
+  assert.deepEqual(pick(out({ status: 'expired', attempts: [legacy('card')] })), ['system_error', 'card_unavailable', null]);
+  assert.deepEqual(pick(out({ status: 'expired', attempts: [legacy('mobile')] })), ['system_error', 'not_recorded', null]);
+  assert.deepEqual(pick(out({ status: 'expired', attempts: [legacy('billpay', 'created')] })), ['system_error', 'not_recorded', null]);
+  // the newest refused attempt names the reason
+  assert.equal(out({ status: 'expired', attempts: [legacy('mobile'), legacy('card')] }).outcomeDetail, 'card_unavailable');
+});
+
+test('422 NO_PROVIDER_FOR_METHOD -> card_unavailable (method_unavailable for non-card)', () => {
+  const card = { status: 'created', method: 'card', error: NO_PROVIDER, createdAt: newAgo(30) };
+  assert.equal(classifyAttempt(card, NEW_NOW), 'refused');
+  assert.deepEqual(pick(outNew({ status: 'expired', attempts: [card] })), ['system_error', 'card_unavailable', null]);
+  assert.equal(refusalReason({ ...card, method: 'mobile' }), 'method_unavailable');
+  // any other error stays gateway_refused
+  assert.equal(refusalReason({ ...card, error: 'x-bridge /collection/mobile failed: 400 {"message":"bad"}' }), 'gateway_refused');
+  // provider_error from x-bridge is still a system error (BS157)
+  assert.deepEqual(pick(outNew({ status: 'failed', attempts: [{ status: 'failed', orderReference: 'R', failureReason: 'provider_error', createdAt: newAgo(30) }] })),
+    ['system_error', 'provider_error', null]);
+});
+
+test('system_error labels and explanations name each reason', () => {
+  assert.deepEqual([...REFUSAL_REASONS].sort(), ['card_unavailable', 'gateway_refused', 'method_unavailable', 'no_gateway_reference', 'not_recorded']);
+  assert.equal(outcomeLabel('system_error', 'card_unavailable'), "System error: card isn't available at x-bridge");
+  assert.equal(outcomeLabel('system_error', 'not_recorded'), "System error: didn't reach x-bridge; the reason wasn't recorded before 6 Nov");
+  assert.equal(outcomeLabel('system_error', 'gateway_refused'), 'System error: x-bridge refused the request');
+  assert.equal(outcomeLabel('system_error'), 'System error (not the buyer)');
+  for (const d of REFUSAL_REASONS) {
+    assert.match(explainOutcome({ outcome: 'system_error', outcomeDetail: d }), /not the buyer/i, d);
+  }
+  assert.match(explainOutcome({ outcome: 'system_error', outcomeDetail: 'card_unavailable' }), /Card isn't available at x-bridge/);
+  assert.match(explainOutcome({ outcome: 'system_error', outcomeDetail: 'not_recorded' }), /6 Nov/);
 });
 
 test('buyer_didnt_complete: declined / timed out / x-bridge reason', () => {

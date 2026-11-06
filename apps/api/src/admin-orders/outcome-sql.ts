@@ -1,4 +1,21 @@
-import { ATTEMPT_SEND_GRACE_MS, CART_OPEN_GRACE_MS, RECOVERY_WINDOW_MS, SOLD_STATUSES, normalizeBuyerPhone, FAILURE_REASONS } from '@zora/core';
+import {
+  ATTEMPT_SEND_GRACE_MS, CART_OPEN_GRACE_MS, RECOVERY_WINDOW_MS, SOLD_STATUSES, normalizeBuyerPhone, FAILURE_REASONS,
+  ACCEPT_TRACKED_SINCE_MS, NO_PROVIDER_ERROR,
+} from '@zora/core';
+
+/** BS159: the acceptance cut-over (core ACCEPT_TRACKED_SINCE). Tests may move it
+    with OUTCOME_ACCEPT_TRACKED_SINCE (an ISO time); the list and the SQL use the same value. */
+export function acceptTrackedSinceMs(): number {
+  const t = Date.parse(String(process.env.OUTCOME_ACCEPT_TRACKED_SINCE ?? ''));
+  return Number.isNaN(t) ? ACCEPT_TRACKED_SINCE_MS : t;
+}
+
+/** BS159: the attempt's accepted time: accepted_at, else the logged gateway_accepted
+    step (BS153 logs it; rides order_event_order_at). `pt` is the attempt alias. */
+export function acceptedAtSql(sql: any) {
+  return sql`coalesce(pt.accepted_at, (select min(e.at) from order_event e
+    where e.order_id = pt.order_id and e.transaction_id = pt.transaction_id and e.step = 'gateway_accepted'))`;
+}
 
 /* BS157: the cart-outcome rules of @zora/core cart-outcome.ts, in SQL, for the
    two reads that cannot compute them row by row in JS: the list's ?outcome=
@@ -15,6 +32,8 @@ export function outcomeRows(sql: any, scoped: any) {
   const openGrace = Math.round(CART_OPEN_GRACE_MS / 1000);
   const recoverySecs = Math.round(RECOVERY_WINDOW_MS / 1000);
   const paidLike = ['paid', 'installment_active']; // issuesPasses || earnsCollected
+  const cutover = new Date(acceptTrackedSinceMs()).toISOString();
+  const noProvider = `%${NO_PROVIDER_ERROR}%`;
   return sql`
     with b as (
       select o.id, o.status, o.type, coalesce(o.channel, 'online') as channel, o.event_id, o.created_at, o.customer_id,
@@ -24,26 +43,39 @@ export function outcomeRows(sql: any, scoped: any) {
                    from (select regexp_replace(c.phone, '[^0-9]', '', 'g') as d) d0) n0) end) as nphone
         from "order" o left join customer c on c.id = o.customer_id
        where o.id in (${scoped})
-    ), x as (
-      select pt.order_id, pt.created_at, pt.error, pt.failure_reason,
-             case when pt.status = 'successful' then 'paid'
-                  when pt.status = 'partial' then 'short'
-                  when pt.error is not null then 'refused'
-                  when pt.status in ('pending', 'processing') then 'in_flight'
-                  when pt.status = 'created' then
-                    case when pt.order_reference is not null or pt.bill_pay_number is not null then 'in_flight'
-                         when pt.created_at > now() - make_interval(secs => ${sendGrace}) then 'in_flight'
-                         else 'refused' end
-                  when pt.status = 'expired' then
-                    case when pt.order_reference is not null or pt.bill_pay_number is not null then 'timed_out' else 'refused' end
-                  else 'declined' end as k
+    ), x0 as (
+      select pt.order_id, pt.created_at, pt.error, pt.failure_reason, pt.method, pt.status, pt.order_reference,
+             pt.bill_pay_number, ${acceptedAtSql(sql)} as accepted_at
         from payment_transaction pt where pt.order_id in (select id from b)
+    ), x as (
+      select x0.order_id, x0.created_at, x0.error, x0.failure_reason,
+             case when x0.status = 'successful' then 'paid'
+                  when x0.status = 'partial' then 'short'
+                  when x0.error is not null and x0.accepted_at is null then 'refused'
+                  when x0.status in ('pending', 'processing') then 'in_flight'
+                  when x0.status = 'created' then
+                    case when x0.order_reference is not null or x0.bill_pay_number is not null or x0.accepted_at is not null then 'in_flight'
+                         when x0.created_at > now() - make_interval(secs => ${sendGrace}) then 'in_flight'
+                         else 'refused' end
+                  when x0.status = 'expired' then
+                    case when x0.order_reference is not null or x0.bill_pay_number is not null or x0.accepted_at is not null
+                         then 'timed_out' else 'refused' end
+                  else 'declined' end as k,
+             -- refusalReason (only read for refused attempts)
+             case when x0.error is not null then
+                    case when upper(x0.error) like ${noProvider} then
+                           case when lower(coalesce(x0.method, '')) = 'card' then 'card_unavailable' else 'method_unavailable' end
+                         else 'gateway_refused' end
+                  when x0.created_at >= ${cutover}::timestamptz then 'no_gateway_reference'
+                  when lower(coalesce(x0.method, '')) = 'card' then 'card_unavailable'
+                  else 'not_recorded' end as rr
+        from x0
     ), a0 as (
       select order_id, count(*)::int as n,
              bool_or(k in ('refused', 'declined', 'timed_out')) as any_bad,
              bool_and(k = 'refused') as all_refused,
              bool_or(k = 'in_flight') as any_inflight,
-             bool_or(error is not null) as any_error,
+             (array_agg(rr order by created_at desc))[1] as refused_reason,
              (array_agg(k order by created_at desc) filter (where k <> 'refused'))[1] as last_k,
              (array_agg(nullif(btrim(failure_reason), '') order by created_at desc) filter (where k <> 'refused'))[1] as last_reason
         from x group by order_id
@@ -83,7 +115,7 @@ export function outcomeRows(sql: any, scoped: any) {
                     or b.created_at > now() - make_interval(secs => ${openGrace})) then null
                when b.status = 'installment_defaulted' then 'installment_defaulted'
                when a.order_id is null then b.status
-               when a.all_refused then case when a.any_error then 'gateway_refused' else 'no_gateway_reference' end
+               when a.all_refused then a.refused_reason
                when a.last_code = 'provider_error' then 'provider_error'
                else coalesce(a.last_code, case when a.last_k = 'declined' then 'declined' else 'timed_out' end) end as detail
         from b left join a on a.order_id = b.id
