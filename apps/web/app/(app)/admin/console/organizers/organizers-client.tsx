@@ -224,7 +224,7 @@ function OrganizersInner() {
         <span>
           {o.name}
           <br />
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, color: 'var(--cr-mut)' }}>{o.email}</span>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{o.email}</span>
         </span>
       ),
     },
@@ -234,14 +234,14 @@ function OrganizersInner() {
       header: 'Owner',
       render: (o) =>
         o.owner ? (
-          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 11 }}>
+          <span style={{ fontFamily: 'var(--cr-mono)', fontSize: 12 }}>
             {o.owner}
             {o.memberCount && o.memberCount > 1 ? (
               <span style={{ color: 'var(--cr-mut)' }}> +{o.memberCount - 1}</span>
             ) : null}
           </span>
         ) : (
-          <span style={{ color: 'var(--cr-mut)', fontSize: 11 }}>— (no user yet)</span>
+          <span style={{ color: 'var(--cr-mut)', fontSize: 12 }}>— (no user yet)</span>
         ),
     },
     { key: 'events', header: 'Events', numeric: true, render: (o) => String(o.events) },
@@ -280,7 +280,7 @@ function OrganizersInner() {
       key: 'act',
       header: '',
       render: (o) => (
-        <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', minWidth: 320 }}>
           {o.kycStatus === 'approved' ? (
             <button type="button" className="cr-btn" style={crDangerBtn} disabled={busy === o.id} onClick={() => verify(o, 'reject')}>
               Reject

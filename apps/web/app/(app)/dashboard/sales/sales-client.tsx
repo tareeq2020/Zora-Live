@@ -597,23 +597,23 @@ export default function SalesClient() {
 // single correct mapping is a design decision beyond a re-skin's scope. Flagged
 // in the PR for a follow-up, not resolved in this pass.
 const STYLE = `
-.zora-sales{--black:#0A0A0B;--ink:#101012;--hair:#222226;--bone:#F4F1EA;--mut:#8A877E;
-  --blue:#3D5AFE;--orange:#FF5A1F;--amber:#F0C674;
+.zora-sales{--black:#111111;--ink:#1C1C1C;--hair:#333333;--bone:#F7F5EE;--mut:#BDBDBD;
+  --blue:#FFD21F;--orange:#B42318;--amber:#FFD21F;
   --sans:var(--zp-font-family-sans);--mono:'IBM Plex Mono',monospace;
   background:var(--black);color:var(--bone);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 .zora-sales *{margin:0;padding:0;box-sizing:border-box}
 :where(.zora-sales) a{color:inherit;text-decoration:none}
 .zora-sales a:hover{color:var(--blue)}
 .zora-sales .mono{font-family:var(--mono)}
-.zora-sales ::selection{background:var(--blue);color:#fff}
+.zora-sales ::selection{background:var(--blue);color:#111111}
 .zora-sales main{padding:34px 40px 80px;max-width:1100px;margin:0 auto}
 @media(max-width:820px){.zora-sales main{padding:24px 18px 60px}}
-.zora-sales .crumb{font-family:var(--mono);font-size:10.5px;letter-spacing:.3em;color:var(--mut);margin-bottom:8px}
+.zora-sales .crumb{font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--mut);margin-bottom:8px}
 .zora-sales h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .zora-sales .sub{color:var(--mut);font-size:13.5px;margin-bottom:30px;max-width:640px}
 .zora-sales .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
 .zora-sales .card{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:18px 20px}
-.zora-sales .card .k{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--mut)}
+.zora-sales .card .k{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut)}
 .zora-sales .card .v{font-family:var(--mono);font-size:26px;font-weight:500;margin-top:8px;letter-spacing:-.01em}
 .zora-sales .card .v small{font-size:13px;color:var(--mut)}
 .zora-sales .card .v.blue{color:var(--blue)}
@@ -621,36 +621,36 @@ const STYLE = `
 .zora-sales .card.skeleton .v,.zora-sales .card.skeleton .k{background:var(--hair);border-radius:5px;color:transparent;animation:pulse 1.6s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .zora-sales .box{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:22px 24px}
-.zora-sales .box .bh{font-family:var(--mono);font-size:10px;letter-spacing:.25em;color:var(--mut);margin-bottom:16px}
+.zora-sales .box .bh{font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--mut);margin-bottom:16px}
 .zora-sales .ledger{width:100%;border-collapse:collapse}
 .zora-sales .ledger td{padding:12px 4px;border-bottom:1px solid var(--hair);font-size:13.5px}
 .zora-sales .ledger tr:last-child td{border-bottom:none}
 .zora-sales .ledger td:last-child{text-align:right;font-family:var(--mono);font-size:14px;white-space:nowrap}
-.zora-sales .ledger .note{color:var(--mut);font-size:11.5px;font-family:var(--mono);letter-spacing:.04em}
+.zora-sales .ledger .note{color:var(--mut);font-size:12px;font-family:var(--mono);letter-spacing:.04em}
 .zora-sales .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.zora-sales .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;padding:8px 16px;border-radius:99px;border:1px solid var(--hair);background:none;color:var(--mut);cursor:pointer}
+.zora-sales .chip{font-family:var(--mono);font-size:12px;letter-spacing:.14em;padding:8px 16px;border-radius:99px;border:1px solid var(--hair);background:none;color:var(--mut);cursor:pointer}
 .zora-sales .chip:hover{color:var(--bone);border-color:var(--mut)}
 .zora-sales .chip.on{background:var(--bone);color:var(--black);border-color:var(--bone)}
 .zora-sales .ptable{width:100%;border-collapse:collapse;font-size:13px}
-.zora-sales .ptable th{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;color:var(--mut);text-align:left;padding:12px 8px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.zora-sales .ptable th{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--mut);text-align:left;padding:12px 8px;border-bottom:1px solid var(--hair);white-space:nowrap}
 .zora-sales .ptable td{padding:13px 8px;border-bottom:1px solid var(--hair);vertical-align:top}
 .zora-sales .ptable td.mono{font-size:12px}
 .zora-sales .ptable tr:last-child td{border-bottom:none}
 .zora-sales .cell-state{text-align:center;color:var(--mut);font-size:13px;padding:34px 8px}
 .zora-sales .buyer{display:flex;flex-direction:column;gap:3px;color:var(--mut)}
 .zora-sales .creds{display:flex;flex-direction:column;gap:4px}
-.zora-sales .cred{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.04em;background:var(--black);border:1px solid var(--hair);color:var(--bone);padding:3px 8px;border-radius:6px;width:max-content}
-.zora-sales .note{color:var(--mut);font-size:11.5px}
-.zora-sales .seg{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:4px 10px;border-radius:99px;white-space:nowrap;display:inline-block}
-.zora-sales .seg.paid{background:rgba(61,90,254,.14);color:var(--blue)}
+.zora-sales .cred{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.04em;background:var(--black);border:1px solid var(--hair);color:var(--bone);padding:3px 8px;border-radius:6px;width:max-content}
+.zora-sales .note{color:var(--mut);font-size:12px}
+.zora-sales .seg{font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:4px 10px;border-radius:99px;white-space:nowrap;display:inline-block}
+.zora-sales .seg.paid{background:#1C1C1C;color:var(--blue)}
 .zora-sales .seg.pending{background:#191305;color:var(--amber)}
 .zora-sales .seg.failed{background:rgba(255,90,31,.14);color:var(--orange)}
 .zora-sales .table-scroll{overflow-x:auto}
 .zora-sales .table-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 4px 4px}
 .zora-sales .state{background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:26px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
 .zora-sales .state.error{color:var(--mut);font-size:13.5px}
-.zora-sales .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.16em;padding:11px 22px;border-radius:8px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
-.zora-sales .btn:hover{background:var(--blue);border-color:var(--blue);color:var(--bone)}
+.zora-sales .btn{background:var(--bone);color:var(--black);border:1px solid var(--bone);font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.16em;padding:11px 22px;border-radius:8px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.zora-sales .btn:hover{background:var(--blue);border-color:var(--blue);color:#111111}
 .zora-sales .btn:disabled{opacity:.5;cursor:default}
 .zora-sales .btn.ghost{background:none;border:1px solid var(--hair);color:var(--mut)}
 .zora-sales .btn.ghost:hover{border-color:var(--blue);color:var(--blue);background:none}

@@ -155,6 +155,9 @@ export default function OverviewClient() {
 
   const currency = analytics?.currency || DEFAULT_CURRENCY;
   const k = analytics?.kpis;
+  // passes sold vs capacity across the organizer's events (for the KPI bar)
+  const soldTotal = (events || []).reduce((a, e) => a + (Number(e.sold) || 0), 0);
+  const capacityTotal = (events || []).reduce((a, e) => a + (Number(e.capacity) || 0), 0);
 
   const chartData: ChartPoint[] = useMemo(
     () => (analytics?.series ?? []).map((p) => ({ label: p.date.slice(5), value: p.revenue })),
@@ -201,11 +204,20 @@ export default function OverviewClient() {
 
         {/* ② KPI row — revenue first (DESIGN Control-Room v2) */}
         <KPIRow>
-          <KPITile label="Revenue" tint="blue" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
-          <KPITile label="Net" tint="green" value={k ? fmt(k.netRevenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
-          <KPITile label="Tickets sold" tint="cyan" value={k ? fmt(k.ticketsSold) : null} loading={aLoading} error={aError} onRetry={loadAnalytics} />
-          <KPITile label="Avg order" tint="neutral" value={k ? fmt(Math.round(k.avgOrderValue)) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
-          <KPITile label="Conversion" tint="amber" value={k ? Math.round(k.conversionRate * 100) : null} unit="%" loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Revenue" value={k ? fmt(k.revenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Net" value={k ? fmt(k.netRevenue) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          {/* handoff §9: passes sold vs capacity carries the one yellow bar */}
+          <KPITile
+            label="Tickets sold"
+            value={k ? fmt(k.ticketsSold) : null}
+            bar={capacityTotal > 0 ? soldTotal / capacityTotal : null}
+            barLabel={capacityTotal > 0 ? `${fmt(soldTotal)} / ${fmt(capacityTotal)} sold · all time` : undefined}
+            loading={aLoading}
+            error={aError}
+            onRetry={loadAnalytics}
+          />
+          <KPITile label="Avg order" value={k ? fmt(Math.round(k.avgOrderValue)) : null} unit={currency} loading={aLoading} error={aError} onRetry={loadAnalytics} />
+          <KPITile label="Conversion" value={k ? Math.round(k.conversionRate * 100) : null} unit="%" loading={aLoading} error={aError} onRetry={loadAnalytics} />
         </KPIRow>
 
         {/* ② hero revenue chart */}

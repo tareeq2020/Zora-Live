@@ -61,18 +61,18 @@ import InstallmentsTab from './installments-tab';
 // (BS51 history: the surface previously carried its own fixed-dark palette.)
 const STYLE = `
 .zora-dropedit{--black:var(--cr-paper);--ink:var(--cr-card2);--hair:var(--cr-hair);--bone:var(--cr-ink);--mut:var(--cr-mut);
-  --blue:var(--cr-blue);--orange:var(--cr-red);--teal:var(--cr-green);--amber:var(--cr-amber);
+  --blue:var(--cr-blue);--orange:var(--cr-red);--teal:var(--cr-green);--amber:var(--cr-brand);
   --sans:var(--cr-sans);--mono:var(--cr-mono);
   color:var(--cr-ink);font-family:var(--cr-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 .zora-dropedit *{margin:0;padding:0;box-sizing:border-box}
 :where(.zora-dropedit) a{color:inherit;text-decoration:none}
 .zora-dropedit .mono{font-family:var(--mono)}
-.zora-dropedit ::selection{background:var(--blue);color:#fff}
+.zora-dropedit ::selection{background:var(--cr-primary-bg);color:var(--cr-primary-fg)}
 .zora-dropedit .editbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:10px;max-width:1080px;margin:0 auto;padding:12px 0;background:var(--cr-paper)}
-.zora-dropedit .ghost{background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--mut);padding:11px 18px;cursor:pointer;transition:border-color .2s,color .2s}
+.zora-dropedit .ghost{min-height:44px;background:var(--cr-card);border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--mut);padding:11px 18px;cursor:pointer;transition:border-color .2s,color .2s}
 .zora-dropedit .ghost:hover:not(:disabled){border-color:var(--mut);color:var(--bone)}
-.zora-dropedit .publish{background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
-.zora-dropedit .publish:hover:not(:disabled){background:var(--blue);border-color:var(--blue);color:#fff}
+.zora-dropedit .publish{min-height:44px;background:var(--bone);color:var(--cr-paper);border:1px solid var(--bone);border-radius:9px;font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.14em;padding:11px 24px;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.zora-dropedit .publish:hover:not(:disabled){background:var(--cr-primary-bg);border-color:var(--cr-primary-bg);color:var(--cr-primary-fg)}
 .zora-dropedit button:disabled{opacity:.45;cursor:not-allowed}
 .zora-dropedit .grid{max-width:1080px;margin:0 auto;padding:18px 0 60px;display:grid;grid-template-columns:1fr 380px;gap:40px;align-items:start}
 @media(max-width:900px){.zora-dropedit .grid{grid-template-columns:1fr;gap:26px}}
@@ -86,43 +86,43 @@ const STYLE = `
 @media(max-width:620px){.zora-dropedit .block{padding:18px 16px}}
 /* BS99 (#3): TZS/USD pricing toggle. */
 .zora-dropedit .curmode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-.zora-dropedit .curmode-lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--mut)}
+.zora-dropedit .curmode-lbl{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--mut)}
 .zora-dropedit .curmode-seg{display:inline-flex;border:1px solid var(--hair);border-radius:9px;overflow:hidden}
-.zora-dropedit .curmode-seg button{border:none;background:var(--cr-card2);color:var(--mut);font-family:var(--mono);font-size:11px;letter-spacing:.06em;padding:8px 16px;min-height:36px;cursor:pointer}
+.zora-dropedit .curmode-seg button{border:none;background:var(--cr-card2);color:var(--mut);font-family:var(--mono);font-size:12px;letter-spacing:.06em;padding:8px 16px;min-height:44px;cursor:pointer}
 .zora-dropedit .curmode-seg button + button{border-left:1px solid var(--hair)}
-.zora-dropedit .curmode-seg button.on{background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue);font-weight:600}
+.zora-dropedit .curmode-seg button.on{background:var(--cr-sel-bg);color:var(--cr-sel-fg);font-weight:600}
 .zora-dropedit .curmode-hint{font-size:12px;color:var(--mut)}
-.zora-dropedit .block-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.24em;color:var(--mut);margin-bottom:16px;display:flex;align-items:center;gap:10px}
-.zora-dropedit .block-h .n{width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--black);display:flex;align-items:center;justify-content:center;font-size:10px}
-.zora-dropedit label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--mut);margin-bottom:8px}
-.zora-dropedit .in{width:100%;background:var(--ink);border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:13px 15px;outline:none;transition:border-color .2s;color:var(--bone)}
+.zora-dropedit .block-h{font-family:var(--mono);font-size:12px;letter-spacing:.24em;color:var(--mut);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.zora-dropedit .block-h .n{width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--black);display:flex;align-items:center;justify-content:center;font-size:12px}
+.zora-dropedit label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--mut);margin-bottom:8px}
+.zora-dropedit .in{min-height:48px;font-size:16px;width:100%;background:var(--ink);border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:15px;padding:13px 15px;outline:none;transition:border-color .2s;color:var(--bone)}
 .zora-dropedit .coverdz{position:relative;width:100%;height:150px;border:1px dashed var(--hair);border-radius:12px;background:var(--ink) center/cover no-repeat;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:border-color .2s;overflow:hidden}
 .zora-dropedit .coverdz:hover{border-color:var(--blue)}
 .zora-dropedit .coverdz.filled{border-style:solid}
-.zora-dropedit .coverdz-txt{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--mut);padding:0 24px;line-height:1.7}
+.zora-dropedit .coverdz-txt{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--mut);padding:0 24px;line-height:1.7}
 .zora-dropedit .coverdz-rm{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:8px;border:none;background:rgba(0,0,0,.7);color:#fff;font-size:18px;line-height:1;cursor:pointer}
-.zora-dropedit .hint{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--mut);margin-top:8px;line-height:1.6}
+.zora-dropedit .hint{font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--mut);margin-top:8px;line-height:1.6}
 .zora-dropedit .in:focus{border-color:var(--blue)}
 .zora-dropedit .in.err{border-color:var(--orange)}
 .zora-dropedit .in.big{font-size:19px;font-weight:500;padding:15px}
 .zora-dropedit .field{margin-bottom:18px}
 .zora-dropedit .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:520px){.zora-dropedit .row2{grid-template-columns:1fr}}
-.zora-dropedit .field-err{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--orange);margin-top:7px}
+.zora-dropedit .field-err{font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--orange);margin-top:7px}
 .zora-dropedit .tier{background:var(--ink);border:1px solid var(--hair);border-radius:12px;padding:14px;margin-bottom:12px}
 .zora-dropedit .tier.err{border-color:var(--orange)}
 .zora-dropedit .tier.off{background:var(--black);border-style:dashed}
-.zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
-.zora-dropedit .tier-note{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
-.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:11.5px;color:var(--cr-on-wash-amber);background:var(--cr-wash-amber);border:1px solid var(--amber);border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
+.zora-dropedit .tier-badge{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--hair);border-radius:99px;padding:3px 10px;margin-bottom:10px}
+.zora-dropedit .tier-note{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.02em;margin-top:8px;line-height:1.5}
+.zora-dropedit .tiers-hidden-note{font-family:var(--mono);font-size:12px;color:var(--cr-ink);background:var(--cr-card2);border:1px solid var(--amber);border-radius:9px;padding:11px 14px;letter-spacing:.02em;line-height:1.5;margin-bottom:14px}
 .zora-dropedit .tier-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}
 @media(max-width:620px){.zora-dropedit .tier-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .zora-dropedit .tier label{margin-bottom:6px}
-.zora-dropedit .tier .in{padding:11px 12px;font-size:14px}
+.zora-dropedit .tier .in{padding:11px 12px;font-size:16px}
 .zora-dropedit .tier .del{width:38px;height:42px;border:1px solid var(--hair);border-radius:9px;background:none;color:var(--mut);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
 .zora-dropedit .tier .del:hover{border-color:var(--orange);color:var(--orange)}
 @media(max-width:620px){.zora-dropedit .tier .del{width:100%;height:40px}}
-.zora-dropedit .add-tier{width:100%;background:none;border:1px dashed var(--hair);border-radius:12px;padding:14px;font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;color:var(--mut);cursor:pointer;transition:border-color .2s,color .2s}
+.zora-dropedit .add-tier{min-height:44px;width:100%;background:none;border:1px dashed var(--hair);border-radius:12px;padding:14px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mut);cursor:pointer;transition:border-color .2s,color .2s}
 .zora-dropedit .add-tier:hover{border-color:var(--blue);color:var(--blue)}
 .zora-dropedit .capbar{display:flex;justify-content:space-between;align-items:center;background:var(--ink);border:1px solid var(--hair);border-radius:10px;padding:14px 16px;margin-top:14px;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
 .zora-dropedit .capbar b{font-size:15px}
@@ -130,50 +130,50 @@ const STYLE = `
 .zora-dropedit .togglebar.locked{background:var(--black)}
 .zora-dropedit .togglebar .tg-body{flex:1;min-width:0}
 .zora-dropedit .togglebar .tg-t{font-weight:500;font-size:14.5px}
-.zora-dropedit .togglebar .tg-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;margin-top:4px;line-height:1.5}
-.zora-dropedit .switch{width:44px;height:26px;border-radius:99px;background:var(--hair);position:relative;flex-shrink:0;transition:background .2s;border:none;cursor:pointer;padding:0}
-.zora-dropedit .switch.on{background:var(--blue)}
+.zora-dropedit .togglebar .tg-d{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.03em;margin-top:4px;line-height:1.5}
+.zora-dropedit .switch{width:44px;height:44px;border-radius:99px;background:var(--hair);background-clip:content-box;position:relative;flex-shrink:0;transition:background .2s;border:none;cursor:pointer;padding:9px 0}
+.zora-dropedit .switch.on{background:var(--cr-brand);background-clip:content-box}
 .zora-dropedit .switch:disabled{cursor:not-allowed;opacity:.6}
-.zora-dropedit .switch .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bone);transition:transform .2s}
-.zora-dropedit .switch.on .knob{transform:translateX(18px)}
+.zora-dropedit .switch .knob{position:absolute;top:12px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bone);transition:transform .2s}
+.zora-dropedit .switch.on .knob{transform:translateX(18px);background:#111111}
 .zora-dropedit .notice{display:flex;align-items:flex-start;gap:12px;border-radius:12px;padding:14px 16px;margin-top:14px;font-size:13px;line-height:1.55}
-.zora-dropedit .notice.kyc{background:var(--cr-wash-amber);border:1px solid var(--amber);color:var(--cr-on-wash-amber)}
-.zora-dropedit .notice.kyc b{color:var(--cr-on-wash-amber);font-weight:500}
+.zora-dropedit .notice.kyc{background:var(--cr-card2);border:1px solid var(--amber);color:var(--cr-ink)}
+.zora-dropedit .notice.kyc b{color:var(--cr-ink);font-weight:500}
 .zora-dropedit .notice .ic{width:18px;height:18px;flex-shrink:0;margin-top:1px}
 .zora-dropedit .notice.kyc .ic{stroke:var(--amber)}
 .zora-dropedit .banner{display:flex;align-items:flex-start;gap:12px;border-radius:12px;padding:14px 16px;margin-bottom:24px;font-size:13.5px;line-height:1.55}
-.zora-dropedit .banner.error{background:var(--cr-wash-red);border:1px solid var(--orange);color:var(--cr-on-wash-red)}
-.zora-dropedit .banner.error b{color:var(--cr-on-wash-red)}
+.zora-dropedit .banner.error{background:var(--cr-card);border:1px solid var(--orange);color:var(--cr-red)}
+.zora-dropedit .banner.error b{color:var(--cr-red)}
 .zora-dropedit .side{position:sticky;top:88px}
 @media(max-width:900px){.zora-dropedit .side{position:static}}
-.zora-dropedit .side-h{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--mut);margin-bottom:12px}
+.zora-dropedit .side-h{font-family:var(--mono);font-size:12px;letter-spacing:.24em;color:var(--mut);margin-bottom:12px}
 .zora-dropedit .pv{background:var(--ink);border:1px solid var(--hair);border-radius:16px;overflow:hidden}
-.zora-dropedit .pv .pv-url{font-family:var(--mono);font-size:10.5px;color:var(--mut);padding:9px 14px;border-bottom:1px solid var(--hair);background:var(--black)}
-.zora-dropedit .pv .pv-banner{height:120px;background:var(--cr-wash-blue);display:flex;align-items:center;justify-content:center}
-.zora-dropedit .pv .pv-banner .ph{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--blue)}
+.zora-dropedit .pv .pv-url{font-family:var(--mono);font-size:12px;color:var(--mut);padding:9px 14px;border-bottom:1px solid var(--hair);background:var(--black)}
+.zora-dropedit .pv .pv-banner{height:120px;background:var(--cr-card2);display:flex;align-items:center;justify-content:center}
+.zora-dropedit .pv .pv-banner .ph{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--blue)}
 .zora-dropedit .pv .pv-body{padding:18px}
-.zora-dropedit .pv .pv-status{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:4px 10px;border-radius:99px;margin-bottom:12px}
-.zora-dropedit .pv .pv-status.live{background:var(--cr-wash-green);color:var(--cr-on-wash-green)}
+.zora-dropedit .pv .pv-status{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.16em;padding:4px 10px;border-radius:99px;margin-bottom:12px}
+.zora-dropedit .pv .pv-status.live{background:var(--cr-green-fill);color:var(--cr-on-state)}
 .zora-dropedit .pv .pv-status.draft{background:var(--cr-card2);color:var(--mut);border:1px solid var(--hair)}
 .zora-dropedit .pv .pv-title{font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
-.zora-dropedit .pv .pv-meta{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.05em;margin-top:8px;line-height:1.8}
+.zora-dropedit .pv .pv-meta{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.05em;margin-top:8px;line-height:1.8}
 .zora-dropedit .pv .pv-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--hair);margin-top:16px;padding-top:14px}
-.zora-dropedit .pv .pv-from{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.1em}
+.zora-dropedit .pv .pv-from{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.1em}
 .zora-dropedit .pv .pv-price{font-size:20px;font-weight:600}
-.zora-dropedit .pv .pv-cta{background:var(--blue);color:#fff;font-family:var(--mono);font-size:10px;letter-spacing:.12em;padding:9px 16px;border-radius:99px}
-.zora-dropedit .side-note{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.04em;line-height:1.7;margin-top:16px;text-align:center}
+.zora-dropedit .pv .pv-cta{background:var(--cr-primary-bg);color:var(--cr-primary-fg);font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:9px 16px;border-radius:99px}
+.zora-dropedit .side-note{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.04em;line-height:1.7;margin-top:16px;text-align:center}
 .zora-dropedit .danger-zone{border:1px solid var(--hair);border-radius:12px;padding:18px 20px;margin-top:20px}
-.zora-dropedit .danger-zone .dz-h{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--orange);margin-bottom:6px}
-.zora-dropedit .danger-zone .dz-d{font-family:var(--mono);font-size:11px;color:var(--mut);letter-spacing:.03em;line-height:1.6;margin-bottom:14px}
+.zora-dropedit .danger-zone .dz-h{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--orange);margin-bottom:6px}
+.zora-dropedit .danger-zone .dz-d{font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.03em;line-height:1.6;margin-bottom:14px}
 .zora-dropedit .danger-zone .dz-actions{display:flex;gap:10px;flex-wrap:wrap}
-.zora-dropedit .del-btn{background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--orange);padding:11px 18px;cursor:pointer;transition:background .2s,border-color .2s}
+.zora-dropedit .del-btn{min-height:44px;background:none;border:1px solid var(--hair);border-radius:9px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--orange);padding:11px 18px;cursor:pointer;transition:background .2s,border-color .2s}
 .zora-dropedit .del-btn:hover:not(:disabled){background:var(--orange);border-color:var(--orange);color:var(--black)}
 .zora-dropedit .overlay{position:fixed;inset:0;background:color-mix(in srgb, var(--cr-ink) 44%, transparent);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px}
-.zora-dropedit .modal{background:var(--ink);border:1px solid var(--hair);border-radius:18px;max-width:440px;width:100%;padding:32px;box-shadow:var(--cr-shadow)}
+.zora-dropedit .modal{background:var(--ink);border:1px solid var(--hair);border-radius:18px;max-width:440px;width:100%;padding:32px;box-shadow:none}
 .zora-dropedit .modal h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px}
 .zora-dropedit .modal p{font-size:13.5px;color:var(--mut);line-height:1.6;margin-bottom:22px}
 .zora-dropedit .modal .modal-actions{display:flex;gap:10px;justify-content:flex-end}
-.zora-dropedit .modal .confirm-del{background:var(--orange);color:var(--black);border:none;border-radius:9px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:11px 20px;cursor:pointer}
+.zora-dropedit .modal .confirm-del{background:var(--orange);color:var(--black);border:none;border-radius:9px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;padding:11px 20px;cursor:pointer}
 .zora-dropedit .modal .confirm-del:hover:not(:disabled){background:#ff7a49}
 .zora-dropedit .loading,.zora-dropedit .fatal{max-width:1080px;margin:0 auto;padding:80px 0;font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--mut)}
 .zora-dropedit .fatal a{color:var(--blue);text-decoration:underline}
@@ -728,7 +728,7 @@ export default function DropEditor(props: DropEditorProps) {
                         placeholder={form.priceCurrency === 'USD' ? '85' : '20000'}
                       />
                       {form.priceCurrency === 'USD' && Number(t.price) > 0 ? (
-                        <p style={{ marginTop: 6, fontFamily: 'var(--cr-mono, monospace)', fontSize: 11, color: 'var(--cr-mut, #8A877E)' }}>
+                        <p style={{ marginTop: 6, fontFamily: 'var(--cr-mono, monospace)', fontSize: 12, color: 'var(--cr-mut, #8A877E)' }}>
                           ≈ {fmt(Math.round(Number(t.price) * usdRate))} TZS charged
                         </p>
                       ) : null}

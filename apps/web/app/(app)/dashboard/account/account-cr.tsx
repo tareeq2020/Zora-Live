@@ -333,7 +333,7 @@ export default function AccountCr() {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                       padding: '10px 12px', border: '1px solid var(--cr-hair)', borderRadius: 10,
-                      background: acting ? 'var(--cr-wash-blue)' : 'transparent',
+                      background: acting ? 'var(--cr-card2)' : 'transparent',
                     }}
                   >
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -395,7 +395,7 @@ export default function AccountCr() {
 function Row({ k, v, loading }: { k: string; v: string; loading: boolean }) {
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}>
-      <span className="org-muted" style={{ fontFamily: 'var(--cr-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', minWidth: 72 }}>{k}</span>
+      <span className="org-muted" style={{ fontFamily: 'var(--cr-mono)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', minWidth: 72 }}>{k}</span>
       <span style={{ fontSize: 14 }}>{loading ? '…' : v}</span>
     </div>
   );

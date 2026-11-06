@@ -2,7 +2,7 @@
 
 /* StatusPill — the control-room status token (Lane A · BS69).
    Semantic dot + mono uppercase label. Tones map to DESIGN.md Control-Room v2:
-   paid=cyan · pending=amber · refund/failed=red · live=green · draft=neutral. */
+   BS154 handoff chips: paid/live=green · pending=black+yellow · refund/failed=red · draft=bone. */
 
 export type PillTone = 'paid' | 'pending' | 'refund' | 'failed' | 'live' | 'draft' | 'neutral';
 

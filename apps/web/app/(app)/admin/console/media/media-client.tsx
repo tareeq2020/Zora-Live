@@ -77,7 +77,7 @@ function AssetsPanel() {
   const stat = (v: React.ReactNode, k: string) => (
     <div style={{ padding: 14, border: '1px solid var(--cr-hair)', borderRadius: 12, background: 'var(--cr-card)' }}>
       <p style={{ margin: 0, fontFamily: 'var(--cr-mono)', fontSize: 22, fontWeight: 600 }}>{v}</p>
-      <p style={{ margin: '4px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 9.5, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>{k}</p>
+      <p style={{ margin: '4px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.1em', color: 'var(--cr-mut)' }}>{k}</p>
     </div>
   );
 
@@ -96,7 +96,7 @@ function AssetsPanel() {
           </h2>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="group" aria-label="Filter assets">
             {FILTERS.map(([k, l]) => (
-              <button key={k} type="button" className="cr-btn" aria-pressed={filter === k} onClick={() => setFilter(k)} style={filter === k ? { borderColor: 'var(--cr-blue)', color: 'var(--cr-blue)' } : undefined}>
+              <button key={k} type="button" className="cr-btn" aria-pressed={filter === k} onClick={() => setFilter(k)} style={filter === k ? { background: 'var(--cr-sel-bg)', borderColor: 'var(--cr-sel-bg)', color: 'var(--cr-sel-fg)' } : undefined}>
                 {l}
               </button>
             ))}
@@ -136,7 +136,7 @@ function AssetsPanel() {
             {list.map((m) => (
               <div key={m.name} style={{ border: '1px solid var(--cr-hair)', borderRadius: 12, overflow: 'hidden', background: 'var(--cr-card)' }}>
                 <div style={{ position: 'relative', aspectRatio: '16 / 10', backgroundImage: `url(${m.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                  <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 7px', borderRadius: 6, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: 'var(--cr-mono)', fontSize: 9, letterSpacing: '0.06em' }}>
+                  <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 7px', borderRadius: 6, background: '#111111', color: '#fff', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.06em' }}>
                     {m.category}
                   </span>
                   <span style={{ position: 'absolute', top: 8, right: 8 }}>
@@ -147,7 +147,7 @@ function AssetsPanel() {
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>
                     {m.name}
                   </p>
-                  <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--cr-ink2)' }}>
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--cr-ink2)' }}>
                     {m.dims} · {m.sizeKB} KB → <b style={{ color: 'var(--cr-green)' }}>{m.optimizedKB} KB</b> webp
                     {m.lowres ? (
                       <>
@@ -162,7 +162,7 @@ function AssetsPanel() {
                       </>
                     ) : null}
                   </p>
-                  <p style={{ margin: '6px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 10, color: 'var(--cr-mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.cdnUrl}</p>
+                  <p style={{ margin: '6px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.cdnUrl}</p>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                     <button type="button" className="cr-btn" onClick={() => setStatus(m.name, 'approved')}>
                       Approve
@@ -234,7 +234,7 @@ function SlotCard({ slotKey, label, url, onMapped }: { slotKey: string; label: s
     <div style={{ border: '1px solid var(--cr-hair)', borderRadius: 12, overflow: 'hidden', background: 'var(--cr-card)' }}>
       <div style={{ padding: '10px 12px' }}>
         <p style={{ margin: 0, fontSize: 13, fontWeight: 500 }}>{label}</p>
-        <p style={{ margin: '2px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 10, color: 'var(--cr-mut)' }}>{slotKey}</p>
+        <p style={{ margin: '2px 0 0', fontFamily: 'var(--cr-mono)', fontSize: 12, color: 'var(--cr-mut)' }}>{slotKey}</p>
       </div>
       <button
         type="button"
@@ -264,14 +264,14 @@ function SlotCard({ slotKey, label, url, onMapped }: { slotKey: string; label: s
           border: 'none',
           borderTop: '1px dashed ' + (drag ? 'var(--cr-blue)' : 'var(--cr-hair)'),
           cursor: 'pointer',
-          backgroundColor: drag ? 'var(--cr-wash-blue)' : 'var(--cr-card2)',
+          backgroundColor: drag ? 'var(--cr-card2)' : 'var(--cr-card2)',
           backgroundImage: url ? `url(${url})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative',
         }}
       >
-        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--cr-mono)', fontSize: 11, letterSpacing: '0.06em', color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
+        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--cr-mono)', fontSize: 12, letterSpacing: '0.06em', color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
           {uploading ? 'UPLOADING…' : 'Drop image or click to replace'}
         </span>
       </button>
@@ -372,7 +372,7 @@ function MediaInner() {
               aria-selected={tab === k}
               className="cr-btn"
               onClick={() => setTab(k)}
-              style={tab === k ? { borderColor: 'var(--cr-blue)', color: 'var(--cr-blue)' } : undefined}
+              style={tab === k ? { background: 'var(--cr-sel-bg)', borderColor: 'var(--cr-sel-bg)', color: 'var(--cr-sel-fg)' } : undefined}
             >
               {l}
             </button>

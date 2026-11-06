@@ -150,13 +150,13 @@ export function CrShell({ nav: navAll, brand, topbarTitle, topbarExtra, footer, 
               </svg>
             </button>
             <p className="cr-brand">
-              {/* BS83: the canonical Zora wordmark image (theme-aware on
+              {/* BS154: the handoff ZoraPass wordmark (06_ASSETS/logo), black on bone, chalk on black. BS83: theme-aware on
                   data-cr-theme), matching every other surface — no bespoke text
                   logo in the console. brand.name stays the accessible label. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="cr-wordmark cr-wordmark-light" src="/assets/zora-wordmark-black.png" alt="Zora" draggable={false} />
+              <img className="cr-wordmark cr-wordmark-light" src="/brand/logo/svg/zorapass-wordmark-black.svg" alt="ZoraPass" draggable={false} />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="cr-wordmark cr-wordmark-dark" src="/assets/zora-wordmark-white.png" alt="Zora" draggable={false} />
+              <img className="cr-wordmark cr-wordmark-dark" src="/brand/logo/svg/zorapass-wordmark-chalk.svg" alt="ZoraPass" draggable={false} />
               {brand.sublabel ? <small>{brand.sublabel}</small> : null}
             </p>
             <nav className="cr-nav" aria-label="Primary">
@@ -166,7 +166,7 @@ export function CrShell({ nav: navAll, brand, topbarTitle, topbarExtra, footer, 
                   href={n.href}
                   className={'cr-nav-item' + (active === n.href ? ' cr-on' : '')}
                   aria-current={active === n.href ? 'page' : undefined}
-                  style={n.accent ? { color: 'var(--cr-blue)', fontWeight: 600 } : undefined}
+                  style={n.accent ? { color: 'var(--cr-accent)', fontWeight: 700 } : undefined}
                   onClick={close}
                 >
                   <CrNavIcon name={n.icon ?? ''} />
@@ -200,7 +200,7 @@ export function CrShell({ nav: navAll, brand, topbarTitle, topbarExtra, footer, 
                     membership, so single-membership + admin + legacy sessions are
                     unaffected. Lives in the reused topbar-extra slot area. */}
                 <CrOrgSwitcher />
-                {topbarExtra}
+                {topbarExtra ? <span className="cr-topbar-extra">{topbarExtra}</span> : null}
                 <CrThemeToggle />
                 {/* BS96 (Phase 4, C): the account menu — signed-in email, a link to
                     Account, and Log out. Self-hides for anon; legacy/admin sessions
