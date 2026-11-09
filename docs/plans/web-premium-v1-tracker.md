@@ -80,6 +80,7 @@ Last updated: 2026-10-31 (final train)
 | BS162 | Worker deploy hand-off: a new worker started while the old one holds the singleton lock now WAITS (standby, retries every 10 s) instead of exiting (Render showed 'service failed' + restart loop on every deploy); SIGTERM stops the loops, waits for in-flight ticks (≤20 s), releases the advisory lock and exits 0, so the lock no longer lingers behind the Supabase pooler | hotfix | 0 | — | Render worker log 2026-11-06 15:19–15:21 | merged | https://github.com/tareeq2020/Zora-Live/pull/256 | new worker-handoff e2e PASS (standby, clean release, takeover <1 s, standby SIGTERM exit 0); installments-jobs PASS. FOLLOW-UP: broadcasts.e2e §13 fails on develop too: the test predates BS79 (mock drivers count as failed, by design); update the test, not the code |
 | BS163 | Organizer Sales list broke on long content: a long outcome label turned into a 9-line uppercase blob and the 10-column table pushed Passes/Actions off the right edge. Now: short outcome chip + the reason as a plain line under it; Status column folded into Outcome; order id + date and event + tier share cells (7 → 6 columns); RESEND sits with the passes; first 2 pass codes + '+N more'; ids, dates, amounts and codes never wrap; emails break only when they must; table stacks into cards below 1100px; comp buyers read 'Comp' not the internal code | R9 | 0 | BS160 | owner 2026-11-06 | merged | https://github.com/tareeq2020/Zora-Live/pull/258 | audit 16/16 (sales list + order page + empty org, 1280/390, light/dark); table fits exactly at 1280 and 1440; org-funnel e2e PASS |
 ## Decisions log
+- 2026-11-06 · Owner: organizers get a lighter view of outcomes, funnel and a simple per-order timeline for their own events, with no gateway internals (BS160). Card stays OFF until x-bridge connects a card provider to our live account (every card attempt returned 422 NO_PROVIDER_FOR_METHOD). Phone fields: a country selector, Tanzania +255 only and the default, sending +255… unchanged downstream (BS161).
 - 2026-11-06 · Owner: retire the legacy /admin/dashboard; dashboards (admin + organizer) follow the design handoff on every page; Needs attention from live data; full cart funnel + per-cart detail page (R9).
 - 2026-11-03 · Owner: x-bridge picks the provider and credentials. Zora sends no fspId and keeps no routing setting (BS150). Billpay pins CLICKPESA only until x-bridge stops requiring fspId on /collection/billpay; confirm CLICKPESA is connected for billpay.
 - 2026-10-31 · Owner: backend moves to Render at api.zorapass.com (BS142 / R8). Web stays on Vercel; Postgres stays on Supabase.
@@ -97,3 +98,26 @@ Last updated: 2026-10-31 (final train)
 | 2026-10-31 | R8 Render blueprint | 52eaceb | 52eaceb | n/a |
 | 2026-10-31 | BS147–BS149 live QA + BS148 organizer Google | 664a770 | 664a770 | Render auto-deploy; migration 0034 via preDeploy |
 | 2026-11-03 | BS150 pay hotfix (no provider routing) | 6df8727 | 6df8727 | Render auto-deploy; /api/health = 6df8727; PUT /settings/fsp-routing → 404 |
+| 2026-11-06 | R9: BS151–BS155 (dashboards, attention, funnel) | 82160a8 | 82160a8 | migration 0035; deploy stalled on Supabase session-pool exhaustion → BS156 (API on the transaction pooler) |
+| 2026-11-06 | BS157 cart outcomes + capture | 31ae148 | 31ae148 | migration 0036 |
+| 2026-11-06 | BS158 admin Send payment prompt | b7265b8 | b7265b8 | — |
+| 2026-11-06 | BS156 render.yaml + runbook | 93b228f | 93b228f | config only, no build |
+| 2026-11-06 | BS159 + BS160 | bd53dee | bd53dee | migration 0037 |
+| 2026-11-06 | BS161 + BS162 | cd32eea | cd32eea | worker standby hand-off from this deploy on |
+| 2026-11-06 | BS163 organizer Sales list | c34d541 | c34d541 | web only (Vercel) |
+
+## Open after R9 (pick up here)
+
+| Item | Owner | Notes |
+|---|---|---|
+| x-bridge webhooks get 403 | owner (Cloudflare) | `api.zorapass.com` is Cloudflare-proxied; our endpoints never return 403 → Cloudflare bot protection on x-bridge's datacenter IPs. Fix: set the `api` DNS record to DNS-only (grey cloud), or skip security for `/api/webhooks/*` / allow x-bridge IPs (Bot Fight Mode can't be skipped on the free plan). Confirm via the x-bridge delivery log body or Cloudflare Security → Events. Payments still settle via polling meanwhile |
+| x-bridge status 502s are noisy | eng (offered) | 502/503/504 are retried correctly; log them as one warning line, and add a "Needs attention" alert + cart timeline note when status reads keep failing |
+| "ZoraPass is on it" wording | owner | organizer-only, for system errors (outcomes.tsx:56, org-order-view.ts:16/23); it promises follow-up that has no per-cart alert today |
+| Card provider at x-bridge | owner → x-bridge | needed before switching Card back on |
+| x-bridge sandbox key | owner | to run `node db/test/xbridge-sandbox-smoke.mjs` (refuses non-sandbox keys) |
+| Delete 147 merged remote branches | owner | blocked by the permission check twice; the command is in the session notes |
+| Event page scrolls sideways at 390px | eng | hero stamp image (`tenant-event` hero) |
+| broadcasts.e2e §13 stale | eng | the test predates BS79 (mock sends count as failed by design); update the test, not the code |
+| Disk ~4 GB free | owner | `docker image prune -a` frees ~11.9 GB of unused images (re-pullable) |
+| BS138 /v1 move (~28 Nov), BS145, BS146 | eng | unchanged |
+
