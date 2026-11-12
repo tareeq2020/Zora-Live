@@ -470,7 +470,10 @@ export async function applyOutcome(
   collectedAmount?: number | null,
   info: ApplyInfo = {},
 ): Promise<string | null> {
-  if (outcome === 'pending') return null;
+  if (outcome === 'pending') {
+    if (info.reopenFailed) info.reopenRefused = true; // BS165: only a paid answer reopens
+    return null;
+  }
   const collected =
     typeof collectedAmount === 'number' && Number.isFinite(collectedAmount) ? collectedAmount : null;
 
@@ -478,7 +481,17 @@ export async function applyOutcome(
     // GUARD 1 (txn-level): lock the txn; a terminal/missing txn is a no-op.
     const [txr] = await t`
       select order_id, status, schedule_n, amount from payment_transaction where transaction_id = ${transactionId} for update`;
-    if (!txr || txr.status === 'successful' || txr.status === 'failed' || txr.status === 'partial') return null;
+    if (info.reopenFailed) {
+      // BS165: only a still-failed attempt may be reopened, and only to be paid.
+      // Pay-in-full carts only: split seats and installment rows keep their own rules.
+      const [kind] = txr ? await t`select type from "order" where id = ${txr.order_id}` : [null];
+      if (!txr || txr.status !== 'failed' || txr.schedule_n != null || kind?.type === 'table_share'
+          || (outcome !== 'successful' && outcome !== 'short')) {
+        info.reopenRefused = true;
+        return null;
+      }
+      await logOrderEvent(t, txr.order_id, 'gateway_answer_accepted', info.reopenFailed, transactionId);
+    } else if (!txr || txr.status === 'successful' || txr.status === 'failed' || txr.status === 'partial') return null;
 
     const result = await applyLockedOutcome(t, transactionId, txr, outcome, collected, info);
     await logOutcome(t, transactionId, txr, outcome, result, collected, info);
@@ -492,6 +505,14 @@ export async function applyOutcome(
     failure on an attempt the cart was no longer waiting on (GUARD 3). */
 export interface ApplyInfo {
   unapplied?: 'duplicate' | 'late' | 'attempt_only';
+  /** BS165 input: an admin accepted x-bridge's paid answer for a FAILED
+      attempt. Under the attempt lock, a failed attempt is then treated as
+      open, and this detail is logged as gateway_answer_accepted in the same
+      transaction as the settlement (all or nothing). */
+  reopenFailed?: Record<string, unknown>;
+  /** BS165 output: set when reopenFailed was asked but the attempt was no
+      longer failed (someone else changed it); nothing was applied. */
+  reopenRefused?: boolean;
 }
 
 /** Cart statuses that still take money for a pay-in-full attempt (a
@@ -682,13 +703,15 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
     attempt exactly the same way. `txr` needs order_id and method. */
 export async function settleFromStatus(
   sql: Sql, transactionId: string, txr: { order_id: string; method?: string | null }, status: CollectionStatusResponse,
-): Promise<{ outcome: PaymentOutcome; orderStatus: string | null; collected: number | null; unapplied: ApplyInfo['unapplied'] | null }> {
+  opts: { reopenFailed?: Record<string, unknown> } = {},
+): Promise<{ outcome: PaymentOutcome; orderStatus: string | null; collected: number | null; unapplied: ApplyInfo['unapplied'] | null; reopenRefused: boolean }> {
   const outcome = mapStatus(status);
   const collected = collectedFromStatus(status, outcome);
-  const info: ApplyInfo = {};
+  const info: ApplyInfo = { reopenFailed: opts.reopenFailed };
   const orderStatus = await applyOutcome(sql, transactionId, outcome, collected, info);
+  if (info.reopenRefused) return { outcome, orderStatus: null, collected, unapplied: null, reopenRefused: true };
   // Money the cart did not take: nothing to tell the buyer (ops were alerted).
-  if (info.unapplied) return { outcome, orderStatus, collected, unapplied: info.unapplied };
+  if (info.unapplied) return { outcome, orderStatus, collected, unapplied: info.unapplied, reopenRefused: false };
   if (orderStatus === ORDER_STATUS.PAID) {
     await notifyOrderPaid(sql, txr.order_id);
     // BS123 (A11): the money event comes from the server, never the browser.
@@ -697,7 +720,7 @@ export async function settleFromStatus(
   }
   else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
   else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
-  return { outcome, orderStatus, collected, unapplied: null };
+  return { outcome, orderStatus, collected, unapplied: null, reopenRefused: false };
 }
 
 /** What an answer says was collected: the collected amount (else the amount)

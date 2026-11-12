@@ -41,6 +41,9 @@ export type { AdminPushCode, AdminPushInput, AdminPushResult, AdminPushPreview }
 // BS164: admin "Check with x-bridge" — read every attempt on a cart and apply it.
 export { checkOrderWithGateway, GatewayCheckRefused, GATEWAY_CHECK_LIMITS } from './payments/gateway-check';
 export type { GatewayCheckCode, GatewayCheckResult, AttemptCheck, AttemptVerdict } from './payments/gateway-check';
+// BS165: admin accepts x-bridge's paid answer for an attempt we had as failed.
+export { acceptGatewayAnswer, AcceptGatewayRefused } from './payments/accept-gateway';
+export type { AcceptGatewayCode, AcceptGatewayInput, AcceptGatewayResult } from './payments/accept-gateway';
 export type {
   XbridgeConfig,
   CollectMobileInput, CollectMobileResponse,

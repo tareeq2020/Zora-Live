@@ -2,6 +2,7 @@ import { Body, Controller, Get, NotFoundException, Param, Post, Query, Req, Res,
 import type { Request, Response } from 'express';
 import {
   db, adminPush, adminPushPreview, AdminPushRefused, maskPhone, reconcile, checkOrderWithGateway, GatewayCheckRefused,
+  acceptGatewayAnswer, AcceptGatewayRefused,
 } from '@zora/core';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
@@ -191,6 +192,47 @@ export class AdminOrdersController {
       console.error('admin gateway check failed', (e as Error)?.message);
       await audit('error');
       return res.status(500).json({ error: 'gateway_check_failed' });
+    }
+  }
+
+  /**
+   * BS165: POST /api/admin/orders/:id/attempts/:tx/accept-gateway
+   * { expectedCollected?, note? } — accept x-bridge's paid answer for an attempt
+   * we recorded as failed (a gateway_mismatch from the check). Re-reads x-bridge
+   * first; settles through the payment state machine. Refusals: 404
+   * order_not_found | attempt_not_found, 400 invalid_amount, 409 not_failed |
+   * not_supported | gateway_not_paid | amount_changed, 502 gateway_unreachable.
+   * Every attempt is audited.
+   */
+  @Post(':id/attempts/:tx/accept-gateway')
+  async acceptGateway(@Param('id') id: string, @Param('tx') txId: string, @Body() body: any, @Req() req: Request, @Res() res: Response) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) return res.status(404).json({ error: 'order_not_found' });
+    const transactionId = String(txId || '').slice(0, 120);
+    const s: any = req.session || {};
+    const admin = { id: String(s.userId || 'admin'), name: String(s.userId ? `user ${s.userId}` : 'admin') };
+    // The confirmed amount is required and must be a plain number: a typo must
+    // never switch the amount check off.
+    const exp = body?.expectedCollected;
+    const ok = (typeof exp === 'number' && Number.isFinite(exp) && exp >= 0) || (typeof exp === 'string' && /^\d+(\.\d+)?$/.test(exp));
+    if (!ok) return res.status(400).json({ error: 'invalid_amount', message: 'Confirm the collected amount (a plain number).' });
+    const expectedCollected = Number(exp);
+    const note = body?.note == null ? null : String(body.note).slice(0, 1000);
+    const audit = (result: string, stored: string | null) =>
+      this.audit.record('admin.order.accept_gateway', `${admin.name} → order ${id} · ${transactionId} · ${result}${stored ? ` · note: ${stored}` : ''}`, req.ip, admin.id)
+        .catch((e) => console.error('audit write failed', (e as Error)?.message));
+    const trimmed = note == null ? null : note.trim().slice(0, 280) || null;
+    try {
+      const r = await acceptGatewayAnswer(db(), { orderId: id, transactionId, admin, expectedCollected, note });
+      await audit(`accepted · collected ${r.collected ?? '?'} · attempt ${r.attemptStatus} · cart ${r.orderStatusBefore} → ${r.orderStatusAfter}${r.unapplied ? ` · not taken (${r.unapplied})` : ''}`, r.note);
+      return res.status(200).json(r);
+    } catch (e) {
+      if (e instanceof AcceptGatewayRefused) {
+        await audit(`refused: ${e.code}`, trimmed);
+        return res.status(e.httpStatus).json({ error: e.code, message: e.message });
+      }
+      console.error('admin accept gateway failed', (e as Error)?.message);
+      await audit('error', trimmed);
+      return res.status(500).json({ error: 'accept_failed' });
     }
   }
 }
