@@ -16,7 +16,9 @@ export type OrderStep =
   // BS158: an admin sent (or tried to send) a payment prompt from the console.
   | 'admin_push_requested' | 'admin_push_refused'
   // BS164: an admin asked x-bridge for the status of every attempt on the cart.
-  | 'gateway_checked';
+  | 'gateway_checked'
+  // BS165: an admin accepted x-bridge's paid answer for an attempt we had as failed.
+  | 'gateway_answer_accepted';
 
 type Detail = Record<string, unknown>;
 

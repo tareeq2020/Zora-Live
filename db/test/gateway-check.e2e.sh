@@ -24,6 +24,11 @@
 #      (late_collection), and a second collection on a paid cart
 #      (duplicate_collection) → needs_refund; the cart stays paid, one pass.
 #  12. A partial whose amount x-bridge now reports differently → mismatch.
+#  13. BS165 accept: ours failed + x-bridge paid → re-read first (refused if no
+#      longer paid or the amount changed), then settled: paid, pass, buyer
+#      notified, alert cleared, logged + audited; a second click is refused;
+#      the other attempt, if paid too, is flagged as a second collection.
+#  14. Accept on a cart that moved on (refunded) → money recorded + flagged.
 #
 # Style mirrors admin-push.e2e.sh. Self-contained. bash 3.2.
 set -euo pipefail
@@ -219,6 +224,7 @@ check "agrees → unchanged" "$(gwc "$O6")|$(out 'o.attempts[0].verdict')" "200|
 unthrottle "$O6"
 steer "ZORA-$O6-1" '{"status":"FAILED","amount":"35000","failureReason":"unknown"}'
 check "disagrees → mismatch" "$(gwc "$O6")|$(out 'o.attempts[0].verdict+"|"+o.mismatches')" "200|mismatch|1"
+check "  ours paid / x-bridge failed is NOT offered for accept" "$(out 'o.attempts[0].acceptable')" false
 check "  nothing changed" "$(tstatus "$O6"):$(ostatus "$O6"):$(q "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$O6' and c.state='issued'")" "successful:paid:1"
 check "  ops alert raised" "$(q "select count(*) from webhook_event where provider='ops-alert' and dedup_key like 'gateway_mismatch:$O6:%'")" 1
 check "  in Needs attention" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/attention" | jx 'o.items.filter(i=>i.kind==="ops_alert"&&i.href.includes("'"$O6"'")&&i.title.startsWith("x-bridge disagrees")).length')" 1
@@ -290,6 +296,58 @@ check "same partial amount → unchanged" "$(gwc "$O3")|$(out 'o.attempts[0].ver
 unthrottle "$O3"
 steer "ZORA-$O3-1" '{"status":"PARTIAL","amount":"35000","collectedAmount":"30000"}'
 check "x-bridge now reports 30000 → mismatch" "$(gwc "$O3")|$(out 'o.attempts[0].verdict'):$(q "select collected_amount::int from payment_transaction where order_id='$O3'")" "200|mismatch:10000"
+
+echo ""
+echo "== 13. ACCEPT X-BRIDGE'S ANSWER (BS165): ours failed, x-bridge paid =="
+OA=$(checkout "$SNAP/ca" 0712000130)
+steer "ZORA-$OA-1" '{"status":"FAILED","amount":"35000","failureReason":"payer_no_response"}'
+pay "$SNAP/ca" "$OA" 0712000130 >/dev/null
+gwc "$OA" >/dev/null; unthrottle "$OA"
+check "attempt 1 failed, cart failed" "$(tstatus "$OA"):$(ostatus "$OA")" "failed:failed"
+steer "ZORA-$OA-2" "$PENDING"
+check "buyer retries (attempt 2)" "$(pay "$SNAP/ca" "$OA" 0712000130)" 200
+q "update payment_transaction set status='expired' where transaction_id='ZORA-$OA-2'" >/dev/null   # timed out on our side
+steer "ZORA-$OA-1" "$COMPLETED"
+check "check: attempt 1 disagrees, attempt 2 still pending" "$(gwc "$OA")|$(out 'o.attempts.map(a=>a.verdict).join(",")')" "200|still_pending,mismatch"
+check "  attempt 1 is offered for accept (outcome successful)" "$(out 'o.attempts[1].acceptable+":"+o.attempts[1].outcome')" "true:successful"
+acc() { # order tx body [cookie] → http ; body in $SNAP/acc.out
+  curl -s -o "$SNAP/acc.out" -w '%{http_code}' -b "${4:-$SNAP/admin}" -X POST "$BASE/api/admin/orders/$1/attempts/$2/accept-gateway" -H 'content-type: application/json' -d "${3:-{\}}"
+}
+aout() { jx "$1" < "$SNAP/acc.out"; }
+check "anon → 401" "$(acc "$OA" "ZORA-$OA-1" '{}' /dev/null)" 401
+check "organizer → 401" "$(acc "$OA" "ZORA-$OA-1" '{}' "$SNAP/org")" 401
+check "no confirmed amount → 400" "$(acc "$OA" "ZORA-$OA-1" '{}')|$(aout 'o.error')" "400|invalid_amount"
+check "malformed amount → 400" "$(acc "$OA" "ZORA-$OA-1" '{"expectedCollected":"35,000"}')|$(aout 'o.error')" "400|invalid_amount"
+check "attempt from another cart → 404" "$(acc "$OA" "ZORA-$O1-1" '{"expectedCollected":35000}')|$(aout 'o.error')" "404|attempt_not_found"
+check "not a failed attempt → 409" "$(acc "$OA" "ZORA-$OA-2" '{"expectedCollected":35000}')|$(aout 'o.error')" "409|not_failed"
+check "confirmed amount differs → 409, nothing changed" "$(acc "$OA" "ZORA-$OA-1" '{"expectedCollected":30000}')|$(aout 'o.error'):$(tstatus "$OA" ):$(q "select status from payment_transaction where transaction_id='ZORA-$OA-1'")" "409|amount_changed:expired:failed"
+steer "ZORA-$OA-1" '{"status":"PENDING","amount":"35000"}'
+check "x-bridge no longer says paid → 409" "$(acc "$OA" "ZORA-$OA-1" '{"expectedCollected":35000}')|$(aout 'o.error'):$(q "select status from payment_transaction where transaction_id='ZORA-$OA-1'")" "409|gateway_not_paid:failed"
+steer "ZORA-$OA-1" "$COMPLETED"
+AVA=$(q "select available_count from inventory_pool where product_tier_id='t-brunch'")
+check "accept → 200" "$(acc "$OA" "ZORA-$OA-1" '{"expectedCollected":35000,"note":"confirmed in x-bridge dashboard"}')" 200
+check "  result" "$(aout 'o.attemptStatus+"|"+o.orderStatusAfter+"|"+o.passesOnCart+"|"+o.collected+"|"+o.unapplied+"|"+o.otherOpenAttempts.join(",")')" "successful|paid|1|35000|null|ZORA-$OA-2"
+check "  cart paid, attempt successful, the retry's hold converted (no extra stock)" "$(ostatus "$OA"):$(q "select status from payment_transaction where transaction_id='ZORA-$OA-1'"):$(q "select available_count from inventory_pool where product_tier_id='t-brunch'"):$(q "select count(*) from inventory_hold where order_id='$OA' and state='held'")" "paid:successful:$AVA:0"
+check "  buyer notified" "$(grep -c "to=+255712000130 message=" "$SNAP/api.log")" 1
+check "  mismatch alert cleared" "$(q "select count(*) from webhook_event where provider='ops-alert' and dedup_key like 'gateway_mismatch:$OA:%'")" 0
+check "  timeline: accepted then paid" "$(curl -s -b "$SNAP/admin" "$BASE/api/admin/orders/$OA" | jx 'o.timeline.filter(e=>e.source==="logged").map(e=>e.step).filter(s=>["gateway_answer_accepted","paid"].includes(s)).join(">")')" "gateway_answer_accepted>paid"
+check "  who + note logged" "$(q "select (detail->>'by')||'|'||(detail->>'note')||'|'||(detail->>'collected') from order_event where order_id='$OA' and step='gateway_answer_accepted'")" "admin|confirmed in x-bridge dashboard|35000"
+check "  audited" "$(curl -s -b "$SNAP/admin" "$BASE/api/audit" | jx 'o.filter(a=>a.action==="admin.order.accept_gateway"&&a.detail.includes("ZORA-'"$OA"'-1")&&a.detail.includes("accepted")).length')" 1
+check "second accept → 409 not_failed" "$(acc "$OA" "ZORA-$OA-1" '{"expectedCollected":35000}')|$(aout 'o.error')" "409|not_failed"
+unthrottle "$OA"
+steer "ZORA-$OA-2" "$COMPLETED"
+check "buyer also approves attempt 2 → needs_refund (second collection), one pass" "$(gwc "$OA")|$(out 'o.attempts.find(a=>a.transactionId.endsWith("-2")).verdict'):$(q "select count(*) from credential c join order_item oi on oi.id=c.order_item_id where oi.order_id='$OA'")" "200|needs_refund:1"
+
+echo ""
+echo "== 14. ACCEPT ON A CART THAT MOVED ON → recorded + flagged, not applied =="
+OB=$(checkout "$SNAP/cb" 0712000131)
+steer "ZORA-$OB-1" '{"status":"FAILED","amount":"35000"}'
+pay "$SNAP/cb" "$OB" 0712000131 >/dev/null
+gwc "$OB" >/dev/null; unthrottle "$OB"
+q "update \"order\" set status='refunded' where id='$OB'" >/dev/null
+steer "ZORA-$OB-1" "$COMPLETED"
+check "accept on a refunded cart → 200, not taken" "$(acc "$OB" "ZORA-$OB-1" '{"expectedCollected":35000}')|$(aout 'o.unapplied+"|"+o.orderStatusAfter+"|"+o.passesOnCart')" "200|late|refunded|0"
+check "  late_collection alert" "$(q "select count(*) from webhook_event where provider='ops-alert' and dedup_key='late_collection:$OB:ZORA-$OB-1'")" 1
 
 echo ""
 echo "== organizer timeline never shows the check =="
