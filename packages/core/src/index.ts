@@ -38,6 +38,9 @@ export {
   adminPush, adminPushPreview, AdminPushRefused, ADMIN_PUSH_LIMITS, tanzanianMobile, maskPhone,
 } from './payments/admin-push';
 export type { AdminPushCode, AdminPushInput, AdminPushResult, AdminPushPreview } from './payments/admin-push';
+// BS164: admin "Check with x-bridge" — read every attempt on a cart and apply it.
+export { checkOrderWithGateway, GatewayCheckRefused, GATEWAY_CHECK_LIMITS } from './payments/gateway-check';
+export type { GatewayCheckCode, GatewayCheckResult, AttemptCheck, AttemptVerdict } from './payments/gateway-check';
 export type {
   XbridgeConfig,
   CollectMobileInput, CollectMobileResponse,

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { db, adminPush, adminPushPreview, AdminPushRefused, maskPhone, reconcile } from '@zora/core';
+import {
+  db, adminPush, adminPushPreview, AdminPushRefused, maskPhone, reconcile, checkOrderWithGateway, GatewayCheckRefused,
+} from '@zora/core';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
 import { EntityStore } from '../storage/entity-store';
@@ -157,6 +159,38 @@ export class AdminOrdersController {
       console.error('admin push failed', (e as Error)?.message);
       await audit('error', maskPhone(phone), null);
       return res.status(500).json({ error: 'push_failed' });
+    }
+  }
+
+  /**
+   * BS164: POST /api/admin/orders/:id/gateway-check — ask x-bridge for the status
+   * of every attempt on the cart (expired ones included) and apply it: open and
+   * late-settled attempts settle like the poller while the cart still awaits the
+   * money; money the cart can't take, and a disagreement with a finished attempt,
+   * are flagged (ops alert), never applied. 404 order_not_found, 429
+   * rate_limited (one check per cart per 10 s). Every call is audited.
+   */
+  @Post(':id/gateway-check')
+  async gatewayCheck(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) return res.status(404).json({ error: 'order_not_found' });
+    const s: any = req.session || {};
+    const admin = { id: String(s.userId || 'admin'), name: String(s.userId ? `user ${s.userId}` : 'admin') };
+    const audit = (result: string) =>
+      this.audit.record('admin.order.gateway_check', `${admin.name} → order ${id} · ${result}`, req.ip, admin.id)
+        .catch((e) => console.error('audit write failed', (e as Error)?.message));
+    try {
+      const r = await checkOrderWithGateway(db(), id, { admin });
+      await audit(`checked ${r.attempts.length} · updated ${r.updated} · mismatches ${r.mismatches} · needs refund ${r.needsRefund} · errors ${r.errors} · ${r.orderStatusBefore} → ${r.orderStatusAfter}`);
+      return res.status(200).json(r);
+    } catch (e) {
+      if (e instanceof GatewayCheckRefused) {
+        // Refusals change nothing; only real checks go in the audit log.
+        if (e.retryAfterSecs) res.setHeader('Retry-After', String(e.retryAfterSecs));
+        return res.status(e.httpStatus).json({ error: e.code, message: e.message, ...(e.retryAfterSecs ? { retryAfterSecs: e.retryAfterSecs } : {}) });
+      }
+      console.error('admin gateway check failed', (e as Error)?.message);
+      await audit('error');
+      return res.status(500).json({ error: 'gateway_check_failed' });
     }
   }
 }

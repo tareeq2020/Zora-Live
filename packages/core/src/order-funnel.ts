@@ -32,13 +32,14 @@ export const STEP_LABELS: Record<string, string> = {
   checked_in: 'Checked in',
   admin_push_requested: 'Admin sent a payment prompt',
   admin_push_refused: 'Admin payment prompt refused',
+  gateway_checked: 'Checked with x-bridge',
 };
 
 /** Rank for tie-breaking steps logged in the same instant. */
 const STEP_RANK: Record<string, number> = {
   cart_created: 0, admin_push_refused: 1, admin_push_requested: 1, pay_requested: 1, gateway_rejected: 2, gateway_accepted: 2, callback_received: 3,
   status_changed: 4, short: 5, failed: 5, paid: 5, hold_released: 6, expired: 7, passes_issued: 8,
-  buyer_notified: 9, checked_in: 10, refunded: 11,
+  buyer_notified: 9, checked_in: 10, refunded: 11, gateway_checked: 12,
 };
 
 export interface AttemptLike {
@@ -94,6 +95,10 @@ const keyOf = (e: RawEntry) => `${e.step}|${e.transactionId ?? ''}|${String((e.d
 /** Merge logged events with ones derived from the tables. A derived entry is
     dropped when the log already has the same step (for the same attempt / pass). */
 export function buildTimeline(logged: RawEntry[], derived: RawEntry[]): TimelineEntry[] {
+  // BS164: an attempt the cart did not take (logged status_changed with
+  // `unapplied`) never gets a Paid / Short step derived from its row status.
+  const unapplied = new Set(logged.filter((e) => e.step === 'status_changed' && (e.detail as any)?.unapplied && e.transactionId).map((e) => e.transactionId));
+  derived = derived.filter((e) => !(e.transactionId && unapplied.has(e.transactionId) && (e.step === 'paid' || e.step === 'short')));
   const seen = new Set(logged.map(keyOf));
   const loggedSteps = new Set(logged.map((e) => e.step));
   const all: Omit<TimelineEntry, 'sincePrevMs'>[] = [

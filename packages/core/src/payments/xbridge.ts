@@ -73,7 +73,7 @@ async function getToken(cfg: XbridgeConfig): Promise<string> {
 }
 
 /** Authed JSON call: Bearer token + JSON headers; non-2xx throws with body text. */
-async function authed(cfg: XbridgeConfig, path: string, init: { method: string; body?: string }): Promise<any> {
+async function authed(cfg: XbridgeConfig, path: string, init: { method: string; body?: string; signal?: AbortSignal }): Promise<any> {
   const token = await getToken(cfg);
   const res = await fetch(`${cfg.baseUrl}${path}`, {
     method: init.method,
@@ -82,6 +82,7 @@ async function authed(cfg: XbridgeConfig, path: string, init: { method: string; 
       'Content-Type': 'application/json',
     },
     body: init.body,
+    ...(init.signal ? { signal: init.signal } : {}),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -369,6 +370,7 @@ export interface CollectionStatusResponse {
 export async function collectionStatus(
   transactionId: string,
   cfg = xbridgeConfig(),
+  signal?: AbortSignal,
 ): Promise<CollectionStatusResponse> {
   if (cfg.mock) {
     const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId) ?? sandboxStatus(transactionId);
@@ -382,5 +384,5 @@ export async function collectionStatus(
     };
   }
   const path = `/collection/status?transactionId=${encodeURIComponent(transactionId)}`;
-  return authed(cfg, path, { method: 'GET' });
+  return authed(cfg, path, { method: 'GET', signal });
 }
