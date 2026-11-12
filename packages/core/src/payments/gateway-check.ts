@@ -84,6 +84,10 @@ export interface AttemptCheck {
   collectedAmount: number | null;
   failureReason: string | null;
   verdict: AttemptVerdict;
+  /** What x-bridge's answer means (successful | short | failed | pending), null when not read. */
+  outcome: PaymentOutcome | null;
+  /** BS165: an admin may accept x-bridge's paid answer for this attempt (ours failed, pay-in-full cart). */
+  acceptable: boolean;
   /** One plain line on what happened. */
   note: string;
 }
@@ -127,11 +131,11 @@ function agrees(r: AttemptRow, outcome: PaymentOutcome, collected: number | null
   return false;
 }
 
-type StatusReader = (transactionId: string, signal: AbortSignal) => Promise<CollectionStatusResponse>;
+export type StatusReader = (transactionId: string, signal: AbortSignal) => Promise<CollectionStatusResponse>;
 
 /** One status read that gives up after ms; the status request is aborted (a
     token fetch already in flight is left to finish on its own). */
-async function readWithTimeout(read: StatusReader, transactionId: string, ms: number): Promise<CollectionStatusResponse> {
+export async function readWithTimeout(read: StatusReader, transactionId: string, ms: number): Promise<CollectionStatusResponse> {
   const ctl = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -246,6 +250,9 @@ async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: S
     }
   });
 
+  const [cart] = await sql`select type from "order" where id = ${orderId}::uuid`;
+  const cartType = String(cart?.type ?? '');
+
   // 2. Apply, oldest first: the first money in is the money that pays the cart.
   const attempts: AttemptCheck[] = [];
   for (let i = rows.length - 1; i >= 0; i--) {
@@ -254,6 +261,7 @@ async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: S
     const base = {
       transactionId: String(r.transaction_id), method: r.method ?? null, scheduleN: r.schedule_n ?? null,
       before: String(r.status), gatewayStatus: null as string | null, collectedAmount: null as number | null, failureReason: null as string | null,
+      outcome: null as PaymentOutcome | null, acceptable: false,
     };
     const done = (verdict: AttemptVerdict, note: string, after = base.before) => attempts.unshift({ ...base, after, verdict, note });
     const nowStatus = async () => {
@@ -274,6 +282,7 @@ async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: S
     base.gatewayStatus = String(status.status ?? '') || null;
     base.failureReason = status.failureReason ?? null;
     base.collectedAmount = collectedFromStatus(status, outcome);
+    base.outcome = outcome;
 
     try {
       await captureStatusRead(sql, base.transactionId, status); // BS157, best-effort
@@ -309,7 +318,23 @@ async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: S
       }
 
       if (FINISHED.has(base.before)) {
-        if (agrees(r, outcome, base.collectedAmount)) {
+        // Compare and flag under the attempt's lock, the same lock applyOutcome
+        // (and so an admin's accept, or a webhook) takes: a record changed since
+        // the snapshot is never flagged on stale data.
+        const flagged = await tx(async (t: Sql) => {
+          const [cur] = await t`
+            select status, collected_amount from payment_transaction where transaction_id = ${base.transactionId} for update`;
+          const now = { ...r, status: String(cur?.status ?? base.before), collected_amount: cur?.collected_amount ?? null };
+          if (now.status !== base.before) return { changed: now.status };
+          if (agrees(now, outcome, base.collectedAmount)) return { agrees: true };
+          await raiseMismatch(t, orderId, now, base.gatewayStatus, base.collectedAmount);
+          return { mismatch: now };
+        }, sql);
+        if ('changed' in flagged) {
+          done('unchanged', `Changed while checking (now ${flagged.changed}). Run the check again to compare.`, flagged.changed);
+          continue;
+        }
+        if ('agrees' in flagged) {
           // Money recorded earlier but never taken by the cart is still owed:
           // say so again and bring its alert back into view.
           const kind = await unappliedKind(sql, orderId, base.transactionId);
@@ -322,8 +347,10 @@ async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: S
         } else {
           const amountNote = r.status === 'partial' && outcome === 'short'
             ? ` (we recorded ${money(r.collected_amount) ?? '?'}, x-bridge says ${base.collectedAmount ?? '?'})` : '';
-          // One alert per distinct disagreement; a re-check brings a stale one back.
-          await raiseMismatch(sql, orderId, r, base.gatewayStatus, base.collectedAmount);
+          // Raised above under the lock. BS165: ours failed but x-bridge says
+          // money came in, on a pay-in-full cart → a person may accept it.
+          base.acceptable = base.before === 'failed' && (outcome === 'successful' || outcome === 'short')
+            && Number(base.collectedAmount) > 0 && r.schedule_n == null && cartType !== 'table_share';
           done('mismatch', `We have ${base.before}, x-bridge says ${OUTCOME_WORDS[outcome]}${amountNote}. Nothing changed automatically; flagged in Needs attention.`);
         }
         continue;
