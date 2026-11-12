@@ -14,7 +14,9 @@ export type OrderStep =
   | 'paid' | 'short' | 'failed' | 'expired' | 'hold_released' | 'refunded'
   | 'passes_issued' | 'buyer_notified' | 'checked_in'
   // BS158: an admin sent (or tried to send) a payment prompt from the console.
-  | 'admin_push_requested' | 'admin_push_refused';
+  | 'admin_push_requested' | 'admin_push_refused'
+  // BS164: an admin asked x-bridge for the status of every attempt on the cart.
+  | 'gateway_checked';
 
 type Detail = Record<string, unknown>;
 

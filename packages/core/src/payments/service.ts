@@ -468,6 +468,7 @@ export async function applyOutcome(
   transactionId: string,
   outcome: PaymentOutcome,
   collectedAmount?: number | null,
+  info: ApplyInfo = {},
 ): Promise<string | null> {
   if (outcome === 'pending') return null;
   const collected =
@@ -479,16 +480,28 @@ export async function applyOutcome(
       select order_id, status, schedule_n, amount from payment_transaction where transaction_id = ${transactionId} for update`;
     if (!txr || txr.status === 'successful' || txr.status === 'failed' || txr.status === 'partial') return null;
 
-    const result = await applyLockedOutcome(t, transactionId, txr, outcome, collected);
-    await logOutcome(t, transactionId, txr, outcome, result, collected);
+    const result = await applyLockedOutcome(t, transactionId, txr, outcome, collected, info);
+    await logOutcome(t, transactionId, txr, outcome, result, collected, info);
     return result;
   }, sql);
 }
 
-/** The state machine proper, run under applyOutcome's lock (body unchanged by
-    BS153; only lifted out so the outcome can be logged in the same tx). */
+/** BS164: set by applyOutcome when the attempt was closed but the cart was
+    not changed: 'duplicate' = a second collection on a paid cart (GUARD 2);
+    'late' = money for a cart that has moved on (GUARD 3); 'attempt_only' = a
+    failure on an attempt the cart was no longer waiting on (GUARD 3). */
+export interface ApplyInfo {
+  unapplied?: 'duplicate' | 'late' | 'attempt_only';
+}
+
+/** Cart statuses that still take money for a pay-in-full attempt (a
+    payment_short cart can be topped up or stay short, as before). */
+const TAKES_MONEY: readonly string[] = ['pending', 'failed', 'expired', 'payment_short'];
+
+/** The state machine proper, run under applyOutcome's lock (lifted out by
+    BS153 so the outcome is logged in the same tx; BS164 added GUARD 3). */
 async function applyLockedOutcome(
-  t: Sql, transactionId: string, txr: any, outcome: PaymentOutcome, collected: number | null,
+  t: Sql, transactionId: string, txr: any, outcome: PaymentOutcome, collected: number | null, info: ApplyInfo = {},
 ): Promise<string | null> {
   // ── BS132 installment branch: an attempt bound to a schedule row (A16) is
   //    allocated to THAT row. Returns BEFORE the pay-in-full logic below, which
@@ -507,6 +520,48 @@ async function applyLockedOutcome(
     return onShareFailed(t, txr.order_id, transactionId);
   }
 
+  // GUARD 3 (BS164, order-level): money (or a failure) for a cart that has
+  // already moved on. Lock the cart first so two attempts settling at once are
+  // serialized and each sees the other's result. Then:
+  //   - failed, while the cart is not waiting on THIS attempt (it is not
+  //     pending, or another attempt is still out to the buyer) → close the
+  //     attempt only; the cart, its stock and seats are left alone. Otherwise
+  //     the cart fails as before, so the buyer can retry;
+  //   - successful on a cart that cannot take it (refunded, cancelled,
+  //     unseatable, or another attempt already paid) → record the money on the
+  //     attempt and alert ops to refund ('late_collection');
+  //   - short on a cart that is not waiting to be paid (paid, refunded, ...) or
+  //     that another attempt already paid → the same.
+  // A 'successful' on a PAID cart is GUARD 2 below (duplicate_collection).
+  const [locked] = await t`select status from "order" where id = ${txr.order_id} for update`;
+  const st = String(locked?.status ?? ord?.status ?? '');
+  if (ord) ord.status = st;
+  // "Other in flight" = another attempt, older or newer, still out to the
+  // buyer: accepted by x-bridge and open, or being sent right now (created,
+  // no error, under 2 min old). A refused or abandoned one doesn't count.
+  const [others] = await t`
+    select count(*) filter (where status = 'successful')::int as paid,
+           count(*) filter (where error is null and status in ('created', 'pending', 'processing')
+                              and (accepted_at is not null or created_at > now() - interval '2 minutes'))::int as in_flight
+      from payment_transaction
+     where order_id = ${txr.order_id} and transaction_id <> ${transactionId}`;
+  if (outcome === 'failed') {
+    if (st !== ORDER_STATUS.PENDING || others.in_flight > 0) {
+      await t`update payment_transaction set status='failed', updated_at=now() where transaction_id=${transactionId}`;
+      info.unapplied = 'attempt_only';
+      return st || null;
+    }
+  } else if (st !== ORDER_STATUS.PAID || outcome === 'short') {
+    if (!TAKES_MONEY.includes(st) || others.paid > 0) {
+      await t`update payment_transaction set status=${outcome === 'successful' ? 'successful' : 'partial'},
+                collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
+              where transaction_id=${transactionId}`;
+      await alertOps(t, 'late_collection', txr.order_id, transactionId);
+      info.unapplied = 'late';
+      return st;
+    }
+  }
+
   if (outcome === 'successful') {
     // GUARD 2 (order-level): a successful on an already-paid order = duplicate
     // COLLECTION by a different txn. Mark this txn paid + record what it took,
@@ -515,7 +570,8 @@ async function applyLockedOutcome(
       await t`update payment_transaction set status='successful',
                 collected_amount = coalesce(${collected}, collected_amount), updated_at=now()
               where transaction_id=${transactionId}`;
-      await alertOps(t, 'duplicate_collection', txr.order_id);
+      await alertOps(t, 'duplicate_collection', txr.order_id, transactionId);
+      info.unapplied = 'duplicate';
       return 'paid';
     }
     // BS125 (A17): seats first, under lock. Every seat the order bought must
@@ -586,9 +642,16 @@ async function applyLockedOutcome(
 /** BS153: one funnel step per applied outcome, in the same tx. Never throws. */
 async function logOutcome(
   t: Sql, transactionId: string, txr: any, outcome: PaymentOutcome, result: string | null, collected: number | null,
+  info: ApplyInfo = {},
 ): Promise<void> {
   if (result == null) return;
   const detail = { outcome, orderStatus: result, from: txr.status, collected, scheduleN: txr.schedule_n ?? null };
+  // BS164: the attempt closed but the cart did not change. One neutral step,
+  // so the cart's timeline and funnel never show a payment the cart didn't take.
+  if (info.unapplied) {
+    await logOrderEvent(t, txr.order_id, 'status_changed', { ...detail, unapplied: info.unapplied }, transactionId);
+    return;
+  }
   const paidLike = ['paid', 'paid_unseatable', 'share_paid', 'split_complete', 'share_refund_pending', 'split_stuck'];
   let step: 'paid' | 'short' | 'failed' | 'status_changed';
   if (outcome === 'short' || result === 'payment_short' || result === 'share_short') step = 'short';
@@ -611,12 +674,21 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
   if (txr.provider === 'xbridge_v1') return 'pending';
   const status = await collectionStatus(transactionId);
   await captureStatusRead(sql, transactionId, status); // BS157, best-effort
+  return (await settleFromStatus(sql, transactionId, txr, status)).outcome;
+}
+
+/** Apply a status already read from x-bridge (map → apply once → notify).
+    Shared by reconcile and the admin gateway check (BS164), so both settle an
+    attempt exactly the same way. `txr` needs order_id and method. */
+export async function settleFromStatus(
+  sql: Sql, transactionId: string, txr: { order_id: string; method?: string | null }, status: CollectionStatusResponse,
+): Promise<{ outcome: PaymentOutcome; orderStatus: string | null; collected: number | null; unapplied: ApplyInfo['unapplied'] | null }> {
   const outcome = mapStatus(status);
-  const collected =
-    outcome === 'successful' || outcome === 'short'
-      ? Number(status.collectedAmount ?? status.amount ?? 0)
-      : null;
-  const orderStatus = await applyOutcome(sql, transactionId, outcome, collected);
+  const collected = collectedFromStatus(status, outcome);
+  const info: ApplyInfo = {};
+  const orderStatus = await applyOutcome(sql, transactionId, outcome, collected, info);
+  // Money the cart did not take: nothing to tell the buyer (ops were alerted).
+  if (info.unapplied) return { outcome, orderStatus, collected, unapplied: info.unapplied };
   if (orderStatus === ORDER_STATUS.PAID) {
     await notifyOrderPaid(sql, txr.order_id);
     // BS123 (A11): the money event comes from the server, never the browser.
@@ -625,7 +697,15 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
   }
   else if (orderStatus === 'share_paid') await notifyShareReceived(sql, txr.order_id);        // BS2: "you're in, k/N"
   else if (orderStatus === 'split_complete') await notifySplitCompleteByOrder(sql, txr.order_id); // BS2: table locked → per-payer passes
-  return outcome;
+  return { outcome, orderStatus, collected, unapplied: null };
+}
+
+/** What an answer says was collected: the collected amount (else the amount)
+    on a paid or short answer, null otherwise. */
+export function collectedFromStatus(status: CollectionStatusResponse, outcome: PaymentOutcome = mapStatus(status)): number | null {
+  return outcome === 'successful' || outcome === 'short'
+    ? Number(status.collectedAmount ?? status.amount ?? 0)
+    : null;
 }
 
 /** SMS body — includes the readable code(s) so the text alone is a usable ticket
@@ -1069,7 +1149,7 @@ export async function resolveTransactionId(sql: Sql, rawBody: string): Promise<s
 /* ── Worker helpers ───────────────────────────────────────────────────────── */
 
 /** Bounded-concurrency map; per-item errors are swallowed (next sweep retries). */
-async function mapLimit<T>(items: T[], limit: number, fn: (t: T) => Promise<void>): Promise<void> {
+export async function mapLimit<T>(items: T[], limit: number, fn: (t: T) => Promise<void>): Promise<void> {
   let i = 0;
   const run = async () => {
     while (i < items.length) {

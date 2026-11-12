@@ -94,8 +94,13 @@ const OPS_ALERT_SKIP = new Set([
   'installment_defaulted', 'installment_refund_pending', 'installment_refund_recorded',
 ]);
 
+/** BS164: alerts that stay open on a refunded cart (raised about money after it). */
+const OPS_ALERT_AFTER_REFUND = new Set(['late_collection', 'gateway_mismatch']);
+
 const OPS_ALERT_LABEL: Record<string, string> = {
   duplicate_collection: 'Duplicate collection — refund the extra payment',
+  gateway_mismatch: 'x-bridge disagrees with a finished payment — check by hand',
+  late_collection: 'Money collected that the cart can no longer take — refund or reconcile',
   split_late_share: 'Split seat paid after the table closed',
   split_unconvertible: 'Split table paid but could not be seated',
   split_share_short: 'Split seat under-paid',
@@ -390,7 +395,8 @@ export class AdminAttentionService {
     const alertOrderById = new Map(alertOrders.map((o) => [String(o.id), o]));
     for (const a of alerts) {
       const ord = alertOrderById.get(a.ref) ?? null;
-      if (ord && ord.status === 'refunded') continue; // already resolved
+      // A refund resolves earlier alerts, not money or disagreements found after it.
+      if (ord && ord.status === 'refunded' && !OPS_ALERT_AFTER_REFUND.has(a.kind)) continue;
       counts.ops_alert++;
       items.push({
         id: `ops_alert:${a.id}`,
