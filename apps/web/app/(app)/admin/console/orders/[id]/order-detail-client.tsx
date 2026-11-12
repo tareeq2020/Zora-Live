@@ -19,6 +19,7 @@ import { AdminError, AdminSkeleton, adminApi, useAdminResource } from '../../adm
 import { AdminConsoleShell } from '../../console-shell';
 import { ORDER_STAGES, STAGE_LABEL, gap, money, whenFull, outcomeText, outcomeTone } from '../order-format';
 import { FAILURE_WORDS, PushPanel, type PushPreview } from './push-panel';
+import { GatewayCheckPanel } from './gateway-check-panel';
 
 type Attempt = {
   transactionId: string;
@@ -260,6 +261,9 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
         {/* ── BS158: admin payment prompt ── */}
         <PushPanel o={o} onDetail={res.set} />
+
+        {/* ── BS164: ask x-bridge about every attempt ── */}
+        <GatewayCheckPanel<Detail> orderId={o.id} onDetail={res.set} />
 
         {/* ── stage bar ── */}
         <section className="cr-panel" aria-label="Stage reached">
