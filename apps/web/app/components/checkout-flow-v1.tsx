@@ -38,6 +38,7 @@ import PhoneField from './phone-field';
 import { groupNational, isValidNational, networkFromNumber, toE164 } from './phone';
 
 import type { CheckoutTier, CheckoutFlowProps } from './checkout-types';
+import { CardBillingFields, EMPTY_BILLING, billingBody, billingProblem, cardPayError, type BillingValue } from './card-billing';
 
 // BS161: no separate network step. Mobile money picks the network on the pay
 // screen, with the number right under the logo cards.
@@ -105,6 +106,10 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
   const [billPayNumber, setBillPayNumber] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  // BS166: card shows only when x-bridge offers it; it may need a billing address.
+  const [cardOffered, setCardOffered] = useState(false);
+  const [cardBilling, setCardBilling] = useState(false);
+  const [billing, setBilling] = useState<BillingValue>(EMPTY_BILLING);
 
   // poll / result
   const [statusVal, setStatusVal] = useState<string | null>(null);
@@ -156,6 +161,16 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
         setMethodsEnabled({ mobile: m.mobile !== false, billpay: m.billpay !== false, card: m.card !== false });
       })
       .catch(() => {}); // leave the fail-open default in place
+    // BS166: card also needs x-bridge to offer it (/api/payment-methods).
+    setCardOffered(false);
+    fetch('/api/payment-methods', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { groups?: Array<{ id: string; enabled: boolean; billingRequired?: boolean }> } | null) => {
+        const c = d?.groups?.find((g) => g?.id === 'card');
+        setCardOffered(!!c?.enabled);
+        setCardBilling(!!c?.billingRequired);
+      })
+      .catch(() => setCardOffered(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -172,11 +187,12 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
   // the first method that's still on rather than showing a payment option that
   // will 403 at submit. (all_methods_disabled is refused server-side, so this
   // list is never empty in practice — falls back to 'mobile' defensively.)
-  const availableMethods = (['mobile', 'billpay', 'card'] as Method[]).filter((m) => methodsEnabled[m]);
+  const availableMethods = (['mobile', 'billpay', 'card'] as Method[])
+    .filter((m) => methodsEnabled[m] && (m !== 'card' || cardOffered));
   useEffect(() => {
     if (availableMethods.length && !availableMethods.includes(method)) setMethod(availableMethods[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [methodsEnabled]);
+  }, [methodsEnabled, cardOffered]);
 
   const availOf = (tierId: string) => (avail == null ? Infinity : avail[tierId] ?? 0);
   const cartLines = useMemo(
@@ -293,6 +309,10 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
     if ((method === 'billpay' || method === 'card') && !payerName.trim()) {
       return setNotice({ kind: 'error', text: 'Enter the payer name.' });
     }
+    if (method === 'card' && cardBilling) {
+      const b = billingProblem(billing);
+      if (b) return setNotice({ kind: 'error', text: b });
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/checkout/${encodeURIComponent(order.orderId)}/pay`, {
@@ -303,11 +323,12 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
           payerPhone,
           payerName: payerName.trim() || undefined,
           mno: method === 'mobile' ? network : undefined,
+          ...(method === 'card' ? { email: email.trim() || undefined, ...(cardBilling ? { billing: billingBody(billing) } : {}) } : {}),
         }),
       });
       if (res.status !== 200) {
         const d = await res.json().catch(() => ({}));
-        setNotice({ kind: 'error', text: payErrorMessage(d.error) });
+        setNotice({ kind: 'error', text: (method === 'card' ? cardPayError(d) : null) ?? payErrorMessage(d.error) });
         return;
       }
       const d = await res.json();
@@ -315,9 +336,12 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
       setBillPayNumber(d.billPayNumber || null);
       setRedirectUrl(d.redirectUrl || null);
       if (method === 'card' && d.redirectUrl) {
-        // Open the hosted card page; keep polling here so the buyer lands back on
-        // credentials without losing this session.
-        window.open(d.redirectUrl, '_blank', 'noopener');
+        // BS166: the card page runs in this tab and returns the buyer to
+        // /pay/<order>, which reads the result.
+        setStatusVal('pending');
+        setStep('poll');
+        window.location.assign(d.redirectUrl);
+        return;
       }
       setStatusVal('pending');
       setStep('poll');
@@ -487,7 +511,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
               <div className="zco-method">
                 <span className="zco-method-lab">Pay with</span>
                 <div className="zco-seg">
-                  {(availableMethods.length ? availableMethods : (['mobile', 'billpay', 'card'] as Method[])).map((m) => (
+                  {(availableMethods.length ? availableMethods : (['mobile'] as Method[])).map((m) => (
                     <button key={m} className={'zco-seg-btn' + (method === m ? ' on' : '')} onClick={() => setMethod(m)}>
                       {m === 'mobile' ? 'Mobile money' : m === 'billpay' ? 'Bill pay' : 'Card'}
                     </button>
@@ -564,9 +588,15 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
                     onChange={(v) => (setPayPhone(v.national), setPhoneErr(null))}
                   />
                   <label className="zco-field">
-                    <span>Payer name</span>
+                    <span>{method === 'card' ? 'Name on card' : 'Payer name'}</span>
                     <input placeholder="Full name" value={payerName} onChange={(e) => setPayerName(e.target.value)} />
                   </label>
+                  {method === 'card' && cardBilling ? (
+                    <>
+                      <p className="zco-when">Billing address. The card company asks for the card holder&apos;s address.</p>
+                      <CardBillingFields value={billing} onChange={setBilling} fieldClass="zco-field" idPrefix="zco" />
+                    </>
+                  ) : null}
                 </>
               )}
 
@@ -593,18 +623,12 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
                 </>
               ) : method === 'card' ? (
                 <>
-                  <h3>Complete your card payment</h3>
+                  <h3>Opening the card page</h3>
                   {redirectUrl ? (
                     <p>
-                      A secure card page opened in a new tab.{' '}
-                      <a href={redirectUrl} target="_blank" rel="noopener noreferrer" className="zco-link">
-                        Reopen it
-                      </a>{' '}
-                      if you don&apos;t see it. We&apos;ll update here automatically.
+                      <a href={redirectUrl} className="zco-link">Tap here if it doesn&apos;t open</a>
                     </p>
-                  ) : (
-                    <p>Finish the payment on the secure card page. We&apos;ll update here automatically.</p>
-                  )}
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -817,6 +841,8 @@ const STYLE = `
 	.zco-field span{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--z-mut);margin-bottom:8px;text-transform:uppercase}
 	.zco-field input{width:100%;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--zp-color-board-black);font-size:16px;padding:14px;font-family:var(--zp-font-sans)}
 	.zco-field input:focus{outline:3px solid var(--zp-focus);outline-offset:2px;border-color:var(--zp-border-strong)}
+	.zco-field select{width:100%;background:var(--zp-color-white);border:2px solid var(--z-hair);border-radius:var(--zp-radius-md);color:var(--zp-color-board-black);font-size:16px;padding:14px;font-family:var(--zp-font-sans)}
+	.zco-field select:focus{outline:3px solid var(--zp-focus);outline-offset:2px;border-color:var(--zp-border-strong)}
 	.zco-method{margin-top:20px}
 	.zco-method-lab{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--z-mut);text-transform:uppercase}
 	.zco-seg{display:flex;gap:8px;margin-top:10px}

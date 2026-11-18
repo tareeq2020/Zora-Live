@@ -25,7 +25,8 @@
    is turned on for a real organizer. */
 import { logCallbackReceived } from '../order-events';
 import { captureCallback } from '../gateway-capture';
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac } from 'crypto';
+import { verifyXbridgeSignature } from './xbridge-signature';
 import { alertOps } from '../ops';
 import { xbridgeConfig, xbridgeRequest, normalizeMsisdn, XbridgeHttpError } from './xbridge';
 import { collectViaCollectionApi, applyOutcome, notifyOrderPaid, type CollectAttemptInput, type CollectAttemptResult } from './service';
@@ -188,25 +189,11 @@ export function receivableWebhookSecret(env: NodeJS.ProcessEnv = process.env): s
   return env.XBRIDGE_WEBHOOK_SECRET || null;
 }
 
-/** Sign a raw body the way parseWebhook verifies it — `v1=<hex>`. Test seam and
-    the reference for the x-bridge side. */
-export function signReceivableWebhook(rawBody: string, secret: string): string {
-  return 'v1=' + createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-}
-
-/* TODO(xbridge-v1): the X-Bridge-Signature v1 scheme is NOT final. Implemented:
-   HMAC-SHA256 over the exact raw body with XBRIDGE_WEBHOOK_SECRET, hex, in a
-   header of the form "v1=<hex>" (a "t=<ts>,v1=<hex>" list is accepted and its
-   v1 element compared). If x-bridge signs "<t>.<body>" or adds a replay window,
-   change ONLY verifySignature. */
-function verifySignature(rawBody: string, header: string | undefined, secret: string): boolean {
-  if (!header) return false;
-  const parts = String(header).split(',').map((p) => p.trim());
-  const v1 = parts.map((p) => /^v1=([0-9a-fA-F]{64})$/.exec(p)?.[1]).find(Boolean);
-  if (!v1) return false;
-  const want = createHmac('sha256', secret).update(rawBody, 'utf8').digest();
-  const got = Buffer.from(v1, 'hex');
-  return got.length === want.length && timingSafeEqual(got, want);
+/** Sign a raw body the way parseWebhook verifies it. BS166: x-bridge's
+    published scheme, v1=hex(HMAC_SHA256(secret, ts + "." + rawBody)), with the
+    timestamp sent as X-Bridge-Timestamp. Test seam. */
+export function signReceivableWebhook(rawBody: string, secret: string, ts: number | string = Math.floor(Date.now() / 1000)): string {
+  return 'v1=' + createHmac('sha256', secret).update(`${ts}.`, 'utf8').update(rawBody, 'utf8').digest('hex');
 }
 
 const num = (v: unknown): number | null => {
@@ -218,8 +205,7 @@ const num = (v: unknown): number | null => {
 export function parseWebhook(rawBody: string, headers: Record<string, string | string[] | undefined>): ParseWebhookResult {
   const secret = receivableWebhookSecret();
   if (!secret) return { ok: false, reason: 'no_secret' };
-  const h = headers['x-bridge-signature'] ?? headers['X-Bridge-Signature'];
-  if (!verifySignature(rawBody, Array.isArray(h) ? h[0] : h, secret)) return { ok: false, reason: 'bad_signature' };
+  if (verifyXbridgeSignature(rawBody, headers, secret) !== 'ok') return { ok: false, reason: 'bad_signature' };
   let j: any;
   try { j = JSON.parse(rawBody); } catch { return { ok: false, reason: 'bad_body' }; }
   const type = String(j?.type ?? j?.event ?? '');
@@ -234,7 +220,7 @@ export function parseWebhook(rawBody: string, headers: Record<string, string | s
   return {
     ok: true,
     event: {
-      id: j.id ? String(j.id) : null,
+      id: j.eventId ? String(j.eventId) : j.id ? String(j.id) : null,
       type: type as ReceivableEventType,
       receivableId,
       reference: rcv.reference ? String(rcv.reference) : null,

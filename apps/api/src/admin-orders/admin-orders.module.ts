@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OrgModule } from '../org/org.module';
-import { AdminFunnelController, AdminOrdersController } from './admin-orders.controller';
+import { AdminCrossCheckController, AdminFunnelController, AdminOrdersController } from './admin-orders.controller';
 import { AdminOrdersService } from './admin-orders.service';
 import { AdminFunnelService } from './admin-funnel.service';
 
@@ -11,7 +11,7 @@ import { AdminFunnelService } from './admin-funnel.service';
    hold everything — 0014 only adds the indexes the new access pattern needs. */
 @Module({
   imports: [OrgModule],
-  controllers: [AdminOrdersController, AdminFunnelController],
+  controllers: [AdminOrdersController, AdminFunnelController, AdminCrossCheckController],
   providers: [AdminOrdersService, AdminFunnelService],
   exports: [AdminOrdersService],
 })

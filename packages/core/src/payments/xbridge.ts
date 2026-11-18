@@ -352,7 +352,10 @@ export async function collectCard(input: CollectCardInput, cfg = xbridgeConfig()
   return authed(cfg, '/collection/card', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export type CollectionStatus = 'PENDING' | 'COMPLETED' | 'PARTIAL' | 'FAILED';
+/** EXPIRED (a card checkout the payer never finished) and AUTH_PENDING_REVIEW
+    (a card under review) come from the /v1 status read. Neither is final:
+    mapStatus treats both as pending. */
+export type CollectionStatus = 'PENDING' | 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'EXPIRED' | 'AUTH_PENDING_REVIEW';
 
 export interface CollectionStatusResponse {
   transactionId: string;
@@ -365,6 +368,21 @@ export interface CollectionStatusResponse {
   failureReason?: string | null;
 }
 
+/** The MOCK answer for a status read: a forced status, the status file, a
+    sandbox number's outcome, else COMPLETED for 1000. Shared by the /v1
+    status read (xbridge-v1.ts). */
+export function mockCollectionStatus(transactionId: string): CollectionStatusResponse {
+  const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId) ?? sandboxStatus(transactionId);
+  if (forced) return forced;
+  return {
+    transactionId,
+    status: 'COMPLETED',
+    amount: '1000',
+    collectedAmount: '1000',
+    orderReference: 'MOCK-' + transactionId,
+  };
+}
+
 /** Poll collection status. GET /collection/status. x-bridge looks the provider
     up from its own record of the collection, so we never name one. */
 export async function collectionStatus(
@@ -372,17 +390,7 @@ export async function collectionStatus(
   cfg = xbridgeConfig(),
   signal?: AbortSignal,
 ): Promise<CollectionStatusResponse> {
-  if (cfg.mock) {
-    const forced = _mockStatus.get(transactionId) ?? mockStatusFromFile(transactionId) ?? sandboxStatus(transactionId);
-    if (forced) return forced;
-    return {
-      transactionId,
-      status: 'COMPLETED',
-      amount: '1000',
-      collectedAmount: '1000',
-      orderReference: 'MOCK-' + transactionId,
-    };
-  }
+  if (cfg.mock) return mockCollectionStatus(transactionId);
   const path = `/collection/status?transactionId=${encodeURIComponent(transactionId)}`;
   return authed(cfg, path, { method: 'GET', signal });
 }

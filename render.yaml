@@ -60,7 +60,11 @@ envVarGroups:
         sync: false
       - key: XBRIDGE_SECRET
         sync: false
-      - key: XBRIDGE_WEBHOOK_SECRET  # installments /v1 receivable webhooks
+      - key: XBRIDGE_WEBHOOK_SECRET  # BS166: signing secret of the x-bridge business webhook (Developers › Webhooks)
+        sync: false
+      - key: XBRIDGE_V1_KEY_ID       # BS166: optional /v1 key (collection:read + collection:write); else XBRIDGE_KEY_ID
+        sync: false
+      - key: XBRIDGE_V1_SECRET
         sync: false
       - key: XBRIDGE_V1              # "1" only after the x-bridge /v1 sandbox is verified (BS138)
         value: "0"

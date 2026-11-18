@@ -33,6 +33,7 @@ try {
 import {
   makeSql, sweepExpiredHolds, sweepExpiredReservations, reconcilePending, splitAwareExpirySweep,
   drainBroadcasts, broadcastBatchSize, logSmsStartup, purgeVisitorDays, runInstallmentJobs,
+  recheckUnpaidAttempts, crossCheckList, purgeCrossCheckRuns,
 } from '@zora/core';
 
 // Constant key shared by every worker instance (distinct from the migrate lock).
@@ -57,6 +58,10 @@ const BROADCAST_MS = intervalMs('BROADCAST_TICK_MS', 5_000, 100);
 // BS135: installment reminders + locked default close + housekeeping. Every 5
 // min is plenty (reminders are once-a-day latches; grace is measured in days).
 const INSTALLMENT_MS = intervalMs('INSTALLMENT_TICK_MS', 5 * 60_000, 1_000);
+// BS166: payment cross-check. Re-ask x-bridge about unpaid attempts (7 days,
+// backing off) every 5 min; compare x-bridge's 72 h list with ours hourly.
+const RECHECK_MS = intervalMs('CROSSCHECK_RECHECK_MS', 5 * 60_000, 1_000);
+const LIST_CHECK_MS = intervalMs('CROSSCHECK_LIST_MS', 60 * 60_000, 1_000);
 
 /* Verbose tick tracing. Off in production (a quiet worker is a readable log);
    on in the e2e, where "did reconcile keep running while the queue drained" is
@@ -113,6 +118,22 @@ function startWorkers(): void {
   everyMs(RECONCILE_MS, 'reconcile', reconcilePending);
   // BS135: installments — reminders (once per order per day), default close (A18).
   everyMs(INSTALLMENT_MS, 'installments', (s) => runInstallmentJobs(s));
+  // BS166: payment cross-check (logs only when it found something to change).
+  everyMs(RECHECK_MS, 'crosscheck-recheck', async (s) => {
+    const r = await recheckUnpaidAttempts(s);
+    if (r.settled || r.flagged || r.errors) {
+      console.log(`[worker] crosscheck-recheck: checked=${r.checked} settled=${r.settled} flagged=${r.flagged} errors=${r.errors}`);
+    }
+    return 0; // logged above only when something changed
+  });
+  everyMs(LIST_CHECK_MS, 'crosscheck-list', async (s) => {
+    const r = await crossCheckList(s);
+    if (r && (r.settled || r.flagged || r.errors || !r.complete)) {
+      console.log(`[worker] crosscheck-list: rows=${r.checked} settled=${r.settled} flagged=${r.flagged} errors=${r.errors} complete=${r.complete}`);
+    }
+    return 0;
+  });
+  everyMs(24 * 60 * 60 * 1000, 'crosscheck-purge', purgeCrossCheckRuns);
   // BS123: visitor-dedupe rows are kept 35 days only (aggregates stay).
   everyMs(6 * 60 * 60 * 1000, 'analytics-purge', (s) => purgeVisitorDays(s, 35));
   // BS43 (#2 / ARCH-4): BOUNDED per tick. drainBroadcasts claims at most
@@ -127,7 +148,7 @@ function startWorkers(): void {
     return r.claimed;
   });
   console.log(
-    '[worker] started: hold-sweep + reservation-sweep + split-sweep + payment reconciliation + installments' +
+    '[worker] started: hold-sweep + reservation-sweep + split-sweep + payment reconciliation + installments + payment cross-check' +
       ` + broadcast fan-out (batch=${broadcastBatchSize()} every ${BROADCAST_MS}ms) (singleton)`,
   );
 }

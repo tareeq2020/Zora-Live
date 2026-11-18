@@ -49,7 +49,8 @@ type Notice = { kind: 'error' | 'info'; text: string } | null;
 
 const POLL_MS = 3000;
 const POLL_MAX = 60;
-const PAYABLE = new Set(['mobile', 'billpay', 'card']);
+// BS166: card is not offered for pay-in-parts (the pay endpoint refuses it).
+const PAYABLE = new Set(['mobile', 'billpay']);
 
 const groupPhone = (d: string) => groupNational(d);
 
