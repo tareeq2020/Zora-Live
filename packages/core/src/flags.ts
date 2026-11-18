@@ -15,6 +15,9 @@ export const FLAG_NAMES = [
   'zp_analytics',
   'zp_pass_design',
   'zp_installments',
+  // BS167: card checkout, per organizer / event. Also needs Admin → Payments → Card
+  // on and x-bridge offering card. OFF (absent) = no card for anyone.
+  'zp_card',
 ] as const;
 
 export type FlagName = (typeof FLAG_NAMES)[number];

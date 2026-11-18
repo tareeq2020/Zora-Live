@@ -208,7 +208,8 @@ export default function CheckoutFlowV2({
       .then((d: { feeRate?: number } | null) => setFeeRate(typeof d?.feeRate === 'number' ? d.feeRate : d ? 0 : null))
       .catch(() => setFeeRate(null));
     // Method groups from the API; any failure keeps today's Mobile money + Card.
-    fetch('/api/payment-methods', { cache: 'no-store' })
+    // BS167: card can be on for some organizers / events only.
+    fetch(`/api/payment-methods?${new URLSearchParams({ ...(organizerHandle ? { org: organizerHandle } : {}), ...(eventId ? { event: eventId } : {}) })}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { groups?: Array<{ id: string; label: string; enabled: boolean; billingRequired?: boolean }> } | null) => {
         setCardBilling(!!d?.groups?.find((x) => x?.id === 'card')?.billingRequired);

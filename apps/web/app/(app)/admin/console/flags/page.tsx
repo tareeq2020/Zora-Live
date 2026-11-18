@@ -15,6 +15,7 @@ const FLAGS: { id: string; label: string; hint: string }[] = [
   { id: 'zp_analytics', label: 'Storefront analytics', hint: 'R4 · organizer analytics page' },
   { id: 'zp_pass_design', label: 'Branded passes', hint: 'R4 · pass design tab + branded passes' },
   { id: 'zp_installments', label: 'Installments', hint: 'R5 · keep OFF until x-bridge /v1 is live' },
+  { id: 'zp_card', label: 'Card payments', hint: 'BS167 · also needs Payments → Card on and x-bridge offering card' },
 ];
 
 type Rule = { on?: boolean; orgs?: string[]; events?: string[] };

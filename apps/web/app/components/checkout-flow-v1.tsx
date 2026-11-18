@@ -163,7 +163,7 @@ export default function CheckoutFlowV1({ open, onClose, eventName, eventId, when
       .catch(() => {}); // leave the fail-open default in place
     // BS166: card also needs x-bridge to offer it (/api/payment-methods).
     setCardOffered(false);
-    fetch('/api/payment-methods', { cache: 'no-store' })
+    fetch(`/api/payment-methods?${new URLSearchParams({ ...(organizerHandle ? { org: organizerHandle } : {}), ...(eventId ? { event: eventId } : {}) })}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { groups?: Array<{ id: string; enabled: boolean; billingRequired?: boolean }> } | null) => {
         const c = d?.groups?.find((g) => g?.id === 'card');
