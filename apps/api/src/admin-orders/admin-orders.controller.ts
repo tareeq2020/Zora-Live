@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import {
   db, adminPush, adminPushPreview, AdminPushRefused, maskPhone, reconcile, checkOrderWithGateway, GatewayCheckRefused,
   acceptGatewayAnswer, AcceptGatewayRefused,
+  crossCheckOverview, crossCheckList, recheckUnpaidAttempts, xbridgeV1Config, cardAvailability,
 } from '@zora/core';
 import { SessionGuard } from '../common/session.guard';
 import { Roles } from '../common/roles.guard';
@@ -233,6 +234,64 @@ export class AdminOrdersController {
       console.error('admin accept gateway failed', (e as Error)?.message);
       await audit('error', trimmed);
       return res.status(500).json({ error: 'accept_failed' });
+    }
+  }
+}
+
+/* BS166: the payment cross-check (the worker runs it every 5 min / hourly).
+   GET  /api/admin/payments/crosscheck       — last runs + open payment alerts.
+   POST /api/admin/payments/crosscheck/run   { kind: 'recheck' | 'list' } — run
+        one pass now (one at a time; 429 while one runs). Audited. */
+@Roles('super_admin')
+@Controller('admin/payments/crosscheck')
+@UseGuards(SessionGuard)
+export class AdminCrossCheckController {
+  private running = false;
+  constructor(private readonly audit: AuditService) {}
+
+  @Get()
+  async get() {
+    const sql = db();
+    const overview = await crossCheckOverview(sql);
+    const alerts = await sql`
+      select split_part(dedup_key, ':', 1) as kind, split_part(dedup_key, ':', 2) as order_id,
+             substr(dedup_key, length(split_part(dedup_key, ':', 1)) + length(split_part(dedup_key, ':', 2)) + 3) as detail,
+             received_at
+        from webhook_event
+       where provider = 'ops-alert'
+         and split_part(dedup_key, ':', 1) in ('gateway_mismatch', 'gateway_unknown_payment', 'late_collection', 'duplicate_collection')
+         and received_at > now() - interval '7 days'
+       order by received_at desc limit 50`;
+    return {
+      ...overview,
+      v1: !xbridgeV1Config().mock,
+      card: await cardAvailability('TZS'),
+      alerts: alerts.map((a: any) => ({
+        kind: a.kind, orderId: /^[0-9a-f-]{36}$/i.test(a.order_id) ? a.order_id : null, detail: a.detail,
+        at: new Date(a.received_at).toISOString(),
+      })),
+    };
+  }
+
+  @Post('run')
+  async run(@Body() body: any, @Req() req: Request, @Res() res: Response) {
+    const kind = body?.kind === 'list' ? 'list' : body?.kind === 'recheck' ? 'recheck' : null;
+    if (!kind) return res.status(400).json({ error: 'invalid_kind' });
+    if (this.running) return res.status(429).json({ error: 'running', message: 'A cross-check is already running.' });
+    const s: any = req.session || {};
+    const adminId = String(s.userId || 'admin');
+    this.running = true;
+    try {
+      const r = kind === 'list' ? await crossCheckList(db()) : await recheckUnpaidAttempts(db());
+      if (!r) return res.status(409).json({ error: 'no_v1_key', message: 'The x-bridge list needs a /v1 key (XBRIDGE_KEY_ID with collection:read).' });
+      await this.audit.record('admin.payments.crosscheck', `${adminId} ran ${kind} · checked ${r.checked} · settled ${r.settled} · flagged ${r.flagged} · errors ${r.errors}`, req.ip, adminId)
+        .catch((e) => console.error('audit write failed', (e as Error)?.message));
+      return res.status(200).json(r);
+    } catch (e) {
+      console.error('admin crosscheck failed', (e as Error)?.message);
+      return res.status(502).json({ error: 'crosscheck_failed', message: String((e as Error)?.message ?? e).slice(0, 200) });
+    } finally {
+      this.running = false;
     }
   }
 }

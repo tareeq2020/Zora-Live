@@ -74,7 +74,8 @@ echo "$al" | grep -q '"ok":true' || { echo "  ✗ admin login: $al"; fail=1; }
 
 echo "== 2. untouched platform — all three methods still work (fail-open) =="
 o1=$(checkout "$SNAP/b1" "255700000001" "b1@test.com")
-c=$(code -b "$SNAP/b1" -X POST "$BASE/api/checkout/$o1/pay" -H 'content-type: application/json' -d '{"method":"card","payerPhone":"255700000001","payerName":"Buyer One"}')
+c=$(code -b "$SNAP/b1" -X POST "$BASE/api/checkout/$o1/pay" -H 'content-type: application/json' -d '{"method":"card","payerPhone":"255700000001","payerName":"Buyer One","email":"one@example.com","billing":{"address1":"Plot 1","city":"Dar es Salaam","stateOrRegion":"Dar es Salaam","postcodeOrPobox":"11101","country":"TZ"}}')
+# BS166: x-bridge needs the card holder's billing address for TZS, so it is sent here.
 [ "$c" = "200" ] && echo "  ✓ card, untouched settings -> 200" || { echo "  ✗ card, untouched -> $c (want 200)"; fail=1; }
 
 echo "== 3. admin disables card -> card refused, mobile on the SAME event unaffected =="

@@ -42,9 +42,14 @@ async function newOrder(sql, phone) {
   if (!r.ok) throw new Error(JSON.stringify(r));
   return r;
 }
+// BS166: x-bridge's published scheme signs "<timestamp>.<raw body>".
+const nowTs = () => String(Math.floor(Date.now() / 1000));
+function hdr(raw, secret = SECRET, ts = nowTs()) {
+  return { 'x-bridge-signature': signReceivableWebhook(raw, secret, ts), 'x-bridge-timestamp': ts };
+}
 function hook(sql, body, sig) {
   const raw = JSON.stringify(body);
-  return handleReceivableWebhook(sql, raw, { 'x-bridge-signature': sig === undefined ? signReceivableWebhook(raw, SECRET) : sig });
+  return handleReceivableWebhook(sql, raw, sig === undefined ? hdr(raw) : { 'x-bridge-signature': sig, 'x-bridge-timestamp': nowTs() });
 }
 const evt = (type, receivableId, payment, extra = {}) => ({
   id: 'evt_' + (++seq), type,
@@ -57,16 +62,18 @@ const evt = (type, receivableId, payment, extra = {}) => ({
   // ── signature ─────────────────────────────────────────────────────────────
   console.log('— webhook signature (HMAC-SHA256 over the raw body, v1=)');
   const raw = JSON.stringify({ id: 'e1', type: 'receivable.paid', data: { receivable: { id: 'R1' } } });
-  ok(parseWebhook(raw, { 'x-bridge-signature': signReceivableWebhook(raw, SECRET) }).ok === true, 'valid signature → parsed');
-  ok(parseWebhook(raw, { 'x-bridge-signature': 't=123,' + signReceivableWebhook(raw, SECRET) }).ok === true, '"t=…,v1=…" list accepted');
-  ok(parseWebhook(raw, { 'x-bridge-signature': signReceivableWebhook(raw, 'wrong') }).reason === 'bad_signature', 'wrong secret → bad_signature');
-  ok(parseWebhook(raw + ' ', { 'x-bridge-signature': signReceivableWebhook(raw, SECRET) }).reason === 'bad_signature', 'body changed by one byte → bad_signature');
+  ok(parseWebhook(raw, hdr(raw, SECRET)).ok === true, 'valid signature → parsed');
+  ok(parseWebhook(raw, { ...hdr(raw), 'x-bridge-signature': 'v1=' + '0'.repeat(64) + ',' + hdr(raw)['x-bridge-signature'] }).ok === true, 'several v1= values (secret rotation) → any match accepted');
+  ok(parseWebhook(raw, hdr(raw, SECRET, String(Math.floor(Date.now() / 1000) - 400))).reason === 'bad_signature', 'timestamp older than 300 s → refused');
+  ok(parseWebhook(raw, { 'x-bridge-signature': hdr(raw)['x-bridge-signature'] }).reason === 'bad_signature', 'no X-Bridge-Timestamp → refused');
+  ok(parseWebhook(raw, hdr(raw, 'wrong')).reason === 'bad_signature', 'wrong secret → bad_signature');
+  ok(parseWebhook(raw + ' ', hdr(raw, SECRET)).reason === 'bad_signature', 'body changed by one byte → bad_signature');
   ok(parseWebhook(raw, {}).reason === 'bad_signature', 'no header → bad_signature');
   const saved = process.env.XBRIDGE_WEBHOOK_SECRET; delete process.env.XBRIDGE_WEBHOOK_SECRET;
-  ok(parseWebhook(raw, { 'x-bridge-signature': signReceivableWebhook(raw, SECRET) }).reason === 'no_secret', 'no secret configured → refused (fail-closed)');
+  ok(parseWebhook(raw, hdr(raw, SECRET)).reason === 'no_secret', 'no secret configured → refused (fail-closed)');
   process.env.XBRIDGE_WEBHOOK_SECRET = saved;
   const unk = JSON.stringify({ type: 'receivable.refunded', data: { receivable: { id: 'R1' } } });
-  ok(parseWebhook(unk, { 'x-bridge-signature': signReceivableWebhook(unk, SECRET) }).reason === 'unknown_type', 'unknown event type → refused');
+  ok(parseWebhook(unk, hdr(unk, SECRET)).reason === 'unknown_type', 'unknown event type → refused');
 
   // ── collection rail + push rate limit ────────────────────────────────────
   console.log('— collection rail (default) + push rate limit');

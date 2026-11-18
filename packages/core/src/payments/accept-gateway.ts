@@ -20,7 +20,8 @@
    3. clears the gateway_mismatch alert for this attempt, and reports the
       cart's other attempts that may still be payable at x-bridge (a second
       approval there would be a second collection, which GUARD 2 flags). */
-import { type CollectionStatusResponse, collectionStatus } from './xbridge';
+import { type CollectionStatusResponse } from './xbridge';
+import { statusForAttempt } from './xbridge-v1';
 import { settleFromStatus, mapStatus, collectedFromStatus, type PaymentOutcome } from './service';
 import { readWithTimeout, type StatusReader } from './gateway-check';
 import { captureStatusRead } from '../gateway-capture';
@@ -82,7 +83,8 @@ const READ_TIMEOUT_MS = 15_000;
 export async function acceptGatewayAnswer(sql: Sql, input: AcceptGatewayInput): Promise<AcceptGatewayResult> {
   const { orderId, transactionId, admin } = input;
   const note = input.note == null ? null : String(input.note).trim().slice(0, 280) || null;
-  const read: StatusReader = input.statusReader ?? ((id, signal) => collectionStatus(id, undefined, signal));
+  let attProvider: string | null = null; // BS166: read on the route that created the attempt
+  const read: StatusReader = input.statusReader ?? ((id, signal) => statusForAttempt(id, attProvider, signal));
 
   const [order] = await sql`select status, type from "order" where id = ${orderId}::uuid`;
   if (!order) throw new AcceptGatewayRefused('order_not_found', 'Order not found.');
@@ -90,6 +92,7 @@ export async function acceptGatewayAnswer(sql: Sql, input: AcceptGatewayInput): 
     select transaction_id, status, provider, method, schedule_n from payment_transaction
      where transaction_id = ${transactionId} and order_id = ${orderId}::uuid`;
   if (!att) throw new AcceptGatewayRefused('attempt_not_found', 'That attempt is not on this cart.');
+  attProvider = att.provider ?? null;
   // Pay-in-full carts only: split seats and installment rows keep their own
   // money rules (late / duplicate handling) that this path does not cover.
   if (att.provider === 'xbridge_v1' || att.schedule_n != null || order.type === 'table_share') {

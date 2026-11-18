@@ -266,6 +266,22 @@ export type {
 export { collectViaCollectionApi } from './payments/service';
 export type { CollectAttemptInput, CollectAttemptResult } from './payments/service';
 export { xbridgeRequest, XbridgeHttpError } from './payments/xbridge';
+// BS166: x-bridge /v1 (card checkout, methods, status, list), signed business webhooks, cross-check job.
+export {
+  xbridgeV1Config, XbridgeV1Error, paymentMethodsV1, cardAvailability, createCardCheckout, collectionStatusV1,
+  listCollectionsV1, missingBillingFields, statusForAttempt, V1_COLLECTION_PROVIDER, BILLING_FIELDS,
+  __resetV1TokenCache, __resetMethodsCache,
+} from './payments/xbridge-v1';
+export type { CardBilling, CardAvailability, CreateCardInput, CreateCardResponse, ListedCollection, XbridgeMethod } from './payments/xbridge-v1';
+export { handleXbridgeEvent, xbridgeWebhookSecret, receivedAmount } from './payments/xbridge-events';
+export type { XbridgeEventResult } from './payments/xbridge-events';
+export { verifyXbridgeSignature, signXbridgeWebhook, WEBHOOK_MAX_AGE_SECS } from './payments/xbridge-signature';
+export type { SignatureCheck } from './payments/xbridge-signature';
+export {
+  recheckUnpaidAttempts, crossCheckList, crossCheckOverview, purgeCrossCheckRuns, settlePaidAnswer, CROSSCHECK_LIMITS,
+} from './payments/crosscheck';
+export type { CrossCheckResult, CrossVerdict } from './payments/crosscheck';
+export { CardCheckoutRefused, CARD_HOLD_SECS } from './payments/service';
 // BS135: installment worker jobs — reminders, locked default close, refund booking.
 export {
   sendInstallmentReminders, closeDefaultedPlans, cancelStalePendingPlans, runInstallmentJobs,

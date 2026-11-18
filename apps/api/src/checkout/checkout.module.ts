@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import {
   db, createGaVipOrder, poolSnapshotsCached, releaseOwnSeatHold, isFlagOn,
   createInstallmentOrder, readInstallmentConfig, eventInstallmentContext,
+  cardAvailability,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { CommissionService } from '../common/commission.module';
@@ -276,10 +277,15 @@ export class CheckoutController {
   async paymentMethods() {
     const settings = await readSettingsCached(this.entities);
     const en = settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
+    // BS166: card shows only when the admin switch is on AND x-bridge lists card
+    // for TZS (GET /v1/payments/methods, cached 5 min). x-bridge says whether it
+    // needs the payer's billing address; checkout then asks for it.
+    const cardOn = en.card !== false;
+    const card = cardOn ? await cardAvailability('TZS') : null;
     return {
       groups: [
         { id: 'mobile', label: 'Mobile money', enabled: en.mobile !== false, networks: 'from_number' },
-        { id: 'card', label: 'Card', enabled: en.card !== false },
+        { id: 'card', label: 'Card', enabled: !!card?.available, billingRequired: card?.billingRequired ?? false },
         { id: 'qr', label: 'Scan to pay (QR)', enabled: en.qr === true },
         { id: 'billpay', label: 'Control number', enabled: en.billpay !== false },
       ],

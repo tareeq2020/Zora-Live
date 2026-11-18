@@ -163,3 +163,72 @@ test('collectBillPay: response reads orderReference ?? reference', async () => {
   assert.equal(out.billPayNumber, 'CN-1');
   assert.equal(out.orderReference, 'REF-1'); // fell through to `reference`
 });
+
+/* ── BS166: /v1 card, signature, helpers ─────────────────────────────── */
+import {
+  verifyXbridgeSignature, signXbridgeWebhook, missingBillingFields, receivedAmount, cardAvailability,
+  createCardCheckout, statusForAttempt, mapStatus, xbridgeV1Config,
+} from '../dist/index.js';
+
+test('signature: valid, rotated, stale, future, tampered, missing timestamp', () => {
+  const raw = '{"eventId":"e1","event":"payment.received"}';
+  const now = Date.now();
+  const ts = String(Math.floor(now / 1000));
+  const sig = signXbridgeWebhook(raw, 's3cret', ts);
+  assert.equal(verifyXbridgeSignature(raw, { 'x-bridge-signature': sig, 'x-bridge-timestamp': ts }, 's3cret', now), 'ok');
+  assert.equal(verifyXbridgeSignature(raw, { 'x-bridge-signature': 'v1=' + 'a'.repeat(64) + ', ' + sig, 'x-bridge-timestamp': ts }, 's3cret', now), 'ok');
+  assert.equal(verifyXbridgeSignature(raw, { 'x-bridge-signature': sig, 'x-bridge-timestamp': ts }, 's3cret', now + 301_000), 'stale');
+  assert.equal(verifyXbridgeSignature(raw, { 'x-bridge-signature': sig, 'x-bridge-timestamp': ts }, 's3cret', now - 61_000), 'stale');
+  assert.equal(verifyXbridgeSignature(raw + ' ', { 'x-bridge-signature': sig, 'x-bridge-timestamp': ts }, 's3cret', now), 'bad_signature');
+  assert.equal(verifyXbridgeSignature(raw, { 'x-bridge-signature': sig }, 's3cret', now), 'bad_timestamp');
+  assert.equal(verifyXbridgeSignature(raw, {}, 's3cret', now), 'no_signature');
+});
+
+test('missingBillingFields: all required but address2; country must be 2 letters', () => {
+  assert.deepEqual(missingBillingFields(null).length, 8);
+  const full = { firstname: 'A', lastname: 'M', address1: 'Plot 1', city: 'Dar', stateOrRegion: 'Dar', postcodeOrPobox: '11101', country: 'TZ', phone: '+255712345678' };
+  assert.deepEqual(missingBillingFields(full), []);
+  assert.deepEqual(missingBillingFields({ ...full, city: ' ' }), ['city']);
+  assert.deepEqual(missingBillingFields({ ...full, country: 'Tanzania' }), ['country']);
+});
+
+test('receivedAmount: value, minor units, flat', () => {
+  assert.deepEqual(receivedAmount({ amount: { currency: 'TZS', amountMinor: 100000, exponent: 2, value: '1000.00' } }), { value: 1000, currency: 'TZS' });
+  assert.deepEqual(receivedAmount({ amount: { currency: 'TZS', amountMinor: 250000, exponent: 2 } }), { value: 2500, currency: 'TZS' });
+  assert.deepEqual(receivedAmount({ amount: '500', currency: 'TZS' }), { value: 500, currency: 'TZS' });
+});
+
+test('mapStatus: EXPIRED and AUTH_PENDING_REVIEW are not final', () => {
+  assert.equal(mapStatus({ transactionId: 't', status: 'EXPIRED' }), 'pending');
+  assert.equal(mapStatus({ transactionId: 't', status: 'AUTH_PENDING_REVIEW' }), 'pending');
+});
+
+test('v1 config: base URL drops a trailing /api', () => {
+  assert.equal(xbridgeV1Config({ XBRIDGE_BASE_URL: 'https://api.xbridge.co.tz/api', XBRIDGE_KEY_ID: 'k' }).baseUrl, 'https://api.xbridge.co.tz');
+  assert.equal(xbridgeV1Config({ XBRIDGE_BASE_URL: 'https://api.xbridge.co.tz/api', XBRIDGE_V1_BASE_URL: 'https://x.test/' }).baseUrl, 'https://x.test');
+});
+
+test('mock card: availability, refusals, page', async () => {
+  const prev = { ...process.env };
+  process.env.XBRIDGE_MOCK = 'true';
+  const a = await cardAvailability('TZS');
+  assert.equal(a.available, true);
+  assert.equal(a.billingRequired, true);
+  await assert.rejects(createCardCheckout({ transactionId: 'T1', amount: 1000, buyer: { name: 'A', email: 'a@x.co', phone: '+255712345678' }, redirectUrl: 'https://w/r', cancelUrl: 'https://w/c' }),
+    (e) => e.code === 'BILLING_ADDRESS_REQUIRED' && e.status === 400);
+  const billing = { firstname: 'A', lastname: 'M', address1: 'Plot 1', city: 'Dar', stateOrRegion: 'Dar', postcodeOrPobox: '11101', country: 'TZ', phone: '+255712345678' };
+  const r = await createCardCheckout({ transactionId: 'T1', amount: 1000, buyer: { name: 'A', email: 'a@x.co', phone: '+255712345678' }, billing, redirectUrl: 'https://w/r?x=1', cancelUrl: 'https://w/c' });
+  assert.equal(r.paymentUrl, 'https://w/r?x=1&mockcard=1');
+  assert.equal(r.orderReference, 'MOCK-CARD-T1');
+  process.env.XBRIDGE_MOCK_CARD = '0';
+  assert.equal((await cardAvailability('TZS')).available, false);
+  process.env = prev;
+});
+
+test('statusForAttempt: card (/v1) and legacy both answer in mock', async () => {
+  process.env.XBRIDGE_MOCK = 'true';
+  __setMockCollectionStatus('V1-T', { status: 'EXPIRED' });
+  assert.equal((await statusForAttempt('V1-T', 'xbridge_v1c')).status, 'EXPIRED');
+  assert.equal((await statusForAttempt('V1-T', null)).status, 'EXPIRED');
+  __clearMockCollectionStatus();
+});
