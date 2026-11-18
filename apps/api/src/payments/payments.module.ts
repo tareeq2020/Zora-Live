@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload, logCallbackReceived, captureCallback,
   issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type PaymentMethod,
+  CardCheckoutRefused, handleXbridgeEvent,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -43,7 +44,7 @@ export class PaymentsController {
   // ── Start a collection for a pending/failed order ─────────────────────────
   @Post('checkout/:orderId/pay')
   async pay(@Param('orderId') orderId: string, @Body() body: any, @Res() res: Response) {
-    const { method, payerPhone, payerName, scheduleN } = body || {};
+    const { method, payerPhone, payerName, scheduleN, billing, email } = body || {};
     if (method !== 'mobile' && method !== 'billpay' && method !== 'card') {
       return res.status(400).json({ error: 'invalid_method' });
     }
@@ -80,14 +81,20 @@ export class PaymentsController {
         payerName: payerName ? String(payerName) : undefined,
         callbackUrl,
         scheduleN: scheduleN ?? null,
+        // BS166: card only. The billing address goes to x-bridge; we don't keep it.
+        ...(method === 'card' ? { card: { billing: billing && typeof billing === 'object' ? billing : null, email: email ? String(email) : null } } : {}),
       });
       return res.status(200).json({
         transactionId: r.transactionId,
         status: r.status,
         ...(r.billPayNumber ? { billPayNumber: r.billPayNumber } : {}),
         ...(r.redirectUrl ? { redirectUrl: r.redirectUrl } : {}),
+        ...(r.expiresAt ? { expiresAt: r.expiresAt } : {}),
       });
     } catch (e: any) {
+      if (e instanceof CardCheckoutRefused) {
+        return res.status(e.http).json({ error: e.code, message: e.message, ...(e.fields.length ? { fields: e.fields } : {}) });
+      }
       if (e instanceof InstallmentAttemptRefused) {
         // BS133: x-bridge caps mobile pushes (3 / receivable / 10 min) — say when to retry.
         if (e.code === 'push_rate_limited') {
@@ -121,7 +128,7 @@ export class PaymentsController {
       catch (e) { console.error('status reconcile failed', t.transaction_id, e); }
     }
 
-    const [order] = await sql`select status from "order" where id = ${orderId}`;
+    const [order] = await sql`select status, event_id from "order" where id = ${orderId}`;
     if (!order) return res.status(404).json({ error: 'order_not_found' });
 
     const creds = await sql`
@@ -159,9 +166,34 @@ export class PaymentsController {
     // BS132: an installment order also reports its plan ("Booked — X of N paid").
     // BS134: amounts only for the buyer (checkout cookie / verified buyer session) —
     // the order id alone travels in SMS links.
+    // BS166: an open card checkout, so the return page can reopen the same card
+    // page rather than start a second checkout. Its URL only goes to the buyer.
+    let card: Record<string, unknown> | null = null;
+    const [buyerRow] = order.status === 'pending' ? await sql`
+      select o.customer_id, c.phone from "order" o left join customer c on c.id = o.customer_id where o.id = ${orderId}` : [];
+    const buyerOwner = buyerRow?.customer_id ? { customerId: String(buyerRow.customer_id), phone: buyerRow.phone ?? null } : null;
+    if (order.status === 'pending' && canReadBuyerOrder(req, orderId, buyerOwner)) {
+      const [c] = await sql`
+        select transaction_id, status, payment_url, payment_url_expires_at, failure_reason
+          from payment_transaction
+         where order_id = ${orderId} and method = 'card'
+         order by created_at desc limit 1`;
+      if (c) {
+        const live = c.payment_url && c.payment_url_expires_at && new Date(c.payment_url_expires_at).getTime() > Date.now();
+        card = {
+          transactionId: c.transaction_id,
+          attempt: c.status,
+          ...(live && ['created', 'pending', 'processing'].includes(c.status) ? { paymentUrl: c.payment_url, expiresAt: new Date(c.payment_url_expires_at).toISOString() } : {}),
+        };
+      }
+    }
+
     const owner = await installmentOrderOwner(sql, orderId);
     const installments = owner && canReadBuyerOrder(req, orderId, owner) ? await installmentSummary(sql, orderId) : null;
-    return res.status(200).json({ status: order.status, credentials, ...(installments ? { installments } : {}) });
+    return res.status(200).json({
+      status: order.status, credentials, ...(order.event_id ? { eventId: order.event_id } : {}),
+      ...(installments ? { installments } : {}), ...(card ? { card } : {}),
+    });
   }
 
   // ── Provider webhook — RAW body, dedup, reconcile. ALWAYS 200. ────────────
@@ -216,5 +248,26 @@ export class ReceivableWebhookController {
   }
 }
 
-@Module({ controllers: [PaymentsController, ReceivableWebhookController] })
+/* BS166: x-bridge business webhooks (payment.received, refund.*, receivable.*).
+   This is the URL registered in x-bridge's dashboard. Signed (X-Bridge-Signature
+   over timestamp.rawBody), deduped on eventId. 401 bad signature, 503 no secret
+   configured, 500 on a processing error so x-bridge retries (for 72 h). */
+@Controller()
+export class XbridgeEventsController {
+  @Post('webhooks/xbridge/events')
+  async events(@Req() req: Request, @Res() res: Response) {
+    const b: any = (req as any).body;
+    const rawBody = Buffer.isBuffer(b) ? b.toString('utf8') : typeof b === 'string' ? b : JSON.stringify(b ?? {});
+    try {
+      const r = await handleXbridgeEvent(db(), rawBody, req.headers as Record<string, string | string[] | undefined>);
+      if (r.http >= 400) console.warn('xbridge event refused', r.http, r.body);
+      return res.status(r.http).json(r.body);
+    } catch (e) {
+      console.error('xbridge event error', e);
+      return res.status(500).json({ error: 'retry' });
+    }
+  }
+}
+
+@Module({ controllers: [PaymentsController, ReceivableWebhookController, XbridgeEventsController] })
 export class PaymentsModule {}

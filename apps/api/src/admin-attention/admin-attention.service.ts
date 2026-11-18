@@ -100,6 +100,7 @@ const OPS_ALERT_AFTER_REFUND = new Set(['late_collection', 'gateway_mismatch']);
 const OPS_ALERT_LABEL: Record<string, string> = {
   duplicate_collection: 'Duplicate collection — refund the extra payment',
   gateway_mismatch: 'x-bridge disagrees with a finished payment — check by hand',
+  gateway_unknown_payment: 'x-bridge took a payment we have no record of — find the buyer',
   late_collection: 'Money collected that the cart can no longer take — refund or reconcile',
   split_late_share: 'Split seat paid after the table closed',
   split_unconvertible: 'Split table paid but could not be seated',

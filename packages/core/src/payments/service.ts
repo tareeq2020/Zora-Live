@@ -18,6 +18,10 @@ import {
   type CollectionStatusResponse,
 } from './xbridge';
 import type { PaymentMethod } from './fsp';
+import {
+  cardAvailability, createCardCheckout, missingBillingFields, statusForAttempt, V1_COLLECTION_PROVIDER,
+  type CardBilling,
+} from './xbridge-v1';
 import { sendSms } from '../sms';
 import { sendCredentialEmail } from '../email';
 import { emailBrandForEvent } from '../theme-resolve';
@@ -287,6 +291,9 @@ export interface InitiatePaymentInput {
   /** BS158: extra fields for the pay_requested log step (who asked: an admin
       push adds by/adminId/adminName/note/phone). Never changes the money path. */
   logDetail?: Record<string, unknown>;
+  /** BS166: card only. The buyer's billing address (x-bridge needs it for a
+      TZS card) and email, when the customer record has none. */
+  card?: { billing?: Partial<CardBilling> | null; email?: string | null };
 }
 
 export interface InitiatePaymentResult {
@@ -294,7 +301,27 @@ export interface InitiatePaymentResult {
   status: 'pending';
   billPayNumber?: string;
   redirectUrl?: string;
+  /** BS166 card: when the hosted card page stops working. */
+  expiresAt?: string | null;
 }
+
+/** BS166: a card checkout we refuse before anything is sent to x-bridge, or
+    that x-bridge refused. `http` is what the pay endpoint answers. */
+export class CardCheckoutRefused extends Error {
+  constructor(
+    public readonly code: 'card_unavailable' | 'card_not_supported' | 'billing_incomplete' | 'email_required' | 'card_refused' | 'card_gateway_down',
+    message: string,
+    public readonly http: number,
+    public readonly fields: string[] = [],
+  ) {
+    super(message);
+    this.name = 'CardCheckoutRefused';
+  }
+}
+
+/** How long a card attempt's stock stays held: the checkout page lives 60
+    minutes; we keep the seats 10 more so a payment at the last minute lands. */
+export const CARD_HOLD_SECS = 70 * 60;
 
 /** Start a collection. Payable when the order is pending OR failed (retry): a
     timed-out PIN does not lock the buyer out. A failed retry RE-HOLDS inventory
@@ -316,6 +343,8 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   if (!installment && input.scheduleN != null) {
     throw new InstallmentAttemptRefused('not_installment_order');
   }
+  // BS166: card is checked BEFORE any write, so a refusal leaves the cart as it was.
+  const card = method === 'card' ? await prepareCard(sql, orderId, order.customer_id, payerPhone, payerName, input.card, !!installment) : null;
   // A retry re-HOLDS inventory for a failed order whose holds were released.
   // (BS56) tryRehold moves available → held; using tryReacquire here marked the
   // unpaid seats SOLD forever, with no hold to ever release.
@@ -337,8 +366,8 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
     amount = Number(order.target_value);
 
     await sql`
-      insert into payment_transaction (order_id, transaction_id, method, amount, status)
-      values (${orderId}, ${transactionId}, ${method}, ${amount}, 'created')`;
+      insert into payment_transaction (order_id, transaction_id, method, amount, status, provider)
+      values (${orderId}, ${transactionId}, ${method}, ${amount}, 'created', ${card ? V1_COLLECTION_PROVIDER : null})`;
   }
 
   const collectInput = {
@@ -354,10 +383,12 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   try {
     collected = installment
       ? await payInstallment(sql, { ...collectInput, scheduleN: installment.n })
-      : await collectViaCollectionApi(sql, collectInput);
+      : card
+        ? await collectCardV1(sql, { ...collectInput, card })
+        : await collectViaCollectionApi(sql, collectInput);
   } catch (e) {
     // BS153: keep WHY the gateway said no, then fail exactly as before.
-    const cause = (e as any)?.code === 'provider_refused' && (e as any)?.cause ? (e as any).cause : e;
+    const cause = ((e as any)?.code === 'provider_refused' || (e as any)?.name === 'CardCheckoutRefused') && (e as any)?.cause ? (e as any).cause : e;
     await recordGatewayRejection(sql, orderId, transactionId, cause, { method, amount });
     throw e;
   }
@@ -366,13 +397,120 @@ export async function initiatePayment(sql: Sql, input: InitiatePaymentInput): Pr
   await sql`
     update payment_transaction
        set status = 'pending', order_reference = ${orderReference ?? null},
-           bill_pay_number = ${billPayNumber ?? null}, accepted_at = now(), updated_at = now()
+           bill_pay_number = ${billPayNumber ?? null}, accepted_at = now(), updated_at = now(),
+           payment_url = ${card ? collected.paymentUrl ?? null : null},
+           payment_url_expires_at = ${card ? collected.expiresAt ?? null : null}
      where transaction_id = ${transactionId}`;
+  if (card) await extendHolds(sql, orderId, CARD_HOLD_SECS);
   await logOrderEvent(sql, orderId, 'gateway_accepted', {
     method, orderReference: orderReference ?? null, billPayNumber: billPayNumber ?? null, cardUrlIssued: !!redirectUrl,
   }, transactionId);
 
-  return { transactionId, status: 'pending', billPayNumber, redirectUrl };
+  return { transactionId, status: 'pending', billPayNumber, redirectUrl, ...(card ? { expiresAt: collected.expiresAt ?? null } : {}) };
+}
+
+/** BS166: what a card attempt sends x-bridge, worked out (and refused) before
+    anything is written. */
+interface PreparedCard {
+  buyer: { name: string; email: string; phone: string };
+  billing: CardBilling | null;
+  noOfItems: number;
+}
+
+async function prepareCard(
+  sql: Sql, orderId: string, customerId: string | null, payerPhone: string, payerName: string | undefined,
+  given: InitiatePaymentInput['card'], isInstallment: boolean,
+): Promise<PreparedCard> {
+  if (isInstallment) {
+    throw new CardCheckoutRefused('card_not_supported', 'Card is not available for pay-in-parts yet. Use mobile money.', 409);
+  }
+  const avail = await cardAvailability('TZS');
+  if (!avail.available) {
+    throw new CardCheckoutRefused('card_unavailable', 'Card payments are not available right now. Use mobile money.', 403);
+  }
+  const [cust] = customerId ? await sql`select email, name from customer where id = ${customerId}` : [null];
+  const email = String(given?.email ?? '').trim() || String(cust?.email ?? '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new CardCheckoutRefused('email_required', 'Enter your email to pay by card.', 400, ['email']);
+  }
+  const phone = normalizeMsisdn(payerPhone);
+  const name = String(payerName ?? '').trim() || String(cust?.name ?? '').trim() || 'Guest';
+  let billing: CardBilling | null = null;
+  const b = given?.billing ?? null;
+  if (b || avail.billingRequired) {
+    const [first, ...rest] = name.split(/\s+/);
+    const filled: CardBilling = {
+      firstname: String(b?.firstname ?? '').trim() || first,
+      lastname: String(b?.lastname ?? '').trim() || rest.join(' '),
+      address1: String(b?.address1 ?? '').trim(),
+      ...(String(b?.address2 ?? '').trim() ? { address2: String(b?.address2).trim() } : {}),
+      city: String(b?.city ?? '').trim(),
+      stateOrRegion: String(b?.stateOrRegion ?? '').trim(),
+      postcodeOrPobox: String(b?.postcodeOrPobox ?? '').trim(),
+      country: String(b?.country ?? '').trim().toUpperCase() || 'TZ',
+      phone: String(b?.phone ?? '').trim() ? normalizeMsisdn(String(b?.phone)) : phone,
+    };
+    const missing = missingBillingFields(filled);
+    if (avail.billingRequired && missing.length) {
+      throw new CardCheckoutRefused('billing_incomplete', 'Fill in your billing address to pay by card.', 400, missing);
+    }
+    billing = missing.length ? null : filled;
+  }
+  const [{ n }] = await sql`select coalesce(sum(quantity), 1)::int as n from order_item where order_id = ${orderId}`;
+  return { buyer: { name, email, phone }, billing, noOfItems: Math.max(1, Number(n) || 1) };
+}
+
+/** BS166: open a hosted card checkout on x-bridge /v1. The buyer comes back
+    to /pay/card/<order>; that page reads the status (never trusting the redirect). */
+async function collectCardV1(
+  _sql: Sql, input: CollectAttemptInput & { card: PreparedCard },
+): Promise<CollectAttemptResult> {
+  const back = (kind: 'return' | 'cancel') =>
+    `${publicWebOrigin()}/pay/card/${encodeURIComponent(input.orderId)}?card=${kind}&tx=${encodeURIComponent(input.transactionId)}`;
+  try {
+    const r = await createCardCheckout({
+      transactionId: input.transactionId,
+      amount: input.amount,
+      currency: 'TZS',
+      noOfItems: input.card.noOfItems,
+      buyer: input.card.buyer,
+      billing: input.card.billing,
+      redirectUrl: back('return'),
+      cancelUrl: back('cancel'),
+    });
+    return {
+      orderReference: r.orderReference ?? undefined,
+      // Test mode has no page: send the buyer straight to the return page.
+      redirectUrl: r.paymentUrl ?? back('return'),
+      paymentUrl: r.paymentUrl,
+      expiresAt: r.expiresAt,
+    };
+  } catch (e: any) {
+    if (e?.name === 'XbridgeV1Error') {
+      const code: string | null = e.code;
+      let refused: CardCheckoutRefused;
+      if (code === 'NO_PROVIDER_FOR_METHOD') {
+        refused = new CardCheckoutRefused('card_unavailable', 'Card payments are not available right now. Use mobile money.', 403);
+      } else if (code === 'BILLING_ADDRESS_REQUIRED' || code === 'CARD_HOLDER_DETAILS_REQUIRED') {
+        refused = new CardCheckoutRefused('billing_incomplete', e.detail || 'Fill in your billing address to pay by card.', 400);
+      } else if (e.status >= 500 || e.status === 409) {
+        refused = new CardCheckoutRefused('card_gateway_down', 'The card service is not answering. Try again in a minute, or use mobile money.', 503);
+      } else {
+        refused = new CardCheckoutRefused('card_refused', e.detail || 'The card payment could not be started.', 502);
+      }
+      (refused as any).cause = e;
+      throw refused;
+    }
+    throw e;
+  }
+}
+
+/** Keep an order's held stock (and held seats) for at least `secs` from now. */
+async function extendHolds(sql: Sql, orderId: string, secs: number): Promise<void> {
+  await sql`update inventory_hold set expires_at = greatest(expires_at, now() + make_interval(secs => ${secs}))
+             where order_id = ${orderId} and state = 'held'`;
+  await sql`update seat_inventory set hold_expires_at = greatest(hold_expires_at, now() + make_interval(secs => ${secs}))
+             where hold_order_id = ${orderId} and state = 'held'`;
 }
 
 export interface CollectAttemptInput {
@@ -390,6 +528,9 @@ export interface CollectAttemptResult {
   orderReference?: string;
   billPayNumber?: string;
   redirectUrl?: string;
+  /** BS166 card: the hosted page (null in x-bridge test mode) and its expiry. */
+  paymentUrl?: string | null;
+  expiresAt?: string | null;
 }
 
 /** Send one attempt out on the /collection/* API (mobile STK push, bill-pay
@@ -693,7 +834,7 @@ export async function reconcile(sql: Sql, transactionId: string): Promise<Paymen
   // receivable webhook; /collection/status does not know its id.
   // TODO(BS138): poll the /v1 payment status here once x-bridge publishes it.
   if (txr.provider === 'xbridge_v1') return 'pending';
-  const status = await collectionStatus(transactionId);
+  const status = await statusForAttempt(transactionId, txr.provider); // BS166: /v1 for card
   await captureStatusRead(sql, transactionId, status); // BS157, best-effort
   return (await settleFromStatus(sql, transactionId, txr, status)).outcome;
 }

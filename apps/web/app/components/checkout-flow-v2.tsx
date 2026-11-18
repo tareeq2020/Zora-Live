@@ -37,6 +37,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_EMAIL } from '@zora/core/contacts';
 import { trackProductEvent } from './product-analytics';
 import { sendCheckoutBeacon } from './view-beacon';
+import { CardBillingFields, EMPTY_BILLING, billingBody, billingProblem, cardPayError, type BillingValue } from './card-billing';
 import { stockStatus } from './event-card';
 import type { CheckoutFlowProps, CheckoutTier } from './checkout-types';
 import PhoneField from './phone-field';
@@ -143,6 +144,9 @@ export default function CheckoutFlowV2({
   const [email, setEmail] = useState('');
   const [ageAttested, setAgeAttested] = useState(false);
   const [method, setMethod] = useState<Method>('mobile');
+  // BS166: card needs a billing address when x-bridge says so.
+  const [cardBilling, setCardBilling] = useState(false);
+  const [billing, setBilling] = useState<BillingValue>(EMPTY_BILLING);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
@@ -206,7 +210,8 @@ export default function CheckoutFlowV2({
     // Method groups from the API; any failure keeps today's Mobile money + Card.
     fetch('/api/payment-methods', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { groups?: Array<{ id: string; label: string; enabled: boolean }> } | null) => {
+      .then((d: { groups?: Array<{ id: string; label: string; enabled: boolean; billingRequired?: boolean }> } | null) => {
+        setCardBilling(!!d?.groups?.find((x) => x?.id === 'card')?.billingRequired);
         const g = (d?.groups || [])
           .filter((x) => x && x.enabled && PAYABLE.has(x.id))
           .map((x) => ({ id: x.id as Method, label: x.label }));
@@ -337,6 +342,10 @@ export default function CheckoutFlowV2({
     if (phone.length !== 9) return 'Enter your phone number.';
     if (!email.trim()) return 'Enter your email.';
     if ((method === 'billpay' || method === 'card') && !name.trim()) return 'Enter your name.';
+    if (method === 'card' && cardBilling) {
+      const b = billingProblem(billing);
+      if (b) return b;
+    }
     if (!ageAttested) return 'Please confirm you are 18 or older.';
     if (!passCount) return 'Add at least one pass.';
     return null;
@@ -442,10 +451,16 @@ export default function CheckoutFlowV2({
         payerPhone: fullPhone,
         payerName: name.trim() || undefined,
         mno: method === 'mobile' ? mno?.id : undefined,
+        ...(method === 'card' ? { email: email.trim(), ...(cardBilling ? { billing: billingBody(billing) } : {}) } : {}),
       }),
     });
     if (res.status !== 200) {
       const d = await res.json().catch(() => ({}));
+      const cardText = method === 'card' ? cardPayError(d) : null;
+      if (cardText) {
+        setNotice({ kind: 'error', text: cardText });
+        return;
+      }
       if (res.status === 429) {
         const secs = Number(res.headers.get('Retry-After')) || Number(d.retryAfterSecs) || 600;
         const mins = Math.max(1, Math.ceil(secs / 60));
@@ -471,7 +486,14 @@ export default function CheckoutFlowV2({
     trackProductEvent('web_payment_started', { eventId, eventName, amount: o.installments ? o.installments.deposit : o.total, currency, method });
     setBillPayNumber(d.billPayNumber || null);
     setRedirectUrl(d.redirectUrl || null);
-    if (method === 'card' && d.redirectUrl) window.open(d.redirectUrl, '_blank', 'noopener');
+    if (method === 'card' && d.redirectUrl) {
+      // BS166: the card page runs in this tab and sends the buyer back to
+      // /pay/<order>, which reads the result. (A new tab was often blocked.)
+      setStatusVal('pending');
+      setStep('poll');
+      window.location.assign(d.redirectUrl);
+      return;
+    }
     setStatusVal('pending');
     setStep('poll');
     startPolling(o.orderId);
@@ -877,7 +899,20 @@ export default function CheckoutFlowV2({
                     {mno ? `${mno.name} — picked from your number.` : 'We pick your network from your number.'}
                   </span>
                 ) : null}
+                {method === 'card' ? (
+                  <span className="zc2-muted">You pay on a secure card page, then come back here.</span>
+                ) : null}
               </fieldset>
+
+              {method === 'card' && cardBilling ? (
+                <fieldset className="zc2-billing">
+                  <legend>Billing address</legend>
+                  <span className="zc2-muted">The card company asks for the card holder&apos;s address.</span>
+                  <div className="zc2-fields">
+                    <CardBillingFields value={billing} onChange={setBilling} fieldClass="zc2-field" wideClass="zc2-span2" idPrefix="zc2" />
+                  </div>
+                </fieldset>
+              ) : null}
 
               <label className="zc2-check">
                 <input type="checkbox" checked={ageAttested} onChange={(e) => setAgeAttested(e.target.checked)} />
@@ -903,15 +938,13 @@ export default function CheckoutFlowV2({
                 </>
               ) : method === 'card' ? (
                 <>
-                  <h2>Finish your card payment</h2>
+                  <h2>Opening the card page</h2>
                   <p>
-                    A secure card page opened in a new tab.{' '}
                     {redirectUrl ? (
-                      <a href={redirectUrl} target="_blank" rel="noopener noreferrer">
-                        Reopen it
+                      <a href={redirectUrl}>
+                        Tap here if it doesn&apos;t open
                       </a>
-                    ) : null}{' '}
-                    We update here automatically.
+                    ) : null}
                   </p>
                 </>
               ) : (
@@ -1266,6 +1299,11 @@ const STYLE = `
 .zc2 .zc2-field > span:first-child{font-family:var(--mono);font-size:12px;letter-spacing:.12em}
 .zc2 .zc2-field input{height:48px;border-radius:12px;border:2px solid var(--line);background:var(--wh);padding:0 14px;font-size:16px;font-family:var(--sans);color:var(--bk);width:100%}
 .zc2 .zc2-field input:focus{border-color:var(--bk);outline:3px solid var(--bk);outline-offset:2px}
+.zc2 .zc2-field select{height:48px;border-radius:12px;border:2px solid var(--line);background:var(--wh);padding:0 14px;font-size:16px;font-family:var(--sans);color:var(--bk);width:100%}
+.zc2 .zc2-field select:focus{border-color:var(--bk);outline:3px solid var(--bk);outline-offset:2px}
+.zc2 .zc2-billing{border:none;display:flex;flex-direction:column;gap:10px;margin:0;padding:0;min-width:0}
+.zc2 .zc2-billing legend{font-size:18px;font-weight:700;margin-bottom:4px;padding:0}
+@media(min-width:960px){.zc2 .zc2-billing legend{font-size:20px}}
 .zc2 .zc2-tel{display:flex;align-items:stretch}
 .zc2 .zc2-cc{display:flex;align-items:center;padding:0 12px;border:2px solid var(--line);border-right:none;border-radius:12px 0 0 12px;background:var(--bone);font-family:var(--mono);font-size:16px}
 .zc2 .zc2-tel input{border-radius:0 12px 12px 0;font-family:var(--mono)}

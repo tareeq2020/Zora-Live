@@ -26,7 +26,8 @@
    on the order row (refused while another check runs or within minGapSecs of
    the last), and always filled in at the end, even on failure. */
 import { tx } from '../db';
-import { collectionStatus, type CollectionStatusResponse } from './xbridge';
+import { type CollectionStatusResponse } from './xbridge';
+import { statusForAttempt } from './xbridge-v1';
 import { settleFromStatus, mapStatus, collectedFromStatus, mapLimit, type PaymentOutcome } from './service';
 import { captureStatusRead } from '../gateway-capture';
 import { sanitizeGatewayError } from '../order-events';
@@ -151,7 +152,7 @@ export async function readWithTimeout(read: StatusReader, transactionId: string,
 }
 
 /** x-bridge's status route itself answered 404 (it does not know the attempt). */
-const NOT_KNOWN = /\/collection\/status\S* failed: 404\b/;
+const NOT_KNOWN = /\/collections?\/status\S* failed: 404\b/;
 
 /** One gateway_mismatch alert per distinct disagreement (same key from every
     call site); a re-check brings a stale one back into view. */
@@ -210,7 +211,7 @@ export async function checkOrderWithGateway(
   orderId: string,
   opts: { admin?: { id: string; name: string } | null; statusReader?: StatusReader } = {},
 ): Promise<GatewayCheckResult> {
-  const read: StatusReader = opts.statusReader ?? ((id, signal) => collectionStatus(id, undefined, signal));
+  const read: StatusReader | null = opts.statusReader ?? null;
   const who = opts.admin ? { by: 'admin', adminId: opts.admin.id, adminName: opts.admin.name } : {};
   const claimed = await claim(sql, orderId, who);
   let detail: Record<string, unknown> = { ...who, failed: true };
@@ -229,13 +230,17 @@ export async function checkOrderWithGateway(
   }
 }
 
-async function runCheck(sql: Sql, orderId: string, statusBefore: string, read: StatusReader): Promise<GatewayCheckResult> {
+async function runCheck(sql: Sql, orderId: string, statusBefore: string, given: StatusReader | null): Promise<GatewayCheckResult> {
+  // BS166: each attempt is read on the route that created it (/v1 for card).
+  const providerOf = new Map<string, string | null>();
+  const read: StatusReader = given ?? ((id, signal) => statusForAttempt(id, providerOf.get(id), signal));
   const rows: (AttemptRow & { total: number })[] = await sql`
     select transaction_id, method, status, provider, error, schedule_n, collected_amount, count(*) over()::int as total
       from payment_transaction
      where order_id = ${orderId}::uuid
      order by created_at desc, transaction_id desc
      limit ${GATEWAY_CHECK_LIMITS.maxAttempts}`;
+  for (const r of rows) providerOf.set(String(r.transaction_id), r.provider ?? null);
   const total = rows.length ? Number(rows[0].total) : 0;
 
   // 1. Read x-bridge (in parallel, bounded, each with a timeout). Nothing is written.

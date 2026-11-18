@@ -74,13 +74,15 @@ RCV=$(psql_one "select receivable_id from installment_plan where order_id = '$OR
 [ -n "$TXN" ] && [ "$RCV" = "MOCK-RCV-$ORDER" ] && echo "  ✓ HTTP pay on the v1 rail opened receivable $RCV" || { echo "  ✗ pay: $PAY rcv=$RCV"; fail=1; }
 
 BODY="{\"id\":\"evt_http_1\",\"type\":\"receivable.partially_paid\",\"data\":{\"receivable\":{\"id\":\"$RCV\"},\"payment\":{\"id\":\"p1\",\"idempotencyKey\":\"$TXN\",\"amount\":15000}}}"
-SIG=$(BODY="$BODY" S="$SECRET" node -e 'process.stdout.write("v1="+require("crypto").createHmac("sha256",process.env.S).update(process.env.BODY).digest("hex"))')
+# BS166: x-bridge signs "<timestamp>.<raw body>" and sends the timestamp.
+TS=$(date +%s)
+SIG=$(BODY="$BODY" S="$SECRET" TS="$TS" node -e 'process.stdout.write("v1="+require("crypto").createHmac("sha256",process.env.S).update(process.env.TS+"."+process.env.BODY).digest("hex"))')
 CODE=$(curl -s -o "$SNAP/w0" -w '%{http_code}' -X POST "$BASE/api/webhooks/xbridge/receivables" -H 'content-type: application/json' --data-binary "$BODY")
 [ "$CODE" = "401" ] && echo "  ✓ unsigned webhook → 401" || { echo "  ✗ unsigned: $CODE $(cat "$SNAP/w0")"; fail=1; }
-CODE=$(curl -s -o "$SNAP/w1" -w '%{http_code}' -X POST "$BASE/api/webhooks/xbridge/receivables" -H 'content-type: application/json' -H "X-Bridge-Signature: $SIG" --data-binary "$BODY")
+CODE=$(curl -s -o "$SNAP/w1" -w '%{http_code}' -X POST "$BASE/api/webhooks/xbridge/receivables" -H 'content-type: application/json' -H "X-Bridge-Signature: $SIG" -H "X-Bridge-Timestamp: $TS" --data-binary "$BODY")
 ST=$(psql_one "select status from \"order\" where id = '$ORDER'")
 [ "$CODE" = "200" ] && [ "$ST" = "installment_active" ] && echo "  ✓ signed webhook → 200, deposit allocated → installment_active" || { echo "  ✗ signed: $CODE $(cat "$SNAP/w1") status=$ST"; fail=1; }
-CODE=$(curl -s -o "$SNAP/w2" -w '%{http_code}' -X POST "$BASE/api/webhooks/xbridge/receivables" -H 'content-type: application/json' -H "X-Bridge-Signature: $SIG" --data-binary "$BODY")
+CODE=$(curl -s -o "$SNAP/w2" -w '%{http_code}' -X POST "$BASE/api/webhooks/xbridge/receivables" -H 'content-type: application/json' -H "X-Bridge-Signature: $SIG" -H "X-Bridge-Timestamp: $TS" --data-binary "$BODY")
 [ "$CODE" = "200" ] && grep -q '"deduped":true' "$SNAP/w2" && echo "  ✓ replay → 200 deduped" || { echo "  ✗ replay: $CODE $(cat "$SNAP/w2")"; fail=1; }
 
 # push cap over HTTP: three failed pushes for row 2 inside the window, then a 4th → 429.

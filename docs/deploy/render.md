@@ -30,7 +30,8 @@ x-bridge webhooks ──►    │                 Render worker       zora-work
 | `OTP_SECRET` | yes | current prod value | |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEDIA_BUCKET`, `KYC_BUCKET` | yes | current prod values | Media + KYC storage |
 | `XBRIDGE_BASE_URL`, `XBRIDGE_KEY_ID`, `XBRIDGE_SECRET` | yes for live payments | current prod values | Unset key ⇒ mock payments |
-| `XBRIDGE_WEBHOOK_SECRET` | for installments /v1 | from x-bridge | Leave blank until x-bridge /v1 |
+| `XBRIDGE_WEBHOOK_SECRET` | yes (BS166) | the signing secret you set in x-bridge's dashboard, Developers › Webhooks | Endpoint `https://api.zorapass.com/api/webhooks/xbridge/events`, with **payment.received switched on**. Blank ⇒ the endpoint answers 503 and x-bridge retries for 72 h. Cloudflare must let `/api/webhooks/*` through. |
+| `XBRIDGE_V1_KEY_ID`, `XBRIDGE_V1_SECRET` | optional (BS166) | an x-bridge key with `collection:read` + `collection:write` | Card checkout, the method list and the hourly 72 h list compare use x-bridge `/v1`. Unset ⇒ the `XBRIDGE_KEY_ID` pair is used. `XBRIDGE_V1_BASE_URL` overrides the origin (default: `XBRIDGE_BASE_URL` without `/api`). |
 | `SMS_DRIVER` + `BEEM_*` or `AT_*` | yes | current prod values | |
 | `RESEND_API_KEY`, `EMAIL_FROM` | yes | current prod values | |
 | `POSTHOG_KEY` | optional | PostHog project key | Server events (payment_completed, checkout_abandoned) |
