@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import {
   db, initiatePayment, reconcile, resolveTransactionId, qrPayload, logCallbackReceived, captureCallback,
   issuesPasses, InstallmentAttemptRefused, installmentSummary, installmentOrderOwner, handleReceivableWebhook, type PaymentMethod,
-  CardCheckoutRefused, handleXbridgeEvent,
+  CardCheckoutRefused, handleXbridgeEvent, isFlagOn, eventInstallmentContext,
 } from '@zora/core';
 import { EntityStore } from '../storage/entity-store';
 import { signSession, verifySession } from '../common/session-cookie';
@@ -69,6 +69,15 @@ export class PaymentsController {
       settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
     if (methodsEnabled[method] === false) {
       return res.status(403).json({ error: 'method_disabled' });
+    }
+    // BS167: card also needs the zp_card flag on for this order's organizer or event.
+    if (method === 'card') {
+      const [ord] = await db()`select event_id from "order" where id = ${orderId}`.catch(() => [] as any[]);
+      const event = ord?.event_id ? String(ord.event_id) : null;
+      const org = event ? (await eventInstallmentContext(db(), event)).orgHandle : null;
+      if (!isFlagOn(settings?.flags, 'zp_card', { org, event })) {
+        return res.status(403).json({ error: 'method_disabled' });
+      }
     }
 
     const callbackUrl = `${process.env.PUBLIC_ORIGIN || ''}/api/webhooks/xbridge`;

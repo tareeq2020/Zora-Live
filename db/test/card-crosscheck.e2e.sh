@@ -3,6 +3,8 @@
 # Boots the real API on a throwaway Postgres (x-bridge MOCK: statuses steered by
 # XBRIDGE_MOCK_STATUS_FILE, x-bridge's list by XBRIDGE_MOCK_LIST_FILE) and proves:
 #
+#   0. BS167: card is per organizer / event (zp_card flag): hidden and refused
+#      unless the flag lists the event or its organizer; ?org= can't spoof it.
 #   1. /api/payment-methods offers card only with the admin switch on, and says
 #      a billing address is needed (x-bridge's billing_address_required).
 #   2. Card pay without a full billing address → 400 billing_incomplete naming
@@ -121,9 +123,29 @@ rout() { jx "$1" < "$SNAP/run.out"; }
 
 curl -s -c "$SNAP/admin" -X POST "$BASE/api/login" -H 'content-type: application/json' -d '{"username":"admin","password":"zora2026"}' >/dev/null
 
+flags() { curl -s -o /dev/null -w '%{http_code}' -b "$SNAP/admin" -X PUT "$BASE/api/settings/flags" -H 'content-type: application/json' -d "{\"flags\":$1}"; }
+cardfor() { curl -s "$BASE/api/payment-methods?$1" | jx 'const c=o.groups.find(g=>g.id==="card");c.enabled'; }
+
+echo ""
+echo "== 0. CARD PER ORGANIZER (zp_card flag, BS167) =="
+check "no flag → card hidden for the event" "$(cardfor 'event=brunch-vol-09')" "false"
+O0=$(checkout "$SNAP/c0" 0712000200)
+check "  and refused at pay → 403 method_disabled" "$(paycard "$SNAP/c0" "$O0" 0712000200 "$BILLING")|$(pout 'o.error')" "403|method_disabled"
+check "flag on for another organizer" "$(flags '{"zp_card":{"orgs":["offshore"]}}')" "200"
+sleep 10.5 # /api/payment-methods caches settings for 10 s
+check "  this event: still hidden" "$(cardfor 'event=brunch-vol-09')" "false"
+check "  a spoofed ?org= does not unlock this event" "$(cardfor 'org=offshore&event=brunch-vol-09')" "false"
+check "  still refused at pay" "$(paycard "$SNAP/c0" "$O0" 0712000200 "$BILLING")" "403"
+check "flag on for this event only" "$(flags '{"zp_card":{"events":["brunch-vol-09"]}}')" "200"
+sleep 10.5
+check "  this event: offered" "$(cardfor 'event=brunch-vol-09')" "true"
+check "  a different event of the same organizer: hidden" "$(cardfor 'event=sunset-social-002')" "false"
+check "flag on for this event's organizer" "$(flags '{"zp_card":{"orgs":["thebrunchcity"]}}')" "200"
+sleep 10.5
+
 echo ""
 echo "== 1. PAYMENT METHODS =="
-PM=$(curl -s "$BASE/api/payment-methods")
+PM=$(curl -s "$BASE/api/payment-methods?event=brunch-vol-09")
 check "card offered, billing required" "$(echo "$PM" | jx 'const c=o.groups.find(g=>g.id==="card");c.enabled+"|"+c.billingRequired')" "true|true"
 
 echo ""
@@ -155,7 +177,7 @@ echo ""
 echo "== 5. ADMIN SWITCH OFF → CARD HIDDEN AND REFUSED =="
 curl -s -o /dev/null -b "$SNAP/admin" -X PUT "$BASE/api/settings/methods-enabled" -H 'content-type: application/json' -d '{"methodsEnabled":{"card":false}}'
 sleep 10.5 # /api/payment-methods caches settings for 10 s
-check "payment-methods: card disabled" "$(curl -s "$BASE/api/payment-methods" | jx 'o.groups.find(g=>g.id==="card").enabled')" "false"
+check "payment-methods: card disabled" "$(cardfor 'event=brunch-vol-09')" "false"
 O5=$(checkout "$SNAP/c5" 0712000205)
 check "card pay → 403 method_disabled" "$(paycard "$SNAP/c5" "$O5" 0712000205 "$BILLING")|$(pout 'o.error')" "403|method_disabled"
 curl -s -o /dev/null -b "$SNAP/admin" -X PUT "$BASE/api/settings/methods-enabled" -H 'content-type: application/json' -d '{"methodsEnabled":{"card":true}}'

@@ -1,4 +1,4 @@
-import { Controller, Get, Module, Post, Body, Req, Res } from '@nestjs/common';
+import { Controller, Get, Module, Post, Body, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
   db, createGaVipOrder, poolSnapshotsCached, releaseOwnSeatHold, isFlagOn,
@@ -274,13 +274,17 @@ export class CheckoutController {
   // here and gated by settings.methodsEnabled (absent key = enabled). QR stays
   // off until x-bridge ships QR collection.
   @Get('payment-methods')
-  async paymentMethods() {
+  async paymentMethods(@Query('org') orgQ?: string, @Query('event') eventQ?: string) {
     const settings = await readSettingsCached(this.entities);
     const en = settings?.methodsEnabled && typeof settings.methodsEnabled === 'object' ? settings.methodsEnabled : {};
     // BS166: card shows only when the admin switch is on AND x-bridge lists card
     // for TZS (GET /v1/payments/methods, cached 5 min). x-bridge says whether it
     // needs the payer's billing address; checkout then asks for it.
-    const cardOn = en.card !== false;
+    // BS167: and only for the organizers / events the zp_card flag lists. The
+    // event's own organizer wins over the ?org= hint.
+    const event = eventQ ? String(eventQ).slice(0, 200) : null;
+    const org = event ? (await eventInstallmentContext(db(), event)).orgHandle : orgQ ? String(orgQ).toLowerCase().slice(0, 200) : null;
+    const cardOn = en.card !== false && isFlagOn(settings?.flags, 'zp_card', { org, event });
     const card = cardOn ? await cardAvailability('TZS') : null;
     return {
       groups: [
