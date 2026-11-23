@@ -22,6 +22,7 @@ import { pickStartCity, readGeoCookie, readStoredCity, storeCity, menuFromEvents
 import { fetchCardOffers, hintText, type CardOffer } from '../../lib/installments';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../components/event-card';
 import { eventDateLabel, isPastEvent } from '../../lib/event-date';
+import { gridEvents } from '../../lib/discover-grid';
 
 // BS47: KULTUR is invite/earn-only with no app to redeem it in yet — the banner
 // promises something the platform can't deliver on right now. Flagged off
@@ -377,9 +378,10 @@ export function DiscoverApp({ initialCity = null }: { initialCity?: PublicCity |
     return { idx: pick.i, badge: mega ? 'ZORA PICK' : '', e: pick.e };
   }, [events, activeCity]);
 
-  // BS147: the featured event already has the hero — don't repeat it in the grid
-  // (unless the buyer is filtering/searching, where every match should list).
-  if (!filtered && feat) list = list.filter(({ i }) => i !== feat.idx);
+  // BS147: the featured event already has the hero, so the grid skips it,
+  // except while filtering/searching and when it is the city's only event
+  // (lib/discover-grid.ts).
+  list = gridEvents(list, feat ? feat.idx : null, filtered);
   const top = list.length <= 6 ? list : list.slice(0, Math.ceil(list.length / 2));
   const bottom = list.slice(top.length);
 
@@ -666,7 +668,7 @@ export function DiscoverApp({ initialCity = null }: { initialCity?: PublicCity |
               </div>
             ) : null}
 
-            {status === 'ready' && !searching && cityCount > 0 && list.length === 0 ? (
+            {status === 'ready' && !searching && activeCat !== 'All' && cityCount > 0 && list.length === 0 ? (
               <div className="zd-state">
                 <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
                 <p className="zd-state-p">
