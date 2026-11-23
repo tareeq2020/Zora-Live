@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CheckoutFlow, { type CheckoutTier } from '../../../../components/checkout-flow';
-import { CITIES } from '../../../../lib/cities';
 
 /* BS126 — the live buyer seat map (Web Premium v1, F5 / DD3).
 
@@ -36,7 +35,7 @@ type Seat = {
   state: SeatState;
 };
 type Zone = { id: string; name: string; type: 'ga' | 'seated' | 'table'; x: number; y: number; tierId?: string; price?: number; capacity?: number };
-type EventInfo = { id?: string; name?: string; dateLabel?: string; venue?: string; city?: string; cover?: string; organizerHandle?: string; webCheckout?: { tiers?: CheckoutTier[] } };
+type EventInfo = { id?: string; name?: string; dateLabel?: string; venue?: string; city?: string; cityName?: string; cover?: string; organizerHandle?: string; webCheckout?: { tiers?: CheckoutTier[] } };
 
 const POLL_MS = 5000;
 const MAX_ITEMS = 10;
@@ -673,7 +672,7 @@ export function SeatMap({ eventId }: { eventId: string }) {
         organizerHandle={ev?.organizerHandle}
         dateLabel={ev?.dateLabel}
         venue={ev?.venue}
-        city={CITIES.find((c) => c.id === ev?.city)?.city || ev?.city}
+        city={ev?.cityName || ev?.city}
         artwork={ev?.cover}
         onSeatTaken={onSeatTaken}
         onHold={onHold}

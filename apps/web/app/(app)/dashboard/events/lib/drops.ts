@@ -415,3 +415,35 @@ export function messageForError(err: ApiError, context: 'save' | 'delete'): stri
   if (err.error) return err.error;
   return context === 'delete' ? 'Could not delete this drop. Please try again.' : 'Could not save this drop. Please try again.';
 }
+
+// ── BS168: cities ──────────────────────────────────────────────────────────
+export type OrgCitiesResponse = {
+  cities: OrgCityRow[];
+  requested: OrgCityRow[];
+  lastCity: string | null;
+  venues: { venue: string; city: string | null; uses: number }[];
+};
+export type OrgCityRow = { id: string; name: string; country: string; currency: string; aliases: string[]; status: string };
+
+export async function fetchOrgCities(): Promise<OrgCitiesResponse> {
+  const res = await fetch('/api/org/cities', { headers: { accept: 'application/json' }, cache: 'no-store' });
+  if (!res.ok) throw await readError(res);
+  return res.json();
+}
+
+/** Ask for a city that isn't listed. Throws an Error with a readable message. */
+export async function requestCity(name: string): Promise<{ city: OrgCityRow; matched: boolean }> {
+  const res = await fetch('/api/org/cities/request', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await readError(res);
+    throw new Error(
+      err.message ||
+        (err.error === 'name_invalid' ? 'Type the city name in letters, e.g. Arusha.' : "Couldn't send the request. Try again."),
+    );
+  }
+  return res.json();
+}

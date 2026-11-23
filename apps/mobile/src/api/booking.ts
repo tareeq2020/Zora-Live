@@ -48,7 +48,7 @@ const statusOf = (raw?: string): SeatStatus => {
 };
 
 const eventCurrency = (ev: RemoteEvent, tiers: ApiTier[]) =>
-  tiers.find((t) => t.currency)?.currency || (ev.city === 'nairobi' ? 'KES' : 'TZS');
+  tiers.find((t) => t.currency)?.currency || ev.props.cityCurrency || 'TZS';
 
 const tierForZone = (zone: ApiZone, tiers: ApiTier[]) => {
   const direct = tiers.find((t) => t.tierId && t.tierId === zone.tierId);

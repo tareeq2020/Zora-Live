@@ -29,6 +29,7 @@ export type AttentionKind =
   | 'installment_refund'
   | 'kyc_review'
   | 'org_signup'
+  | 'city_request'
   | 'buyer_not_notified';
 
 export interface AttentionItem {
@@ -54,7 +55,7 @@ export interface AttentionResponse {
 
 export const ATTENTION_KINDS: readonly AttentionKind[] = [
   'paid_unseatable', 'payment_short', 'paid_no_passes', 'payment_stuck', 'prompt_timeouts_high', 'ops_alert',
-  'payout_request', 'installment_refund', 'kyc_review', 'org_signup', 'buyer_not_notified',
+  'payout_request', 'installment_refund', 'kyc_review', 'org_signup', 'city_request', 'buyer_not_notified',
 ];
 
 /** Items returned. Counts are never capped. */
@@ -488,6 +489,28 @@ export class AdminAttentionService {
         currency: null,
         since,
         href: '/admin/console/verification',
+      });
+    }
+
+    // BS168: an organizer asked for a city that isn't listed yet.
+    const cityRows = (await db()`
+      select id, name, country, requested_by, requested_at
+        from city where status = 'requested'
+       order by requested_at nulls last limit ${PER_QUEUE}`.catch(() => [])) as any[];
+    for (const c of cityRows) {
+      counts.city_request++;
+      items.push({
+        id: `city_request:${c.id}`,
+        kind: 'city_request',
+        severity: 'normal',
+        title: `City request · ${c.name}${c.country ? `, ${c.country}` : ''}`,
+        detail: 'Approve it, or match it to a listed city',
+        ...(c.requested_by ? orgFields(c.requested_by) : { organizerHandle: null, organizerName: null }),
+        eventName: null,
+        amount: null,
+        currency: null,
+        since: iso(c.requested_at) ?? new Date(now).toISOString(),
+        href: '/admin/console/cities',
       });
     }
 

@@ -172,7 +172,7 @@ export class ShareCardController {
       format: format === 'story' ? 'story' : 'og',
       theme,
       title: ev.name,
-      city: ev.city,
+      city: ev.cityName || ev.city, // BS168: the name, not the id
       dateLabel: ev.dateLabel,
       url: this.eventUrl(handle),
       coverDataUri: cover,

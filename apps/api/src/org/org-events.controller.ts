@@ -14,12 +14,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { db, tx, poolSnapshots, BUYER_MONEY_STATUSES, type PoolSnapshot, type Sql } from '@zora/core';
+import { db, tx, cities, poolSnapshots, BUYER_MONEY_STATUSES, type PoolSnapshot, type Sql } from '@zora/core';
 import { OrganizerGuard } from '../common/organizer.guard';
 import { Roles } from '../common/roles.guard';
 import { EntityStore } from '../storage/entity-store';
 import { OrganizerRepo, type OrganizerRecord } from '../storage/organizer-repo';
-import { EVENT_CITY_IDS, DEFAULT_SETTINGS } from '../common/defaults';
+import { DEFAULT_SETTINGS } from '../common/defaults';
+import { resolveEventCity } from '../cities/resolve-city';
 import { AuditService } from '../audit/audit.module';
 import { OrgScopeService } from './org-scope.service';
 import { EventProvisioningService, type ProvisionTierInput } from './event-provisioning.service';
@@ -102,10 +103,13 @@ export class OrgEventsController {
     const handle = req.actingHandle as string;
     await this.assertActiveOrganizer(handle); // I2
     const sellable = body?.sellable === true;
+    await cities().ensureFresh(); // BS168: city ids are checked against the city table
     // A DRAFT only needs a name — "fill what you know, publish when you're ready".
     // Full field validation (date/city/venue/category/priceFrom/seated) is enforced
     // only when PUBLISHING a sellable, public drop.
     const fields = sellable ? this.validateEventFields(body) : this.validateDraftFields(body);
+    // BS168: the city must be a listed (or requested) city id; "DSM" is stored as dar.
+    if (typeof fields.city === 'string' && fields.city) fields.city = await resolveEventCity(fields.city);
     const tiers = this.normalizeTiers(body?.tiers, sellable, await this.usdRate());
     const idempotencyKey = typeof body?.idempotencyKey === 'string' ? body.idempotencyKey : null;
 
@@ -167,6 +171,17 @@ export class OrgEventsController {
     const handle = req.actingHandle as string;
     await this.assertActiveOrganizer(handle); // I2
     await this.scope.assertOwnsEvent(handle, id); // 404 if not owned
+    await cities().ensureFresh(); // BS168
+    // BS168: resolve the city before the transaction (a cache refresh must not
+    // run on a pool connection inside it). The event's current city is always
+    // accepted, so editing an event with an old freetext city still works.
+    // undefined = not sent; '' = cleared.
+    let nextCity: string | undefined;
+    if (body?.city !== undefined) {
+      const raw = String(body.city ?? '').trim();
+      const prior = (await this.scope.readEvents()).find((e) => e && e.id === id);
+      nextCity = raw ? await resolveEventCity(raw, prior?.city) : '';
+    }
 
     const wantPublish = body?.sellable === true;
     const rate = await this.usdRate();
@@ -180,8 +195,14 @@ export class OrgEventsController {
       const wasSellable = this.isSellable(ev);
 
       // Scalar fields — only overwrite what the body actually carries.
-      for (const k of ['name', 'dateLabel', 'city', 'venue', 'category', 'time', 'cover'] as const) {
+      for (const k of ['name', 'dateLabel', 'venue', 'category', 'time', 'cover'] as const) {
         if (body?.[k] !== undefined) ev[k] = String(body[k]);
+      }
+      // BS168: city, resolved before the transaction (see nextCity above).
+      if (nextCity !== undefined) {
+        if (nextCity) ev.city = nextCity;
+        else if (wasSellable || wantPublish) throw new BadRequestException({ error: 'city_required' });
+        else delete ev.city;
       }
       // BS101: structured start date — validated when present; an explicit blank clears it.
       if (body?.date !== undefined) {
@@ -193,6 +214,8 @@ export class OrgEventsController {
       if (body?.seated !== undefined) ev.seated = !!body.seated;
 
       if (!wasSellable && wantPublish) {
+        // BS168: a public, on-sale event needs a city (create enforces the same).
+        if (!ev.city || !String(ev.city).trim()) throw new BadRequestException({ error: 'city_required' });
         // Draft → published: KYC gate (I6) + fresh provisioning (C4).
         await this.assertKycApproved(handle);
         const tiers = this.normalizeTiers(body?.tiers ?? ev.tiers, true, rate);
@@ -510,8 +533,7 @@ export class OrgEventsController {
     const name = req('name');
     const dateLabel = req('dateLabel');
     const date = this.parseEventDate(body);
-    const city = req('city');
-    if (!EVENT_CITY_IDS.includes(city)) throw new BadRequestException({ error: 'city_invalid' });
+    const city = req('city'); // resolved against the city table by the caller (BS168)
     const venue = req('venue');
     const category = req('category');
     const priceFrom = Number(body?.priceFrom);

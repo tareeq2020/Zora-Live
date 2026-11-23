@@ -3,43 +3,23 @@
    The old supabase-js `events` TABLE path is retired — there is no such table; the
    data is the JSON blob. (This finishes the "events.js split-brain" retirement:
    the marketplace + storefronts read the same store the rest of the app writes.) */
-const { db, suspendedHandles } = require('@zora/core');
+const { db, suspendedHandles, cities, withCityFields } = require('@zora/core');
 
 // Canonical slug aliases: friendly flagship URLs (/events/offshore) resolve to the
 // real event id (offshore-001). Keeps the marketing URL stable if the id ever moves.
 const SLUG_ALIASES = { offshore: 'offshore-001' };
 function resolveSlug(id) { return SLUG_ALIASES[id] || id; }
 
-// BS97 (BS47 follow-up): discover's city filter and the org event-city <select>
-// both key off the canonical city IDs, but some rows landed in the blob carrying a
-// freetext LABEL instead (e.g. apricot-crush stored "Dar Es Salaam", not "dar") —
-// a legacy-admin / import path that bypassed the id-based select. The filter then
-// silently hid the event from its own city page. Canonicalise the city on READ so
-// every consumer (marketplace, storefront, middleware) sees an id regardless of how
-// the row was written, and future bad writes self-heal on the next upsert (which
-// reads through here). Mirrors apps/api/src/common/defaults.ts EVENT_CITIES /
-// apps/web/app/lib/cities.ts — keep the three in step when a city is added.
-const EVENT_CITIES = [
-  { id: 'dar', label: 'Dar es Salaam' },
-  { id: 'zanzibar', label: 'Zanzibar' },
-  { id: 'nairobi', label: 'Nairobi' },
-  { id: 'accra', label: 'Accra' },
-  { id: 'lagos', label: 'Lagos' },
-];
-const CITY_BY_KEY = EVENT_CITIES.reduce((m, c) => {
-  m.set(c.id.toLowerCase(), c.id);
-  m.set(c.label.toLowerCase(), c.id);
-  return m;
-}, new Map());
-// Match on id OR label, case- and whitespace-insensitive; an unknown value passes
-// through unchanged (never drop a city we don't recognise).
+// BS97 → BS168: canonicalise the city on READ so every consumer (marketplace,
+// storefront, middleware) sees a current city id however the row was written
+// (an old label like "Dar Es Salaam", or a city an admin since merged). The list
+// now comes from the `city` table via the core cache (no copy here), and each
+// event also carries cityName + cityCurrency so no surface keeps its own list.
 function canonCity(v) {
-  if (v == null) return v;
-  const key = String(v).trim().toLowerCase();
-  return CITY_BY_KEY.get(key) || v;
+  return cities().canon(v);
 }
 function canonEvent(e) {
-  return e && e.city != null ? { ...e, city: canonCity(e.city) } : e;
+  return withCityFields(e, cities());
 }
 
 // BS99 (#2): the marketplace "FROM {price}" must be the lowest price a buyer can
@@ -84,13 +64,15 @@ async function isPublicEvent(e) {
 }
 
 async function readAll() {
+  await cities().ensureFresh();
   const rows = await db()`select data from collection_store where name = 'events'`;
   // Canonicalise city on the way out (BS97) — the single choke point every public
   // read (list/get) and the upsert read-modify-write all flow through.
   return rows.length ? JSON.parse(rows[0].data).map(canonEvent).map(deriveFrom) : [];
 }
 async function writeAll(rows) {
-  const text = JSON.stringify(rows);
+  // cityName / cityCurrency are added on read; never persist them.
+  const text = JSON.stringify(rows.map(({ cityName, cityCurrency, ...e }) => e)); // eslint-disable-line no-unused-vars
   await db()`insert into collection_store (name, data, updated_at) values ('events', ${text}, now())
              on conflict (name) do update set data = excluded.data, updated_at = now()`;
 }
@@ -99,7 +81,10 @@ async function listEvents(city) {
   const suspended = suspendedHandles();
   await suspended.ensureFresh(); // one refresh for the whole list, then sync checks
   let rows = (await readAll()).filter((e) => isPubliclyVisible(e) && suspended.isVisible(e));
-  if (city) rows = rows.filter((e) => e.city === city);
+  if (city) {
+    const want = canonCity(city);
+    rows = rows.filter((e) => e.city === want);
+  }
   return rows.sort(byDate);
 }
 

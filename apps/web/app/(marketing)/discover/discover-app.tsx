@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RevealImg } from '../../components/reveal-img';
 import { ZBot } from '../../components/zbot';
 import { Placements } from '../../components/placements';
-import { CITIES } from '../../lib/cities';
+import { pickStartCity, readGeoCookie, readStoredCity, storeCity, menuFromEvents, type PublicCity } from '../../lib/cities';
 import { fetchCardOffers, hintText, type CardOffer } from '../../lib/installments';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../components/event-card';
 import { eventDateLabel, isPastEvent } from '../../lib/event-date';
@@ -49,7 +49,7 @@ export function categoryBucket(raw: string | null | undefined, time?: string | n
 }
 
 type Ev = {
-  id: string; t: string; art: string; cat: string; city: string; venue: string;
+  id: string; t: string; art: string; cat: string; city: string; cityName: string; cityCur: string; venue: string;
   date: string; iso: string; time: string; price: number; wknd: boolean; mega: boolean;
   seated: boolean; splittable: boolean; cover?: string;
   /** BS120: ids of the on-sale web tiers (empty for app-claim events). */
@@ -96,7 +96,7 @@ function mapEvent(e: any): Ev {
   return {
     id: e.id, t: e.name, art: e.tagline || e.organizer || '', cat: categoryBucket(e.category, e.time),
     // Display prefers the organizer's label; falls back to the structured date.
-    city: e.city, venue: e.venue, date: eventDateLabel(e.date, e.dateLabel || isoToLabel(e.date)), iso: e.date || '', time: e.time || '',
+    city: e.city || '', cityName: e.cityName || e.city || '', cityCur: e.cityCurrency || '', venue: e.venue, date: eventDateLabel(e.date, e.dateLabel || isoToLabel(e.date)), iso: e.date || '', time: e.time || '',
     price: e.priceFrom != null ? e.priceFrom : e.price || 0,
     // BS101: computed from the real date, not the stored flag.
     wknd: isThisWeekend(e.date), mega: !!e.mega, seated: !!e.seated,
@@ -167,7 +167,11 @@ function MagIcon({ className }: { className?: string }) {
 
 type Status = 'loading' | 'ready' | 'error';
 
-export function DiscoverApp() {
+type CityInfo = { id: string; name: string; country: string; currency: string };
+
+/* BS168: `initialCity` is set on /discover/<city>. The city menu lists only
+   cities with upcoming events. */
+export function DiscoverApp({ initialCity = null }: { initialCity?: PublicCity | null } = {}) {
   const [events, setEvents] = useState<Ev[]>([]);
   // BS120: live stock per tier for honest card chips. null = unknown → no chip.
   const [pools, setPools] = useState<Record<string, InventoryPool> | null>(null);
@@ -175,7 +179,8 @@ export function DiscoverApp() {
   const [instOffers, setInstOffers] = useState<Record<string, CardOffer>>({});
   const [status, setStatus] = useState<Status>('loading');
   const [errCause, setErrCause] = useState('');
-  const [activeCity, setActiveCity] = useState('dar');
+  const [activeCity, setActiveCity] = useState<string>(initialCity?.id ?? '');
+  const [menu, setMenu] = useState<PublicCity[]>([]);
   const [activeCat, setActiveCat] = useState('All');
   const [searchText, setSearchText] = useState('');
   const [cityResolved, setCityResolved] = useState(false);
@@ -205,12 +210,18 @@ export function DiscoverApp() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const query = searchText.toLowerCase().trim();
-  const curCity = () => CITIES.find((c) => c.id === activeCity)!;
+  const curCity = (): CityInfo => {
+    const m = menu.find((c) => c.id === activeCity);
+    if (m) return m;
+    if (initialCity && initialCity.id === activeCity) return initialCity;
+    const ev = events.find((e) => e.city === activeCity);
+    return { id: activeCity, name: ev?.cityName || activeCity || '', country: '', currency: ev?.cityCur || '' };
+  };
   // Price in the EVENT's own currency, never the currency of whatever city the
   // browser happens to be filtered to — we do not convert, so labelling a Dar
   // price "NGN" would be a lie (DESIGN.md rule 5).
-  const money = (e: Ev) => curLabel(CITIES.find((c) => c.id === e.city)?.cur || curCity().cur) + ' ' + fmt(e.price);
-  const cityLabel = (e: Ev) => CITIES.find((c) => c.id === e.city)?.city || curCity().city;
+  const money = (e: Ev) => curLabel(e.cityCur || curCity().currency || 'TZS') + ' ' + fmt(e.price);
+  const cityLabel = (e: Ev) => e.cityName || curCity().name;
 
   const toast = useCallback((m: string) => {
     setToastMsg(m);
@@ -223,6 +234,12 @@ export function DiscoverApp() {
      it used to fall through to an empty grid, which lied about the city. */
   const load = useCallback(async () => {
     setStatus('loading');
+    // BS168: the city menu, in parallel. A failed read falls back to the cities
+    // of the loaded events, so the page still works.
+    const citiesReq = fetch('/api/cities')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { cities?: PublicCity[] } | null) => (Array.isArray(d?.cities) ? d!.cities : null))
+      .catch(() => null);
     try {
       const r = await fetch('/api/events');
       if (!r.ok) throw new Error(`the events service replied ${r.status}`);
@@ -231,6 +248,15 @@ export function DiscoverApp() {
       // BS147: the marketplace lists what's ON — past events drop off.
       const mapped = data.map(mapEvent).filter((e: Ev) => !isPastEvent(e.iso));
       setEvents(mapped);
+      const fromApi = await citiesReq;
+      // Counts from the events on screen, so the menu and the grid always agree.
+      const counts = new Map<string, number>();
+      for (const e of mapped as Ev[]) counts.set(e.city, (counts.get(e.city) ?? 0) + 1);
+      const nextMenu = (fromApi ?? menuFromEvents(mapped))
+        .map((c) => ({ ...c, upcoming: counts.get(c.id) ?? 0 }))
+        .filter((c) => c.upcoming > 0)
+        .sort((a, b) => b.upcoming - a.upcoming); // stable: ties keep the API's order (admin order, then name)
+      setMenu(nextMenu);
       // BS134: installment hints — nice-to-have, like stock.
       fetchCardOffers(mapped.filter((e: Ev) => e.tierIds.length).map((e: Ev) => e.id)).then(setInstOffers);
       // Stock is a nice-to-have: a failed read just means no stock chips.
@@ -245,29 +271,32 @@ export function DiscoverApp() {
         .catch(() => {});
       setErrCause('');
       setStatus('ready');
-      return true;
+      return nextMenu;
     } catch (e) {
       setErrCause(e instanceof Error ? e.message : 'the request failed');
       setStatus('error');
-      return false;
+      return null;
     }
   }, []);
 
-  // Boot: load the events, resolve the city, then a "located you" success toast.
+  // Boot: load events + cities, then pick the city to open on (BS168): the URL's
+  // city, else the buyer's last pick, their own city, their country, the busiest.
   useEffect(() => {
     let cancelled = false;
-    let t: ReturnType<typeof setTimeout> | undefined;
     (async () => {
-      const ok = await load();
+      const m = await load();
       if (cancelled) return;
+      if (!initialCity && m) {
+        const start = pickStartCity(m, readGeoCookie(), readStoredCity());
+        if (start) setActiveCity(start);
+      }
       setCityResolved(true);
-      if (ok) t = setTimeout(() => toast('Showing Dar es Salaam. Switch city anytime.'), 900);
     })();
     return () => {
       cancelled = true;
-      if (t) clearTimeout(t);
     };
-  }, [load, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
   // Close the location menu on outside click / Escape.
   useEffect(() => {
@@ -299,9 +328,16 @@ export function DiscoverApp() {
     setActiveCity(id);
     setCityResolved(true);
     setLocOpen(false);
-    const c = CITIES.find((x) => x.id === id)!;
+    storeCity(id);
+    // A shareable address for the city on screen, without a reload.
+    try {
+      window.history.replaceState(null, '', `/discover/${encodeURIComponent(id)}${window.location.search}`);
+    } catch {
+      /* ignore */
+    }
+    const c = menu.find((x) => x.id === id);
     const n = events.filter((e) => e.city === id).length;
-    if (status === 'ready') toast(n ? `${n} event${n === 1 ? '' : 's'} in ${c.city}` : `Nothing in ${c.city} yet`);
+    if (status === 'ready' && c) toast(n ? `${n} event${n === 1 ? '' : 's'} in ${c.name}` : `Nothing in ${c.name} yet`);
   };
 
   // ── derived list ──
@@ -319,7 +355,7 @@ export function DiscoverApp() {
   else if (activeCat !== 'All') list = list.filter(({ e }) => e.cat === activeCat);
   if (query)
     list = list.filter(({ e }) =>
-      (e.t + ' ' + e.art + ' ' + e.venue + ' ' + (CITIES.find((c) => c.id === e.city)?.city || ''))
+      (e.t + ' ' + e.art + ' ' + e.venue + ' ' + e.cityName)
         .toLowerCase()
         .includes(query),
     );
@@ -418,22 +454,32 @@ export function DiscoverApp() {
           <ZpWordmark href="/" />
 
           <div className="zd-loc" ref={locRef}>
-            <button
-              className="zd-loc-btn"
-              id="loc-btn"
-              type="button"
-              aria-haspopup="listbox"
-              aria-expanded={locOpen}
-              onClick={() => setLocOpen((v) => !v)}
-            >
-                            {!cityResolved ? <span className="zd-detecting" id="loc-detecting">locating you…</span> : null}
-              {cityResolved ? <span className="zd-city" id="loc-city">{curCity().city}</span> : null}
-              <span className="zd-chev" aria-hidden>&#9662;</span>
-            </button>
-            <div className={'zd-loc-menu' + (locOpen ? ' on' : '')} id="loc-menu" role="listbox">
+            {/* BS168: a menu only when there is a choice. One city with events →
+                a plain label; the menu lists only cities with events, with counts. */}
+            {cityResolved && !(menu.length > 1 || (menu.length === 1 && menu[0].id !== activeCity)) ? (
+              <span className="zd-loc-btn zd-loc-static" id="loc-btn">
+                <span className="zd-city" id="loc-city">{curCity().name}</span>
+              </span>
+            ) : (
+              <button
+                className="zd-loc-btn"
+                id="loc-btn"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={locOpen}
+                aria-label={cityResolved ? `City: ${curCity().name}. Change city` : 'Loading cities'}
+                onClick={() => setLocOpen((v) => !v)}
+                disabled={!cityResolved}
+              >
+                {!cityResolved ? <span className="zd-detecting" id="loc-detecting">Loading…</span> : null}
+                {cityResolved ? <span className="zd-city" id="loc-city">{curCity().name}</span> : null}
+                <span className="zd-chev" aria-hidden>&#9662;</span>
+              </button>
+            )}
+            <div className={'zd-loc-menu' + (locOpen ? ' on' : '')} id="loc-menu" role="listbox" aria-label="Cities with events">
               <p className="zd-lm-h">SHOWING EVENTS IN</p>
               <div id="loc-list">
-                {CITIES.map((c) => (
+                {menu.map((c) => (
                   <button
                     type="button"
                     role="option"
@@ -443,8 +489,8 @@ export function DiscoverApp() {
                     key={c.id}
                     onClick={() => setCity(c.id)}
                   >
-                    <span>{c.city}</span>
-                    <span className="zd-co">{c.country}</span>
+                    <span>{c.name}</span>
+                    <span className="zd-co">{c.upcoming} event{c.upcoming === 1 ? '' : 's'}</span>
                   </button>
                 ))}
               </div>
@@ -480,7 +526,7 @@ export function DiscoverApp() {
             ) : (
               <>
                 <b id="hero-count">{cityCount}</b> EVENT{cityCount === 1 ? '' : 'S'} IN{' '}
-                <b id="hero-city">{cityResolved ? curCity().city.toUpperCase() : 'YOUR CITY'}</b>
+                <b id="hero-city">{cityResolved && curCity().name ? curCity().name.toUpperCase() : 'YOUR CITY'}</b>
               </>
             )}
           </span>
@@ -583,7 +629,7 @@ export function DiscoverApp() {
       <section className="zd-sec" ref={gridSecRef}>
         <div className="zd-wrap">
           <div className="zd-sec-head">
-            <h2 id="grid-title">{searching ? 'Results across all cities' : `Upcoming in ${curCity().city}`}</h2>
+            <h2 id="grid-title">{searching ? 'Results across all cities' : curCity().name ? `Upcoming in ${curCity().name}` : 'Upcoming'}</h2>
             <span className="zd-count" id="grid-count">
               {status === 'ready' ? `${list.length} EVENT${list.length === 1 ? '' : 'S'} · SORTED BY DATE` : status === 'loading' ? 'LOADING…' : 'UNAVAILABLE'}
             </span>
@@ -603,14 +649,20 @@ export function DiscoverApp() {
             {status === 'ready' && !searching && cityCount === 0 ? (
               <div className="zd-state">
                 <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
-                <p className="zd-state-p">No events in {curCity().city} yet. Try another city:</p>
-                <div className="zd-state-cities">
-                  {CITIES.filter((c) => c.id !== activeCity).map((c) => (
-                    <button className="zd-state-btn zd-ghost" type="button" key={c.id} onClick={() => setCity(c.id)}>
-                      {c.city.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
+                {menu.some((c) => c.id !== activeCity) ? (
+                  <>
+                    <p className="zd-state-p">{curCity().name ? `No events in ${curCity().name} right now.` : 'Nothing on right now.'} These cities have events:</p>
+                    <div className="zd-state-cities">
+                      {menu.filter((c) => c.id !== activeCity).map((c) => (
+                        <button className="zd-state-btn zd-ghost" type="button" key={c.id} onClick={() => setCity(c.id)}>
+                          {c.name.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="zd-state-p">No events are on sale right now. Check back soon.</p>
+                )}
               </div>
             ) : null}
 
@@ -618,7 +670,7 @@ export function DiscoverApp() {
               <div className="zd-state">
                 <p className="zd-state-h zd-display">NOTHING HERE YET.</p>
                 <p className="zd-state-p">
-                  Nothing in {CAT_LABEL[activeCat] || activeCat} in {curCity().city} right now. {cityCount} other event{cityCount === 1 ? '' : 's'} {cityCount === 1 ? 'is' : 'are'} on here.
+                  Nothing in {CAT_LABEL[activeCat] || activeCat} in {curCity().name} right now. {cityCount} other event{cityCount === 1 ? '' : 's'} {cityCount === 1 ? 'is' : 'are'} on here.
                 </p>
                 <button className="zd-state-btn" type="button" onClick={clearFilters}>SEE ALL EVENTS</button>
               </div>
