@@ -12,8 +12,8 @@
    webCheckout are left exactly as-is (so it never clobbers an organizer's edits).
    An unrecognised city is left unchanged and reported, never dropped.
 
-   Mirrors the EVENT_CITIES list in apps/api/src/common/defaults.ts /
-   apps/web/app/lib/cities.ts — keep the three in step when a city is added.
+   BS168: reads the `city` table (migration 0039), the one city list: ids,
+   names, other spellings, and merges. No copy of the list lives here.
 
    Usage: DATABASE_URL=postgres://... node db/normalize-event-cities.mjs
           add --dry to preview without writing. */
@@ -28,25 +28,34 @@ const url = process.env.DATABASE_URL_MIGRATE || process.env.DATABASE_URL;
 if (!url) { console.error('normalize-event-cities: set DATABASE_URL'); process.exit(1); }
 const DRY = process.argv.includes('--dry');
 
-const EVENT_CITIES = [
-  { id: 'dar', label: 'Dar es Salaam' },
-  { id: 'zanzibar', label: 'Zanzibar' },
-  { id: 'nairobi', label: 'Nairobi' },
-  { id: 'accra', label: 'Accra' },
-  { id: 'lagos', label: 'Lagos' },
-];
-const CITY_BY_KEY = EVENT_CITIES.reduce((m, c) => {
-  m.set(c.id.toLowerCase(), c.id);
-  m.set(c.label.toLowerCase(), c.id);
-  return m;
-}, new Map());
+const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
+const key = (v) => String(v ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+let EVENT_CITIES = [];
+const CITY_BY_KEY = new Map();
+const byId = new Map();
 function canonCity(v) {
   if (v == null) return v;
-  return CITY_BY_KEY.get(String(v).trim().toLowerCase()) || v;
+  let id = CITY_BY_KEY.get(key(v));
+  for (let i = 0; id && i < 5; i++) {
+    const c = byId.get(id);
+    if (!c || c.status !== 'merged' || !c.merged_into) break;
+    id = c.merged_into;
+  }
+  return id || v;
 }
 
-const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
 try {
+  EVENT_CITIES = await sql`select id, name, aliases, status, merged_into from city`;
+  for (const c of EVENT_CITIES) byId.set(c.id, c);
+  // Same order as the API's city cache (packages/core/src/cities.ts): live
+  // cities before merged/declined ones; ids, then names, then spellings; empty keys skipped.
+  const put = (k, id) => { if (k && !CITY_BY_KEY.has(k)) CITY_BY_KEY.set(k, id); };
+  const closed = (c) => c.status === 'merged' || c.status === 'declined';
+  for (const group of [EVENT_CITIES.filter((c) => !closed(c)), EVENT_CITIES.filter(closed)]) {
+    for (const c of group) put(key(c.id), c.id);
+    for (const c of group) put(key(c.name), c.id);
+    for (const c of group) for (const a of c.aliases || []) put(key(a), c.id);
+  }
   const rows = await sql`select data from collection_store where name = 'events'`;
   if (!rows.length) { console.log('normalize-event-cities: no events blob — nothing to do'); process.exit(0); }
   const events = JSON.parse(rows[0].data);

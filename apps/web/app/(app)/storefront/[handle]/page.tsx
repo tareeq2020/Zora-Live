@@ -18,13 +18,6 @@ export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
 
-const CITY_LABEL: Record<string, string> = {
-  dar: 'Dar es Salaam',
-  zanzibar: 'Zanzibar',
-  nairobi: 'Nairobi',
-  accra: 'Accra',
-  lagos: 'Lagos',
-};
 
 type Organizer = { handle: string; name: string; subdomain: string; status?: string };
 
@@ -132,8 +125,8 @@ export default async function StorefrontPage({ params }: { params: { handle: str
   if (!org) notFound();
 
   const brandName = theme.brandName || org.name;
-  const cityCode = events.find((e) => e.city)?.city || '';
-  const cityLabel = (CITY_LABEL[cityCode] || cityCode).toUpperCase();
+  const withCity = events.find((e) => e.city);
+  const cityLabel = (withCity?.cityName || withCity?.city || '').toUpperCase(); // BS168
   const eyebrow = cityLabel ? `${cityLabel} · STOREFRONT` : 'STOREFRONT';
   const lede = `Live events from ${brandName}. Passes run on ZoraPass, and your table is your table.`;
   const aboutHeading = `Every event from ${brandName}, in one place.`; // BS147: reads right for "The Brunch City"

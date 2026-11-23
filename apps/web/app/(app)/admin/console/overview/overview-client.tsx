@@ -80,6 +80,7 @@ const KIND_LABEL: [string, string, Severity][] = [
   ['installment_refund', 'Installment refunds', 'high'],
   ['kyc_review', 'KYC', 'normal'],
   ['org_signup', 'Sign-ups', 'normal'],
+  ['city_request', 'City requests', 'normal'],
   ['buyer_not_notified', 'Not notified', 'normal'],
 ];
 const loadAttention = () => adminApi<Attention>('/api/admin/attention');

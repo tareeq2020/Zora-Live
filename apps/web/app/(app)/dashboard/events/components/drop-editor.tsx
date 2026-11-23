@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrShell } from '@/app/components/cr';
 import { ORG_NAV, ORG_BRAND } from '../../components/org-nav';
-import { CITIES } from '../../../../lib/cities';
+import { CityPicker, type OrgCity } from './city-picker';
 import {
   type ApiError,
   type DropForm,
@@ -38,6 +38,8 @@ import {
   emptyTier,
   fetchEvents,
   fetchMe,
+  fetchOrgCities,
+  requestCity,
   formatDateLabel,
   formFromEvent,
   hasErrors,
@@ -218,6 +220,9 @@ export default function DropEditor(props: DropEditorProps) {
   const [orgName, setOrgName] = useState<string | null>(null); // BS75: CrShell topbar label (/api/org/me → { name })
   const [usdRate, setUsdRate] = useState<number>(2700); // BS87: admin USD→TZS rate (GET /api/settings)
   const [form, setForm] = useState<DropForm>(emptyForm);
+  // BS168: the city list (active + this org's requests) and past venues.
+  const [orgCities, setOrgCities] = useState<OrgCity[]>([]);
+  const [pastVenues, setPastVenues] = useState<{ venue: string; city: string | null; uses: number }[]>([]);
   // BS131 (F6): "Pass design" tab — edit mode only, and only when the
   // zp_pass_design flag is on for this org/event (the API reports `enabled`).
   const [tab, setTab] = useState<'details' | 'pass' | 'installments'>('details');
@@ -263,6 +268,9 @@ export default function DropEditor(props: DropEditorProps) {
     (async () => {
       try {
         const mePromise = fetchMe();
+        // BS168: cities + past venues. A failed read leaves the picker empty
+        // (the event's own city still shows) rather than blocking the editor.
+        const citiesPromise = fetchOrgCities().catch(() => null);
         if (isEdit) {
           const [me, events, rate] = await Promise.all([mePromise, fetchEvents(), fetchUsdRate()]);
           if (!alive) return;
@@ -277,6 +285,12 @@ export default function DropEditor(props: DropEditorProps) {
           }
           setForm(formFromEvent(ev, rate));
           setStatus(ev.status || '');
+          const oc = await citiesPromise;
+          if (!alive) return;
+          if (oc) {
+            setOrgCities([...oc.cities, ...oc.requested]);
+            setPastVenues(oc.venues);
+          }
           setLoadState('ready');
         } else {
           const [me, rate] = await Promise.all([mePromise, fetchUsdRate()]);
@@ -285,6 +299,14 @@ export default function DropEditor(props: DropEditorProps) {
           setCommissionRate(typeof me.commissionRate === 'number' ? me.commissionRate : 0.05);
           if (typeof me.name === 'string') setOrgName(me.name);
           setUsdRate(rate);
+          const oc = await citiesPromise;
+          if (!alive) return;
+          if (oc) {
+            setOrgCities([...oc.cities, ...oc.requested]);
+            setPastVenues(oc.venues);
+            // A new event starts in the city this organizer used last.
+            if (oc.lastCity) setForm((f) => (f.city ? f : { ...f, city: oc.lastCity as string }));
+          }
           setLoadState('ready');
         }
       } catch (e) {
@@ -380,7 +402,15 @@ export default function DropEditor(props: DropEditorProps) {
   const realTierRows = form.tiers.filter((t) => t.tierId || t.name.trim());
   const noneOnSale = form.sellable && realTierRows.length > 0 && realTierRows.every((t) => t.disabled);
   const whenLabel = [form.dateLabel, form.time].filter(Boolean).join(' · ').toUpperCase();
-  const locLabel = [form.venue, form.city].filter(Boolean).join(' — ').toUpperCase();
+  const cityName = orgCities.find((c) => c.id === form.city)?.name || form.city;
+  const locLabel = [form.venue, cityName].filter(Boolean).join(' — ').toUpperCase();
+  // Past venues: this city's first, then the rest; no duplicates.
+  const venueOptions = Array.from(
+    new Set([
+      ...pastVenues.filter((v) => v.city === form.city).map((v) => v.venue),
+      ...pastVenues.filter((v) => v.city !== form.city).map((v) => v.venue),
+    ]),
+  ).slice(0, 20);
 
   async function handleSubmit() {
     if (submitting) return; // disable-on-submit guard (belt + braces with disabled attr)
@@ -592,21 +622,18 @@ export default function DropEditor(props: DropEditorProps) {
             </div>
             <div className="row2">
               <div className="field">
-                <label>CITY</label>
-                <select
-                  className="in"
+                <label htmlFor="zde-city">CITY</label>
+                <CityPicker
+                  inputId="zde-city"
                   value={form.city}
-                  onChange={(e) => set('city', e.target.value)}
-                >
-                  <option value="" disabled>
-                    Select a city
-                  </option>
-                  {CITIES.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.city}
-                    </option>
-                  ))}
-                </select>
+                  cities={orgCities}
+                  onChange={(id) => set('city', id)}
+                  onRequest={async (name) => {
+                    const r = await requestCity(name);
+                    setOrgCities((cur) => (cur.some((c) => c.id === r.city.id) ? cur : [...cur, r.city]));
+                    return r;
+                  }}
+                />
               </div>
               <div className="field">
                 <label>CATEGORY</label>
@@ -625,7 +652,17 @@ export default function DropEditor(props: DropEditorProps) {
                 value={form.venue}
                 onChange={(e) => set('venue', e.target.value)}
                 placeholder="The Secret Garden, Oysterbay"
+                list={venueOptions.length ? 'zde-venues' : undefined}
+                autoComplete="off"
               />
+              {/* BS168: venues this organizer used before, in this city first. */}
+              {venueOptions.length ? (
+                <datalist id="zde-venues">
+                  {venueOptions.map((v) => (
+                    <option key={v} value={v} />
+                  ))}
+                </datalist>
+              ) : null}
             </div>
             <div className="field">
               <label>EVENT COVER IMAGE</label>

@@ -7,7 +7,6 @@ import { shareCardImage } from '@/app/lib/share-card';
 import { seatmapEnabledFor } from '@/app/lib/seatmap-gate';
 import ViewBeacon from '@/app/components/view-beacon';
 import { fetchInstallmentOffer, InstallmentOfferNote } from '@/app/components/installment-offer';
-import { CITIES } from '@/app/lib/cities';
 import { eventDateLabel } from '@/app/lib/event-date';
 
 // The BRANDED white-label single-event leaf: /@handle/events/:id. ZoraPass handoff
@@ -19,11 +18,10 @@ import { eventDateLabel } from '@/app/lib/event-date';
 export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
-const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
 
 type StorefrontTheme = { brandName?: string; accent?: string; secondary?: string; bg?: string; card?: string; logoUrl?: string; bannerUrl?: string };
 type TenantEvent = {
-  id: string; name: string; tagline?: string; category?: string; city?: string;
+  id: string; name: string; tagline?: string; category?: string; city?: string; cityName?: string; cityCurrency?: string; 
   venue?: string; dateLabel?: string; time?: string; priceFrom?: number; seated?: boolean;
   cover?: string; organizer?: string; organizerHandle?: string; subdomain?: string;
   webCheckout?: { tiers?: CheckoutTier[] };
@@ -85,7 +83,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
     // BS134: installment note — absent when the flag/offer is off or the API is older.
     fetchInstallmentOffer(ev.id || params.id),
   ]);
-  const cur = CUR[ev.city || ''] || 'TZS';
+  const cur = ev.cityCurrency || 'TZS'; // BS168: from the city table
   // Money per 04_UI_COPY: `TSh 25,000` (currency first, thousands separators).
   const curLabel = (c: string) => (c === 'TZS' ? 'TSh' : c);
   const fmtN = (n: number) => n.toLocaleString('en-US');
@@ -223,7 +221,7 @@ export default async function TenantEventPage({ params }: { params: { handle: st
                   dateLabel={ev.dateLabel}
                   time={ev.time}
                   venue={ev.venue}
-                  city={CITIES.find((c) => c.id === ev.city)?.city || ev.city}
+                  city={ev.cityName || ev.city}
                 />
               </div>
             )}

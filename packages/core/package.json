@@ -26,6 +26,10 @@
     "./installments": {
       "types": "./src/installments.ts",
       "default": "./src/installments.ts"
+    },
+    "./city-key": {
+      "types": "./src/city-key.ts",
+      "default": "./src/city-key.ts"
     }
   },
   "scripts": {
