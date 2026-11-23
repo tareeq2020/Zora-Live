@@ -17,18 +17,13 @@ import { eventDateLabel } from '@/app/lib/event-date';
 export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.API_URL || 'http://localhost:4101';
-const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
-// City names in full in body copy (04_UI_COPY rule 7).
-const CITY: Record<string, string> = {
-  dar: 'Dar es Salaam', zanzibar: 'Zanzibar', nairobi: 'Nairobi', accra: 'Accra', lagos: 'Lagos',
-};
 
 type ZoraEvent = {
   id: string;
   name: string;
   tagline?: string;
   category?: string;
-  city?: string;
+  city?: string; cityName?: string; cityCurrency?: string;
   venue?: string;
   dateLabel?: string;
   time?: string;
@@ -99,14 +94,14 @@ export default async function EventPage({ params }: { params: { id: string } }) 
     // BS134: installment note — absent when the flag/offer is off or the API is older.
     fetchInstallmentOffer(ev.id || params.id),
   ]);
-  const cur = CUR[ev.city || ''] || 'TZS';
+  const cur = ev.cityCurrency || 'TZS'; // BS168: from the city table
   // 04_UI_COPY money: `TSh 25,000`, symbol first, thousands separators.
   const curLabel = cur === 'TZS' ? 'TSh' : cur;
   const price = (ev.priceFrom != null ? ev.priceFrom : 0).toLocaleString('en-US');
   // Same "when" line the storefront sheet builds, so both surfaces open an
   // identically-labelled checkout.
   const when = [ev.dateLabel || 'TBA', ev.time, ev.venue].filter(Boolean).join(' · ').toUpperCase();
-  const city = ev.city ? CITY[ev.city] || ev.city : '';
+  const city = ev.cityName || ev.city || '';
 
   return (
     <div className={styles.page}>

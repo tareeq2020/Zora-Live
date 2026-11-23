@@ -185,7 +185,7 @@ const v=JSON.parse(require("fs").readFileSync(process.env.F,"utf8"));
 const E=process.env, items=v.items||[], c=v.counts||{};
 t("shape: generatedAt + counts + items", typeof v.generatedAt==="string" && typeof c==="object" && Array.isArray(items));
 const want={paid_unseatable:1,payment_short:1,paid_no_passes:1,payment_stuck:1,ops_alert:2,payout_request:1,
-            installment_refund:1,kyc_review:2,org_signup:1,buyer_not_notified:1,prompt_timeouts_high:0};
+            installment_refund:1,kyc_review:2,org_signup:1,buyer_not_notified:1,prompt_timeouts_high:0,city_request:0};
 for (const k of Object.keys(want)) t(`counts.${k} = ${want[k]} (got ${c[k]})`, c[k]===want[k]);
 const sum=Object.values(c).reduce((a,b)=>a+b,0);
 t(`12 items, matching the counts (got ${items.length})`, items.length===12 && sum===12);

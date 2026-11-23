@@ -21,14 +21,14 @@ import Link from 'next/link';
 import CheckoutFlow, { resolveCheckoutV2, type CheckoutTier } from '../../../components/checkout-flow';
 import ViewBeacon from '@/app/components/view-beacon';
 import { EventCard, pickStatus, stockForTiers, stockStatus, type InventoryPool } from '../../../components/event-card';
-import { CITIES } from '../../../lib/cities';
 import { fetchCardOffers, hintText, type CardOffer } from '../../../lib/installments';
 
 export type StorefrontEvent = {
   id: string;
   name: string;
   category?: string;
-  city?: string;
+  city?: string; cityName?: string; cityCurrency?: string;
+  
   venue?: string;
   dateLabel?: string;
   time?: string;
@@ -67,7 +67,6 @@ export type StorefrontProps = {
   pools?: Record<string, InventoryPool> | null;
 };
 
-const CUR: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
 // Type is FIXED to the ZoraPass system (Bricolage Grotesque / Bungee / IBM Plex
 // Mono); organizers customise their name, logo and banner, not fonts or chrome
 // colour (STOREFRONT-BRAND-SPEC.md D2 + the BS119 handoff migration).
@@ -216,7 +215,7 @@ export default function StorefrontClient(props: StorefrontProps) {
             ) : (
               <div className="event-grid">
                 {events.map((ev, i) => {
-                  const evCur = CUR[ev.city || ''] || 'TZS';
+                  const evCur = ev.cityCurrency || 'TZS'; // BS168: from the city table
                   // BS26: the headline "FROM" must reflect what's actually on sale — the
                   // cheapest ENABLED tier — not the stale priceFrom scalar (which still
                   // points at a switched-off tier). Falls back to priceFrom for app-claim
@@ -244,7 +243,7 @@ export default function StorefrontClient(props: StorefrontProps) {
                       dateLabel={ev.dateLabel}
                       time={ev.time}
                       venue={ev.venue}
-                      city={CITIES.find((c) => c.id === ev.city)?.city || ev.city}
+                      city={ev.cityName || ev.city}
                       priceFrom={fromPrice ? money(fromPrice, evCur) : undefined}
                       priceNote={fromUsd ? `($${fmt(fromUsd)})` : undefined}
                       status={status}
@@ -310,7 +309,7 @@ export default function StorefrontClient(props: StorefrontProps) {
             dateLabel={active.dateLabel}
             time={active.time}
             venue={active.venue}
-            city={CITIES.find((c) => c.id === active.city)?.city || active.city}
+            city={active.cityName || active.city}
           />
         ) : null}
       </div>

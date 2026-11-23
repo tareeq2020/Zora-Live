@@ -33,7 +33,35 @@ function tenantHandleFromHost(host: string): string | null {
   return null;
 }
 
+/* BS168: Discover's starting city. Vercel's location headers are only readable
+   on the server; reading them in the page would stop /discover being served
+   from the static cache. So the edge copies them into a short-lived cookie the
+   page reads in the browser. Absent off Vercel: Discover falls back to the
+   buyer's last pick, then the busiest city. */
+const GEO_COOKIE = 'zp_geo';
+function withGeoCookie(req: NextRequest, res: NextResponse): NextResponse {
+  const p = req.nextUrl.pathname;
+  if (p !== '/' && p !== '/discover' && !p.startsWith('/discover/')) return res;
+  const city = req.headers.get('x-vercel-ip-city');
+  const country = req.headers.get('x-vercel-ip-country');
+  if (!city && !country) return res;
+  let decoded = city || '';
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    /* keep as sent */
+  }
+  const value = JSON.stringify({ city: decoded.slice(0, 60), country: (country || '').slice(0, 2) });
+  if (req.cookies.get(GEO_COOKIE)?.value === value) return res;
+  res.cookies.set(GEO_COOKIE, value, { path: '/', maxAge: 60 * 60 * 24, sameSite: 'lax' });
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
+  return withGeoCookie(req, await route(req));
+}
+
+async function route(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
   const tenant = tenantHandleFromHost(req.headers.get('host') || '');
 

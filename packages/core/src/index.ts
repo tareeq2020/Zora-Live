@@ -130,6 +130,10 @@ export {
   SuspendedHandleSet, suspendedHandles, fetchSuspendedHandles, normalizeHandle,
   __resetSuspendedHandles, SUSPENDED_HANDLES_TTL_MS,
 } from './suspension';
+export {
+  CityCache, cities, fetchCities, cityKey, citySlug, rowToCity, todayIn, isUpcoming, withCityFields, CITY_STATUSES, CITIES_TTL_MS, CITIES_RETRY_MS, __resetCities,
+} from './cities';
+export type { City, CityStatus } from './cities';
 export type { HasOrganizerHandle } from './suspension';
 // BS38 (#7): the withdrawal ledger + the server-authoritative balance. Request
 // computes the balance and inserts the row in ONE transaction under a per-org

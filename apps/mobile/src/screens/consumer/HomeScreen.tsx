@@ -1,21 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, FlatList, Pressable, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { events as seedEvents, type ConsumerEvent } from '../../data/events';
 import { useEvents, type RemoteEvent } from '../../api/events';
+import { useCities } from '../../api/cities';
 import ZoraLogo from '../../components/ZoraLogo';
 import { useZ } from '../../theme';
 
-const CITIES = ['Dar es Salaam', 'Nairobi', 'Zanzibar', 'Accra', 'Lagos'];
-
-// App city chips → the city CODES stored on events (dar | nairobi | …).
-const CITY_CODE: Record<string, string> = {
-  'Dar es Salaam': 'dar', Nairobi: 'nairobi', Zanzibar: 'zanzibar', Accra: 'accra', Lagos: 'lagos',
-};
-const CURRENCY: Record<string, string> = { dar: 'TZS', zanzibar: 'TZS', nairobi: 'KES', accra: 'GHS', lagos: 'NGN' };
+// BS168: no city list here. Cities come from GET /api/cities (only those with
+// upcoming events, busiest first); each event carries its city's currency.
 const CAT_TINT: Record<string, string> = { Festivals: '#3D5AFE', Nightlife: '#C738C6', Daytime: '#E9A83B', Arts: '#17B368', Concerts: '#FF5A1F' };
-const money = (code?: string | null, n?: number) => (n != null ? `${CURRENCY[code || 'dar'] || 'TZS'} ${n.toLocaleString()}` : '');
+const money = (currency?: string | null, n?: number) => (n != null ? `${currency || 'TZS'} ${n.toLocaleString()}` : '');
 
 // Nest marketplace row -> mobile marketplace card. The full event lives in `props`.
 const toCard = (e: RemoteEvent): ConsumerEvent => {
@@ -25,7 +22,7 @@ const toCard = (e: RemoteEvent): ConsumerEvent => {
     name: p.name || e.name,
     venue: p.venue || '',
     date: [p.dateLabel, p.time].filter(Boolean).join(' · '),
-    from: money(e.city, p.priceFrom),
+    from: money(p.cityCurrency, p.priceFrom),
     cover: e.cover || CAT_TINT[p.category || ''] || '#3D5AFE',
   };
 };
@@ -34,10 +31,24 @@ export default function HomeScreen() {
   const z = useZ();
   const nav = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const [city, setCity] = useState('Dar es Salaam');
+  const { cities, loading: citiesLoading } = useCities();
+  const [picked, setPicked] = useState<string | null>(null);
   const [cityOpen, setCityOpen] = useState(false);
+  // Remember the buyer's city between launches.
+  useEffect(() => {
+    AsyncStorage.getItem('zora-city').then((v) => { if (v) setPicked(v); }).catch(() => {});
+  }, []);
+  const pick = (id: string) => {
+    setPicked(id);
+    AsyncStorage.setItem('zora-city', id).catch(() => {});
+  };
+  // The buyer's pick, else the busiest city. No city yet (loading, or none
+  // has events): every event, labelled as such.
+  const cityId = picked && cities.some((c) => c.id === picked) ? picked : cities[0]?.id;
+  const city = cities.find((c) => c.id === cityId)?.name ?? (citiesLoading ? '…' : 'All cities');
+  const canSwitch = cities.length > 1;
 
-  const { events: remote } = useEvents(CITY_CODE[city] || 'dar');
+  const { events: remote } = useEvents(cityId);
   const live = remote.length > 0;
   const list: ConsumerEvent[] = live ? remote.map(toCard) : seedEvents;
 
@@ -47,7 +58,7 @@ export default function HomeScreen() {
     ? {
         id: heroRemote.props.id || heroRemote.id,
         name: heroRemote.props.name || heroRemote.name,
-        sub: [heroRemote.props.dateLabel, city, money(heroRemote.city, heroRemote.props.priceFrom) && 'from ' + money(heroRemote.city, heroRemote.props.priceFrom)]
+        sub: [heroRemote.props.dateLabel, city, money(heroRemote.props.cityCurrency, heroRemote.props.priceFrom) && 'from ' + money(heroRemote.props.cityCurrency, heroRemote.props.priceFrom)]
           .filter(Boolean)
           .join(' · '),
       }
@@ -71,10 +82,13 @@ export default function HomeScreen() {
                 <ZoraLogo variant="wordmark" size={15} />
               </View>
               <Pressable
-                onPress={() => setCityOpen(true)}
+                onPress={() => canSwitch && setCityOpen(true)}
+                disabled={!canSwitch}
+                accessibilityRole={canSwitch ? 'button' : 'text'}
+                accessibilityLabel={canSwitch ? `City: ${city}. Change city` : `City: ${city}`}
                 style={({ pressed }) => ({ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 100, paddingHorizontal: 12, paddingVertical: 7, opacity: pressed ? 0.7 : 1 })}
               >
-                <Text style={{ color: z.bone, fontWeight: '600', fontSize: 12 }}>{city} ▾</Text>
+                <Text style={{ color: z.bone, fontWeight: '600', fontSize: 12 }}>{city}{canSwitch ? ' ▾' : ''}</Text>
               </Pressable>
             </View>
             <Pressable onPress={() => openBooking(hero.id)} style={{ height: 190, borderRadius: 22, overflow: 'hidden', justifyContent: 'flex-end', padding: 16, backgroundColor: '#241a3a', marginBottom: 16 }}>
@@ -101,10 +115,11 @@ export default function HomeScreen() {
       <Modal visible={cityOpen} transparent animationType="fade" onRequestClose={() => setCityOpen(false)}>
         <Pressable onPress={() => setCityOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', paddingHorizontal: 30 }}>
           <View style={{ backgroundColor: z.panel, borderColor: z.line, borderWidth: 1, borderRadius: 20, paddingVertical: 8 }}>
-            <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, paddingHorizontal: 18, paddingVertical: 10 }}>CHOOSE YOUR CITY</Text>
-            {CITIES.map((c) => (
-              <Pressable key={c} onPress={() => { setCity(c); setCityOpen(false); }} style={{ paddingHorizontal: 18, paddingVertical: 14 }}>
-                <Text style={{ color: c === city ? z.ultraSoft : z.bone, fontWeight: c === city ? '800' : '500', fontSize: 16 }}>{c}</Text>
+            <Text style={{ color: z.mut2, fontSize: 11, fontWeight: '700', letterSpacing: 2, paddingHorizontal: 18, paddingVertical: 10 }}>CITIES WITH EVENTS</Text>
+            {cities.map((c) => (
+              <Pressable key={c.id} onPress={() => { pick(c.id); setCityOpen(false); }} style={{ paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: c.id === cityId ? z.ultraSoft : z.bone, fontWeight: c.id === cityId ? '800' : '500', fontSize: 16 }}>{c.name}</Text>
+                <Text style={{ color: z.mut2, fontSize: 13 }}>{c.upcoming} event{c.upcoming === 1 ? '' : 's'}</Text>
               </Pressable>
             ))}
           </View>

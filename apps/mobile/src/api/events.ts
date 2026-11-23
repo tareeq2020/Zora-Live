@@ -7,7 +7,9 @@ export interface EventProps {
   name: string;
   tagline?: string;
   category?: string;
-  city?: string;            // code: dar | nairobi | lagos …
+  city?: string;            // city id from GET /api/cities (dar | nairobi | …)
+  cityName?: string;        // BS168: display name, sent with every event
+  cityCurrency?: string;    // BS168: the city's currency
   venue?: string;
   dateLabel?: string;
   time?: string;
@@ -45,6 +47,8 @@ function normalizeEvent(e: any): RemoteEvent {
     tagline: e?.tagline,
     category: e?.category,
     city: e?.city,
+    cityName: e?.cityName,
+    cityCurrency: e?.cityCurrency,
     venue: e?.venue,
     dateLabel: e?.dateLabel ?? e?.date,
     time: e?.time,

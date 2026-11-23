@@ -31,7 +31,9 @@ const OWN_CHROME = new Set(['/', '/about', '/help', '/commission', '/brand', '/d
 const FIXED_THEME = new Set(['/', '/discover']);
 
 export function MarketingChrome({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const raw = usePathname();
+  // BS168: /discover/<city> is the same page as /discover.
+  const pathname = raw.startsWith('/discover/') ? '/discover' : raw;
   const showToggle = !FIXED_THEME.has(pathname);
   if (OWN_CHROME.has(pathname)) {
     return (
